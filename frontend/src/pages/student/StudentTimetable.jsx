@@ -12,7 +12,7 @@ import {
 
 import {
   useAuth,
-} from "../../context/AuthContext";
+} from "../../context/useAuth";
 
 import {
   useStudentTimetable,

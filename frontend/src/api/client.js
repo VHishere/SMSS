@@ -80,4 +80,7 @@ export const authApi = {
 export const studentApi = {
   getMyProfile: () =>
     request("/students/me"),
+
+  getMyTimetable: () =>
+    request("/students/me/timetable"),
 };

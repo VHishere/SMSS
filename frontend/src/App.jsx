@@ -8,6 +8,7 @@ import { StaffDashboard } from './pages/dashboards/StaffDashboard';
 import { TeacherDashboard } from './pages/dashboards/TeacherDashboard';
 import { ParentDashboard } from './pages/dashboards/ParentDashboard';
 import StudentDashboard from "./pages/dashboards/StudentDashboard";
+import StudentTimetable from "./pages/student/StudentTimetable";
 import './App.css';
 
 function App() {
@@ -58,6 +59,17 @@ function App() {
                         element={
                             <ProtectedRoute allowedRoles={['STUDENT']}>
                                 <StudentDashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
+                        path="/student/timetable"
+                        element={
+                            <ProtectedRoute
+                                allowedRoles={["STUDENT"]}
+                            >
+                                <StudentTimetable />
                             </ProtectedRoute>
                         }
                     />

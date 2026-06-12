@@ -19,17 +19,12 @@ export const dashboardNavigation = {
       end: true,
     },
     {
-      label: "Học sinh",
-      path: "/students",
-      icon: FiUsers,
-    },
-    {
-      label: "Lớp học",
+      label: "Class",
       path: "/classes",
       icon: FiBookOpen,
     },
     {
-      label: "Điểm danh",
+      label: "Attendance",
       path: "/attendance",
       icon: FiCalendar,
     },
@@ -39,17 +34,17 @@ export const dashboardNavigation = {
       icon: FiUserCheck,
     },
     {
-      label: "Thời khóa biểu",
-      path: "/timetable",
+      label: "Timetable",
+      path: "/student/timetable",
       icon: FiClock,
     },
     {
-      label: "Báo cáo",
+      label: "Reports",
       path: "/reports",
       icon: FiBarChart2,
     },
     {
-      label: "Cài đặt",
+      label: "Semester Goal",
       path: "/settings",
       icon: FiSettings,
     },

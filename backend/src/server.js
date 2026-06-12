@@ -1,21 +1,22 @@
-const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+require("dotenv").config();
 
-const app = require('./app');
-const { testConnection } = require('./config/db');
+const app = require("./app");
 
 const PORT = Number(process.env.PORT) || 3000;
+const HOST = "0.0.0.0";
 
-async function start() {
-    try {
-        await testConnection();
-        app.listen(PORT, () => {
-            console.log(`KidCare API chạy tại http://localhost:${PORT}`);
-        });
-    } catch (err) {
-        console.error('Không thể khởi động server:', err.message);
-        process.exit(1);
-    }
-}
+const server = app.listen(PORT, HOST, () => {
+  console.log(
+    `KidCare API đang lắng nghe tại http://127.0.0.1:${PORT}`,
+  );
+});
 
-start();
+server.on("error", (error) => {
+  console.error("Không thể khởi động server:", error);
+
+  if (error.code === "EADDRINUSE") {
+    console.error(`Port ${PORT} đang được sử dụng.`);
+  }
+
+  process.exit(1);
+});

@@ -7,7 +7,7 @@ import { AdminDashboard } from './pages/dashboards/AdminDashboard';
 import { StaffDashboard } from './pages/dashboards/StaffDashboard';
 import { TeacherDashboard } from './pages/dashboards/TeacherDashboard';
 import { ParentDashboard } from './pages/dashboards/ParentDashboard';
-import { StudentDashboard } from './pages/dashboards/StudentDashboard';
+import StudentDashboard from "./pages/dashboards/StudentDashboard";
 import './App.css';
 
 function App() {

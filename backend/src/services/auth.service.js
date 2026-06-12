@@ -115,7 +115,7 @@ async function login({ email, password, portal }) {
     };
 }
 
-async function getProfile(userId) {
+async function getProfile(userId, portal) {
     const [rows] = await pool.query(
         `SELECT user_id, username, email, full_name, phone, status
          FROM user_account
@@ -143,6 +143,7 @@ async function getProfile(userId) {
             roleName: role.role_name,
             description: role.description
         })),
+        portal: portal || null,
         dashboardPath: getDashboardPath(roles.map((role) => role.role_name))
     };
 }

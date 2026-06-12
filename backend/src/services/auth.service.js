@@ -225,6 +225,13 @@ async function getProfile(userId) {
     `,
     [userId],
   );
+async function getProfile(userId, portal) {
+    const [rows] = await pool.query(
+        `SELECT user_id, username, email, full_name, phone, status
+         FROM user_account
+         WHERE user_id = ?`,
+        [userId]
+    );
 
   const user = rows[0];
 
@@ -260,12 +267,13 @@ async function getProfile(userId) {
       roleName: role.role_name,
       description: role.description,
     })),
+        portal: portal || null,
 
     dashboardPath:
       getDashboardPath(roleNames),
   };
 }
-
+}
 module.exports = {
   login,
   getProfile,

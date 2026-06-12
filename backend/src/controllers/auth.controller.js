@@ -36,7 +36,7 @@ async function loginParent(req, res) {
 
 async function getMe(req, res) {
     try {
-        const profile = await authService.getProfile(req.user.userId);
+        const profile = await authService.getProfile(req.user.userId, req.user.portal);
         res.json({ success: true, data: profile });
     } catch (err) {
         res.status(err.statusCode || 500).json({

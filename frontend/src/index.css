@@ -1,9 +1,15 @@
 :root {
+    --cream: #fff7f2;
+    --peach: #ffe7d6;
+    --orange: #f27123;
+    --navy: #0f2747;
+    --blue: #08509f;
+
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     line-height: 1.5;
     font-weight: 400;
-    color: #0f172a;
-    background-color: #f8fafc;
+    color: var(--navy);
+    background-color: var(--cream);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -18,8 +24,13 @@ body {
     margin: 0;
     min-width: 320px;
     min-height: 100vh;
+    background: var(--cream);
 }
 
 #root {
     min-height: 100vh;
+}
+
+a {
+    color: var(--blue);
 }

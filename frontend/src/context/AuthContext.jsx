@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi } from '../api/client';
+import { saveLastPortal } from '../utils/auth';
 
 const AuthContext = createContext(null);
 
@@ -22,6 +23,7 @@ export function AuthProvider({ children }) {
     const login = useCallback((token, userData) => {
         localStorage.setItem(TOKEN_KEY, token);
         localStorage.setItem(USER_KEY, JSON.stringify(userData));
+        saveLastPortal(userData.portal);
         setUser(userData);
     }, []);
 
@@ -38,6 +40,9 @@ export function AuthProvider({ children }) {
             .then((res) => {
                 setUser(res.data);
                 localStorage.setItem(USER_KEY, JSON.stringify(res.data));
+                if (res.data.portal) {
+                    saveLastPortal(res.data.portal);
+                }
             })
             .catch(() => logout())
             .finally(() => setLoading(false));

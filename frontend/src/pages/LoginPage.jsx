@@ -1,17 +1,30 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { authApi } from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { saveLastPortal } from '../utils/auth';
 
 export function LoginPage({ portal }) {
     const isSchool = portal === 'school';
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, user, loading, isAuthenticated } = useAuth();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+        saveLastPortal(portal);
+    }, [portal]);
+
+    if (loading) {
+        return <div className="page-loading">Đang tải...</div>;
+    }
+
+    if (isAuthenticated) {
+        return <Navigate to={user.dashboardPath || '/'} replace />;
+    }
 
     const handleSubmit = async (event) => {
         event.preventDefault();
@@ -23,9 +36,9 @@ export function LoginPage({ portal }) {
                 ? await authApi.loginSchool(email, password)
                 : await authApi.loginParent(email, password);
 
-            const { token, user } = response.data;
-            login(token, user);
-            navigate(user.dashboardPath || '/');
+            const { token, user: userData } = response.data;
+            login(token, userData);
+            navigate(userData.dashboardPath || '/');
         } catch (err) {
             setError(err.message);
         } finally {
@@ -38,7 +51,11 @@ export function LoginPage({ portal }) {
             <div className="login-card">
                 <Link to="/" className="back-link">← Quay lại</Link>
 
-                <p className="eyebrow">{isSchool ? 'Cổng Trường' : 'Cổng Phụ huynh'}</p>
+                <div className="login-brand">
+                    <span className="brand-mark">FPT</span>
+                    <p className="eyebrow">{isSchool ? 'Cổng Trường' : 'Cổng Phụ huynh'}</p>
+                </div>
+
                 <h1>Đăng nhập</h1>
                 <p className="lead">
                     {isSchool

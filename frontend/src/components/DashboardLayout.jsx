@@ -1,20 +1,22 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { getLoginPath } from '../utils/auth';
 
 export function DashboardLayout({ title, subtitle, children }) {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
 
     const handleLogout = () => {
+        const loginPath = getLoginPath();
         logout();
-        navigate('/');
+        navigate(loginPath);
     };
 
     return (
         <div className="dashboard">
             <header className="dashboard-header">
-                <div>
-                    <p className="brand">KidCare</p>
+                <div className="dashboard-brand-block">
+                    <p className="brand">FPT School · KidCare</p>
                     <h1>{title}</h1>
                     {subtitle && <p className="subtitle">{subtitle}</p>}
                 </div>
@@ -38,10 +40,6 @@ export function DashboardLayout({ title, subtitle, children }) {
             </section>
 
             <main className="dashboard-content">{children}</main>
-
-            <footer className="dashboard-footer">
-                <Link to="/">← Về trang chọn cổng đăng nhập</Link>
-            </footer>
         </div>
     );
 }

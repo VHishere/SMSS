@@ -7,7 +7,7 @@ async function request(
   options = {},
 ) {
   const token =
-    localStorage.getItem(
+    sessionStorage.getItem(
       "kidcare_token",
     );
 

@@ -1,6 +1,12 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import { getLoginPath } from '../utils/auth';
+
+function getLoginPathForRoles(allowedRoles) {
+    if (allowedRoles?.includes('PARENT')) {
+        return '/login/parent';
+    }
+    return '/login/school';
+}
 
 export function ProtectedRoute({ children, allowedRoles }) {
     const { user, loading, isAuthenticated } = useAuth();
@@ -11,7 +17,7 @@ export function ProtectedRoute({ children, allowedRoles }) {
     }
 
     if (!isAuthenticated) {
-        return <Navigate to={getLoginPath()} replace state={{ from: location }} />;
+        return <Navigate to={getLoginPathForRoles(allowedRoles)} replace state={{ from: location }} />;
     }
 
     if (allowedRoles?.length) {

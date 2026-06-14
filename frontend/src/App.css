@@ -1,184 +1,379 @@
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
-
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-}
-
-.hero {
-  position: relative;
-
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
-
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
-}
-
-#center {
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
-}
-
-#next-steps {
-  display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
-}
-
-#docs {
-  border-right: 1px solid var(--border);
-
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-}
-
-#next-steps ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
+.home-page,
+.login-page {
+    min-height: 100vh;
     display: flex;
-    padding: 6px 12px;
     align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
     justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
+    padding: 2rem;
 }
 
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
+.home-page {
+    background:
+        radial-gradient(circle at top right, rgba(242, 113, 35, 0.12), transparent 35%),
+        radial-gradient(circle at bottom left, rgba(8, 80, 159, 0.1), transparent 40%),
+        linear-gradient(160deg, var(--cream) 0%, var(--peach) 100%);
 }
 
-.ticks {
-  position: relative;
-  width: 100%;
+.login-page.school {
+    background:
+        radial-gradient(circle at top left, rgba(8, 80, 159, 0.14), transparent 40%),
+        linear-gradient(160deg, var(--cream) 0%, #e8f1fa 100%);
+}
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
+.login-page.parent {
+    background:
+        radial-gradient(circle at top right, rgba(242, 113, 35, 0.14), transparent 40%),
+        linear-gradient(160deg, var(--cream) 0%, var(--peach) 100%);
+}
 
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
-  }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
+.home-card,
+.login-card {
+    width: 100%;
+    max-width: 760px;
+    background: #fff;
+    border-radius: 24px;
+    padding: 2.5rem;
+    border: 1px solid rgba(15, 39, 71, 0.08);
+    box-shadow: 0 24px 60px rgba(15, 39, 71, 0.1);
+}
+
+.login-card {
+    max-width: 460px;
+}
+
+.home-brand,
+.login-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.brand-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3rem;
+    height: 2rem;
+    padding: 0 0.75rem;
+    border-radius: 999px;
+    background: var(--orange);
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+}
+
+.eyebrow {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--blue);
+    margin: 0;
+}
+
+.login-page.parent .eyebrow {
+    color: var(--orange);
+}
+
+h1 {
+    margin: 0 0 0.75rem;
+    font-size: 2rem;
+    color: var(--navy);
+}
+
+.lead,
+.subtitle {
+    color: rgba(15, 39, 71, 0.72);
+    line-height: 1.6;
+    margin: 0 0 1.5rem;
+}
+
+.portal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+}
+
+.portal-card {
+    display: block;
+    padding: 1.5rem;
+    border-radius: 18px;
+    text-decoration: none;
+    color: inherit;
+    border: 2px solid transparent;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.portal-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 16px 36px rgba(15, 39, 71, 0.12);
+}
+
+.portal-card.school {
+    background: linear-gradient(180deg, #f3f8fd 0%, #e8f1fa 100%);
+    border-color: rgba(8, 80, 159, 0.2);
+}
+
+.portal-card.school:hover {
+    border-color: var(--blue);
+}
+
+.portal-card.parent {
+    background: linear-gradient(180deg, #fff8f3 0%, var(--peach) 100%);
+    border-color: rgba(242, 113, 35, 0.25);
+}
+
+.portal-card.parent:hover {
+    border-color: var(--orange);
+}
+
+.portal-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+}
+
+.school-icon {
+    background: rgba(8, 80, 159, 0.12);
+}
+
+.parent-icon {
+    background: rgba(242, 113, 35, 0.15);
+}
+
+.portal-card h2 {
+    margin: 0 0 0.5rem;
+    font-size: 1.25rem;
+    color: var(--navy);
+}
+
+.portal-card p {
+    margin: 0 0 0.75rem;
+    color: rgba(15, 39, 71, 0.7);
+}
+
+.portal-hint {
+    font-size: 0.85rem;
+    color: rgba(15, 39, 71, 0.55);
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 1rem;
+    color: var(--blue);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.login-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--navy);
+}
+
+.login-form input {
+    padding: 0.8rem 1rem;
+    border: 1px solid rgba(15, 39, 71, 0.15);
+    border-radius: 12px;
+    font-size: 1rem;
+    background: var(--cream);
+    color: var(--navy);
+}
+
+.login-form input:focus {
+    outline: 2px solid rgba(242, 113, 35, 0.35);
+    border-color: var(--orange);
+    background: #fff;
+}
+
+.btn-primary,
+.btn-secondary {
+    border: none;
+    border-radius: 12px;
+    padding: 0.85rem 1.2rem;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-primary {
+    background: var(--orange);
+    color: #fff;
+    box-shadow: 0 10px 24px rgba(242, 113, 35, 0.28);
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(242, 113, 35, 0.34);
+}
+
+.btn-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background: #fff;
+    color: var(--navy);
+    border: 1px solid rgba(15, 39, 71, 0.12);
+}
+
+.btn-secondary:hover {
+    background: var(--peach);
+}
+
+.form-error {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    background: rgba(220, 38, 38, 0.08);
+    color: #b91c1c;
+    font-size: 0.9rem;
+}
+
+.switch-portal {
+    margin-top: 1.25rem;
+    font-size: 0.9rem;
+    color: rgba(15, 39, 71, 0.65);
+}
+
+.switch-portal a {
+    color: var(--blue);
+    font-weight: 600;
+}
+
+.page-loading {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--navy);
+    background: var(--cream);
+}
+
+.dashboard {
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at top right, rgba(242, 113, 35, 0.08), transparent 30%),
+        var(--cream);
+    padding: 2rem;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1.5rem;
+    background: #fff;
+    border-radius: 20px;
+    border: 1px solid rgba(15, 39, 71, 0.08);
+    box-shadow: 0 12px 30px rgba(15, 39, 71, 0.06);
+}
+
+.dashboard-brand-block h1 {
+    margin-bottom: 0.35rem;
+}
+
+.brand {
+    margin: 0 0 0.35rem;
+    font-weight: 800;
+    color: var(--orange);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.78rem;
+}
+
+.user-panel {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    text-align: right;
+}
+
+.user-panel p {
+    margin: 0.2rem 0 0;
+    color: rgba(15, 39, 71, 0.6);
+    font-size: 0.9rem;
+}
+
+.role-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.role-badge {
+    background: rgba(8, 80, 159, 0.1);
+    color: var(--blue);
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.dashboard-content {
+    display: grid;
+    gap: 1rem;
+}
+
+.info-card {
+    background: #fff;
+    border-radius: 18px;
+    padding: 1.5rem;
+    border: 1px solid rgba(15, 39, 71, 0.08);
+    box-shadow: 0 10px 28px rgba(15, 39, 71, 0.05);
+}
+
+.info-card h3 {
+    margin-top: 0;
+    color: var(--navy);
+}
+
+.info-card ul {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: rgba(15, 39, 71, 0.72);
+    line-height: 1.8;
+}
+
+@media (max-width: 640px) {
+    .home-card,
+    .login-card {
+        padding: 1.5rem;
+    }
+
+    h1 {
+        font-size: 1.6rem;
+    }
+
+    .dashboard-header {
+        flex-direction: column;
+    }
+
+    .user-panel {
+        width: 100%;
+        justify-content: space-between;
+        text-align: left;
+    }
 }

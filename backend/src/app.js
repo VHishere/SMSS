@@ -9,6 +9,9 @@ const studentRoutes = require(
   "./routes/students.route",
 );
 
+const parentRoutes = require(
+  "./routes/parents.route",
+);
 const app = express();
 
 app.use(
@@ -32,7 +35,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/students", studentRoutes);
-
+app.use("/api/parents", parentRoutes);
 app.use((_req, res) => {
   res.status(404).json({
     success: false,

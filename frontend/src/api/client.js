@@ -89,6 +89,12 @@ export const parentApi = {
   getMyProfile: () =>
     request("/parents/me"),
 
-  getMyTimetable: () =>
-    request("/parents/student/timetable"),
+  getMyStudents: () =>
+    request("/parents/me/students"),
+
+  getStudentProfile: (studentId) =>
+    request(`/parents/me/students/${studentId}`),
+
+  getStudentTimetable: (studentId) =>
+    request(`/parents/me/students/${studentId}/timetable`),
 };

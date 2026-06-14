@@ -9,6 +9,7 @@ import { TeacherDashboard } from './pages/dashboards/TeacherDashboard';
 import ParentDashboard from './pages/dashboards/ParentDashboard';
 import StudentDashboard from "./pages/dashboards/StudentDashboard";
 import StudentTimetable from "./pages/student/StudentTimetable";
+import ParentStudentTimetable from "./pages/parent/StudentTimetable";
 import './App.css';
 
 function App() {
@@ -70,6 +71,15 @@ function App() {
                                 allowedRoles={["STUDENT"]}
                             >
                                 <StudentTimetable />
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
+                        path="/parent/timetable"
+                        element={
+                            <ProtectedRoute allowedRoles={['PARENT']}>
+                                <ParentStudentTimetable />
                             </ProtectedRoute>
                         }
                     />

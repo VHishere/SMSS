@@ -11,6 +11,7 @@ const HOST =
 async function startServer() {
   try {
     await testConnection();
+    await ensureValidPasswords();
 
     const server = app.listen(
       PORT,
@@ -38,24 +39,12 @@ async function startServer() {
     });
   } catch (error) {
     console.error(
-      "Không thể kết nối MySQL:",
+      "Không thể khởi động server:",
       error.message,
     );
 
     process.exit(1);
   }
-async function start() {
-    try {
-        await testConnection();
-        await ensureValidPasswords();
+}
 
-        app.listen(PORT, () => {
-            console.log(`KidCare API chạy tại http://localhost:${PORT}`);
-        });
-    } catch (err) {
-        console.error('Không thể khởi động server:', err.message);
-        process.exit(1);
-    }
-}
-}
 startServer();

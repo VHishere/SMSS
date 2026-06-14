@@ -209,7 +209,7 @@ async function login({
   };
 }
 
-async function getProfile(userId) {
+async function getProfile(userId, portal) {
   const [rows] = await pool.query(
     `
       SELECT
@@ -225,20 +225,10 @@ async function getProfile(userId) {
     `,
     [userId],
   );
-async function getProfile(userId, portal) {
-    const [rows] = await pool.query(
-        `SELECT user_id, username, email, full_name, phone, status
-         FROM user_account
-         WHERE user_id = ?`,
-        [userId]
-    );
 
   const user = rows[0];
 
-  if (
-    !user ||
-    user.status !== "ACTIVE"
-  ) {
+  if (!user || user.status !== "ACTIVE") {
     const error = new Error(
       "Không tìm thấy người dùng",
     );
@@ -247,8 +237,7 @@ async function getProfile(userId, portal) {
     throw error;
   }
 
-  const roles =
-    await getUserRoles(userId);
+  const roles = await getUserRoles(userId);
 
   const roleNames = roles.map(
     (role) => role.role_name,
@@ -267,12 +256,11 @@ async function getProfile(userId, portal) {
       roleName: role.role_name,
       description: role.description,
     })),
-        portal: portal || null,
 
-    dashboardPath:
-      getDashboardPath(roleNames),
+    portal: portal || null,
+
+    dashboardPath: getDashboardPath(roleNames),
   };
-}
 }
 module.exports = {
   login,

@@ -102,7 +102,63 @@ async function findLessonsByClassId(classId) {
   return rows;
 }
 
+async function findCurrentStudentContextByStudentId(studentId) {
+  const [rows] = await pool.query(
+    `
+      SELECT
+        s.student_id AS studentId,
+        s.student_code AS studentCode,
+
+        ua.full_name AS fullName,
+        ua.avatar,
+
+        sc.class_id AS classId,
+        sc.class_name AS className,
+        sc.room_name AS classRoom,
+
+        g.grade_name AS gradeName,
+
+        sy.school_year_id AS schoolYearId,
+        sy.year_name AS schoolYearName
+
+      FROM student s
+
+      INNER JOIN user_account ua
+        ON ua.user_id = s.user_id
+
+      INNER JOIN class_enrollment ce
+        ON ce.student_id = s.student_id
+        AND ce.status = 'ACTIVE'
+
+      INNER JOIN school_class sc
+        ON sc.class_id = ce.class_id
+        AND sc.status = 'ACTIVE'
+
+      INNER JOIN grade g
+        ON g.grade_id = sc.grade_id
+
+      INNER JOIN school_year sy
+        ON sy.school_year_id = sc.school_year_id
+
+      WHERE s.student_id = ?
+        AND s.status = 'ACTIVE'
+        AND ua.status = 'ACTIVE'
+
+      ORDER BY
+        sy.is_active DESC,
+        sy.start_date DESC,
+        ce.enrollment_date DESC
+
+      LIMIT 1
+    `,
+    [studentId],
+  );
+
+  return rows[0] || null;
+}
+
 module.exports = {
   findCurrentStudentContext,
+  findCurrentStudentContextByStudentId,
   findLessonsByClassId,
 };

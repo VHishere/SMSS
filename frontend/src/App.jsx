@@ -6,7 +6,7 @@ import { LoginPage } from './pages/LoginPage';
 import { AdminDashboard } from './pages/dashboards/AdminDashboard';
 import { StaffDashboard } from './pages/dashboards/StaffDashboard';
 import { TeacherDashboard } from './pages/dashboards/TeacherDashboard';
-import { ParentDashboard } from './pages/dashboards/ParentDashboard';
+import ParentDashboard from './pages/dashboards/ParentDashboard';
 import StudentDashboard from "./pages/dashboards/StudentDashboard";
 import StudentTimetable from "./pages/student/StudentTimetable";
 import './App.css';

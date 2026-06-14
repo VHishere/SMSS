@@ -84,3 +84,11 @@ export const studentApi = {
   getMyTimetable: () =>
     request("/students/me/timetable"),
 };
+
+export const parentApi = {
+  getMyProfile: () =>
+    request("/parents/me"),
+
+  getMyTimetable: () =>
+    request("/parents/student/timetable"),
+};

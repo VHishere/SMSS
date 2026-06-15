@@ -10,6 +10,7 @@ import ParentDashboard from './pages/dashboards/ParentDashboard';
 import StudentDashboard from "./pages/dashboards/StudentDashboard";
 import StudentTimetable from "./pages/student/StudentTimetable";
 import ParentStudentTimetable from "./pages/parent/StudentTimetable";
+import ParentStudentAttendanceHistory from "./pages/parent/StudentAttendanceHistory";
 import './App.css';
 
 function App() {
@@ -80,6 +81,15 @@ function App() {
                         element={
                             <ProtectedRoute allowedRoles={['PARENT']}>
                                 <ParentStudentTimetable />
+                            </ProtectedRoute>
+                        }
+                    />
+
+                    <Route
+                        path="/parent/attendance"
+                        element={
+                            <ProtectedRoute allowedRoles={['PARENT']}>
+                                <ParentStudentAttendanceHistory />
                             </ProtectedRoute>
                         }
                     />

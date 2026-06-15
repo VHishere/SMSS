@@ -1,8 +1,7 @@
 const express = require("express");
 
-const parentController = require(
-  "../controllers/parent.controller",
-);
+const parentController     = require("../controllers/parent.controller");
+const attendanceController = require("../controllers/attendance.controller");
 
 const {
   authenticate,
@@ -37,6 +36,20 @@ router.get(
   authenticate,
   authorize("PARENT"),
   parentController.getStudentTimetable,
+);
+
+router.get(
+  "/me/students/:studentId/attendance/stats",
+  authenticate,
+  authorize("PARENT"),
+  attendanceController.getStudentAttendanceStats,
+);
+
+router.get(
+  "/me/students/:studentId/attendance/history",
+  authenticate,
+  authorize("PARENT"),
+  attendanceController.getStudentAttendanceHistory,
 );
 
 module.exports = router;

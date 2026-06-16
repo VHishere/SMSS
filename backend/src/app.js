@@ -1,3 +1,4 @@
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 
@@ -25,7 +26,7 @@ app.use(
 );
 
 app.use(express.json());
-
+app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")));
 app.get("/api/health", (_req, res) => {
   res.json({
     success: true,

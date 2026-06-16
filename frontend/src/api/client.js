@@ -10,9 +10,9 @@ async function request(
     sessionStorage.getItem(
       "kidcare_token",
     );
-
+  const isFormData = options.body instanceof FormData;
   const headers = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...options.headers,
   };
 
@@ -104,4 +104,25 @@ export const parentApi = {
       `/parents/me/students/${studentId}/attendance/history${qs ? `?${qs}` : ""}`,
     );
   },
+
+  getStudentLeaveRequests: (studentId, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(
+      `/parents/me/students/${studentId}/leave-requests${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  getLeaveRequestDetail: (studentId, leaveRequestId) =>
+    request(`/parents/me/students/${studentId}/leave-requests/${leaveRequestId}`),
+
+  createLeaveRequest: (studentId, formData) =>
+    request(`/parents/me/students/${studentId}/leave-requests`, {
+      method: "POST",
+      body: formData,
+    }),
+
+  cancelLeaveRequest: (studentId, leaveRequestId) =>
+    request(`/parents/me/students/${studentId}/leave-requests/${leaveRequestId}/cancel`, {
+      method: "PATCH",
+    }),
 };

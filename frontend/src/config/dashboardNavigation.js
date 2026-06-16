@@ -155,6 +155,11 @@ export const dashboardNavigation = {
       icon: FiCalendar,
     },
     {
+      label: "Đơn xin nghỉ",
+      path: "/parent/leave-requests",
+      icon: FiBookOpen,
+    },
+    {
       label: "Thời khóa biểu",
       path: "/parent/timetable",
       icon: FiClock,

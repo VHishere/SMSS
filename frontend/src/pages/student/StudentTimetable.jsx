@@ -1,22 +1,49 @@
+import { useMemo } from "react";
 import {
-  useMemo,
-} from "react";
+  FiBookOpen,
+  FiCalendar,
+  FiGrid,
+  FiUsers,
+} from "react-icons/fi";
 
 import WeeklyTimetable from "../../components/organisms/WeeklyTimetable";
-
 import DashboardShell from "../../components/templates/DashboardShell";
-
-import {
-  dashboardNavigation,
-} from "../../config/dashboardNavigation";
-
+import { dashboardNavigation } from "../../config/dashboardNavigation";
 import {
   useAuth,
 } from "../../context/useAuth";
+import { useStudentTimetable } from "../../hooks/useStudentTimetable";
 
-import {
-  useStudentTimetable,
-} from "../../hooks/useStudentTimetable";
+function InfoItem({
+  icon: Icon,
+  label,
+  value,
+  colorClass,
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div
+        className={`
+          flex h-11 w-11 shrink-0 items-center justify-center
+          rounded-full
+          ${colorClass}
+        `}
+      >
+        <Icon size={20} />
+      </div>
+
+      <div>
+        <p className="mb-1 text-xs font-medium text-slate-500">
+          {label}
+        </p>
+
+        <p className="mb-0 text-base font-bold text-[#0F2747]">
+          {value || "Chưa cập nhật"}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function StudentTimetable() {
   const { user } = useAuth();
@@ -28,11 +55,9 @@ function StudentTimetable() {
   } = useStudentTimetable();
 
   const headerUser = useMemo(() => {
-    const studentRole =
-      user?.roles?.find(
-        (role) =>
-          role.roleName === "STUDENT",
-      );
+    const studentRole = user?.roles?.find(
+      (role) => role.roleName === "STUDENT",
+    );
 
     return {
       name:
@@ -50,17 +75,12 @@ function StudentTimetable() {
         user?.avatar ||
         "",
     };
-  }, [
-    data,
-    user,
-  ]);
+  }, [data, user]);
 
   return (
     <DashboardShell
       user={headerUser}
-      menuItems={
-        dashboardNavigation.STUDENT
-      }
+      menuItems={dashboardNavigation.STUDENT}
       sidebarFooterLabel="Năm học hiện tại"
       sidebarFooterValue={
         data?.context?.schoolYearName ||
@@ -69,54 +89,80 @@ function StudentTimetable() {
     >
       <section
         className="
-          mb-6 rounded-2xl
+          mb-6 overflow-hidden rounded-3xl
           border border-orange-100
-          bg-white p-5 shadow-sm
-          sm:p-6
+          bg-white shadow-sm
         "
       >
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p
+        <div
+          className="
+            flex flex-wrap items-center justify-between
+            gap-6 px-6 py-6 lg:px-8
+          "
+        >
+          <div className="flex items-center gap-5">
+            <div
               className="
-                mb-2 text-xs font-bold
-                uppercase tracking-[0.18em]
+                flex h-20 w-20 shrink-0
+                items-center justify-center
+                rounded-full bg-[#FFE7D6]
                 text-[#F27123]
               "
             >
-              Học tập
-            </p>
+              <FiCalendar size={34} />
+            </div>
 
-            <h1 className="mb-2 text-2xl font-bold text-[#0F2747] sm:text-3xl">
-              Thời khóa biểu
-            </h1>
+            <div>
+              <p
+                className="
+                  mb-2 text-xs font-bold
+                  uppercase tracking-[0.18em]
+                  text-[#F27123]
+                "
+              >
+                Học tập
+              </p>
 
-            <p className="mb-0 text-sm text-slate-500">
-              Theo dõi lịch học theo từng
-              tiết trong tuần.
-            </p>
+              <h1 className="mb-2 text-3xl font-bold text-[#0F2747]">
+                Thời khóa biểu
+              </h1>
+
+              <p className="mb-0 text-sm text-slate-500">
+                Xem thời khóa biểu của lớp theo tuần.
+              </p>
+            </div>
           </div>
 
-          <div className="rounded-xl bg-[#FFF7F2] px-4 py-3 text-right">
-            <p className="mb-1 text-xs text-slate-500">
-              Lớp hiện tại
-            </p>
+          <div
+            className="
+              grid w-full gap-4 rounded-2xl
+              border border-orange-100
+              bg-white px-5 py-4
+              shadow-sm
+              sm:grid-cols-3 lg:w-auto
+              lg:min-w-[560px]
+            "
+          >
+            <InfoItem
+              icon={FiUsers}
+              label="Lớp"
+              value={data?.context?.className}
+              colorClass="bg-orange-50 text-[#F27123]"
+            />
 
-            <p className="mb-0 font-bold text-[#0F2747]">
-              {data?.context?.className ||
-                "Đang tải..."}
-            </p>
+            <InfoItem
+              icon={FiGrid}
+              label="Khối"
+              value={data?.context?.gradeName}
+              colorClass="bg-blue-50 text-[#08509F]"
+            />
 
-            {data?.context
-              ?.classRoom && (
-              <p className="mb-0 mt-1 text-xs text-[#08509F]">
-                Phòng chủ nhiệm{" "}
-                {
-                  data.context
-                    .classRoom
-                }
-              </p>
-            )}
+            <InfoItem
+              icon={FiBookOpen}
+              label="Năm học"
+              value={data?.context?.schoolYearName}
+              colorClass="bg-green-50 text-green-600"
+            />
           </div>
         </div>
       </section>
@@ -124,11 +170,9 @@ function StudentTimetable() {
       {loading && (
         <div
           className="
-            rounded-2xl
-            border border-orange-100
+            rounded-2xl border border-orange-100
             bg-white p-8 text-center
-            text-sm text-slate-500
-            shadow-sm
+            text-sm text-slate-500 shadow-sm
           "
         >
           Đang tải thời khóa biểu...
@@ -138,26 +182,22 @@ function StudentTimetable() {
       {error && (
         <div
           className="
-            rounded-2xl
-            border border-red-200
+            rounded-2xl border border-red-200
             bg-red-50 px-5 py-4
             text-sm text-red-600
           "
         >
-          Không tải được thời khóa biểu:{" "}
-          {error}
+          Không tải được thời khóa biểu: {error}
         </div>
       )}
 
-      {!loading &&
-        !error &&
-        data && (
-          <WeeklyTimetable
-            weekDays={data.weekDays}
-            slots={data.slots}
-            lessons={data.lessons}
-          />
-        )}
+      {!loading && !error && data && (
+        <WeeklyTimetable
+          weekDays={data.weekDays}
+          slots={data.slots}
+          lessons={data.lessons}
+        />
+      )}
     </DashboardShell>
   );
 }

@@ -14,6 +14,7 @@ import {
   FiSettings,
   FiShield,
   FiStar,
+  FiTrendingUp,
   FiUserCheck,
   FiUsers,
 } from "react-icons/fi";
@@ -105,14 +106,29 @@ export const dashboardNavigation = {
       end: true,
     },
     {
-      label: "Học sinh",
-      path: "/staff/students",
-      icon: FiUsers,
+      label: "Năm học",
+      path: "/staff/school-years",
+      icon: FiCalendar,
     },
     {
       label: "Lớp học",
       path: "/staff/classes",
       icon: FiBookOpen,
+    },
+    {
+      label: "Lên khối",
+      path: "/staff/promotion",
+      icon: FiTrendingUp,
+    },
+    {
+      label: "Học sinh",
+      path: "/staff/students",
+      icon: FiUsers,
+    },
+    {
+      label: "Phụ huynh",
+      path: "/staff/parents",
+      icon: FiUserCheck,
     },
     {
       label: "Báo cáo",

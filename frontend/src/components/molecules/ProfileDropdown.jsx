@@ -11,7 +11,9 @@ import {
   FiUser,
 } from "react-icons/fi";
 
-import { useAuth } from "../../context/AuthContext";
+import {
+  useAuth,
+} from "../../context/useAuth";
 
 import UserAvatar from "../atoms/UserAvatar";
 

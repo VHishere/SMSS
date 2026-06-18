@@ -1,13 +1,19 @@
 import {
   FiAward,
   FiBarChart2,
+  FiBell,
   FiBookOpen,
   FiCalendar,
   FiClock,
+  FiEdit3,
   FiFileText,
+  FiFlag,
   FiGrid,
   FiMessageSquare,
+  FiLifeBuoy,
   FiSettings,
+  FiShield,
+  FiStar,
   FiUserCheck,
   FiUsers,
 } from "react-icons/fi";
@@ -128,9 +134,54 @@ export const dashboardNavigation = {
       icon: FiBookOpen,
     },
     {
+      label: "Học sinh",
+      path: "/teacher/students",
+      icon: FiUsers,
+    },
+    {
+      label: "Ca hỗ trợ",
+      path: "/teacher/support-cases",
+      icon: FiLifeBuoy,
+    },
+    {
       label: "Điểm danh",
       path: "/teacher/attendance",
       icon: FiCalendar,
+    },
+    {
+      label: "Đơn xin nghỉ",
+      path: "/teacher/leave-requests",
+      icon: FiFileText,
+    },
+    {
+      label: "Bài tập",
+      path: "/teacher/homework",
+      icon: FiEdit3,
+    },
+    {
+      label: "Kết quả học tập",
+      path: "/teacher/academic",
+      icon: FiAward,
+    },
+    {
+      label: "Hạnh kiểm",
+      path: "/teacher/behaviour",
+      icon: FiShield,
+    },
+    {
+      label: "Mục tiêu",
+      path: "/teacher/goals",
+      icon: FiFlag,
+    },
+    {
+      label: "Họp phụ huynh",
+      path: "/teacher/meetings",
+      icon: FiCalendar,
+    },
+    {
+      label: "Sự kiện",
+      path: "/teacher/events",
+      icon: FiStar,
     },
     {
       label: "Thời khóa biểu",
@@ -141,6 +192,11 @@ export const dashboardNavigation = {
       label: "Tin nhắn",
       path: "/teacher/messages",
       icon: FiMessageSquare,
+    },
+    {
+      label: "Thông báo",
+      path: "/teacher/announcements",
+      icon: FiBell,
     },
     {
       label: "Báo cáo",
@@ -165,6 +221,11 @@ export const dashboardNavigation = {
       label: "Điểm danh",
       path: "/parent/attendance",
       icon: FiCalendar,
+    },
+    {
+      label: "Đơn xin nghỉ",
+      path: "/parent/leave-requests",
+      icon: FiBookOpen,
     },
     {
       label: "Thời khóa biểu",

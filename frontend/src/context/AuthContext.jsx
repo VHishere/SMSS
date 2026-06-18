@@ -1,121 +1,50 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { authApi } from '../api/client';
+import { saveLastPortal } from '../utils/auth';
+import { AuthContext } from './authContext2';
 
-import { authApi } from "../api/client";
-
-const AuthContext = createContext(null);
-
-const TOKEN_KEY = "kidcare_token";
-const USER_KEY = "kidcare_user";
-
-function getSavedUser() {
-  try {
-    const saved = localStorage.getItem(USER_KEY);
-
-    return saved ? JSON.parse(saved) : null;
-  } catch {
-    localStorage.removeItem(USER_KEY);
-    return null;
-  }
-}
+const TOKEN_KEY = 'kidcare_token';
+const USER_KEY = 'kidcare_user';
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(getSavedUser);
+    const [user, setUser] = useState(() => {
+        const saved = sessionStorage.getItem(USER_KEY);
+        return saved ? JSON.parse(saved) : null;
+    });
+    const [loading, setLoading] = useState(() => Boolean(sessionStorage.getItem(TOKEN_KEY)));
 
-  const [loading, setLoading] = useState(() =>
-    Boolean(localStorage.getItem(TOKEN_KEY)),
-  );
+    const logout = useCallback(() => {
+        sessionStorage.removeItem(TOKEN_KEY);
+        sessionStorage.removeItem(USER_KEY);
+        setUser(null);
+    }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
+    const login = useCallback((token, userData) => {
+        sessionStorage.setItem(TOKEN_KEY, token);
+        sessionStorage.setItem(USER_KEY, JSON.stringify(userData));
+        saveLastPortal(userData.portal);
+        setUser(userData);
+    }, []);
 
-    setUser(null);
-  }, []);
+    useEffect(() => {
+        const token = sessionStorage.getItem(TOKEN_KEY);
+        if (!token) return;
 
-  const login = useCallback((token, userData) => {
-    localStorage.setItem(TOKEN_KEY, token);
+        authApi
+            .getMe()
+            .then((res) => {
+                setUser(res.data);
+                sessionStorage.setItem(USER_KEY, JSON.stringify(res.data));
+                if (res.data.portal) saveLastPortal(res.data.portal);
+            })
+            .catch(() => logout())
+            .finally(() => setLoading(false));
+    }, [logout]);
 
-    localStorage.setItem(
-      USER_KEY,
-      JSON.stringify(userData),
+    const value = useMemo(
+        () => ({ user, loading, login, logout, isAuthenticated: Boolean(user) }),
+        [user, loading, login, logout]
     );
 
-    setUser(userData);
-  }, []);
-
-  useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-
-    if (!token) {
-      return undefined;
-    }
-
-    let isMounted = true;
-
-    authApi
-      .getMe()
-      .then((res) => {
-        if (!isMounted) {
-          return;
-        }
-
-        setUser(res.data);
-
-        localStorage.setItem(
-          USER_KEY,
-          JSON.stringify(res.data),
-        );
-      })
-      .catch(() => {
-        if (isMounted) {
-          logout();
-        }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [logout]);
-
-  const value = useMemo(
-    () => ({
-      user,
-      loading,
-      login,
-      logout,
-      isAuthenticated: Boolean(user),
-    }),
-    [user, loading, login, logout],
-  );
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function useAuth() {
-  const context = useContext(AuthContext);
-
-  if (!context) {
-    throw new Error(
-      "useAuth phải được dùng trong AuthProvider",
-    );
-  }
-
-  return context;
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

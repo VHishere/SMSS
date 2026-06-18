@@ -7,7 +7,7 @@ import {
 import { studentApi } from "../../api/client";
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 
 function StudentDashboard() {
   const { user } = useAuth();

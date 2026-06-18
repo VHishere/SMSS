@@ -1,9 +1,6 @@
-require("dotenv").config();
-
-const app = require("./app");
-const {
-  testConnection,
-} = require("./config/db");
+const app = require('./app');
+const { testConnection } = require('./config/db');
+const { ensureValidPasswords } = require('./services/password-setup.service');
 
 const PORT =
   Number(process.env.PORT) || 3000;
@@ -14,6 +11,7 @@ const HOST =
 async function startServer() {
   try {
     await testConnection();
+    await ensureValidPasswords();
 
     const server = app.listen(
       PORT,
@@ -41,7 +39,7 @@ async function startServer() {
     });
   } catch (error) {
     console.error(
-      "Không thể kết nối MySQL:",
+      "Không thể khởi động server:",
       error.message,
     );
 

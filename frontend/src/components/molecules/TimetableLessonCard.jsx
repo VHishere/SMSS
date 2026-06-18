@@ -104,6 +104,12 @@ function TimetableLessonCard({
       </div>
 
       <div className="space-y-1.5">
+        {lesson.className && (
+          <p className="mb-0 text-xs font-semibold text-slate-500">
+            Lớp: {lesson.className}
+          </p>
+        )}
+
         <p className="mb-0 flex items-center gap-1.5 text-xs text-slate-600">
           <FiUser
             size={13}
@@ -111,7 +117,7 @@ function TimetableLessonCard({
           />
 
           <span className="truncate">
-            {lesson.teacherName}
+            {lesson.teacherName || "Chưa phân công giáo viên"}
           </span>
         </p>
 

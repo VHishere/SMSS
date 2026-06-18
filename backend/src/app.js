@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 
 const authRoutes = require(
   "./routes/auth.routes",
@@ -7,6 +8,14 @@ const authRoutes = require(
 
 const studentRoutes = require(
   "./routes/students.route",
+);
+
+const parentRoutes = require(
+  "./routes/parents.route",
+);
+
+const teacherRoutes = require(
+  "./routes/teachers.route",
 );
 
 const app = express();
@@ -23,6 +32,12 @@ app.use(
 
 app.use(express.json());
 
+// Serve uploaded files (homework attachments, etc.)
+app.use(
+  "/uploads",
+  express.static(path.resolve(__dirname, "../uploads")),
+);
+
 app.get("/api/health", (_req, res) => {
   res.json({
     success: true,
@@ -32,7 +47,8 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/students", studentRoutes);
-
+app.use("/api/parents", parentRoutes);
+app.use("/api/teachers", teacherRoutes);
 app.use((_req, res) => {
   res.status(404).json({
     success: false,

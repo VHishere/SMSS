@@ -1,13 +1,25 @@
 import { useMemo } from "react";
-import { FiBookOpen, FiCalendar, FiGrid, FiUsers } from "react-icons/fi";
+import {
+  FiBookOpen,
+  FiCalendar,
+  FiGrid,
+  FiUsers,
+} from "react-icons/fi";
 
 import WeeklyTimetable from "../../components/organisms/WeeklyTimetable";
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
-import { useAuth } from "../../context/AuthContext";
+import {
+  useAuth,
+} from "../../context/useAuth";
 import { useStudentTimetable } from "../../hooks/useStudentTimetable";
 
-function InfoItem({ icon: Icon, label, value, colorClass }) {
+function InfoItem({
+  icon: Icon,
+  label,
+  value,
+  colorClass,
+}) {
   return (
     <div className="flex items-center gap-3">
       <div

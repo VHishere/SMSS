@@ -5,7 +5,6 @@ import {
   FiCheckCircle,
   FiClock,
   FiFileText,
-  FiUser,
 } from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
@@ -89,66 +88,71 @@ function HomeworkCard({ homework }) {
         hover:shadow-md
       "
     >
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#08509F]">
-              {homework.subjectName}
-            </span>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#08509F]">
+            {homework.subjectName}
+          </span>
 
+          <span
+            className={`
+              inline-flex items-center gap-1.5
+              rounded-full px-3 py-1
+              text-xs font-bold
+              ${currentStatus.className}
+            `}
+          >
             <span
               className={`
-                inline-flex items-center gap-1.5
-                rounded-full px-3 py-1
-                text-xs font-bold
-                ${currentStatus.className}
+                h-1.5 w-1.5 rounded-full
+                ${currentStatus.dotClassName}
               `}
-            >
-              <span
-                className={`
-                  h-1.5 w-1.5 rounded-full
-                  ${currentStatus.dotClassName}
-                `}
-              />
-              {currentStatus.label}
-            </span>
-          </div>
-
-          <h3 className="mb-2 text-lg font-bold text-[#0F2747]">
-            {homework.title}
-          </h3>
-
-          <p className="mb-0 text-sm leading-6 text-slate-600">
-            {homework.content || "Không có mô tả chi tiết."}
-          </p>
-        </div>
-      </div>
-
-      <div
-        className="
-          grid grid-cols-1 gap-3
-          border-t border-slate-100 pt-4
-          sm:grid-cols-3
-        "
-      >
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <FiUser className="text-slate-400" />
-          <span>{homework.teacherName}</span>
+            />
+            {currentStatus.label}
+          </span>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <FiClock className="text-slate-400" />
+        <div
+          className="
+            inline-flex items-center gap-2
+            rounded-full bg-[#FFF7F2]
+            px-3 py-1.5
+            text-xs font-bold text-[#F27123]
+          "
+        >
+          <FiClock size={14} />
           <span>
             Hạn: {formatDateTime(homework.dueDate)}
           </span>
         </div>
+      </div>
 
+      <div>
+        <h3 className="mb-2 text-lg font-bold text-[#0F2747]">
+          {homework.title}
+        </h3>
+
+        <p className="mb-0 text-sm leading-6 text-slate-600">
+          {homework.content || "Không có mô tả chi tiết."}
+        </p>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <FiCheckCircle className="text-slate-400" />
           <span>
             Điểm: {homework.score ?? "Chưa chấm"}
           </span>
         </div>
+
+        {homework.submitTime && (
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <FiFileText className="text-slate-400" />
+            <span>
+              Đã nộp: {formatDateTime(homework.submitTime)}
+            </span>
+          </div>
+        )}
       </div>
 
       {homework.feedback && (

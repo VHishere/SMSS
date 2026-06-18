@@ -1102,3 +1102,123 @@ export const parentApi = {
       method: "PATCH",
     }),
 };
+
+export const staffApi = {
+  getOverview: () => request("/staff/overview"),
+
+  getLookups: () => request("/staff/lookups"),
+
+  getStudents: (search = "") => {
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+    return request(`/staff/students${query}`);
+  },
+
+  getStudent: (id) => request(`/staff/students/${id}`),
+
+  createStudent: (payload) =>
+    request("/staff/students", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateStudent: (id, payload) =>
+    request(`/staff/students/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  getParents: (search = "") => {
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+    return request(`/staff/parents${query}`);
+  },
+
+  getParent: (id) => request(`/staff/parents/${id}`),
+
+  createParent: (payload) =>
+    request("/staff/parents", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateParent: (id, payload) =>
+    request(`/staff/parents/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  getSchoolYears: () => request("/staff/school-years"),
+
+  createSchoolYear: (payload) =>
+    request("/staff/school-years", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  activateSchoolYear: (id) =>
+    request(`/staff/school-years/${id}/activate`, { method: "PUT" }),
+
+  updateSchoolYear: (id, payload) =>
+    request(`/staff/school-years/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  getClasses: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/classes${query ? `?${query}` : ""}`);
+  },
+
+  getClass: (id) => request(`/staff/classes/${id}`),
+
+  createClass: (payload) =>
+    request("/staff/classes", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateClass: (id, payload) =>
+    request(`/staff/classes/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  enrollStudent: (classId, studentId) =>
+    request(`/staff/classes/${classId}/students`, {
+      method: "POST",
+      body: JSON.stringify({ studentId }),
+    }),
+
+  removeStudentFromClass: (classId, studentId) =>
+    request(`/staff/classes/${classId}/students/${studentId}`, {
+      method: "DELETE",
+    }),
+
+  assignTeacher: (classId, payload) =>
+    request(`/staff/classes/${classId}/teachers`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  removeTeacherFromClass: (classId, teacherClassId) =>
+    request(`/staff/classes/${classId}/teachers/${teacherClassId}`, {
+      method: "DELETE",
+    }),
+
+  getPromotionCandidates: (fromSchoolYearId, fromGradeId) =>
+    request(
+      `/staff/promotion/candidates?fromSchoolYearId=${fromSchoolYearId}&fromGradeId=${fromGradeId}`,
+    ),
+
+  getTargetClasses: (toSchoolYearId, toGradeId) =>
+    request(
+      `/staff/promotion/target-classes?toSchoolYearId=${toSchoolYearId}&toGradeId=${toGradeId}`,
+    ),
+
+  promoteStudents: (payload) =>
+    request("/staff/promotion", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+};

@@ -1,18 +1,18 @@
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
 const multer = require("multer");
 
 const UPLOAD_ROOT = path.resolve(__dirname, "../../uploads");
 const HOMEWORK_DIR = path.join(UPLOAD_ROOT, "homework");
 const MESSAGE_DIR = path.join(UPLOAD_ROOT, "messages");
 const EVENT_DIR = path.join(UPLOAD_ROOT, "events");
-const UPLOAD_DIR = path.resolve(__dirname, "../../uploads/leave-requests");
+const LEAVE_REQUEST_DIR = path.join(UPLOAD_ROOT, "leave-requests");
 
 // Ensure the target directories exist at startup.
 fs.mkdirSync(HOMEWORK_DIR, { recursive: true });
 fs.mkdirSync(MESSAGE_DIR, { recursive: true });
 fs.mkdirSync(EVENT_DIR, { recursive: true });
+fs.mkdirSync(LEAVE_REQUEST_DIR, { recursive: true });
 
 const ALLOWED_MIME = new Set([
   "application/pdf",
@@ -72,29 +72,11 @@ function wrapSingle(uploader) {
       next();
     });
   };
-
-
-const uploadLeaveRequestAttachment = multer({
-  storage,
-  fileFilter,
-  limits: { fileSize: MAX_FILE_SIZE_BYTES },
-}).single("attachment");
-
-function handleUpload(req, res, next) {
-  uploadLeaveRequestAttachment(req, res, (err) => {
-    if (err instanceof multer.MulterError) {
-      const message =
-        err.code === "LIMIT_FILE_SIZE"
-          ? "File tải lên không được vượt quá 5MB"
-          : "Tải file thất bại";
-      return res.status(400).json({ success: false, message });
-    }
-    if (err) {
-      return res.status(400).json({ success: false, message: err.message });
-    }
-    next();
-  });
 }
+
+const handleUpload = wrapSingle(
+  multer({ storage: makeStorage(LEAVE_REQUEST_DIR), fileFilter, limits: { fileSize: MAX_FILE_SIZE } }).single("attachment"),
+);
 
 const homeworkFileUpload = wrapSingle(
   multer({ storage: makeStorage(HOMEWORK_DIR), fileFilter, limits: { fileSize: MAX_FILE_SIZE } }).single("file"),

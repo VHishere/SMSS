@@ -47,7 +47,7 @@ function TimetableLessonCard({
       </div>
 
       <p className="mb-1 text-xs text-slate-600">
-        GV: {lesson.teacherName}
+        {lesson.className ? `Lớp: ${lesson.className}` : `GV: ${lesson.teacherName}`}
       </p>
 
       <p className="mb-0 text-xs font-semibold text-[#08509F]">

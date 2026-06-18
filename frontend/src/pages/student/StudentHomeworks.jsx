@@ -9,7 +9,7 @@ import {
 
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 import { useStudentHomeworks } from "../../hooks/useStudentHomeworks";
 
 function formatDateTime(value) {

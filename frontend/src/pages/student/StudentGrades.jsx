@@ -7,7 +7,7 @@ import {
 
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 import { useStudentGrades } from "../../hooks/useStudentGrades";
 
 const EXTRA_SUBJECTS = [

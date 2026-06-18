@@ -13,7 +13,7 @@ import {
 import DashboardShell from "../../components/templates/DashboardShell";
 import UserAvatar from "../../components/atoms/UserAvatar";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
-import { useAuth } from "../../context/AuthContext";
+import { useAuth } from "../../context/useAuth";
 import { useStudentProfile } from "../../hooks/useStudentProfile";
 
 function formatDate(value) {

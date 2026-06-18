@@ -1,12 +1,8 @@
-import {
-  forwardRef,
-} from "react";
+import { forwardRef } from "react";
 
 import Dropdown from "react-bootstrap/Dropdown";
 
-import {
-  useNavigate,
-} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 import {
   FiChevronDown,
@@ -15,9 +11,7 @@ import {
   FiUser,
 } from "react-icons/fi";
 
-import {
-  useAuth,
-} from "../../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 
 import UserAvatar from "../atoms/UserAvatar";
 
@@ -69,21 +63,33 @@ const ProfileToggle = forwardRef(
   },
 );
 
-function ProfileDropdown({
-  user,
-}) {
+function ProfileDropdown({ user }) {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const {
+    logout,
+    user: authUser,
+  } = useAuth();
+
+  const roleNames =
+    authUser?.roles?.map(
+      (role) => role.roleName,
+    ) || [];
+
+  const canViewStudentProfile =
+    roleNames.includes("STUDENT");
+
+  const handleViewProfile = () => {
+    if (canViewStudentProfile) {
+      navigate("/student/profile");
+    }
+  };
 
   const handleLogout = () => {
     logout();
 
-    navigate(
-      "/login/school",
-      {
-        replace: true,
-      },
-    );
+    navigate("/login/school", {
+      replace: true,
+    });
   };
 
   return (
@@ -112,7 +118,8 @@ function ProfileDropdown({
 
         <Dropdown.Item
           as="button"
-          disabled
+          onClick={handleViewProfile}
+          disabled={!canViewStudentProfile}
           className="
             flex items-center gap-3
             rounded-lg px-3 py-2

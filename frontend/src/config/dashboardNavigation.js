@@ -1,8 +1,10 @@
 import {
+  FiAward,
   FiBarChart2,
   FiBookOpen,
   FiCalendar,
   FiClock,
+  FiFileText,
   FiGrid,
   FiMessageSquare,
   FiSettings,
@@ -37,6 +39,16 @@ export const dashboardNavigation = {
       label: "Timetable",
       path: "/student/timetable",
       icon: FiClock,
+    },
+    {
+      label: "Homework",
+      path: "/student/homeworks",
+      icon: FiFileText,
+    },
+    {
+      label: "Mark Report",
+      path: "/student/grades",
+      icon: FiAward,
     },
     {
       label: "Reports",

@@ -6,10 +6,9 @@ async function request(
   path,
   options = {},
 ) {
-  const token =
-    localStorage.getItem(
-      "kidcare_token",
-    );
+  const token = localStorage.getItem(
+    "kidcare_token",
+  );
 
   const headers = {
     "Content-Type": "application/json",
@@ -17,8 +16,7 @@ async function request(
   };
 
   if (token) {
-    headers.Authorization =
-      `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
   let response;
@@ -34,7 +32,7 @@ async function request(
   } catch {
     throw new Error(
       "Không kết nối được backend. " +
-      "Hãy chạy backend bằng npm run dev.",
+        "Hãy chạy backend bằng npm run dev.",
     );
   }
 
@@ -45,7 +43,7 @@ async function request(
   if (!response.ok) {
     throw new Error(
       data.message ||
-      `Yêu cầu thất bại (${response.status})`,
+        `Yêu cầu thất bại (${response.status})`,
     );
   }
 
@@ -56,7 +54,6 @@ export const authApi = {
   loginSchool: (email, password) =>
     request("/auth/login/school", {
       method: "POST",
-
       body: JSON.stringify({
         email,
         password,
@@ -66,21 +63,24 @@ export const authApi = {
   loginParent: (email, password) =>
     request("/auth/login/parent", {
       method: "POST",
-
       body: JSON.stringify({
         email,
         password,
       }),
     }),
 
-  getMe: () =>
-    request("/auth/me"),
+  getMe: () => request("/auth/me"),
 };
 
 export const studentApi = {
-  getMyProfile: () =>
-    request("/students/me"),
+  getMyProfile: () => request("/students/me"),
 
   getMyTimetable: () =>
     request("/students/me/timetable"),
+
+  getMyHomeworks: () =>
+    request("/students/me/homeworks"),
+
+  getMyGrades: () =>
+    request("/students/me/grades"),
 };

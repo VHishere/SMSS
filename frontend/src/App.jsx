@@ -65,9 +65,7 @@ function App() {
                     <Route
                         path="/teacher"
                         element={
-                            <ProtectedRoute
-                                allowedRoles={['HOMEROOM_TEACHER', 'SUBJECT_TEACHER', 'DORM_SUPERVISOR','TEACHER_ROLES']}
-                            >
+                            <ProtectedRoute allowedRoles={['TEACHER_ROLES']}>
                                 <TeacherDashboard />
                             </ProtectedRoute>
                         }

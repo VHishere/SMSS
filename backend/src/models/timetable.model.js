@@ -157,8 +157,151 @@ async function findCurrentStudentContextByStudentId(studentId) {
   return rows[0] || null;
 }
 
+// ── Teacher timetable ─────────────────────────────────────────────────────────
+
+async function findLessonsByTeacherId(teacherId) {
+  const [rows] = await pool.query(
+    `SELECT
+       tt.timetable_id AS timetableId,
+       tt.day_of_week  AS dayOfWeek,
+       tt.period_no    AS periodNo,
+       COALESCE(tt.room_name, sc.room_name) AS roomName,
+       sb.subject_id   AS subjectId,
+       sb.subject_name AS subjectName,
+       sb.subject_code AS subjectCode,
+       sc.class_id     AS classId,
+       sc.class_name   AS className
+     FROM timetable tt
+     INNER JOIN school_class sc ON sc.class_id = tt.class_id
+     INNER JOIN subject sb ON sb.subject_id = tt.subject_id
+     WHERE tt.teacher_id = ? AND tt.status = 'ACTIVE'
+     ORDER BY tt.day_of_week ASC, tt.period_no ASC`,
+    [teacherId],
+  );
+  return rows;
+}
+
+async function findLessonById(timetableId) {
+  const [[row]] = await pool.query(
+    `SELECT
+       tt.timetable_id AS timetableId, tt.teacher_id AS teacherId,
+       tt.day_of_week AS dayOfWeek, tt.period_no AS periodNo,
+       sb.subject_name AS subjectName, sc.class_name AS className
+     FROM timetable tt
+     INNER JOIN subject sb ON sb.subject_id = tt.subject_id
+     INNER JOIN school_class sc ON sc.class_id = tt.class_id
+     WHERE tt.timetable_id = ?`,
+    [timetableId],
+  );
+  return row || null;
+}
+
+// Teacher candidates to cover a substitution (exclude the requesting teacher).
+async function findTeacherCandidates(excludeTeacherId) {
+  const [rows] = await pool.query(
+    `SELECT t.teacher_id AS teacherId, ua.full_name AS name, t.subject_specialize AS subjectSpecialize
+     FROM teacher t
+     INNER JOIN user_account ua ON ua.user_id = t.user_id AND ua.status = 'ACTIVE'
+     WHERE t.teacher_id <> ?
+     ORDER BY ua.full_name`,
+    [excludeTeacherId],
+  );
+  return rows;
+}
+
+async function findAdminUserIds() {
+  const [rows] = await pool.query(
+    `SELECT ur.user_id AS userId
+     FROM user_role ur
+     INNER JOIN role r ON r.role_id = ur.role_id
+     WHERE r.role_name = 'ADMIN'`,
+  );
+  return rows.map((r) => r.userId);
+}
+
+// ── Substitution requests ─────────────────────────────────────────────────────
+
+async function createSubstitution(s) {
+  const [result] = await pool.query(
+    `INSERT INTO timetable_substitution
+       (timetable_id, requester_id, request_type, target_date, substitute_teacher_id, swap_timetable_id, reason, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')`,
+    [s.timetableId, s.requesterId, s.requestType, s.targetDate,
+     s.substituteTeacherId ?? null, s.swapTimetableId ?? null, s.reason ?? null],
+  );
+  return result.insertId;
+}
+
+async function findSubstitutionsByRequester(requesterId, filters = {}) {
+  const { status, page = 1, limit = 20 } = filters;
+  const offset = (page - 1) * limit;
+  const params = [requesterId];
+  let where = "ts.requester_id = ?";
+  if (status) { where += " AND ts.status = ?"; params.push(status); }
+
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM timetable_substitution ts WHERE ${where}`,
+    params,
+  );
+
+  const [rows] = await pool.query(
+    `SELECT
+       ts.substitution_id AS substitutionId,
+       ts.request_type    AS requestType,
+       DATE_FORMAT(ts.target_date, '%Y-%m-%d') AS targetDate,
+       ts.reason, ts.status, ts.review_note AS reviewNote,
+       DATE_FORMAT(ts.created_at, '%Y-%m-%d %H:%i') AS createdAt,
+       DATE_FORMAT(ts.reviewed_at, '%Y-%m-%d %H:%i') AS reviewedAt,
+       sb.subject_name AS subjectName,
+       sc.class_name   AS className,
+       tt.day_of_week  AS dayOfWeek,
+       tt.period_no    AS periodNo,
+       subUa.full_name AS substituteName,
+       revUa.full_name AS reviewerName
+     FROM timetable_substitution ts
+     INNER JOIN timetable tt ON tt.timetable_id = ts.timetable_id
+     INNER JOIN subject sb ON sb.subject_id = tt.subject_id
+     INNER JOIN school_class sc ON sc.class_id = tt.class_id
+     LEFT JOIN teacher subT ON subT.teacher_id = ts.substitute_teacher_id
+     LEFT JOIN user_account subUa ON subUa.user_id = subT.user_id
+     LEFT JOIN user_account revUa ON revUa.user_id = ts.reviewed_by
+     WHERE ${where}
+     ORDER BY ts.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset],
+  );
+
+  return { total: Number(total), rows };
+}
+
+async function findSubstitutionById(substitutionId) {
+  const [[row]] = await pool.query(
+    `SELECT substitution_id AS substitutionId, requester_id AS requesterId, status
+     FROM timetable_substitution WHERE substitution_id = ?`,
+    [substitutionId],
+  );
+  return row || null;
+}
+
+async function cancelSubstitution(substitutionId, requesterId) {
+  const [result] = await pool.query(
+    `UPDATE timetable_substitution SET status = 'CANCELLED'
+     WHERE substitution_id = ? AND requester_id = ? AND status = 'PENDING'`,
+    [substitutionId, requesterId],
+  );
+  return result.affectedRows;
+}
+
 module.exports = {
   findCurrentStudentContext,
   findCurrentStudentContextByStudentId,
   findLessonsByClassId,
+  findLessonsByTeacherId,
+  findLessonById,
+  findTeacherCandidates,
+  findAdminUserIds,
+  createSubstitution,
+  findSubstitutionsByRequester,
+  findSubstitutionById,
+  cancelSubstitution,
 };

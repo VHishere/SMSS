@@ -47,6 +47,16 @@ export const dashboardNavigation = {
       icon: FiClock,
     },
     {
+      label: "Homework",
+      path: "/student/homeworks",
+      icon: FiFileText,
+    },
+    {
+      label: "Mark Report",
+      path: "/student/grades",
+      icon: FiAward,
+    },
+    {
       label: "Reports",
       path: "/reports",
       icon: FiBarChart2,

@@ -1,12 +1,7 @@
 const express = require("express");
 
-const studentController = require(
-  "../controllers/student.controller",
-);
-
-const timetableController = require(
-  "../controllers/timetable.controller",
-);
+const studentController = require("../controllers/student.controller");
+const timetableController = require("../controllers/timetable.controller");
 
 const {
   authenticate,
@@ -20,6 +15,20 @@ router.get(
   authenticate,
   authorize("STUDENT"),
   timetableController.getMyTimetable,
+);
+
+router.get(
+  "/me/homeworks",
+  authenticate,
+  authorize("STUDENT"),
+  studentController.getMyHomeworks,
+);
+
+router.get(
+  "/me/grades",
+  authenticate,
+  authorize("STUDENT"),
+  studentController.getMyGrades,
 );
 
 router.get(

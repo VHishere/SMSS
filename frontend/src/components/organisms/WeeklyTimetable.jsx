@@ -6,145 +6,31 @@ function buildLessonKey(dayOfWeek, periodNo) {
   return `${dayOfWeek}-${periodNo}`;
 }
 
-function SessionTable({
-  title,
-  slots,
-  weekDays,
-  lessonMap,
-}) {
-  const firstSlot = slots[0];
-  const lastSlot = slots[slots.length - 1];
+function getPeriodTheme(periodNo) {
+  const themes = {
+    1: "bg-orange-50 text-[#F27123]",
+    2: "bg-green-50 text-green-700",
+    3: "bg-blue-50 text-[#08509F]",
+    4: "bg-cyan-50 text-cyan-700",
+    5: "bg-purple-50 text-purple-700",
+    6: "bg-amber-50 text-amber-700",
+    7: "bg-pink-50 text-pink-700",
+    8: "bg-slate-100 text-slate-700",
+  };
 
-  const timeRange =
-    firstSlot && lastSlot
-      ? `${firstSlot.startTime} – ${lastSlot.endTime}`
-      : "Chưa có khung giờ";
+  return themes[periodNo] || themes[1];
+}
 
-  return (
-    <section
-      className="
-        overflow-hidden rounded-2xl
-        border border-orange-100
-        bg-white shadow-sm
-      "
-    >
-      <div
-        className="
-          flex flex-wrap items-center
-          justify-between gap-3
-          border-b border-orange-100
-          px-5 py-4
-        "
-      >
-        <div>
-          <h2 className="mb-1 text-lg font-bold text-[#0F2747]">
-            {title}
-          </h2>
+function getRowClass(slot) {
+  if (slot.periodNo === 5) {
+    return "bg-blue-50/30 border-t-4 border-t-blue-100";
+  }
 
-          <p className="mb-0 text-sm text-slate-500">
-            {timeRange}
-          </p>
-        </div>
+  if (slot.session === "MORNING") {
+    return "bg-[#FFF7F2]/45";
+  }
 
-        <span
-          className="
-            rounded-full bg-[#FFE7D6]
-            px-3 py-1.5 text-xs
-            font-bold text-[#C94F00]
-          "
-        >
-          {slots.length} tiết
-        </span>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1100px] border-collapse">
-          <thead>
-            <tr className="bg-[#0F2747] text-white">
-              <th
-                className="
-                  sticky left-0 z-10
-                  w-36 bg-[#0F2747]
-                  px-4 py-3 text-left
-                  text-sm font-semibold
-                "
-              >
-                Tiết học
-              </th>
-
-              {weekDays.map((day) => (
-                <th
-                  key={day.value}
-                  className="
-                    min-w-40 px-3 py-3
-                    text-center text-sm font-semibold
-                  "
-                >
-                  {day.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {slots.map((slot) => (
-              <tr
-                key={slot.periodNo}
-                className="
-                  border-b border-slate-100
-                  last:border-b-0
-                "
-              >
-                <th
-                  className="
-                    sticky left-0 z-10
-                    bg-white px-4 py-4
-                    text-left align-top
-                  "
-                >
-                  <div className="rounded-xl bg-[#FFF7F2] p-3">
-                    <p className="mb-1 text-sm font-bold text-[#F27123]">
-                      Tiết {slot.periodNo}
-                    </p>
-
-                    <p className="mb-1 text-xs font-semibold text-[#0F2747]">
-                      {slot.startTime} – {slot.endTime}
-                    </p>
-
-                    {slot.breakAfterMinutes !== null && (
-                      <p className="mb-0 text-[11px] text-slate-500">
-                        Nghỉ {slot.breakAfterMinutes} phút
-                      </p>
-                    )}
-                  </div>
-                </th>
-
-                {weekDays.map((day) => {
-                  const lesson = lessonMap.get(
-                    buildLessonKey(
-                      day.value,
-                      slot.periodNo,
-                    ),
-                  );
-
-                  return (
-                    <td
-                      key={`${day.value}-${slot.periodNo}`}
-                      className="px-3 py-3 align-top"
-                    >
-                      <TimetableLessonCard
-                        lesson={lesson}
-                      />
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
+  return "bg-blue-50/30";
 }
 
 function WeeklyTimetable({
@@ -164,30 +50,139 @@ function WeeklyTimetable({
     );
   }, [lessons]);
 
-  const morningSlots = slots.filter(
-    (slot) => slot.session === "MORNING",
-  );
-
-  const afternoonSlots = slots.filter(
-    (slot) => slot.session === "AFTERNOON",
-  );
-
   return (
-    <div className="space-y-6">
-      <SessionTable
-        title="Buổi sáng"
-        slots={morningSlots}
-        weekDays={weekDays}
-        lessonMap={lessonMap}
-      />
+    <section
+      className="
+        overflow-hidden rounded-3xl
+        border border-orange-100
+        bg-white shadow-sm
+      "
+    >
+      <div className="overflow-x-auto p-4">
+        <table
+          className="
+            w-full min-w-[1180px]
+            border-separate border-spacing-0
+            overflow-hidden rounded-2xl
+            border border-slate-200
+          "
+        >
+          <thead>
+            <tr className="bg-[#0F2747] text-white">
+              <th
+                className="
+                  sticky left-0 z-30
+                  w-24 border-r border-white/10
+                  bg-[#0F2747]
+                  px-4 py-4 text-center
+                  text-sm font-bold
+                "
+              >
+                Tiết
+              </th>
 
-      <SessionTable
-        title="Buổi chiều"
-        slots={afternoonSlots}
-        weekDays={weekDays}
-        lessonMap={lessonMap}
-      />
-    </div>
+              <th
+                className="
+                  sticky left-24 z-30
+                  w-40 border-r border-white/10
+                  bg-[#0F2747]
+                  px-4 py-4 text-left
+                  text-sm font-bold
+                "
+              >
+                Thời gian
+              </th>
+
+              {weekDays.map((day) => (
+                <th
+                  key={day.value}
+                  className="
+                    min-w-40 border-r border-white/10
+                    px-4 py-4 text-center
+                    text-sm font-bold last:border-r-0
+                  "
+                >
+                  {day.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {slots.map((slot) => {
+              const rowClass = getRowClass(slot);
+
+              return (
+                <tr
+                  key={slot.periodNo}
+                  className={rowClass}
+                >
+                  <th
+                    className="
+                      sticky left-0 z-20
+                      border-r border-b border-slate-200
+                      bg-white px-4 py-3
+                      text-center align-middle
+                    "
+                  >
+                    <span
+                      className={`
+                        inline-flex h-9 w-9
+                        items-center justify-center
+                        rounded-full text-sm font-bold
+                        ${getPeriodTheme(slot.periodNo)}
+                      `}
+                    >
+                      {slot.periodNo}
+                    </span>
+                  </th>
+
+                  <th
+                    className="
+                      sticky left-24 z-20
+                      border-r border-b border-slate-200
+                      bg-white px-4 py-3
+                      text-left align-middle
+                    "
+                  >
+                    <p className="mb-0 text-sm font-semibold text-[#0F2747]">
+                      {slot.startTime}
+                      {" – "}
+                      {slot.endTime}
+                    </p>
+                  </th>
+
+                  {weekDays.map((day) => {
+                    const lesson = lessonMap.get(
+                      buildLessonKey(
+                        day.value,
+                        slot.periodNo,
+                      ),
+                    );
+
+                    return (
+                      <td
+                        key={`${day.value}-${slot.periodNo}`}
+                        className="
+                          border-r border-b border-slate-200
+                          bg-white/60 px-2 py-2
+                          align-top last:border-r-0
+                        "
+                      >
+                        <TimetableLessonCard
+                          lesson={lesson}
+                          periodNo={slot.periodNo}
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

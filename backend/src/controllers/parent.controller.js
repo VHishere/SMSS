@@ -49,13 +49,22 @@ async function getStudentProfile(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
 
-    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
-    const student = students.find((s) => s.studentId === studentId);
+    const linked = await parentModel.findLinkedStudentsByUserId(req.user.userId);
+    const isLinked = linked.some((s) => s.studentId === studentId);
+
+    if (!isLinked) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem hồ sơ này",
+      });
+    }
+
+    const student = await parentModel.findStudentDetailByStudentId(studentId);
 
     if (!student) {
       return res.status(404).json({
         success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem hồ sơ này",
+        message: "Không tìm thấy hồ sơ học sinh",
       });
     }
 
@@ -117,9 +126,40 @@ async function getStudentTimetable(req, res) {
   }
 }
 
+async function getStudentGrades(req, res) {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+
+    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
+    const isLinked = students.some((s) => s.studentId === studentId);
+
+    if (!isLinked) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem bảng điểm này",
+      });
+    }
+
+    const result = await parentModel.findGradesByStudentId(studentId);
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("getStudentGrades error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Không thể tải bảng điểm của học sinh",
+    });
+  }
+}
+
 module.exports = {
   getMyProfile,
   getMyStudents,
   getStudentProfile,
   getStudentTimetable,
+  getStudentGrades,
 };

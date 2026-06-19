@@ -1070,6 +1070,9 @@ export const parentApi = {
   getStudentTimetable: (studentId) =>
     request(`/parents/me/students/${studentId}/timetable`),
 
+  getStudentGrades: (studentId) =>
+    request(`/parents/me/students/${studentId}/grades`),
+
   getStudentAttendanceHistory: (studentId, params = {}) => {
     const qs = new URLSearchParams(params).toString();
 

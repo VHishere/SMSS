@@ -40,6 +40,13 @@ router.get(
 );
 
 router.get(
+  "/me/students/:studentId/grades",
+  authenticate,
+  authorize("PARENT"),
+  parentController.getStudentGrades,
+);
+
+router.get(
   "/me/students/:studentId/attendance/stats",
   authenticate,
   authorize("PARENT"),

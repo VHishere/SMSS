@@ -249,6 +249,11 @@ export const dashboardNavigation = {
       icon: FiClock,
     },
     {
+      label: "Bảng điểm",
+      path: "/parent/grades",
+      icon: FiAward,
+    },
+    {
       label: "Tin nhắn",
       path: "/parent/messages",
       icon: FiMessageSquare,

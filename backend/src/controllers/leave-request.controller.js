@@ -1,7 +1,7 @@
 const fs = require("fs/promises");
 
 const parentModel = require("../models/parents");
-const leaveRequestModel = require("../models/leave-request.model");
+const leaveRequestModel = require("../models/leaveRequest.model");
 const attachmentModel = require("../models/attachment.model");
 
 async function getLinkedStudentOrNull(userId, studentId) {

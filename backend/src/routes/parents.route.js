@@ -2,7 +2,7 @@ const express = require("express");
 
 const parentController      = require("../controllers/parent.controller");
 const attendanceController  = require("../controllers/attendance.controller");
-const leaveRequestController = require("../controllers/leave-request.controller");
+const leaveRequestController = require("../controllers/leaveRequest.controller");
 
 const {
   authenticate,
@@ -60,6 +60,13 @@ router.get(
   attendanceController.getStudentAttendanceHistory,
 );
 
+router.get(
+  "/me/students/:studentId/attendance/analytics",
+  authenticate,
+  authorize("PARENT"),
+  attendanceController.getStudentAttendanceAnalytics,
+);
+
 router.post(
   "/me/students/:studentId/leave-requests",
   authenticate,
@@ -79,7 +86,7 @@ router.get(
   "/me/students/:studentId/leave-requests/:leaveRequestId",
   authenticate,
   authorize("PARENT"),
-  leaveRequestController.getLeaveRequestDetail,
+  leaveRequestController.getParentLeaveRequestDetail,
 );
 
 router.patch(

@@ -1081,6 +1081,14 @@ export const parentApi = {
     );
   },
 
+  getStudentAttendanceAnalytics: (studentId, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+
+    return request(
+      `/parents/me/students/${studentId}/attendance/analytics${qs ? `?${qs}` : ""}`,
+    );
+  },
+
   getStudentLeaveRequests: (studentId, params = {}) => {
     const qs = new URLSearchParams(params).toString();
 

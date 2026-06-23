@@ -41,6 +41,7 @@ import ParentStudentRedirect from "./pages/parent/StudentRedirect";
 import ParentStudentAttendanceHistory from "./pages/parent/StudentAttendanceHistory";
 import ParentStudentLeaveRequests from "./pages/parent/StudentLeaveRequests";
 import ParentStudentGrades from "./pages/parent/StudentGrades";
+import ParentStudentBehaviour from "./pages/parent/StudentBehaviour";
 
 import AttendancePage from "./pages/teacher/AttendancePage";
 import LeaveRequestsPage from "./pages/teacher/LeaveRequestsPage";
@@ -381,6 +382,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["PARENT"]}>
                 <ParentStudentGrades />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/behaviour"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentStudentBehaviour />
               </ProtectedRoute>
             }
           />

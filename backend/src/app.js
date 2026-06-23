@@ -41,6 +41,13 @@ app.use(
   express.static(path.resolve(__dirname, "../uploads")),
 );
 
+app.get("/", (_req, res) => {
+  res.json({
+    success: true,
+    message: "KidCare API đang hoạt động",
+  });
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({
     success: true,

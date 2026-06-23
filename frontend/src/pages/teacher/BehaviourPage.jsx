@@ -49,14 +49,22 @@ const selectCls =
 
 // ─── Records Tab ──────────────────────────────────────────────────────────────
 
-function RecordsTab({ classId, students, categories, onChanged }) {
+function RecordsTab({ classId, semester, students, categories, onChanged }) {
   const [behaviorType, setBehaviorType] = useState("POSITIVE");
   const [refreshKey, setRefreshKey] = useState(0);
   const [modal, setModal] = useState(null); // { mode, record? }
 
   const filters = useMemo(
-    () => ({ classId, behaviorType, page: 1, limit: 50, _rk: refreshKey }),
-    [classId, behaviorType, refreshKey],
+    () => ({
+      classId,
+      behaviorType,
+      startDate: semester?.startDate,
+      endDate: semester?.endDate,
+      page: 1,
+      limit: 50,
+      _rk: refreshKey,
+    }),
+    [classId, behaviorType, semester?.startDate, semester?.endDate, refreshKey],
   );
   const { data, loading, error } = useBehaviourRecords(filters, Boolean(classId));
 
@@ -135,7 +143,7 @@ function RecordsTab({ classId, students, categories, onChanged }) {
                       </td>
                       <td className="px-4 py-3">
                         <span className="font-bold" style={{ color: isMerit ? "#16A34A" : "#DC2626" }}>
-                          {isMerit ? "+" : "-"}{r.points}
+                          {isMerit ? "+" : "-"}{Math.abs(r.points)}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-slate-500">{r.recordDate}</td>
@@ -201,7 +209,7 @@ function ConductTab({ analytics, loading, error, semesterId, onChanged }) {
                     <div className="text-xs text-slate-400">{s.studentCode}</div>
                   </td>
                   <td className="px-4 py-3 font-semibold" style={{ color: "#16A34A" }}>+{s.meritPoints}</td>
-                  <td className="px-4 py-3 font-semibold" style={{ color: "#DC2626" }}>-{s.demeritPoints}</td>
+                  <td className="px-4 py-3 font-semibold" style={{ color: "#DC2626" }}>-{Math.abs(s.demeritPoints)}</td>
                   <td className="px-4 py-3 font-bold" style={{ color: "#0F2747" }}>{s.finalScore}</td>
                   <td className="px-4 py-3">
                     <span className="font-semibold" style={{ color: GRADE_COLOR[s.grade.key] }}>{s.grade.label}</span>
@@ -286,7 +294,7 @@ function AnalyticsTab({ analytics, loading, error }) {
               {analytics.mostViolations.map((s2, i) => (
                 <div key={s2.studentId} className="flex items-center justify-between rounded-lg px-3 py-2" style={{ backgroundColor: "#FFF7F2" }}>
                   <span className="text-sm text-[#0F2747]">#{i + 1} {s2.studentName}</span>
-                  <span className="text-sm font-bold" style={{ color: "#DC2626" }}>-{s2.demeritPoints} ({s2.violationCount} lần)</span>
+                  <span className="text-sm font-bold" style={{ color: "#DC2626" }}>-{Math.abs(s2.demeritPoints)} ({s2.violationCount} lần)</span>
                 </div>
               ))}
             </div>
@@ -526,6 +534,7 @@ function BehaviourPage() {
               {activeTab === "records" && (
                 <RecordsTab
                   classId={effClassId}
+                  semester={semesters.find((s) => String(s.semesterId) === effSemesterId)}
                   students={studentsForModal}
                   categories={categories}
                   onChanged={() => setAnalyticsRefresh((k) => k + 1)}

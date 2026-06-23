@@ -96,4 +96,25 @@ router.patch(
   leaveRequestController.cancelLeaveRequest,
 );
 
+router.get(
+  "/me/students/:studentId/behaviour/semesters",
+  authenticate,
+  authorize("PARENT"),
+  parentController.getStudentBehaviourSemesters,
+);
+
+router.get(
+  "/me/students/:studentId/behaviour/records",
+  authenticate,
+  authorize("PARENT"),
+  parentController.getStudentBehaviourRecords,
+);
+
+router.get(
+  "/me/students/:studentId/behaviour/conduct",
+  authenticate,
+  authorize("PARENT"),
+  parentController.getStudentBehaviourConduct,
+);
+
 module.exports = router;

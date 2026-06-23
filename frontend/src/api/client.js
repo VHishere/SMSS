@@ -1112,6 +1112,20 @@ export const parentApi = {
     request(`/parents/me/students/${studentId}/leave-requests/${leaveRequestId}/cancel`, {
       method: "PATCH",
     }),
+
+  getStudentBehaviourSemesters: (studentId) =>
+    request(`/parents/me/students/${studentId}/behaviour/semesters`),
+
+  getStudentBehaviourRecords: (studentId, params = {}) => {
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null),
+    );
+    const qs = new URLSearchParams(cleaned).toString();
+    return request(`/parents/me/students/${studentId}/behaviour/records${qs ? `?${qs}` : ""}`);
+  },
+
+  getStudentBehaviourConduct: (studentId, semesterId) =>
+    request(`/parents/me/students/${studentId}/behaviour/conduct?semesterId=${semesterId}`),
 };
 
 export const staffApi = {

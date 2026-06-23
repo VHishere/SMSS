@@ -1,5 +1,7 @@
 const parentModel = require("../models/parents");
 const timetableModel = require("../models/timetable.model");
+const behaviourModel = require("../models/behaviour.model");
+const behaviourService = require("../services/behaviour.service");
 const { TIMETABLE_SLOTS, WEEK_DAYS } = require("../config/timetable.config");
 
 async function getMyProfile(req, res) {
@@ -156,10 +158,72 @@ async function getStudentGrades(req, res) {
   }
 }
 
+// ── Student behaviour (read-only for parents) ─────────────────────────────────
+
+async function checkStudentLink(userId, studentId) {
+  const linked = await parentModel.findLinkedStudentsByUserId(userId);
+  return linked.some((s) => s.studentId === studentId);
+}
+
+async function getStudentBehaviourSemesters(req, res) {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+    if (!await checkStudentLink(req.user.userId, studentId)) {
+      return res.status(403).json({ success: false, message: "Không có quyền xem thông tin học sinh này" });
+    }
+    const semesters = await behaviourModel.findSemesters();
+    return res.json({ success: true, data: semesters });
+  } catch (error) {
+    console.error("getStudentBehaviourSemesters error:", error);
+    return res.status(500).json({ success: false, message: "Không thể lấy danh sách học kỳ" });
+  }
+}
+
+async function getStudentBehaviourRecords(req, res) {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+    if (!await checkStudentLink(req.user.userId, studentId)) {
+      return res.status(403).json({ success: false, message: "Không có quyền xem thông tin học sinh này" });
+    }
+    const { behaviorType, startDate, endDate, page = "1", limit = "50" } = req.query;
+    const parsedPage  = Math.max(1, parseInt(page, 10));
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
+    const { total, rows } = await behaviourModel.findRecords({
+      studentId, behaviorType, startDate, endDate, page: parsedPage, limit: parsedLimit,
+    });
+    return res.json({
+      success: true,
+      data: { items: rows, pagination: { total, page: parsedPage, limit: parsedLimit, totalPages: Math.ceil(total / parsedLimit) } },
+    });
+  } catch (error) {
+    console.error("getStudentBehaviourRecords error:", error);
+    return res.status(500).json({ success: false, message: "Không thể lấy danh sách hành vi" });
+  }
+}
+
+async function getStudentBehaviourConduct(req, res) {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+    if (!await checkStudentLink(req.user.userId, studentId)) {
+      return res.status(403).json({ success: false, message: "Không có quyền xem thông tin học sinh này" });
+    }
+    const { semesterId } = req.query;
+    if (!semesterId) return res.status(400).json({ success: false, message: "Thiếu học kỳ" });
+    const data = await behaviourService.getConductPreview({ studentId, semesterId: parseInt(semesterId, 10) });
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error("getStudentBehaviourConduct error:", error);
+    return res.status(500).json({ success: false, message: "Không thể lấy thông tin hạnh kiểm" });
+  }
+}
+
 module.exports = {
   getMyProfile,
   getMyStudents,
   getStudentProfile,
   getStudentTimetable,
   getStudentGrades,
+  getStudentBehaviourSemesters,
+  getStudentBehaviourRecords,
+  getStudentBehaviourConduct,
 };

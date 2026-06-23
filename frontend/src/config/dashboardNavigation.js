@@ -19,6 +19,7 @@ import {
   FiUsers,
 } from "react-icons/fi";
 
+
 export const dashboardNavigation = {
   STUDENT: [
     {
@@ -252,6 +253,11 @@ export const dashboardNavigation = {
       label: "Bảng điểm",
       path: "/parent/grades",
       icon: FiAward,
+    },
+    {
+      label: "Hạnh kiểm",
+      path: "/parent/behaviour",
+      icon: FiShield,
     },
     {
       label: "Tin nhắn",

@@ -278,7 +278,7 @@ async function aggregateConduct(studentId, startDate, endDate) {
   const [[row]] = await pool.query(
     `SELECT
        COALESCE(SUM(CASE WHEN behavior_type = 'POSITIVE'  THEN points ELSE 0 END), 0) AS meritPoints,
-       COALESCE(SUM(CASE WHEN behavior_type = 'VIOLATION' THEN points ELSE 0 END), 0) AS demeritPoints,
+       COALESCE(SUM(CASE WHEN behavior_type = 'VIOLATION' THEN ABS(points) ELSE 0 END), 0) AS demeritPoints,
        SUM(CASE WHEN behavior_type = 'VIOLATION' THEN 1 ELSE 0 END) AS violationCount,
        SUM(CASE WHEN behavior_type = 'POSITIVE'  THEN 1 ELSE 0 END) AS meritCount
      FROM behavior_record
@@ -303,7 +303,7 @@ async function aggregateClassConduct(classId, startDate, endDate) {
        ua.full_name   AS studentName,
        ua.avatar      AS studentAvatar,
        COALESCE(SUM(CASE WHEN br.behavior_type = 'POSITIVE'  THEN br.points ELSE 0 END), 0) AS meritPoints,
-       COALESCE(SUM(CASE WHEN br.behavior_type = 'VIOLATION' THEN br.points ELSE 0 END), 0) AS demeritPoints,
+       COALESCE(SUM(CASE WHEN br.behavior_type = 'VIOLATION' THEN ABS(br.points) ELSE 0 END), 0) AS demeritPoints,
        SUM(CASE WHEN br.behavior_type = 'VIOLATION' THEN 1 ELSE 0 END) AS violationCount,
        SUM(CASE WHEN br.behavior_type = 'POSITIVE'  THEN 1 ELSE 0 END) AS meritCount
      FROM class_enrollment ce

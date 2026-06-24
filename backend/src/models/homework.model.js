@@ -561,6 +561,203 @@ async function deleteAttachment(attachmentId, homeworkId) {
   return result.affectedRows;
 }
 
+// ── List homework for a specific student (parent/student read-only view) ──────
+
+async function findByStudentId(studentId, filters = {}) {
+  const { subjectId, status, search, submissionStatus, sort = "due_desc", page = 1, limit = 12 } = filters;
+  const offset = (page - 1) * limit;
+
+  const ORDER = {
+    due_desc:     "h.due_date DESC",
+    due_asc:      "h.due_date ASC",
+    created_desc: "h.assign_date DESC",
+    created_asc:  "h.assign_date ASC",
+    title_asc:    "h.title ASC",
+  };
+  const orderBy = ORDER[sort] || ORDER.due_desc;
+
+  // Base filters (status, subject, search) — applied to all 3 queries
+  const baseParams = [];
+  let baseWhere = "";
+  if (subjectId) {
+    baseWhere += " AND h.subject_id = ?";
+    baseParams.push(parseInt(subjectId, 10));
+  }
+  if (status) {
+    baseWhere += " AND h.status = ?";
+    baseParams.push(status);
+  }
+  if (search) {
+    baseWhere += " AND h.title LIKE ?";
+    baseParams.push(`%${search}%`);
+  }
+
+  // submissionStatus filter via EXISTS — applied only to count + data queries
+  let subWhere = "";
+  const subParams = [];
+  if (submissionStatus === "GRADED") {
+    subWhere = " AND EXISTS (SELECT 1 FROM homework_submission s2 WHERE s2.homework_id = h.homework_id AND s2.student_id = ? AND s2.status = 'GRADED')";
+    subParams.push(studentId);
+  } else if (submissionStatus === "SUBMITTED") {
+    subWhere = " AND EXISTS (SELECT 1 FROM homework_submission s2 WHERE s2.homework_id = h.homework_id AND s2.student_id = ? AND s2.status = 'SUBMITTED')";
+    subParams.push(studentId);
+  } else if (submissionStatus === "MISSING") {
+    subWhere = " AND NOT EXISTS (SELECT 1 FROM homework_submission s2 WHERE s2.homework_id = h.homework_id AND s2.student_id = ?)";
+    subParams.push(studentId);
+  }
+
+  // Summary query — uses baseWhere only (not submissionStatus) so chip counts are stable
+  const [[summaryRow]] = await pool.query(
+    `SELECT
+       COUNT(*)                                                         AS total,
+       SUM(CASE WHEN hs.status = 'GRADED'    THEN 1 ELSE 0 END)        AS graded,
+       SUM(CASE WHEN hs.status = 'SUBMITTED' THEN 1 ELSE 0 END)        AS submitted,
+       SUM(CASE WHEN hs.submission_id IS NULL THEN 1 ELSE 0 END)        AS missing
+     FROM homework h
+     INNER JOIN class_enrollment ce
+       ON ce.class_id = h.class_id AND ce.student_id = ? AND ce.status = 'ACTIVE'
+     LEFT JOIN homework_submission hs
+       ON hs.homework_id = h.homework_id AND hs.student_id = ?
+     WHERE 1=1 ${baseWhere}`,
+    [studentId, studentId, ...baseParams],
+  );
+
+  // Paginated count (respects submissionStatus filter)
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total
+     FROM homework h
+     INNER JOIN class_enrollment ce
+       ON ce.class_id = h.class_id AND ce.student_id = ? AND ce.status = 'ACTIVE'
+     WHERE 1=1 ${baseWhere}${subWhere}`,
+    [studentId, ...baseParams, ...subParams],
+  );
+
+  const [rows] = await pool.query(
+    `SELECT
+       h.homework_id                                   AS homeworkId,
+       h.title,
+       h.max_score                                     AS maxScore,
+       h.status,
+       DATE_FORMAT(h.assign_date, '%Y-%m-%d %H:%i')    AS assignDate,
+       DATE_FORMAT(h.due_date,    '%Y-%m-%d %H:%i')    AS dueDate,
+       (h.due_date < NOW())                            AS isOverdue,
+
+       sc.class_id                                     AS classId,
+       sc.class_name                                   AS className,
+       sub.subject_id                                  AS subjectId,
+       sub.subject_name                                AS subjectName,
+
+       hs.submission_id                                AS submissionId,
+       hs.score,
+       hs.feedback,
+       DATE_FORMAT(hs.submit_time, '%Y-%m-%d %H:%i')   AS submitTime,
+       (hs.submit_time > h.due_date)                   AS isLate,
+       hs.status                                       AS submissionStatus
+     FROM homework h
+     INNER JOIN school_class sc ON sc.class_id = h.class_id
+     INNER JOIN subject sub     ON sub.subject_id = h.subject_id
+     INNER JOIN class_enrollment ce
+       ON ce.class_id = h.class_id AND ce.student_id = ? AND ce.status = 'ACTIVE'
+     LEFT JOIN homework_submission hs
+       ON hs.homework_id = h.homework_id AND hs.student_id = ?
+     WHERE 1=1 ${baseWhere}${subWhere}
+     ORDER BY ${orderBy}
+     LIMIT ? OFFSET ?`,
+    [studentId, studentId, ...baseParams, ...subParams, limit, offset],
+  );
+
+  return {
+    total: Number(total),
+    summary: {
+      total:     Number(summaryRow.total),
+      graded:    Number(summaryRow.graded),
+      submitted: Number(summaryRow.submitted),
+      missing:   Number(summaryRow.missing),
+    },
+    rows: rows.map((r) => ({
+      ...r,
+      maxScore:         Number(r.maxScore),
+      isOverdue:        Boolean(r.isOverdue),
+      isLate:           r.isLate !== null ? Boolean(r.isLate) : false,
+      score:            r.score === null ? null : Number(r.score),
+      submissionStatus: r.submissionId ? r.submissionStatus : "MISSING",
+    })),
+  };
+}
+
+// ── Homework detail + student's own submission (parent/student read-only) ─────
+
+async function findDetailWithStudentSubmission(homeworkId, studentId) {
+  const [[row]] = await pool.query(
+    `SELECT
+       h.homework_id                                  AS homeworkId,
+       h.title,
+       h.content                                      AS description,
+       h.instructions,
+       h.max_score                                    AS maxScore,
+       h.status,
+       DATE_FORMAT(h.assign_date, '%Y-%m-%d %H:%i')   AS assignDate,
+       DATE_FORMAT(h.due_date,    '%Y-%m-%d %H:%i')   AS dueDate,
+       (h.due_date < NOW())                           AS isOverdue,
+
+       sc.class_id                                    AS classId,
+       sc.class_name                                  AS className,
+       g.grade_name                                   AS gradeName,
+       sub.subject_id                                 AS subjectId,
+       sub.subject_name                               AS subjectName,
+       ua.full_name                                   AS teacherName,
+
+       hs.submission_id                               AS submissionId,
+       hs.score,
+       hs.feedback,
+       DATE_FORMAT(hs.submit_time, '%Y-%m-%d %H:%i')  AS submitTime,
+       hs.content                                     AS submissionContent,
+       hs.file_url                                    AS submissionFileUrl,
+       (hs.submit_time > h.due_date)                  AS isLate,
+       hs.status                                      AS submissionStatus
+     FROM homework h
+     INNER JOIN school_class sc  ON sc.class_id = h.class_id
+     INNER JOIN grade g          ON g.grade_id = sc.grade_id
+     INNER JOIN subject sub      ON sub.subject_id = h.subject_id
+     INNER JOIN teacher t        ON t.teacher_id = h.teacher_id
+     INNER JOIN user_account ua  ON ua.user_id = t.user_id
+     INNER JOIN class_enrollment ce
+       ON ce.class_id = h.class_id
+       AND ce.student_id = ?
+       AND ce.status = 'ACTIVE'
+     LEFT JOIN homework_submission hs
+       ON hs.homework_id = h.homework_id
+       AND hs.student_id = ?
+     WHERE h.homework_id = ?`,
+    [studentId, studentId, homeworkId],
+  );
+
+  if (!row) return null;
+
+  const [attachments] = await pool.query(
+    `SELECT
+       attachment_id AS attachmentId,
+       file_name     AS fileName,
+       file_url      AS fileUrl,
+       file_type     AS fileType
+     FROM attachment
+     WHERE related_type = 'HOMEWORK'
+       AND related_id = ?
+     ORDER BY attachment_id ASC`,
+    [homeworkId],
+  );
+
+  return {
+    ...row,
+    maxScore:         Number(row.maxScore),
+    isOverdue:        Boolean(row.isOverdue),
+    isLate:           row.isLate !== null ? Boolean(row.isLate) : false,
+    score:            row.score === null ? null : Number(row.score),
+    submissionStatus: row.submissionId ? row.submissionStatus : "MISSING",
+    attachments,
+  };
+}
+
 module.exports = {
   findTeachingAssignments,
   isAssignmentValid,
@@ -580,4 +777,6 @@ module.exports = {
   insertNotifications,
   insertAttachment,
   deleteAttachment,
+  findByStudentId,
+  findDetailWithStudentSubmission,
 };

@@ -1126,6 +1126,22 @@ export const parentApi = {
 
   getStudentBehaviourConduct: (studentId, semesterId) =>
     request(`/parents/me/students/${studentId}/behaviour/conduct?semesterId=${semesterId}`),
+
+  getStudentHomework: (studentId, params = {}) => {
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null),
+    );
+    const qs = new URLSearchParams(cleaned).toString();
+    return request(`/parents/me/students/${studentId}/homework${qs ? `?${qs}` : ""}`);
+  },
+
+  getStudentHomeworkDetail: (studentId, homeworkId) =>
+    request(`/parents/me/students/${studentId}/homework/${homeworkId}`),
+
+  getStudentGoals: (studentId, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/parents/me/students/${studentId}/goals${qs ? `?${qs}` : ""}`);
+  },
 };
 
 export const staffApi = {

@@ -2,6 +2,7 @@ const parentModel = require("../models/parents");
 const timetableModel = require("../models/timetable.model");
 const behaviourModel = require("../models/behaviour.model");
 const behaviourService = require("../services/behaviour.service");
+const goalModel = require("../models/goal.model");
 const { TIMETABLE_SLOTS, WEEK_DAYS } = require("../config/timetable.config");
 
 async function getMyProfile(req, res) {
@@ -217,6 +218,21 @@ async function getStudentBehaviourConduct(req, res) {
   }
 }
 
+async function getStudentGoals(req, res) {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+    if (!await checkStudentLink(req.user.userId, studentId)) {
+      return res.status(403).json({ success: false, message: "Không có quyền xem thông tin học sinh này" });
+    }
+    const { status, goalType } = req.query;
+    const goals = await goalModel.findByStudent(studentId, { status, goalType });
+    return res.json({ success: true, data: goals });
+  } catch (error) {
+    console.error("getStudentGoals error:", error);
+    return res.status(500).json({ success: false, message: "Không thể lấy danh sách mục tiêu" });
+  }
+}
+
 module.exports = {
   getMyProfile,
   getMyStudents,
@@ -226,4 +242,5 @@ module.exports = {
   getStudentBehaviourSemesters,
   getStudentBehaviourRecords,
   getStudentBehaviourConduct,
+  getStudentGoals,
 };

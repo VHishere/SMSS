@@ -230,7 +230,7 @@ export const dashboardNavigation = {
       end: true,
     },
     {
-      label: "Thông tin học sinh",
+      label: "Học sinh",
       path: "/parent/student",
       icon: FiUsers,
     },
@@ -258,6 +258,11 @@ export const dashboardNavigation = {
       label: "Hạnh kiểm",
       path: "/parent/behaviour",
       icon: FiShield,
+    },
+    {
+      label: "Bài tập",
+      path: "/parent/homework",
+      icon: FiEdit3,
     },
     {
       label: "Tin nhắn",

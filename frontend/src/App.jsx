@@ -42,6 +42,7 @@ import ParentStudentAttendanceHistory from "./pages/parent/StudentAttendanceHist
 import ParentStudentLeaveRequests from "./pages/parent/StudentLeaveRequests";
 import ParentStudentGrades from "./pages/parent/StudentGrades";
 import ParentStudentBehaviour from "./pages/parent/StudentBehaviour";
+import ParentStudentHomework from "./pages/parent/StudentHomework";
 
 import AttendancePage from "./pages/teacher/AttendancePage";
 import LeaveRequestsPage from "./pages/teacher/LeaveRequestsPage";
@@ -391,6 +392,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["PARENT"]}>
                 <ParentStudentBehaviour />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/homework"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentStudentHomework />
               </ProtectedRoute>
             }
           />

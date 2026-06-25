@@ -265,6 +265,11 @@ export const dashboardNavigation = {
       icon: FiEdit3,
     },
     {
+      label: "Họp phụ huynh",
+      path: "/parent/meetings",
+      icon: FiCalendar,
+    },
+    {
       label: "Tin nhắn",
       path: "/parent/messages",
       icon: FiMessageSquare,

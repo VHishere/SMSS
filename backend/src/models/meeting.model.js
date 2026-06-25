@@ -189,6 +189,16 @@ async function findInvitations(meetingId) {
   return rows;
 }
 
+async function respondToInvitation(meetingId, userId, status) {
+  const [result] = await pool.query(
+    `UPDATE meeting_invitation
+     SET status = ?, responded_at = NOW()
+     WHERE meeting_id = ? AND user_id = ? AND status IN ('SENT','PENDING')`,
+    [status, meetingId, userId],
+  );
+  return result.affectedRows;
+}
+
 async function resendInvitation(invitationId, meetingId) {
   const [result] = await pool.query(
     `UPDATE meeting_invitation SET status = 'SENT', invited_at = NOW(), responded_at = NULL
@@ -303,6 +313,86 @@ async function findLog(meetingId) {
   return rows;
 }
 
+// ── Parent-side queries ───────────────────────────────────────────────────────
+
+async function findMeetingsByParent(userId, filters = {}) {
+  const { status, search, page = 1, limit = 100 } = filters;
+  const offset = (page - 1) * limit;
+  const params = [userId];
+  let where = "mi.user_id = ?";
+  if (status) { where += " AND pm.status = ?"; params.push(status); }
+  if (search) { where += " AND pm.title LIKE ?"; params.push(`%${search}%`); }
+
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM meeting_invitation mi
+     INNER JOIN parent_meeting pm ON pm.meeting_id = mi.meeting_id
+     WHERE ${where}`,
+    params,
+  );
+
+  const [rows] = await pool.query(
+    `SELECT
+       pm.meeting_id   AS meetingId,
+       pm.title,
+       pm.meeting_type AS meetingType,
+       DATE_FORMAT(pm.meeting_date, '%Y-%m-%d %H:%i') AS meetingDate,
+       DATE_FORMAT(pm.end_time, '%Y-%m-%d %H:%i')     AS endTime,
+       pm.location, pm.status,
+       sc.class_name AS className,
+       sua.full_name AS studentName,
+       mi.status     AS invitationStatus,
+       tua.full_name AS teacherName
+     FROM meeting_invitation mi
+     INNER JOIN parent_meeting pm ON pm.meeting_id = mi.meeting_id
+     LEFT JOIN school_class sc ON sc.class_id = pm.class_id
+     LEFT JOIN student s ON s.student_id = pm.student_id
+     LEFT JOIN user_account sua ON sua.user_id = s.user_id
+     LEFT JOIN teacher t ON t.teacher_id = pm.teacher_id
+     LEFT JOIN user_account tua ON tua.user_id = t.user_id
+     WHERE ${where}
+     ORDER BY pm.meeting_date DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset],
+  );
+
+  return { total: Number(total), rows };
+}
+
+async function findMeetingByIdForParent(meetingId, userId) {
+  const [[inv]] = await pool.query(
+    `SELECT invitation_id AS invitationId, status AS invitationStatus
+     FROM meeting_invitation WHERE meeting_id = ? AND user_id = ?`,
+    [meetingId, userId],
+  );
+  if (!inv) return null;
+  const meeting = await findMeetingById(meetingId);
+  if (!meeting) return null;
+  return { ...meeting, invitationStatus: inv.invitationStatus };
+}
+
+async function parentDashboardStats(userId) {
+  const [[row]] = await pool.query(
+    `SELECT
+       (SELECT COUNT(*) FROM meeting_invitation mi
+         INNER JOIN parent_meeting pm ON pm.meeting_id = mi.meeting_id
+         WHERE mi.user_id = ? AND pm.status = 'SCHEDULED' AND pm.meeting_date >= NOW()) AS upcoming,
+       (SELECT COUNT(*) FROM meeting_invitation
+         WHERE user_id = ? AND status IN ('SENT','PENDING')) AS pendingResponse,
+       (SELECT COUNT(*) FROM meeting_invitation
+         WHERE user_id = ? AND status = 'ACCEPTED') AS accepted,
+       (SELECT COUNT(*) FROM meeting_invitation mi
+         INNER JOIN parent_meeting pm ON pm.meeting_id = mi.meeting_id
+         WHERE mi.user_id = ?) AS totalMeetings`,
+    [userId, userId, userId, userId],
+  );
+  return {
+    upcoming: Number(row.upcoming),
+    pendingResponse: Number(row.pendingResponse),
+    accepted: Number(row.accepted),
+    totalMeetings: Number(row.totalMeetings),
+  };
+}
+
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
 async function dashboardStats(teacherId, userId) {
@@ -348,4 +438,8 @@ module.exports = {
   log,
   findLog,
   dashboardStats,
+  respondToInvitation,
+  findMeetingsByParent,
+  findMeetingByIdForParent,
+  parentDashboardStats,
 };

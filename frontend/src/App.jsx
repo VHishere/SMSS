@@ -43,6 +43,8 @@ import ParentStudentLeaveRequests from "./pages/parent/StudentLeaveRequests";
 import ParentStudentGrades from "./pages/parent/StudentGrades";
 import ParentStudentBehaviour from "./pages/parent/StudentBehaviour";
 import ParentStudentHomework from "./pages/parent/StudentHomework";
+import ParentMeetingsPage from "./pages/parent/MeetingsPage";
+import ParentMeetingDetailPage from "./pages/parent/MeetingDetailPage";
 
 import AttendancePage from "./pages/teacher/AttendancePage";
 import LeaveRequestsPage from "./pages/teacher/LeaveRequestsPage";
@@ -401,6 +403,24 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["PARENT"]}>
                 <ParentStudentHomework />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/meetings"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentMeetingsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/meetings/:meetingId"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentMeetingDetailPage />
               </ProtectedRoute>
             }
           />

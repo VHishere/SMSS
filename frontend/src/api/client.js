@@ -890,6 +890,28 @@ export const meetingApi = {
     }),
 };
 
+export const parentMeetingApi = {
+  getDashboard: () =>
+    request("/parents/me/meetings/dashboard"),
+
+  list: (params = {}) => {
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null),
+    );
+    const qs = new URLSearchParams(cleaned).toString();
+    return request(`/parents/me/meetings${qs ? `?${qs}` : ""}`);
+  },
+
+  getDetail: (id) =>
+    request(`/parents/me/meetings/${id}`),
+
+  respond: (id, action) =>
+    request(`/parents/me/meetings/${id}/invitation`, {
+      method: "PATCH",
+      body: JSON.stringify({ action }),
+    }),
+};
+
 export const eventApi = {
   getMeta: () =>
     request("/teachers/events/meta"),

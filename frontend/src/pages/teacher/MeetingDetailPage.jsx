@@ -147,10 +147,13 @@ function MeetingDetailPage() {
 
 // ── Info + invitations ────────────────────────────────────────────────────────
 
-function InfoTab({ meetingId, meeting, invitations, readOnly, onChanged }) {
+function InfoTab({ meetingId, meeting, invitations: initialInvitations, readOnly, onChanged }) {
+  const [localInvitations, setLocalInvitations] = useState(initialInvitations);
   const [parents, setParents] = useState([]);
   const [selected, setSelected] = useState(new Set());
   const [showInvite, setShowInvite] = useState(false);
+
+  useEffect(() => { setLocalInvitations(initialInvitations); }, [initialInvitations]);
 
   useEffect(() => {
     if (!showInvite) return;
@@ -159,10 +162,15 @@ function InfoTab({ meetingId, meeting, invitations, readOnly, onChanged }) {
     return () => { m = false; };
   }, [showInvite, meeting.classId]);
 
-  const invitedUserIds = new Set(invitations.map((i) => i.userId));
+  const invitedUserIds = new Set(localInvitations.map((i) => i.userId));
 
   async function resend(inv) {
-    try { await meetingApi.resendInvitation(meetingId, inv.invitationId, inv.userId); onChanged(); }
+    try {
+      await meetingApi.resendInvitation(meetingId, inv.invitationId, inv.userId);
+      setLocalInvitations((prev) =>
+        prev.map((i) => i.invitationId === inv.invitationId ? { ...i, status: "SENT" } : i)
+      );
+    }
     catch (err) { alert(err.message); }
   }
   async function inviteMore() {
@@ -175,7 +183,7 @@ function InfoTab({ meetingId, meeting, invitations, readOnly, onChanged }) {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-sm font-bold" style={{ color: "#0F2747" }}><FiMail size={15} /> Người tham dự ({invitations.length})</h3>
+        <h3 className="flex items-center gap-2 text-sm font-bold" style={{ color: "#0F2747" }}><FiMail size={15} /> Người tham dự ({localInvitations.length})</h3>
         {!readOnly && <button type="button" onClick={() => setShowInvite((s) => !s)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white" style={{ backgroundColor: "#F27123" }}><FiPlus size={12} /> Mời thêm</button>}
       </div>
 
@@ -198,7 +206,7 @@ function InfoTab({ meetingId, meeting, invitations, readOnly, onChanged }) {
       )}
 
       <div className="space-y-2">
-        {invitations.length === 0 ? <p className="text-sm text-slate-400">Chưa mời ai.</p> : invitations.map((inv) => {
+        {localInvitations.length === 0 ? <p className="text-sm text-slate-400">Chưa mời ai.</p> : localInvitations.map((inv) => {
           const st = INVITE_STATUS[inv.status] ?? INVITE_STATUS.SENT;
           return (
             <div key={inv.invitationId} className="flex items-center justify-between gap-2 rounded-xl px-4 py-2.5" style={{ border: "1px solid #FFE7D6" }}>

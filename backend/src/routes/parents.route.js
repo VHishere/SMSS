@@ -1,8 +1,10 @@
 const express = require("express");
 
 const parentController      = require("../controllers/parent.controller");
+const meetingController     = require("../controllers/meeting.controller");
 const attendanceController  = require("../controllers/attendance.controller");
 const leaveRequestController = require("../controllers/leaveRequest.controller");
+const homeworkController    = require("../controllers/homework.controller");
 
 const {
   authenticate,
@@ -115,6 +117,55 @@ router.get(
   authenticate,
   authorize("PARENT"),
   parentController.getStudentBehaviourConduct,
+);
+
+router.get(
+  "/me/students/:studentId/goals",
+  authenticate,
+  authorize("PARENT"),
+  parentController.getStudentGoals,
+);
+
+router.get(
+  "/me/students/:studentId/homework",
+  authenticate,
+  authorize("PARENT"),
+  homeworkController.getParentStudentHomework,
+);
+
+router.get(
+  "/me/students/:studentId/homework/:homeworkId",
+  authenticate,
+  authorize("PARENT"),
+  homeworkController.getParentStudentHomeworkDetail,
+);
+
+router.get(
+  "/me/meetings/dashboard",
+  authenticate,
+  authorize("PARENT"),
+  meetingController.getParentDashboard,
+);
+
+router.get(
+  "/me/meetings",
+  authenticate,
+  authorize("PARENT"),
+  meetingController.listParentMeetings,
+);
+
+router.get(
+  "/me/meetings/:meetingId",
+  authenticate,
+  authorize("PARENT"),
+  meetingController.getParentMeetingDetail,
+);
+
+router.patch(
+  "/me/meetings/:meetingId/invitation",
+  authenticate,
+  authorize("PARENT"),
+  meetingController.respondToInvitation,
 );
 
 module.exports = router;

@@ -9,8 +9,8 @@ import {
   FiFileText,
   FiFlag,
   FiGrid,
-  FiMessageSquare,
   FiLifeBuoy,
+  FiMessageSquare,
   FiSettings,
   FiShield,
   FiStar,
@@ -18,7 +18,6 @@ import {
   FiUserCheck,
   FiUsers,
 } from "react-icons/fi";
-
 
 export const dashboardNavigation = {
   STUDENT: [
@@ -29,44 +28,44 @@ export const dashboardNavigation = {
       end: true,
     },
     {
-      label: "Class",
-      path: "/classes",
-      icon: FiBookOpen,
-    },
-    {
-      label: "Attendance",
-      path: "/attendance",
-      icon: FiCalendar,
-    },
-    {
-      label: "Giáo viên",
-      path: "/teachers",
-      icon: FiUserCheck,
-    },
-    {
-      label: "Timetable",
+      label: "Thời khóa biểu",
       path: "/student/timetable",
       icon: FiClock,
     },
     {
-      label: "Homework",
+      label: "Điểm danh",
+      path: "/student/attendance",
+      icon: FiCalendar,
+    },
+    {
+      label: "Bài tập",
       path: "/student/homeworks",
       icon: FiFileText,
     },
     {
-      label: "Mark Report",
+      label: "Bảng điểm",
       path: "/student/grades",
       icon: FiAward,
     },
     {
-      label: "Reports",
-      path: "/reports",
-      icon: FiBarChart2,
+      label: "Hạnh kiểm",
+      path: "/student/behaviour",
+      icon: FiShield,
     },
     {
-      label: "Semester Goal",
-      path: "/settings",
-      icon: FiSettings,
+      label: "Mục tiêu",
+      path: "/student/goals",
+      icon: FiFlag,
+    },
+    {
+      label: "Sự kiện",
+      path: "/student/events",
+      icon: FiStar,
+    },
+    {
+      label: "Tin nhắn",
+      path: "/student/messages",
+      icon: FiMessageSquare,
     },
   ],
 
@@ -230,7 +229,7 @@ export const dashboardNavigation = {
       end: true,
     },
     {
-      label: "Thông tin học sinh",
+      label: "Học sinh",
       path: "/parent/student",
       icon: FiUsers,
     },
@@ -258,6 +257,16 @@ export const dashboardNavigation = {
       label: "Hạnh kiểm",
       path: "/parent/behaviour",
       icon: FiShield,
+    },
+    {
+      label: "Bài tập",
+      path: "/parent/homework",
+      icon: FiEdit3,
+    },
+    {
+      label: "Họp phụ huynh",
+      path: "/parent/meetings",
+      icon: FiCalendar,
     },
     {
       label: "Tin nhắn",

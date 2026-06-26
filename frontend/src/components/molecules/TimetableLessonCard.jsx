@@ -1,60 +1,65 @@
 import {
+  FiClock,
   FiMapPin,
   FiUser,
 } from "react-icons/fi";
 
-const PERIOD_STYLES = {
-  1: {
-    bar: "bg-[#F27123]",
-    badge: "bg-orange-50 text-[#C94F00]",
+const STATUS_STYLES = {
+  PRESENT: {
+    bar: "bg-green-500",
+    badge: "border-green-100 bg-green-50 text-green-700",
   },
-  2: {
-    bar: "bg-[#22C55E]",
-    badge: "bg-green-50 text-green-700",
+
+  LATE: {
+    bar: "bg-yellow-400",
+    badge: "border-yellow-100 bg-yellow-50 text-yellow-700",
   },
-  3: {
-    bar: "bg-[#08509F]",
-    badge: "bg-blue-50 text-[#08509F]",
+
+  ABSENT_EXCUSED: {
+    bar: "bg-red-500",
+    badge: "border-red-100 bg-red-50 text-red-600",
   },
-  4: {
-    bar: "bg-[#14B8A6]",
-    badge: "bg-cyan-50 text-cyan-700",
+
+  ABSENT_UNEXCUSED: {
+    bar: "bg-red-500",
+    badge: "border-red-100 bg-red-50 text-red-600",
   },
-  5: {
-    bar: "bg-[#8B5CF6]",
-    badge: "bg-purple-50 text-purple-700",
+
+  EARLY_LEAVE: {
+    bar: "bg-yellow-500",
+    badge: "border-yellow-100 bg-yellow-50 text-yellow-700",
   },
-  6: {
-    bar: "bg-[#F59E0B]",
-    badge: "bg-amber-50 text-amber-700",
+
+  NOT_RECORDED: {
+    bar: "bg-blue-500",
+    badge: "border-blue-100 bg-blue-50 text-[#08509F]",
   },
-  7: {
-    bar: "bg-[#EC4899]",
-    badge: "bg-pink-50 text-pink-700",
+
+  NOT_YET: {
+    bar: "bg-blue-400",
+    badge: "border-blue-100 bg-blue-50 text-[#08509F]",
   },
-  8: {
-    bar: "bg-[#64748B]",
-    badge: "bg-slate-100 text-slate-700",
+
+  DEFAULT: {
+    bar: "bg-blue-500",
+    badge: "border-blue-100 bg-blue-50 text-[#08509F]",
   },
 };
 
-function getPeriodStyle(periodNo) {
-  return PERIOD_STYLES[periodNo] || PERIOD_STYLES[1];
+function getStatusStyle(status) {
+  return STATUS_STYLES[status] || STATUS_STYLES.DEFAULT;
 }
 
 function TimetableLessonCard({
   lesson,
-  periodNo,
 }) {
-  const periodStyle = getPeriodStyle(periodNo);
-
   if (!lesson) {
     return (
       <div
         className="
-          flex min-h-24 items-center
-          justify-center rounded-xl
-          border border-dashed
+          flex h-32 min-h-32 w-full
+          items-center justify-center
+          rounded-xl border border-dashed
           border-slate-200 bg-white/70
           px-3 py-4 text-sm
           font-semibold text-slate-400
@@ -65,11 +70,20 @@ function TimetableLessonCard({
     );
   }
 
+  const attendanceStatus =
+    lesson.attendanceStatus || "NOT_RECORDED";
+
+  const attendanceLabel =
+    lesson.attendanceStatusLabel || "Chưa điểm danh";
+
+  const statusStyle = getStatusStyle(attendanceStatus);
+
   return (
     <article
       className="
-        relative min-h-24 overflow-hidden
-        rounded-xl border border-slate-200
+        relative flex h-32 min-h-32 w-full
+        flex-col overflow-hidden rounded-xl
+        border border-slate-200
         bg-white p-3 pl-4 shadow-sm
         transition duration-200
         hover:-translate-y-0.5
@@ -80,57 +94,79 @@ function TimetableLessonCard({
         className={`
           absolute bottom-3 left-0 top-3
           w-[3px] rounded-r-full
-          ${periodStyle.bar}
+          ${statusStyle.bar}
         `}
       />
 
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <h4 className="mb-0 line-clamp-2 text-sm font-bold leading-5 text-[#0F2747]">
+      <div>
+        <h4
+          className="
+            mb-2 truncate text-lg font-bold
+            leading-6 text-[#0F2747]
+          "
+          title={lesson.subjectName}
+        >
           {lesson.subjectName}
         </h4>
 
-        {lesson.subjectCode && (
-          <span
-            className={`
-              shrink-0 rounded-full
-              px-2 py-1 text-[10px]
-              font-bold
-              ${periodStyle.badge}
-            `}
-          >
-            {lesson.subjectCode}
-          </span>
-        )}
+        <div className="space-y-1">
+          {lesson.className && (
+            <p className="mb-0 truncate text-xs font-semibold text-slate-500">
+              Lớp: {lesson.className}
+            </p>
+          )}
+
+          <p className="mb-0 flex items-center gap-1.5 text-xs text-slate-600">
+            <FiUser
+              size={13}
+              className="shrink-0 text-slate-400"
+            />
+
+            <span
+              className="truncate"
+              title={lesson.teacherName}
+            >
+              {lesson.teacherName || "Chưa phân công giáo viên"}
+            </span>
+          </p>
+
+          <p className="mb-0 flex items-center gap-1.5 text-xs font-semibold text-[#08509F]">
+            <FiMapPin
+              size={13}
+              className="shrink-0 text-[#08509F]"
+            />
+
+            <span
+              className="truncate"
+              title={lesson.roomName}
+            >
+              {lesson.roomName || "Chưa xếp phòng"}
+            </span>
+          </p>
+        </div>
       </div>
 
-      <div className="space-y-1.5">
-        {lesson.className && (
-          <p className="mb-0 text-xs font-semibold text-slate-500">
-            Lớp: {lesson.className}
-          </p>
-        )}
+      <div
+        className={`
+          mt-auto inline-flex w-fit max-w-full
+          items-center gap-1.5 rounded-full
+          border px-2.5 py-1
+          text-[11px] font-bold
+          ${statusStyle.badge}
+        `}
+        title={attendanceLabel}
+      >
+        <FiClock
+          size={12}
+          className="shrink-0"
+        />
 
-        <p className="mb-0 flex items-center gap-1.5 text-xs text-slate-600">
-          <FiUser
-            size={13}
-            className="text-slate-400"
-          />
-
-          <span className="truncate">
-            {lesson.teacherName || "Chưa phân công giáo viên"}
-          </span>
-        </p>
-
-        <p className="mb-0 flex items-center gap-1.5 text-xs font-semibold text-[#08509F]">
-          <FiMapPin
-            size={13}
-            className="text-[#08509F]"
-          />
-
-          <span>
-            {lesson.roomName || "Chưa xếp phòng"}
-          </span>
-        </p>
+        <span className="truncate">
+          {attendanceLabel}
+          {lesson.attendanceCheckInTime
+            ? ` · ${lesson.attendanceCheckInTime}`
+            : ""}
+        </span>
       </div>
     </article>
   );

@@ -118,10 +118,6 @@ function StudentProfile() {
               <h1 className="mb-2 text-3xl font-bold text-[#0F2747]">
                 {profile?.fullName || user?.fullName || "Học sinh"}
               </h1>
-
-              <p className="mb-0 text-sm text-slate-500">
-                Xem thông tin cá nhân, lớp học và phụ huynh liên hệ.
-              </p>
             </div>
           </div>
         </div>
@@ -141,31 +137,6 @@ function StudentProfile() {
 
       {!loading && !error && profile && (
         <>
-          <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <InfoCard
-              icon={FiShield}
-              label="Mã học sinh"
-              value={profile.studentCode}
-            />
-
-            <InfoCard
-              icon={FiBookOpen}
-              label="Lớp"
-              value={profile.className}
-            />
-
-            <InfoCard
-              icon={FiHome}
-              label="Phòng học"
-              value={profile.roomName}
-            />
-
-            <InfoCard
-              icon={FiCalendar}
-              label="Năm học"
-              value={profile.schoolYearName}
-            />
-          </section>
 
           <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
             <div className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm xl:col-span-2">
@@ -176,6 +147,16 @@ function StudentProfile() {
               <DetailRow
                 label="Họ và tên"
                 value={profile.fullName}
+              />
+
+              <DetailRow
+                label="Mã Học Sinh"
+                value={profile.studentCode}
+              />
+
+              <DetailRow
+                label="Lớp"
+                value={profile.className}
               />
 
               <DetailRow
@@ -203,10 +184,6 @@ function StudentProfile() {
                 value={profile.address}
               />
 
-              <DetailRow
-                label="Trạng thái"
-                value={profile.studentStatus}
-              />
             </div>
 
             <div className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
@@ -228,10 +205,10 @@ function StudentProfile() {
                   {profile.homeroomTeacherEmail || "Chưa cập nhật"}
                 </p>
 
-                <p className="mb-0 flex items-center gap-2 text-sm text-slate-600">
+                {/* <p className="mb-0 flex items-center gap-2 text-sm text-slate-600">
                   <FiPhone size={15} />
                   {profile.homeroomTeacherPhone || "Chưa cập nhật"}
-                </p>
+                </p> */}
               </div>
             </div>
           </section>

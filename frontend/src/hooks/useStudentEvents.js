@@ -1,0 +1,49 @@
+import { useEffect, useMemo, useState } from "react";
+
+import { studentApi } from "../api/client";
+
+export function useStudentEvents(filters = {}, refreshKey = 0) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const depsKey = useMemo(
+    () => JSON.stringify(filters),
+    [filters],
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    setLoading(true);
+    setError("");
+
+    studentApi
+      .getMyEvents(filters)
+      .then((response) => {
+        if (isMounted) {
+          setData(response.data);
+        }
+      })
+      .catch((requestError) => {
+        if (isMounted) {
+          setError(requestError.message);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [depsKey, refreshKey]);
+
+  return {
+    data,
+    loading,
+    error,
+  };
+}

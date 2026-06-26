@@ -61,18 +61,31 @@ function WeeklyTimetable({
       <div className="overflow-x-auto p-4">
         <table
           className="
-            w-full min-w-[1180px]
+            table-fixed
+            w-full min-w-[1280px]
             border-separate border-spacing-0
             overflow-hidden rounded-2xl
             border border-slate-200
           "
         >
+          <colgroup>
+            <col className="w-24" />
+            <col className="w-40" />
+
+            {weekDays.map((day) => (
+              <col
+                key={day.value}
+                className="w-[180px]"
+              />
+            ))}
+          </colgroup>
+
           <thead>
             <tr className="bg-[#0F2747] text-white">
               <th
                 className="
                   sticky left-0 z-30
-                  w-24 border-r border-white/10
+                  border-r border-white/10
                   bg-[#0F2747]
                   px-4 py-4 text-center
                   text-sm font-bold
@@ -84,7 +97,7 @@ function WeeklyTimetable({
               <th
                 className="
                   sticky left-24 z-30
-                  w-40 border-r border-white/10
+                  border-r border-white/10
                   bg-[#0F2747]
                   px-4 py-4 text-left
                   text-sm font-bold
@@ -97,7 +110,7 @@ function WeeklyTimetable({
                 <th
                   key={day.value}
                   className="
-                    min-w-40 border-r border-white/10
+                    border-r border-white/10
                     px-4 py-4 text-center
                     text-sm font-bold last:border-r-0
                   "

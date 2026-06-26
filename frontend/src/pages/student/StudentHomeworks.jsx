@@ -231,28 +231,9 @@ function StudentHomeworks() {
       )}
 
       {!loading && !error && data && (
-        <section className="overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-          <div
-            className="
-              flex flex-wrap items-center justify-between gap-4
-              border-b border-orange-100 px-5 py-4
-            "
-          >
-            <div>
-              <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-[#F27123]">
-                Học tập
-              </p>
-
-              <h1 className="mb-1 text-2xl font-bold text-[#0F2747]">
-                Bài tập về nhà
-              </h1>
-
-              <p className="mb-0 text-sm text-slate-500">
-                Theo dõi bài tập, hạn nộp và phản hồi từ giáo viên.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
+        <>
+          <section className="mb-5 flex justify-end">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <CompactStat
                 icon={FiFileText}
                 label="Tổng"
@@ -281,9 +262,9 @@ function StudentHomeworks() {
                 className="bg-red-50 text-red-600"
               />
             </div>
-          </div>
+          </section>
 
-          <div className="space-y-4 bg-[#FFF9F4] p-5">
+          <section className="space-y-4">
             {data.homeworks.length > 0 ? (
               data.homeworks.map((homework) => (
                 <HomeworkCard
@@ -292,12 +273,12 @@ function StudentHomeworks() {
                 />
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
                 Hiện chưa có bài tập về nhà.
               </div>
             )}
-          </div>
-        </section>
+          </section>
+        </>
       )}
     </DashboardShell>
   );

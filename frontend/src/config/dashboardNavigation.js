@@ -273,5 +273,10 @@ export const dashboardNavigation = {
       path: "/parent/messages",
       icon: FiMessageSquare,
     },
+    {
+      label: "Thông báo",
+      path: "/parent/notifications",
+      icon: FiBell,
+    },
   ],
 };

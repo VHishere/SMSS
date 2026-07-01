@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { FiClock, FiUser } from "react-icons/fi";
+import { FiBell, FiClock, FiUser } from "react-icons/fi";
 
 import { parentApi } from "../../api/client";
 import { useParentStudents } from "../../hooks/useParentStudents";
+import { useParentNotifications } from "../../hooks/useParentNotifications";
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
@@ -104,6 +105,22 @@ function StudentCard({ student }) {
   );
 }
 
+function getNotificationTypeLabel(type) {
+  const map = {
+    HOMEWORK: "Bài tập",
+    ATTENDANCE: "Điểm danh",
+    GRADE: "Bảng điểm",
+    BEHAVIOUR: "Hạnh kiểm",
+    EVENT: "Sự kiện",
+    LEAVE: "Xin nghỉ",
+    MEETING: "Cuộc họp",
+    MESSAGE: "Tin nhắn",
+    SYSTEM: "Hệ thống",
+  };
+
+  return map[type] || type || "Thông báo";
+}
+
 function ParentDashboard() {
   const { user } = useAuth();
 
@@ -111,6 +128,7 @@ function ParentDashboard() {
   const [profileError, setProfileError] = useState("");
 
   const { students, loading: studentsLoading, error: studentsError } = useParentStudents();
+  const { data: notifData, loading: notifLoading } = useParentNotifications({ limit: 5 });
 
   useEffect(() => {
     let isMounted = true;
@@ -249,30 +267,101 @@ function ParentDashboard() {
           )}
         </div>
 
-        {/* Notifications placeholder */}
+        {/* Notifications */}
         <div className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
-          <div className="mb-5">
-            <h3 className="mb-1 text-base font-bold text-[#0F2747]">
-              Thông báo
-            </h3>
+          <div className="mb-5 flex items-start justify-between gap-2">
+            <div>
+              <h3 className="mb-1 text-base font-bold text-[#0F2747]">
+                Thông báo
+              </h3>
 
-            <p className="mb-0 text-sm text-slate-500">
-              Sự kiện và thông báo mới.
-            </p>
+              <p className="mb-0 text-sm text-slate-500">
+                Sự kiện và thông báo mới.
+              </p>
+            </div>
+
+            {notifData?.summary?.unreadNotifications > 0 && (
+              <span
+                className="
+                  shrink-0 rounded-full bg-[#F27123]
+                  px-2 py-0.5 text-xs
+                  font-bold text-white
+                "
+              >
+                {notifData.summary.unreadNotifications} mới
+              </span>
+            )}
           </div>
 
-          <div
-            className="
-              flex min-h-72 items-center
-              justify-center rounded-xl
-              border border-dashed
-              border-orange-200 bg-[#FFE7D6]/30
-            "
-          >
-            <span className="text-sm font-medium text-slate-400">
-              Notification component
-            </span>
-          </div>
+          {notifLoading && (
+            <div className="flex min-h-48 items-center justify-center text-sm text-slate-400">
+              Đang tải...
+            </div>
+          )}
+
+          {!notifLoading && (!notifData?.items || notifData.items.length === 0) && (
+            <div
+              className="
+                flex min-h-48 flex-col items-center
+                justify-center gap-2 rounded-xl
+                border border-dashed border-orange-200
+                bg-[#FFF7F2] text-slate-400
+              "
+            >
+              <FiBell size={28} />
+              <p className="mb-0 text-sm">Chưa có thông báo</p>
+            </div>
+          )}
+
+          {!notifLoading && notifData?.items?.length > 0 && (
+            <div className="space-y-2">
+              {notifData.items.map((item) => (
+                <div
+                  key={item.notificationId}
+                  className={`
+                    rounded-xl p-3
+                    ${item.isRead ? "bg-slate-50" : "bg-[#FFF7F2] border border-[#F27123]/20"}
+                  `}
+                >
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span
+                      className="
+                        rounded-full bg-orange-50 px-2 py-0.5
+                        text-[11px] font-bold text-[#F27123]
+                      "
+                    >
+                      {getNotificationTypeLabel(item.type)}
+                    </span>
+
+                    {!item.isRead && (
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-[#F27123]" />
+                    )}
+                  </div>
+
+                  <p className="mb-0.5 line-clamp-1 text-sm font-semibold text-[#0F2747]">
+                    {item.title}
+                  </p>
+
+                  <p className="mb-0 text-[11px] text-slate-400">
+                    {item.createdAt}
+                  </p>
+                </div>
+              ))}
+
+              <Link
+                to="/parent/notifications"
+                className="
+                  mt-3 flex w-full items-center
+                  justify-center gap-2 rounded-xl
+                  bg-[#F27123] px-4 py-2.5
+                  text-sm font-bold text-white
+                  transition hover:bg-[#d95f17]
+                "
+              >
+                Xem tất cả thông báo
+              </Link>
+            </div>
+          )}
         </div>
       </section>
 

@@ -1292,6 +1292,21 @@ export const parentApi = {
     const qs = new URLSearchParams(params).toString();
     return request(`/parents/me/students/${studentId}/goals${qs ? `?${qs}` : ""}`);
   },
+
+  getMyNotifications: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/parents/me/notifications${qs ? `?${qs}` : ""}`);
+  },
+
+  markNotificationRead: (notificationId) =>
+    request(`/parents/me/notifications/${notificationId}/read`, {
+      method: "PATCH",
+    }),
+
+  markAllNotificationsRead: () =>
+    request("/parents/me/notifications/read-all", {
+      method: "PATCH",
+    }),
 };
 
 export const staffApi = {

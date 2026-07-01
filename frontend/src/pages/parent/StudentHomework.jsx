@@ -426,17 +426,6 @@ function StudentHomework() {
 
   return (
     <DashboardShell user={headerUser} menuItems={dashboardNavigation.PARENT}>
-      {/* Page header */}
-      <section className="mb-6 overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-6 lg:px-8">
-          <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Theo dõi học sinh</p>
-            <h1 className="mb-1 text-3xl font-bold" style={{ color: "#0F2747" }}>Bài tập về nhà</h1>
-            <p className="text-sm text-slate-500">Xem danh sách bài tập và kết quả nộp bài của con trong từng môn học.</p>
-          </div>
-        </div>
-      </section>
-
       {studentsLoading ? (
         <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
       ) : students.length === 0 ? (

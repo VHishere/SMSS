@@ -168,4 +168,25 @@ router.patch(
   meetingController.respondToInvitation,
 );
 
+router.get(
+  "/me/notifications",
+  authenticate,
+  authorize("PARENT"),
+  parentController.getMyNotifications,
+);
+
+router.patch(
+  "/me/notifications/read-all",
+  authenticate,
+  authorize("PARENT"),
+  parentController.markAllMyNotificationsRead,
+);
+
+router.patch(
+  "/me/notifications/:notificationId/read",
+  authenticate,
+  authorize("PARENT"),
+  parentController.markMyNotificationRead,
+);
+
 module.exports = router;

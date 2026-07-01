@@ -101,23 +101,10 @@ function ParentStudentTimetable() {
             </div>
 
             <div>
-              <p
-                className="
-                  mb-2 text-xs font-bold
-                  uppercase tracking-[0.18em]
-                  text-[#F27123]
-                "
-              >
-                Theo dõi học sinh
-              </p>
 
               <h1 className="mb-2 text-3xl font-bold text-[#0F2747]">
                 Thời khóa biểu
               </h1>
-
-              <p className="mb-0 text-sm text-slate-500">
-                Xem lịch học theo từng tiết trong tuần của học sinh.
-              </p>
             </div>
           </div>
 

@@ -397,10 +397,6 @@ function GradeSemesterTable({ semester }) {
           <h3 className="mb-1 text-base font-bold text-[#0F2747]">
             {semester.label}
           </h3>
-
-          <p className="mb-0 text-sm text-slate-500">
-            3 điểm thường xuyên, 1 điểm 1 tiết và 1 điểm cuối kỳ.
-          </p>
         </div>
 
         <span className="rounded-full bg-[#FFF7F2] px-4 py-2 text-xs font-bold text-[#F27123]">
@@ -594,9 +590,6 @@ function ParentStudentGrades() {
         <section className="overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-orange-100 px-5 py-4">
             <div>
-              <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-[#F27123]">
-                Học tập
-              </p>
 
               <h1 className="mb-1 text-2xl font-bold text-[#0F2747]">
                 Bảng điểm

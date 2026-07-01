@@ -233,6 +233,75 @@ async function getStudentGoals(req, res) {
   }
 }
 
+async function getMyNotifications(req, res) {
+  try {
+    const result = await parentModel.findNotificationsByUserId(
+      req.user.userId,
+      {
+        limit: req.query.limit,
+        unreadOnly: req.query.unreadOnly,
+      },
+    );
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("getMyNotifications error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể tải thông báo",
+    });
+  }
+}
+
+async function markMyNotificationRead(req, res) {
+  try {
+    const notificationId = parseInt(req.params.notificationId, 10);
+
+    const affectedRows = await parentModel.markNotificationRead(
+      req.user.userId,
+      notificationId,
+    );
+
+    if (affectedRows === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy thông báo",
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Đã đánh dấu thông báo là đã đọc",
+    });
+  } catch (error) {
+    console.error("markMyNotificationRead error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể cập nhật thông báo",
+    });
+  }
+}
+
+async function markAllMyNotificationsRead(req, res) {
+  try {
+    await parentModel.markAllNotificationsRead(req.user.userId);
+
+    return res.json({
+      success: true,
+      message: "Đã đánh dấu tất cả thông báo là đã đọc",
+    });
+  } catch (error) {
+    console.error("markAllMyNotificationsRead error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể cập nhật thông báo",
+    });
+  }
+}
+
 module.exports = {
   getMyProfile,
   getMyStudents,
@@ -243,4 +312,7 @@ module.exports = {
   getStudentBehaviourRecords,
   getStudentBehaviourConduct,
   getStudentGoals,
+  getMyNotifications,
+  markMyNotificationRead,
+  markAllMyNotificationsRead,
 };

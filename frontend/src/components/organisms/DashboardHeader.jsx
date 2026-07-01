@@ -14,7 +14,7 @@ import {
   FiMenu,
 } from "react-icons/fi";
 
-import { studentApi } from "../../api/client";
+import { parentApi, studentApi } from "../../api/client";
 import {
   useAuth,
 } from "../../context/useAuth";
@@ -81,7 +81,7 @@ const NotificationToggle = forwardRef(
   },
 );
 
-function NotificationDropdown() {
+function NotificationDropdown({ api, allNotificationsPath }) {
   const navigate = useNavigate();
 
   const [data, setData] = useState({
@@ -113,7 +113,7 @@ function NotificationDropdown() {
     setLoading(true);
     setError("");
 
-    studentApi
+    api
       .getMyNotifications()
       .then((response) => {
         if (!mounted) return;
@@ -140,13 +140,13 @@ function NotificationDropdown() {
     return () => {
       mounted = false;
     };
-  }, [refreshKey]);
+  }, [refreshKey, api]);
 
   async function markRead(notificationId) {
     if (!notificationId) return;
 
     try {
-      await studentApi.markNotificationRead(notificationId);
+      await api.markNotificationRead(notificationId);
 
       setRefreshKey((key) => key + 1);
     } catch {
@@ -155,7 +155,7 @@ function NotificationDropdown() {
   }
 
   function goToAllNotifications() {
-    navigate("/student/notifications");
+    navigate(allNotificationsPath);
   }
 
   return (
@@ -304,6 +304,7 @@ function DashboardHeader({
     authUser?.roles?.map((role) => role.roleName) || [];
 
   const isStudent = roleNames.includes("STUDENT");
+  const isParent = roleNames.includes("PARENT");
 
   return (
     <header className="sticky top-0 z-30 border-b border-orange-100 bg-white/95 backdrop-blur">
@@ -316,9 +317,21 @@ function DashboardHeader({
         />
 
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-3">
-          {isStudent ? (
-            <NotificationDropdown />
-          ) : (
+          {isStudent && (
+            <NotificationDropdown
+              api={studentApi}
+              allNotificationsPath="/student/notifications"
+            />
+          )}
+
+          {isParent && (
+            <NotificationDropdown
+              api={parentApi}
+              allNotificationsPath="/parent/notifications"
+            />
+          )}
+
+          {!isStudent && !isParent && (
             <AppIconButton
               icon={FiBell}
               label="Thông báo"

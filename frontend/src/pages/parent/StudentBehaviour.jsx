@@ -1,355 +1,332 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import {
   FiAward,
-  FiBarChart2,
-  FiClipboard,
-  FiMinusCircle,
-  FiPlusCircle,
+  FiShield,
+  FiThumbsUp,
+  FiTrendingUp,
+  FiXCircle,
 } from "react-icons/fi";
 
+import ErrorAlert from "../../components/atoms/ErrorAlert";
+import FilterSelect from "../../components/atoms/FilterSelect";
+import LoadingState from "../../components/atoms/LoadingState";
+import StatusPill from "../../components/atoms/StatusPill";
+import EmptyState from "../../components/molecules/EmptyState";
+import StudentStatCard from "../../components/molecules/StudentStatCard";
 import DashboardShell from "../../components/templates/DashboardShell";
+
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentBehaviourSemesters } from "../../hooks/useParentBehaviourSemesters";
 import { useParentBehaviourRecords } from "../../hooks/useParentBehaviourRecords";
 import { useParentBehaviourConduct } from "../../hooks/useParentBehaviourConduct";
+import { formatDate } from "../../utils/dateFormat";
 
-const TABS = [
-  { key: "records",  label: "Ghi nhận",  icon: FiClipboard },
-  { key: "conduct",  label: "Hạnh kiểm", icon: FiAward },
-  { key: "analytics", label: "Phân tích", icon: FiBarChart2 },
-];
+const TYPE_LABEL = {
+  POSITIVE: "Điểm cộng",
+  VIOLATION: "Vi phạm",
+};
 
-const GRADE_COLOR = { TOT: "#16A34A", KHA: "#08509F", TB: "#F59E0B", YEU: "#DC2626", NA: "#64748B" };
+const SEVERITY_LABEL = {
+  LOW: "Nhẹ",
+  MEDIUM: "Trung bình",
+  HIGH: "Nghiêm trọng",
+};
 
-const selectCls =
-  "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
-
-// ─── Records Tab ──────────────────────────────────────────────────────────────
-
-function RecordsTab({ studentId, semester }) {
-  const [behaviorType, setBehaviorType] = useState("POSITIVE");
-
-  const filters = useMemo(
-    () => ({
-      behaviorType,
-      startDate: semester?.startDate,
-      endDate:   semester?.endDate,
-      page: 1,
-      limit: 50,
-    }),
-    [behaviorType, semester?.startDate, semester?.endDate],
-  );
-
-  const { data, loading, error } = useParentBehaviourRecords(studentId, filters, Boolean(studentId));
-  const isMerit = behaviorType === "POSITIVE";
-
-  return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1">
-          <button type="button" onClick={() => setBehaviorType("POSITIVE")}
-            className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition"
-            style={isMerit ? { backgroundColor: "#16A34A", color: "#fff" } : { color: "#64748B" }}>
-            <FiPlusCircle size={14} /> Khen thưởng
-          </button>
-          <button type="button" onClick={() => setBehaviorType("VIOLATION")}
-            className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition"
-            style={!isMerit ? { backgroundColor: "#DC2626", color: "#fff" } : { color: "#64748B" }}>
-            <FiMinusCircle size={14} /> Kỷ luật
-          </button>
-        </div>
-      </div>
-
-      {loading && <div className="space-y-2">{[0,1,2,3].map((n) => <div key={n} className="h-16 animate-pulse rounded-xl bg-slate-100" />)}</div>}
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
-
-      {!loading && !error && data && (
-        !data.items.length ? (
-          <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-            Chưa có bản ghi {isMerit ? "khen thưởng" : "kỷ luật"} nào trong kỳ này.
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left" style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}>
-                    {["NỘI DUNG", "ĐIỂM", "NGÀY", "GV GHI"].map((c, i) => (
-                      <th key={i} className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>{c}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((r, idx) => (
-                    <tr key={r.behaviorId} className="border-b last:border-b-0" style={{ borderColor: "#FFF7F2", backgroundColor: idx % 2 === 1 ? "#FAFAFA" : "#fff" }}>
-                      <td className="px-4 py-3">
-                        <div className="text-sm font-medium text-[#0F2747]">{r.title}</div>
-                        {r.description && <div className="text-xs text-slate-400">{r.description}</div>}
-                        {r.evidenceUrl && (
-                          <a href={r.evidenceUrl} target="_blank" rel="noreferrer" className="text-xs font-medium" style={{ color: "#08509F" }}>Xem minh chứng</a>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-bold" style={{ color: isMerit ? "#16A34A" : "#DC2626" }}>
-                          {isMerit ? "+" : "-"}{Math.abs(r.points)}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-500">{r.recordDate}</td>
-                      <td className="px-4 py-3 text-slate-500">{r.createdByName ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )
-      )}
-    </div>
-  );
-}
-
-// ─── Conduct Tab ──────────────────────────────────────────────────────────────
-
-function ConductTab({ studentId, semesterId }) {
-  const { data, loading, error } = useParentBehaviourConduct(studentId, semesterId);
-
-  if (loading) return <div className="h-40 animate-pulse rounded-2xl bg-slate-100" />;
-  if (error)   return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
-  if (!data)   return null;
-
-  const { computed, existing } = data;
-  const gradeColor = GRADE_COLOR[computed.grade.key] ?? "#64748B";
-
-  return (
-    <div className="space-y-4">
-      {/* Summary card */}
-      <div className="rounded-2xl bg-white p-6 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "#F27123" }}>Tổng kết hạnh kiểm</p>
-            <p className="mt-1 text-4xl font-bold" style={{ color: "#0F2747" }}>{computed.finalScore}<span className="ml-1 text-lg text-slate-400">/100</span></p>
-          </div>
-          <span className="rounded-2xl px-5 py-2 text-lg font-bold" style={{ backgroundColor: gradeColor + "22", color: gradeColor }}>
-            {computed.grade.label}
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-xl p-4" style={{ backgroundColor: "#ECFDF5" }}>
-            <p className="text-xs font-medium text-slate-500">Điểm gốc</p>
-            <p className="mt-1 text-2xl font-bold" style={{ color: "#0F2747" }}>{computed.base}</p>
-          </div>
-          <div className="rounded-xl p-4" style={{ backgroundColor: "#ECFDF5" }}>
-            <p className="text-xs font-medium text-slate-500">Điểm thưởng</p>
-            <p className="mt-1 text-2xl font-bold" style={{ color: "#16A34A" }}>+{computed.meritPoints}</p>
-          </div>
-          <div className="rounded-xl p-4" style={{ backgroundColor: "#FEF2F2" }}>
-            <p className="text-xs font-medium text-slate-500">Điểm trừ</p>
-            <p className="mt-1 text-2xl font-bold" style={{ color: "#DC2626" }}>-{Math.abs(computed.demeritPoints)}</p>
-          </div>
-        </div>
-        {computed.adjustment !== 0 && (
-          <p className="mt-3 text-xs text-slate-400">Điều chỉnh thủ công: {computed.adjustment > 0 ? "+" : ""}{computed.adjustment}</p>
-        )}
-      </div>
-
-      {/* Existing evaluation (if any) */}
-      {existing && (
-        <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest" style={{ color: "#F27123" }}>Nhận xét của giáo viên</p>
-          <p className="text-sm text-[#0F2747]">{existing.comment}</p>
-          <p className="mt-2 text-xs text-slate-400">
-            Trạng thái: <span className="font-semibold">{existing.status === "APPROVED" ? "Đã duyệt" : "Bản nháp"}</span>
-            {existing.updatedAt && ` · Cập nhật: ${existing.updatedAt}`}
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Analytics Tab ────────────────────────────────────────────────────────────
-
-function AnalyticsTab({ studentId, semesterId }) {
-  const { data, loading, error } = useParentBehaviourConduct(studentId, semesterId);
-
-  if (loading) return <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">{[0,1,2,3].map((n) => <div key={n} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}</div>;
-  if (error)   return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
-  if (!data)   return null;
-
-  const agg = data.aggregate;
-
-  const stats = [
-    { label: "Điểm hạnh kiểm", value: data.computed.finalScore, color: "#08509F" },
-    { label: "Số lần khen thưởng", value: agg.meritCount, color: "#16A34A" },
-    { label: "Số lần vi phạm", value: agg.violationCount, color: "#DC2626" },
-    { label: "Điểm thưởng tích lũy", value: `+${agg.meritPoints}`, color: "#16A34A" },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {stats.map((s) => (
-          <div key={s.label} className="rounded-xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-            <p className="mb-1 text-xs font-medium text-slate-500">{s.label}</p>
-            <p className="text-2xl font-bold leading-none" style={{ color: s.color }}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      {agg.demeritPoints > 0 && (
-        <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          <p className="mb-3 text-sm font-bold" style={{ color: "#0F2747" }}>Tổng điểm trừ trong kỳ</p>
-          <p className="text-3xl font-bold" style={{ color: "#DC2626" }}>-{Math.abs(agg.demeritPoints)}</p>
-          <p className="mt-1 text-xs text-slate-400">từ {agg.violationCount} lần vi phạm</p>
-        </div>
-      )}
-
-      {agg.meritPoints === 0 && agg.demeritPoints === 0 && (
-        <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          Chưa có dữ liệu hành vi trong kỳ này.
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
+const SEVERITY_TONE = {
+  LOW: "green",
+  MEDIUM: "orange",
+  HIGH: "red",
+};
 
 function StudentBehaviour() {
   const { user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "records";
-
   const { students, loading: studentsLoading } = useParentStudents();
 
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [selectedSemesterId, setSelectedSemesterId] = useState("");
 
   const effStudentId = selectedStudentId || (students[0]?.studentId ? String(students[0].studentId) : "");
-  const activeStudent = students.find((s) => String(s.studentId) === effStudentId) ?? null;
-
   const { data: semesters, loading: semestersLoading } = useParentBehaviourSemesters(effStudentId);
 
   const effSemesterId = selectedSemesterId || (semesters[0]?.semesterId ? String(semesters[0].semesterId) : "");
-  const effSemester   = semesters.find((s) => String(s.semesterId) === effSemesterId);
+  const effSemester = semesters.find((s) => String(s.semesterId) === effSemesterId);
+
+  const recordFilters = useMemo(
+    () => ({
+      startDate: effSemester?.startDate,
+      endDate: effSemester?.endDate,
+      page: 1,
+      limit: 100,
+    }),
+    [effSemester?.startDate, effSemester?.endDate],
+  );
+
+  const { data: recordsData, loading: recordsLoading, error: recordsError } =
+    useParentBehaviourRecords(effStudentId, recordFilters, Boolean(effStudentId));
+
+  const { data: conductData, loading: conductLoading, error: conductError } =
+    useParentBehaviourConduct(effStudentId, effSemesterId);
 
   const headerUser = useMemo(() => ({
-    name:   user?.fullName ?? user?.username ?? "Phụ huynh",
-    role:   "Phụ huynh",
+    name: user?.fullName ?? user?.username ?? "Phụ huynh",
+    role: "Phụ huynh",
     avatar: user?.avatar ?? "",
   }), [user]);
-
-  function setTab(key) { setSearchParams({ tab: key }); }
 
   function selectStudent(id) {
     setSelectedStudentId(String(id));
     setSelectedSemesterId("");
   }
 
+  const records = recordsData?.items || [];
+  const loading = studentsLoading || semestersLoading || recordsLoading || conductLoading;
+  const error = recordsError || conductError;
+
+  const summary = useMemo(
+    () =>
+      conductData
+        ? {
+            meritCount: conductData.aggregate?.meritCount || 0,
+            meritPoints: conductData.aggregate?.meritPoints || 0,
+            violationCount: conductData.aggregate?.violationCount || 0,
+            demeritPoints: Math.abs(conductData.aggregate?.demeritPoints || 0),
+            totalRecords:
+              (conductData.aggregate?.meritCount || 0) +
+              (conductData.aggregate?.violationCount || 0),
+          }
+        : null,
+    [conductData],
+  );
+
+  const conduct = useMemo(
+    () =>
+      conductData
+        ? {
+            finalScore: conductData.computed?.finalScore,
+            conductGrade: conductData.computed?.grade?.label,
+            baseScore: conductData.computed?.base,
+            meritPoints: conductData.computed?.meritPoints,
+            demeritPoints: Math.abs(conductData.computed?.demeritPoints || 0),
+            comment: conductData.existing?.comment,
+            semesterName: effSemester?.semesterName,
+            schoolYearName: effSemester?.schoolYearName,
+          }
+        : null,
+    [conductData, effSemester],
+  );
+
+  const summaryScore = useMemo(() => {
+    if (conduct?.finalScore != null) return conduct.finalScore;
+    const merit = Number(summary?.meritPoints || 0);
+    const demerit = Number(summary?.demeritPoints || 0);
+    return Math.max(0, 100 + merit - demerit);
+  }, [conduct, summary]);
+
   return (
     <DashboardShell user={headerUser} menuItems={dashboardNavigation.PARENT}>
-      <section className="mb-6 overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-6 lg:px-8">
-          <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Theo dõi học sinh</p>
-            <h1 className="mb-1 text-3xl font-bold" style={{ color: "#0F2747" }}>Hạnh kiểm</h1>
-            <p className="text-sm text-slate-500">Xem kết quả khen thưởng, kỷ luật và hạnh kiểm của con trong từng học kỳ.</p>
-          </div>
+      {/* Student selector — only shown when parent has more than one child */}
+      {!studentsLoading && students.length > 1 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {students.map((s) => (
+            <button
+              key={s.studentId}
+              type="button"
+              onClick={() => selectStudent(s.studentId)}
+              className="rounded-full px-4 py-2 text-sm font-medium transition"
+              style={
+                String(s.studentId) === effStudentId
+                  ? { backgroundColor: "#08509F", color: "#fff" }
+                  : { border: "1px solid #e2e8f0", backgroundColor: "#fff", color: "#475569" }
+              }
+            >
+              {s.studentFullName}
+              {s.className && (
+                <span className="ml-1.5 opacity-70">· {s.className}</span>
+              )}
+            </button>
+          ))}
         </div>
+      )}
+
+      {/* Semester filter */}
+      <section className="mb-5 flex justify-end">
+        <FilterSelect
+          label="Học kỳ"
+          value={effSemesterId}
+          onChange={(e) => setSelectedSemesterId(e.target.value)}
+        >
+          {semestersLoading ? (
+            <option>Đang tải...</option>
+          ) : (
+            semesters.map((s) => (
+              <option key={s.semesterId} value={s.semesterId}>
+                {s.semesterName} · {s.schoolYearName}
+              </option>
+            ))
+          )}
+        </FilterSelect>
       </section>
 
-      {studentsLoading ? (
-        <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
-      ) : students.length === 0 ? (
-        <div className="rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid #FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>
-          Không tìm thấy thông tin học sinh.
-        </div>
-      ) : (
+      {loading && <LoadingState label="Đang tải dữ liệu hạnh kiểm..." />}
+
+      {!loading && error && (
+        <ErrorAlert error={`Không tải được hạnh kiểm: ${error}`} />
+      )}
+
+      {!loading && !error && (
         <>
-          {/* Student pill selector — only when >1 child */}
-          {students.length > 1 && (
-            <div className="mb-4 flex flex-wrap gap-2">
-              {students.map((s) => (
-                <button
-                  key={s.studentId}
-                  type="button"
-                  onClick={() => selectStudent(s.studentId)}
-                  className="rounded-full px-4 py-2 text-sm font-medium transition"
-                  style={
-                    String(s.studentId) === effStudentId
-                      ? { backgroundColor: "#08509F", color: "#fff" }
-                      : { border: "1px solid #e2e8f0", backgroundColor: "#fff", color: "#475569" }
-                  }
-                >
-                  {s.studentFullName}
-                  {s.className && <span className="ml-1.5 opacity-70">· {s.className}</span>}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Stat cards */}
+          <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StudentStatCard
+              icon={FiShield}
+              label="Điểm hạnh kiểm"
+              value={summaryScore}
+              hint={conduct?.conductGrade || "Tạm tính"}
+              tone="blue"
+            />
+            <StudentStatCard
+              icon={FiThumbsUp}
+              label="Sự kiện tích cực"
+              value={summary?.meritCount || 0}
+              hint={`+${summary?.meritPoints || 0} điểm`}
+              tone="green"
+            />
+            <StudentStatCard
+              icon={FiXCircle}
+              label="Vi phạm"
+              value={summary?.violationCount || 0}
+              hint={`-${summary?.demeritPoints || 0} điểm`}
+              tone="red"
+            />
+            <StudentStatCard
+              icon={FiTrendingUp}
+              label="Tổng bản ghi"
+              value={summary?.totalRecords || 0}
+              tone="orange"
+            />
+          </section>
 
-          {/* Student info banner */}
-          {activeStudent && (
-            <div className="mb-5 flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
-              {activeStudent.studentAvatar ? (
-                <img src={activeStudent.studentAvatar} alt={activeStudent.studentFullName}
-                  className="h-9 w-9 shrink-0 rounded-full object-cover" />
-              ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#08509F] text-sm font-bold text-white">
-                  {activeStudent.studentFullName?.[0] ?? "?"}
+          {/* Official conduct evaluation */}
+          {conduct && (
+            <section className="mb-6 rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
+              <div className="mb-3 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-50 text-[#08509F]">
+                  <FiAward size={20} />
                 </div>
-              )}
-              <div>
-                <span className="text-sm font-semibold" style={{ color: "#0F2747" }}>{activeStudent.studentFullName}</span>
-                <span className="ml-2 text-xs text-slate-500">
-                  {activeStudent.studentCode}
-                  {activeStudent.className && ` · ${activeStudent.className}`}
-                  {activeStudent.relationship && ` · ${activeStudent.relationship}`}
-                </span>
+                <div>
+                  <h3 className="mb-1 text-base font-bold text-[#0F2747]">
+                    Đánh giá hạnh kiểm chính thức
+                  </h3>
+                  <p className="mb-0 text-sm text-slate-500">
+                    {conduct.semesterName} · {conduct.schoolYearName}
+                  </p>
+                </div>
               </div>
-            </div>
+
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <p className="mb-1 text-xs text-slate-500">Điểm nền</p>
+                  <p className="mb-0 text-xl font-bold text-[#0F2747]">
+                    {conduct.baseScore}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-green-50 p-4">
+                  <p className="mb-1 text-xs text-slate-500">Điểm cộng</p>
+                  <p className="mb-0 text-xl font-bold text-green-600">
+                    +{conduct.meritPoints}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-red-50 p-4">
+                  <p className="mb-1 text-xs text-slate-500">Điểm trừ</p>
+                  <p className="mb-0 text-xl font-bold text-red-600">
+                    -{conduct.demeritPoints}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-orange-50 p-4">
+                  <p className="mb-1 text-xs text-slate-500">Xếp loại</p>
+                  <p className="mb-0 text-xl font-bold text-[#F27123]">
+                    {conduct.conductGrade || "—"}
+                  </p>
+                </div>
+              </div>
+
+              {conduct.comment && (
+                <p className="mt-4 mb-0 text-sm text-slate-600">
+                  {conduct.comment}
+                </p>
+              )}
+            </section>
           )}
 
-          {/* Semester selector */}
-          <div className="mb-5 flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Học kỳ</label>
-              <select value={effSemesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls}
-                disabled={semestersLoading || semesters.length === 0}>
-                {semestersLoading
-                  ? <option>Đang tải...</option>
-                  : semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)
-                }
-              </select>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="mb-6 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <button key={key} type="button" onClick={() => setTab(key)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition"
-                style={activeTab === key ? { backgroundColor: "#F27123", color: "#fff" } : { color: "#64748B" }}>
-                <Icon size={15} />
-                <span className="hidden sm:inline">{label}</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6" }}>
-            {activeTab === "records" && (
-              <RecordsTab studentId={effStudentId} semester={effSemester} />
+          {/* Records table */}
+          <section className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
+            {records.length === 0 ? (
+              <div className="p-6">
+                <EmptyState title="Chưa có bản ghi hạnh kiểm" />
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-orange-100 bg-[#FFF7F2]">
+                      {["Ngày", "Loại", "Tiêu đề", "Mức độ", "Điểm", "Người ghi"].map(
+                        (col) => (
+                          <th
+                            key={col}
+                            className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-[#F27123]"
+                          >
+                            {col}
+                          </th>
+                        ),
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.map((record) => (
+                      <tr
+                        key={record.behaviorId}
+                        className="border-b border-slate-50 hover:bg-orange-50/40"
+                      >
+                        <td className="whitespace-nowrap px-4 py-3 font-semibold text-[#0F2747]">
+                          {formatDate(record.recordDate)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusPill
+                            tone={record.behaviorType === "POSITIVE" ? "green" : "red"}
+                          >
+                            {TYPE_LABEL[record.behaviorType] || record.behaviorType}
+                          </StatusPill>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">
+                          <p className="mb-1 font-semibold text-[#0F2747]">
+                            {record.title}
+                          </p>
+                          <p className="mb-0 line-clamp-2 text-xs text-slate-500">
+                            {record.description || "—"}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusPill
+                            tone={SEVERITY_TONE[record.severityLevel] || "slate"}
+                          >
+                            {SEVERITY_LABEL[record.severityLevel] || "—"}
+                          </StatusPill>
+                        </td>
+                        <td className="px-4 py-3 font-bold text-[#0F2747]">
+                          {record.points}
+                        </td>
+                        <td className="px-4 py-3 text-slate-500">
+                          {record.createdByName || "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
-            {activeTab === "conduct" && (
-              <ConductTab studentId={effStudentId} semesterId={effSemesterId} />
-            )}
-            {activeTab === "analytics" && (
-              <AnalyticsTab studentId={effStudentId} semesterId={effSemesterId} />
-            )}
-          </div>
+          </section>
         </>
       )}
     </DashboardShell>

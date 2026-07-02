@@ -114,16 +114,6 @@ function MeetingsPage() {
       sidebarFooterValue={String(stats.upcoming)}
     >
       {/* Header */}
-      <section
-        className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-5 shadow-sm sm:p-6"
-        style={{ border: "1px solid #FFE7D6", backgroundColor: "#fff" }}
-      >
-        <div>
-          <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Phụ huynh</p>
-          <h1 className="text-2xl font-bold sm:text-3xl" style={{ color: "#0F2747" }}>Họp phụ huynh</h1>
-          <p className="text-sm text-slate-500">Xem lịch họp và thông tin cuộc họp với nhà trường.</p>
-        </div>
-      </section>
 
       {/* Stats */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">

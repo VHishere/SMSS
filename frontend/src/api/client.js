@@ -83,6 +83,22 @@ export const authApi = {
       }),
     }),
 
+  loginGoogleSchool: (credential) =>
+    request("/auth/google/school", {
+      method: "POST",
+      body: JSON.stringify({
+        credential,
+      }),
+    }),
+
+  loginGoogleParent: (credential) =>
+    request("/auth/google/parent", {
+      method: "POST",
+      body: JSON.stringify({
+        credential,
+      }),
+    }),
+
   getMe: () => request("/auth/me"),
 };
 

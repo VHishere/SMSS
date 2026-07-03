@@ -798,7 +798,7 @@ function StudentAttendance() {
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-[#F27123]">
-                  Lịch điểm danh
+                  Lịch sử điểm danh
                 </p>
 
                 <h2 className="mb-0 text-xl font-bold text-[#0F2747]">

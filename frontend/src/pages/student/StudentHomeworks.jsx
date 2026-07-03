@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 
 import {
   FiAlertCircle,
@@ -23,7 +24,7 @@ function formatDateTime(value) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value));
+  }).format(new Date(String(value).replace(" ", "T")));
 }
 
 function statusInfo(status) {
@@ -64,12 +65,8 @@ function CompactStat({
       `}
     >
       <Icon size={15} />
-
       <span>{label}</span>
-
-      <span className="font-bold">
-        {value}
-      </span>
+      <span className="font-bold">{value}</span>
     </div>
   );
 }
@@ -80,90 +77,96 @@ function HomeworkCard({ homework }) {
   );
 
   return (
-    <article
-      className="
-        rounded-2xl border border-orange-100
-        bg-white p-5 shadow-sm
-        transition hover:-translate-y-0.5
-        hover:shadow-md
-      "
+    <Link
+      to={`/student/homeworks/${homework.homeworkId}`}
+      className="block text-inherit no-underline hover:text-inherit hover:no-underline focus:text-inherit focus:no-underline [&_*]:no-underline hover:[&_*]:no-underline"
+      style={{ textDecoration: "none" }}
     >
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#08509F]">
-            {homework.subjectName}
-          </span>
+      <article
+        className="
+          cursor-pointer rounded-2xl border border-orange-100
+          bg-white p-5 shadow-sm
+          transition hover:-translate-y-0.5
+          hover:border-orange-200 hover:shadow-md
+        "
+      >
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-[#08509F]">
+              {homework.subjectName}
+            </span>
 
-          <span
-            className={`
-              inline-flex items-center gap-1.5
-              rounded-full px-3 py-1
-              text-xs font-bold
-              ${currentStatus.className}
-            `}
-          >
             <span
               className={`
-                h-1.5 w-1.5 rounded-full
-                ${currentStatus.dotClassName}
+                inline-flex items-center gap-1.5
+                rounded-full px-3 py-1
+                text-xs font-bold
+                ${currentStatus.className}
               `}
-            />
-            {currentStatus.label}
-          </span>
-        </div>
-
-        <div
-          className="
-            inline-flex items-center gap-2
-            rounded-full bg-[#FFF7F2]
-            px-3 py-1.5
-            text-xs font-bold text-[#F27123]
-          "
-        >
-          <FiClock size={14} />
-          <span>
-            Hạn: {formatDateTime(homework.dueDate)}
-          </span>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="mb-2 text-lg font-bold text-[#0F2747]">
-          {homework.title}
-        </h3>
-
-        <p className="mb-0 text-sm leading-6 text-slate-600">
-          {homework.content || "Không có mô tả chi tiết."}
-        </p>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <FiCheckCircle className="text-slate-400" />
-          <span>
-            Điểm: {homework.score ?? "Chưa chấm"}
-          </span>
-        </div>
-
-        {homework.submitTime && (
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <FiFileText className="text-slate-400" />
-            <span>
-              Đã nộp: {formatDateTime(homework.submitTime)}
+            >
+              <span
+                className={`
+                  h-1.5 w-1.5 rounded-full
+                  ${currentStatus.dotClassName}
+                `}
+              />
+              {currentStatus.label}
             </span>
           </div>
-        )}
-      </div>
 
-      {homework.feedback && (
-        <div className="mt-4 rounded-xl bg-[#FFF7F2] px-4 py-3 text-sm text-slate-600">
-          <span className="font-bold text-[#0F2747]">
-            Nhận xét:
-          </span>{" "}
-          {homework.feedback}
+          <div
+            className="
+              inline-flex items-center gap-2
+              rounded-full bg-[#FFF7F2]
+              px-3 py-1.5
+              text-xs font-bold text-[#F27123]
+            "
+          >
+            <FiClock size={14} />
+            <span>
+              Hạn: {formatDateTime(homework.dueDate)}
+            </span>
+          </div>
         </div>
-      )}
-    </article>
+
+        <div>
+          <h3 className="mb-2 text-lg font-bold text-[#0F2747]">
+            {homework.title}
+          </h3>
+
+          <p className="mb-0 text-sm leading-6 text-slate-600">
+            {homework.content || "Không có mô tả chi tiết."}
+          </p>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <FiCheckCircle className="text-slate-400" />
+            <span>
+              Điểm: {homework.score ?? "-"}
+            </span>
+          </div>
+
+          {homework.submitTime && (
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <FiFileText className="text-slate-400" />
+              <span>
+                Đã nộp: {formatDateTime(homework.submitTime)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {homework.feedback && (
+          <div className="mt-4 rounded-xl bg-[#FFF7F2] px-4 py-3 text-sm text-slate-600">
+            <span className="font-bold text-[#0F2747]">
+              Nhận xét:
+            </span>{" "}
+            {homework.feedback}
+          </div>
+        )}
+      </article>
+    </Link>
   );
 }
 

@@ -192,21 +192,74 @@ async function saveOutcome(req, res) {
 async function uploadDocument(req, res) {
   try {
     const eventId = parseInt(req.params.eventId, 10);
+
     const teacher = await resolveTeacher(req.user.userId);
-    if (!teacher) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
+
+    if (!teacher) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy hồ sơ giáo viên",
+      });
+    }
 
     const event = await eventModel.findById(eventId);
-    if (!event) return res.status(404).json({ success: false, message: "Không tìm thấy sự kiện" });
-    if (event.createdBy !== teacher.userId) return res.status(403).json({ success: false, message: "Bạn không có quyền" });
-    if (!req.file) return res.status(400).json({ success: false, message: "Không có tệp" });
 
-    const fileUrl = `/uploads/events/${req.file.filename}`;
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy sự kiện",
+      });
+    }
+
+    if (event.createdBy !== teacher.userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Bạn không có quyền",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Không có tệp",
+      });
+    }
+
+    const fileUrl = req.file.cloudinaryUrl;
+
     const attachmentId = await eventModel.insertDocument({
-      eventId, fileName: req.file.originalname, fileUrl, fileType: req.file.mimetype, uploadedBy: teacher.userId,
+      eventId,
+      fileName: req.file.originalname,
+      fileUrl,
+      fileType: req.file.mimetype,
+      uploadedBy: teacher.userId,
     });
-    await eventModel.log(eventId, "DOCUMENT", `Tải lên tài liệu: ${req.file.originalname}`, teacher.userId);
-    return res.status(201).json({ success: true, data: { attachmentId, fileName: req.file.originalname, fileUrl, fileType: req.file.mimetype } });
-  } catch (error) { return handleError(res, error, "Không thể tải tài liệu"); }
+
+    await eventModel.log(
+      eventId,
+      "DOCUMENT",
+      `Tải lên tài liệu: ${req.file.originalname}`,
+      teacher.userId,
+    );
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        attachmentId,
+        fileName: req.file.originalname,
+        fileUrl,
+        fileType: req.file.mimetype,
+        publicId: req.file.cloudinaryPublicId,
+        resourceType: req.file.cloudinaryResourceType,
+      },
+    });
+  } catch (error) {
+    return handleError(
+      res,
+      error,
+      "Không thể tải tài liệu",
+    );
+  }
 }
 
 async function deleteDocument(req, res) {

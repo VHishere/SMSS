@@ -179,7 +179,7 @@ function HistoryTab({ studentId }) {
           <select
             value={selectedWeekStart}
             onChange={(e) => setFilter((f) => ({ ...f, weekStart: e.target.value }))}
-            className={`${selectStyle} min-w-[280px]`}
+            className={`${selectStyle} min-w-70`}
           >
             {weeks.map((w) => (
               <option key={w.value} value={w.value}>{w.label}</option>

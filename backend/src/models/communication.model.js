@@ -38,6 +38,23 @@ async function parentAccessibleByTeacher(teacherId, parentUserId) {
   return Boolean(row);
 }
 
+// A teacher (by user_id) is reachable by a parent if linked via any of the parent's active students.
+async function teacherAccessibleByParent(parentUserId, teacherUserId) {
+  const [[row]] = await pool.query(
+    `SELECT 1 AS ok
+     FROM parent_profile pp
+     INNER JOIN student_parent sp ON sp.parent_id = pp.parent_id
+     INNER JOIN student s ON s.student_id = sp.student_id AND s.status = 'ACTIVE'
+     INNER JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     INNER JOIN teacher_class tc ON tc.class_id = ce.class_id AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+     INNER JOIN teacher t ON t.teacher_id = tc.teacher_id
+     WHERE pp.user_id = ? AND t.user_id = ?
+     LIMIT 1`,
+    [parentUserId, teacherUserId],
+  );
+  return Boolean(row);
+}
+
 async function isTeacherForClass(teacherId, classId) {
   const [[row]] = await pool.query(
     `SELECT 1 AS ok FROM teacher_class WHERE teacher_id = ? AND class_id = ? LIMIT 1`,
@@ -229,6 +246,22 @@ async function findDirectConversation(type, userA, userB, studentId) {
   return row ? row.conversationId : null;
 }
 
+// Find any existing 1-1 conversation of a type between two users, regardless of student scope.
+// Used when the counterpart (e.g. a parent) doesn't know/care which student the thread was originally scoped to.
+async function findAnyDirectConversation(type, userA, userB) {
+  const [[row]] = await pool.query(
+    `SELECT c.conversation_id AS conversationId
+     FROM conversation c
+     INNER JOIN conversation_participant a ON a.conversation_id = c.conversation_id AND a.user_id = ?
+     INNER JOIN conversation_participant b ON b.conversation_id = c.conversation_id AND b.user_id = ?
+     WHERE c.conversation_type = ?
+     ORDER BY c.conversation_id DESC
+     LIMIT 1`,
+    [userA, userB, type],
+  );
+  return row ? row.conversationId : null;
+}
+
 async function createConversation({ type, title, studentId, createdBy, participants }) {
   const conn = await pool.getConnection();
   try {
@@ -369,6 +402,7 @@ module.exports = {
   isParticipant,
   studentAccessibleByTeacher,
   parentAccessibleByTeacher,
+  teacherAccessibleByParent,
   isTeacherForClass,
   findStudentContacts,
   findParentContacts,
@@ -377,6 +411,7 @@ module.exports = {
   findConversationMeta,
   findParticipants,
   findDirectConversation,
+  findAnyDirectConversation,
   createConversation,
   findMessages,
   insertMessage,

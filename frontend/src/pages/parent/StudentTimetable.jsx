@@ -115,7 +115,7 @@ function ParentStudentTimetable() {
               bg-white px-5 py-4
               shadow-sm
               sm:grid-cols-3 lg:w-auto
-              lg:min-w-[560px]
+              lg:min-w-140
             "
           >
             <InfoItem

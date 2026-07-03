@@ -1323,6 +1323,51 @@ export const parentApi = {
     request("/parents/me/notifications/read-all", {
       method: "PATCH",
     }),
+
+  getMessageContacts: () =>
+    request("/parents/me/communication/contacts"),
+
+  listConversations: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/parents/me/communication/conversations${qs ? `?${qs}` : ""}`);
+  },
+
+  startConversation: (teacherUserId) =>
+    request("/parents/me/communication/conversations", {
+      method: "POST",
+      body: JSON.stringify({ teacherUserId }),
+    }),
+
+  uploadMessageFile: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return uploadRequest("/parents/me/communication/upload", formData);
+  },
+
+  getThread: (conversationId, params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/parents/me/communication/conversations/${conversationId}${qs ? `?${qs}` : ""}`);
+  },
+
+  sendMessage: (conversationId, body) =>
+    request(`/parents/me/communication/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  deleteMessage: (messageId) =>
+    request(`/parents/me/communication/messages/${messageId}`, {
+      method: "DELETE",
+    }),
+
+  archiveConversation: (conversationId, archived) =>
+    request(`/parents/me/communication/conversations/${conversationId}/archive`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived }),
+    }),
 };
 
 export const staffApi = {

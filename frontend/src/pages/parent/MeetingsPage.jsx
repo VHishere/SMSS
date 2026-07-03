@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  FiCalendar, FiCheckSquare, FiChevronLeft, FiChevronRight, FiClock, FiList, FiMail, FiSearch, FiGrid, FiUsers,
+  FiCheckSquare, FiChevronLeft, FiChevronRight, FiClock, FiList, FiMail, FiSearch, FiGrid, FiUsers,
 } from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
@@ -67,7 +67,6 @@ function MeetingsPage() {
 
   useEffect(() => {
     let m = true;
-    setLoading(true);
     parentMeetingApi.list({ status: statusF, search, limit: 100 })
       .then((res) => { if (m) setData(res.data); })
       .catch(() => {})
@@ -81,7 +80,7 @@ function MeetingsPage() {
     avatar: user?.avatar ?? "",
   }), [user]);
 
-  const meetings = data?.items ?? [];
+  const meetings = useMemo(() => data?.items ?? [], [data]);
 
   const byDay = useMemo(() => {
     const map = {};
@@ -128,7 +127,11 @@ function MeetingsPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Trạng thái</label>
-            <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className={selectCls}>
+            <select
+              value={statusF}
+              onChange={(e) => { setStatusF(e.target.value); setLoading(true); }}
+              className={selectCls}
+            >
               <option value="">Tất cả</option>
               {Object.entries(STATUS).map(([k, v]) => (
                 <option key={k} value={k}>{v.label}</option>
@@ -141,7 +144,7 @@ function MeetingsPage() {
               <FiSearch size={14} className="text-slate-400" />
               <input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setLoading(true); }}
                 placeholder="Tiêu đề..."
                 className="w-40 px-2 py-2 text-sm outline-none"
               />
@@ -262,7 +265,7 @@ function MeetingsPage() {
             {calendarCells.map((cell, i) => (
               <div
                 key={i}
-                className="min-h-[70px] rounded-lg p-1.5 text-xs"
+                className="min-h-17.5 rounded-lg p-1.5 text-xs"
                 style={{ border: cell ? "1px solid #FFE7D6" : "none", backgroundColor: cell ? "#fff" : "transparent" }}
               >
                 {cell && (

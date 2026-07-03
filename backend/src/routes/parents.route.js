@@ -5,12 +5,13 @@ const meetingController     = require("../controllers/meeting.controller");
 const attendanceController  = require("../controllers/attendance.controller");
 const leaveRequestController = require("../controllers/leaveRequest.controller");
 const homeworkController    = require("../controllers/homework.controller");
+const communicationController = require("../controllers/communication.controller");
 
 const {
   authenticate,
   authorize,
 } = require("../middleware/auth.middleware");
-const { handleUpload } = require("../middleware/upload.middleware");
+const { handleUpload, messageFileUpload } = require("../middleware/upload.middleware");
 const router = express.Router();
 
 router.get(
@@ -166,6 +167,63 @@ router.patch(
   authenticate,
   authorize("PARENT"),
   meetingController.respondToInvitation,
+);
+
+router.get(
+  "/me/communication/contacts",
+  authenticate,
+  authorize("PARENT"),
+  parentController.getMyMessageContacts,
+);
+
+router.get(
+  "/me/communication/conversations",
+  authenticate,
+  authorize("PARENT"),
+  communicationController.listConversations,
+);
+
+router.post(
+  "/me/communication/conversations",
+  authenticate,
+  authorize("PARENT"),
+  parentController.startMyTeacherConversation,
+);
+
+router.post(
+  "/me/communication/upload",
+  authenticate,
+  authorize("PARENT"),
+  messageFileUpload,
+  communicationController.uploadFile,
+);
+
+router.get(
+  "/me/communication/conversations/:conversationId",
+  authenticate,
+  authorize("PARENT"),
+  communicationController.getThread,
+);
+
+router.post(
+  "/me/communication/conversations/:conversationId/messages",
+  authenticate,
+  authorize("PARENT"),
+  communicationController.sendMessage,
+);
+
+router.delete(
+  "/me/communication/messages/:messageId",
+  authenticate,
+  authorize("PARENT"),
+  communicationController.deleteMessage,
+);
+
+router.patch(
+  "/me/communication/conversations/:conversationId/archive",
+  authenticate,
+  authorize("PARENT"),
+  communicationController.archiveConversation,
 );
 
 router.get(

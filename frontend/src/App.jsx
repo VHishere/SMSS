@@ -76,6 +76,8 @@ import EventDetailPage from "./pages/teacher/EventDetailPage";
 import TeacherTimetablePage from "./pages/teacher/TeacherTimetablePage";
 import SupportCasesPage from "./pages/teacher/SupportCasesPage";
 
+import StudentHomeworkDetail from "./pages/student/StudentHomeworkDetail";
+
 import "./App.css";
 
 const TEACHER_ROLES = [
@@ -117,6 +119,15 @@ function App() {
             <Route path="promotion" element={<StaffPromotionPage />} />
             <Route path="reports" element={<StaffReportsPage />} />
           </Route>
+
+          <Route
+            path="/student/homeworks/:homeworkId"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <StudentHomeworkDetail />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="/admin"

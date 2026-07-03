@@ -1,10 +1,11 @@
 const fs = require("fs/promises");
 
-const parentModel         = require("../models/parents");
-const teacherModel        = require("../models/teacher.model");
-const leaveRequestModel   = require("../models/leaveRequest.model");
-const attachmentModel     = require("../models/attachment.model");
+const parentModel = require("../models/parents");
+const teacherModel = require("../models/teacher.model");
+const leaveRequestModel = require("../models/leaveRequest.model");
+const attachmentModel = require("../models/attachment.model");
 const leaveRequestService = require("../services/leaveRequest.service");
+const cloudinary = require("../config/cloudinary");
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -14,7 +15,23 @@ async function getLinkedStudentOrNull(userId, studentId) {
 }
 
 async function deleteUploadedFile(file) {
-  if (!file) return;
+  if (file?.cloudinaryPublicId) {
+    try {
+      await cloudinary.uploader.destroy(
+        file.cloudinaryPublicId,
+        {
+          resource_type: file.cloudinaryResourceType || "raw",
+        },
+      );
+    } catch (error) {
+      console.error("deleteCloudinaryFile error:", error);
+    }
+
+    return;
+  }
+
+  if (!file?.path) return;
+
   try {
     await fs.unlink(file.path);
   } catch (error) {
@@ -103,7 +120,7 @@ async function createLeaveRequest(req, res) {
         relatedType: "LEAVE_REQUEST",
         relatedId: leaveRequestId,
         fileName: req.file.originalname,
-        fileUrl: `/uploads/leave-requests/${req.file.filename}`,
+        fileUrl: req.file.cloudinaryUrl,
         fileType: req.file.mimetype,
         uploadedBy: req.user.userId,
       });
@@ -273,7 +290,7 @@ async function listLeaveRequests(req, res) {
       startDate,
       endDate,
       search,
-      page  = "1",
+      page = "1",
       limit = "20",
     } = req.query;
 
@@ -281,7 +298,7 @@ async function listLeaveRequests(req, res) {
       return res.status(400).json({ success: false, message: "Trạng thái không hợp lệ" });
     }
 
-    const parsedPage  = Math.max(1, parseInt(page, 10));
+    const parsedPage = Math.max(1, parseInt(page, 10));
     const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
 
     const [{ total, rows }, counts, classes] = await Promise.all([
@@ -291,7 +308,7 @@ async function listLeaveRequests(req, res) {
         startDate,
         endDate,
         search,
-        page:  parsedPage,
+        page: parsedPage,
         limit: parsedLimit,
       }),
       leaveRequestModel.countByStatusForTeacher(profile.teacherId),
@@ -306,8 +323,8 @@ async function listLeaveRequests(req, res) {
         classes,
         pagination: {
           total,
-          page:       parsedPage,
-          limit:      parsedLimit,
+          page: parsedPage,
+          limit: parsedLimit,
           totalPages: Math.ceil(total / parsedLimit),
         },
       },
@@ -359,7 +376,7 @@ async function decideLeaveRequest(req, res) {
       decision,
       comment,
       actor: {
-        userId:    req.user.userId,
+        userId: req.user.userId,
         teacherId: profile.teacherId,
         roleNames: req.user.roles || [],
       },

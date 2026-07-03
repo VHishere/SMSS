@@ -249,22 +249,24 @@ async function getAnalytics(req, res) {
   }
 }
 
-// POST /teachers/homework/attachments  (multipart/form-data, field "file")
 async function uploadAttachment(req, res) {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: "Không có tệp được tải lên" });
+      return res.status(400).json({
+        success: false,
+        message: "Không có tệp được tải lên",
+      });
     }
 
-    const fileUrl = `/uploads/homework/${req.file.filename}`;
+    const fileUrl = req.file.cloudinaryUrl;
 
     const attachmentId = await homeworkModel.insertAttachment({
       relatedType: "HOMEWORK_DRAFT",
-      relatedId:   0,
-      fileName:    req.file.originalname,
+      relatedId: 0,
+      fileName: req.file.originalname,
       fileUrl,
-      fileType:    req.file.mimetype,
-      uploadedBy:  req.user.userId,
+      fileType: req.file.mimetype,
+      uploadedBy: req.user.userId,
     });
 
     return res.status(201).json({
@@ -274,11 +276,17 @@ async function uploadAttachment(req, res) {
         fileName: req.file.originalname,
         fileUrl,
         fileType: req.file.mimetype,
+        publicId: req.file.cloudinaryPublicId,
+        resourceType: req.file.cloudinaryResourceType,
       },
     });
   } catch (error) {
     console.error("uploadAttachment error:", error);
-    return res.status(500).json({ success: false, message: "Không thể lưu tệp đính kèm" });
+
+    return res.status(500).json({
+      success: false,
+      message: "Không thể lưu tệp đính kèm",
+    });
   }
 }
 

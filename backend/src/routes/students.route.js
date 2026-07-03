@@ -8,7 +8,12 @@ const {
   authenticate,
   authorize,
 } = require("../middleware/auth.middleware");
-const { messageFileUpload } = require("../middleware/upload.middleware");
+
+const {
+  profileAvatarUpload,
+  homeworkFileUpload,
+  messageFileUpload,
+} = require("../middleware/upload.middleware");
 
 const router = express.Router();
 
@@ -33,6 +38,19 @@ router.get(
   "/me/homeworks",
   ...studentOnly,
   studentController.getMyHomeworks,
+);
+
+router.get(
+  "/me/homeworks/:homeworkId",
+  ...studentOnly,
+  studentController.getMyHomeworkDetail,
+);
+
+router.post(
+  "/me/homeworks/:homeworkId/submission",
+  ...studentOnly,
+  homeworkFileUpload,
+  studentController.submitMyHomework,
 );
 
 router.get(
@@ -166,6 +184,19 @@ router.patch(
   "/me/communication/conversations/:conversationId/archive",
   ...studentOnly,
   communicationController.archiveConversation,
+);
+
+router.patch(
+  "/me",
+  ...studentOnly,
+  profileAvatarUpload,
+  studentController.updateMyProfile,
+);
+
+router.get(
+  "/me/communication/search",
+  ...studentOnly,
+  studentController.searchMyMessages,
 );
 
 router.get(

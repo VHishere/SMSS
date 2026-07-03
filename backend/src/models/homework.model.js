@@ -758,6 +758,134 @@ async function findDetailWithStudentSubmission(homeworkId, studentId) {
   };
 }
 
+// ── Student submit / resubmit homework ───────────────────────────────────────
+
+async function submitStudentSubmission({
+  homeworkId,
+  studentId,
+  actorUserId,
+  content,
+  fileUrl,
+}) {
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    const [[homework]] = await conn.query(
+      `SELECT
+         h.homework_id AS homeworkId,
+         h.title,
+         h.status,
+         h.teacher_id AS teacherId,
+         t.user_id AS teacherUserId
+       FROM homework h
+       INNER JOIN teacher t
+         ON t.teacher_id = h.teacher_id
+       INNER JOIN class_enrollment ce
+         ON ce.class_id = h.class_id
+         AND ce.student_id = ?
+         AND ce.status = 'ACTIVE'
+       WHERE h.homework_id = ?
+       LIMIT 1`,
+      [studentId, homeworkId],
+    );
+
+    if (!homework) {
+      const error = new Error("Không tìm thấy bài tập hoặc bài tập không thuộc lớp của bạn");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (!["OPEN", "PUBLISHED", "ACTIVE"].includes(homework.status)) {
+      const error = new Error("Bài tập hiện không mở để nộp bài");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const [[existing]] = await conn.query(
+      `SELECT
+         submission_id AS submissionId,
+         status
+       FROM homework_submission
+       WHERE homework_id = ?
+         AND student_id = ?
+       LIMIT 1`,
+      [homeworkId, studentId],
+    );
+
+    if (existing?.status === "GRADED") {
+      const error = new Error("Bài nộp đã được chấm, không thể nộp lại");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    let submissionId;
+
+    if (existing) {
+      submissionId = existing.submissionId;
+
+      await conn.query(
+        `UPDATE homework_submission
+         SET content = ?,
+             file_url = COALESCE(?, file_url),
+             submit_time = NOW(),
+             score = NULL,
+             feedback = NULL,
+             graded_by = NULL,
+             graded_at = NULL,
+             status = 'SUBMITTED'
+         WHERE submission_id = ?`,
+        [content || null, fileUrl || null, submissionId],
+      );
+    } else {
+      const [result] = await conn.query(
+        `INSERT INTO homework_submission
+           (homework_id, student_id, submit_time, file_url, content, status)
+         VALUES (?, ?, NOW(), ?, ?, 'SUBMITTED')`,
+        [homeworkId, studentId, fileUrl || null, content || null],
+      );
+
+      submissionId = result.insertId;
+    }
+
+    const [[student]] = await conn.query(
+      `SELECT ua.full_name AS fullName
+       FROM student s
+       INNER JOIN user_account ua
+         ON ua.user_id = s.user_id
+       WHERE s.student_id = ?`,
+      [studentId],
+    );
+
+    if (homework.teacherUserId) {
+      await conn.query(
+        `INSERT INTO notification
+           (receiver_id, title, content, type, related_type, related_id, is_read)
+         VALUES (?, ?, ?, 'HOMEWORK', 'HOMEWORK', ?, false)`,
+        [
+          homework.teacherUserId,
+          "Học sinh đã nộp bài",
+          `${student?.fullName || "Học sinh"} đã nộp bài "${homework.title}".`,
+          homeworkId,
+        ],
+      );
+    }
+
+    await conn.commit();
+
+    return {
+      submissionId,
+      isResubmission: Boolean(existing),
+    };
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   findTeachingAssignments,
   isAssignmentValid,
@@ -779,4 +907,5 @@ module.exports = {
   deleteAttachment,
   findByStudentId,
   findDetailWithStudentSubmission,
+  submitStudentSubmission,
 };

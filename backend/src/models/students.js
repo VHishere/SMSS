@@ -109,6 +109,68 @@ async function findProfileByUserId(userId) {
   };
 }
 
+async function updateProfileByUserId(userId, payload) {
+  const {
+    fullName,
+    phone,
+    avatar,
+    dateOfBirth,
+    gender,
+    address,
+  } = payload;
+
+  const conn = await pool.getConnection();
+
+  try {
+    await conn.beginTransaction();
+
+    await conn.query(
+      `
+        UPDATE user_account
+        SET
+          full_name = ?,
+          phone = ?,
+          avatar = ?
+        WHERE user_id = ?
+          AND status = 'ACTIVE'
+      `,
+      [
+        fullName,
+        phone || null,
+        avatar || null,
+        userId,
+      ],
+    );
+
+    await conn.query(
+      `
+        UPDATE student
+        SET
+          date_of_birth = ?,
+          gender = ?,
+          address = ?
+        WHERE user_id = ?
+          AND status = 'ACTIVE'
+      `,
+      [
+        dateOfBirth || null,
+        gender || "OTHER",
+        address || null,
+        userId,
+      ],
+    );
+
+    await conn.commit();
+
+    return findProfileByUserId(userId);
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
 async function findStudentContextByUserId(userId) {
   const [rows] = await pool.query(
     `
@@ -884,6 +946,7 @@ async function isTeacherContactForStudent(userId, teacherUserId) {
 
 module.exports = {
   findProfileByUserId,
+  updateProfileByUserId,
   findStudentContextByUserId,
   findDashboardByUserId,
   findHomeworksByUserId,

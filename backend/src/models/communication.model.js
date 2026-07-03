@@ -344,7 +344,356 @@ async function findMessageById(messageId) {
   return row || null;
 }
 
-// ── Dashboard stats ───────────────────────────────────────────────────────────
+async function addMissingParticipants(conversationId, participants = []) {
+  if (!participants.length) return;
+
+  const values = participants.map((p) => [
+    conversationId,
+    p.userId,
+    p.role,
+  ]);
+
+  await pool.query(
+    `
+      INSERT IGNORE INTO conversation_participant
+        (conversation_id, user_id, role_in_conversation)
+      VALUES ?
+    `,
+    [values],
+  );
+}
+
+async function findGroupByTitle(title) {
+  const [[row]] = await pool.query(
+    `
+      SELECT
+        conversation_id AS conversationId,
+        title
+      FROM conversation
+      WHERE conversation_type = 'GROUP'
+        AND title = ?
+      LIMIT 1
+    `,
+    [title],
+  );
+
+  return row || null;
+}
+
+async function getGroupSummary(conversationId, groupType) {
+  const [[row]] = await pool.query(
+    `
+      SELECT
+        c.conversation_id AS conversationId,
+        c.title,
+        c.conversation_type AS conversationType,
+        COUNT(cp.participant_id) AS memberCount
+      FROM conversation c
+      LEFT JOIN conversation_participant cp
+        ON cp.conversation_id = c.conversation_id
+      WHERE c.conversation_id = ?
+      GROUP BY c.conversation_id, c.title, c.conversation_type
+    `,
+    [conversationId],
+  );
+
+  if (!row) return null;
+
+  return {
+    conversationId: row.conversationId,
+    title: row.title,
+    conversationType: row.conversationType,
+    groupType,
+    memberCount: Number(row.memberCount || 0),
+  };
+}
+
+async function findClassGroupParticipants(classId) {
+  const [rows] = await pool.query(
+    `
+      SELECT
+        s.user_id AS userId,
+        'STUDENT' AS role
+      FROM class_enrollment ce
+      INNER JOIN student s
+        ON s.student_id = ce.student_id
+        AND s.status = 'ACTIVE'
+      INNER JOIN user_account ua
+        ON ua.user_id = s.user_id
+        AND ua.status = 'ACTIVE'
+      WHERE ce.class_id = ?
+        AND ce.status = 'ACTIVE'
+
+      UNION
+
+      SELECT
+        t.user_id AS userId,
+        'TEACHER' AS role
+      FROM teacher_class tc
+      INNER JOIN teacher t
+        ON t.teacher_id = tc.teacher_id
+      INNER JOIN user_account ua
+        ON ua.user_id = t.user_id
+        AND ua.status = 'ACTIVE'
+      WHERE tc.class_id = ?
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+    `,
+    [classId, classId],
+  );
+
+  return rows;
+}
+
+async function ensureClassGroupConversation({
+  userId,
+  classId,
+  className,
+}) {
+  const title = `Nhóm lớp ${className}`;
+  const participants = await findClassGroupParticipants(classId);
+
+  if (!participants.some((p) => Number(p.userId) === Number(userId))) {
+    participants.push({
+      userId,
+      role: "STUDENT",
+    });
+  }
+
+  let group = await findGroupByTitle(title);
+
+  if (!group) {
+    const conversationId = await createConversation({
+      type: "GROUP",
+      title,
+      studentId: null,
+      createdBy: userId,
+      participants,
+    });
+
+    return getGroupSummary(conversationId, "CLASS");
+  }
+
+  await addMissingParticipants(group.conversationId, participants);
+
+  return getGroupSummary(group.conversationId, "CLASS");
+}
+
+async function findBoardingAreaByStudentId(studentId) {
+  const [[row]] = await pool.query(
+    `
+      SELECT
+        sa.area_id AS areaId,
+        a.area_name AS areaName,
+        a.area_type AS areaType
+      FROM student_area sa
+      INNER JOIN supervisor_area a
+        ON a.area_id = sa.area_id
+        AND a.status = 'ACTIVE'
+      WHERE sa.student_id = ?
+        AND sa.status = 'ACTIVE'
+        AND (sa.end_date IS NULL OR sa.end_date >= CURDATE())
+      ORDER BY sa.start_date DESC, sa.student_area_id DESC
+      LIMIT 1
+    `,
+    [studentId],
+  );
+
+  return row || null;
+}
+
+async function findBoardingGroupParticipants(areaId) {
+  const [rows] = await pool.query(
+    `
+      SELECT
+        s.user_id AS userId,
+        'STUDENT' AS role
+      FROM student_area sa
+      INNER JOIN student s
+        ON s.student_id = sa.student_id
+        AND s.status = 'ACTIVE'
+      INNER JOIN user_account ua
+        ON ua.user_id = s.user_id
+        AND ua.status = 'ACTIVE'
+      WHERE sa.area_id = ?
+        AND sa.status = 'ACTIVE'
+        AND (sa.end_date IS NULL OR sa.end_date >= CURDATE())
+
+      UNION
+
+      SELECT
+        ds.user_id AS userId,
+        'SUPERVISOR' AS role
+      FROM supervisor_area a
+      INNER JOIN dorm_supervisor ds
+        ON ds.supervisor_id = a.supervisor_id
+      INNER JOIN user_account ua
+        ON ua.user_id = ds.user_id
+        AND ua.status = 'ACTIVE'
+      WHERE a.area_id = ?
+        AND a.status = 'ACTIVE'
+    `,
+    [areaId, areaId],
+  );
+
+  return rows;
+}
+
+async function ensureBoardingGroupConversation({
+  userId,
+  areaId,
+  areaName,
+}) {
+  const title = `Nhóm nội trú ${areaName}`;
+  const participants = await findBoardingGroupParticipants(areaId);
+
+  if (!participants.some((p) => Number(p.userId) === Number(userId))) {
+    participants.push({
+      userId,
+      role: "STUDENT",
+    });
+  }
+
+  let group = await findGroupByTitle(title);
+
+  if (!group) {
+    const conversationId = await createConversation({
+      type: "GROUP",
+      title,
+      studentId: null,
+      createdBy: userId,
+      participants,
+    });
+
+    return getGroupSummary(conversationId, "BOARDING");
+  }
+
+  await addMissingParticipants(group.conversationId, participants);
+
+  return getGroupSummary(group.conversationId, "BOARDING");
+}
+
+async function ensureStudentGroupConversations({
+  userId,
+  context,
+}) {
+  const groups = [];
+
+  if (context?.classId) {
+    const classGroup = await ensureClassGroupConversation({
+      userId,
+      classId: context.classId,
+      className: context.className,
+    });
+
+    if (classGroup) groups.push(classGroup);
+  }
+
+  const area = await findBoardingAreaByStudentId(context.studentId);
+
+  if (area) {
+    const boardingGroup = await ensureBoardingGroupConversation({
+      userId,
+      areaId: area.areaId,
+      areaName: area.areaName,
+    });
+
+    if (boardingGroup) {
+      groups.push({
+        ...boardingGroup,
+        areaId: area.areaId,
+        areaName: area.areaName,
+      });
+    }
+  }
+
+  return groups;
+}
+
+async function searchMessages(userId, filters = {}) {
+  const {
+    keyword,
+    archived = false,
+    page = 1,
+    limit = 20,
+  } = filters;
+
+  const offset = (page - 1) * limit;
+  const searchText = `%${keyword}%`;
+
+  const [rows] = await pool.query(
+    `
+      SELECT
+        m.message_id AS messageId,
+        m.conversation_id AS conversationId,
+        m.sender_id AS senderId,
+        ua.full_name AS senderName,
+        m.message_type AS messageType,
+        m.content,
+        m.file_url AS fileUrl,
+        DATE_FORMAT(m.sent_at, '%Y-%m-%d %H:%i') AS sentAt,
+        c.conversation_type AS conversationType,
+        c.title AS conversationTitle,
+
+        (
+          SELECT other_ua.full_name
+          FROM conversation_participant other_cp
+          INNER JOIN user_account other_ua
+            ON other_ua.user_id = other_cp.user_id
+          WHERE other_cp.conversation_id = c.conversation_id
+            AND other_cp.user_id <> ?
+          LIMIT 1
+        ) AS otherName
+
+      FROM conversation_participant cp
+      INNER JOIN conversation c
+        ON c.conversation_id = cp.conversation_id
+      INNER JOIN conversation_message m
+        ON m.conversation_id = c.conversation_id
+      INNER JOIN user_account ua
+        ON ua.user_id = m.sender_id
+      WHERE cp.user_id = ?
+        AND cp.is_archived = ?
+        AND m.is_deleted = FALSE
+        AND (
+          m.content LIKE ?
+          OR m.file_url LIKE ?
+          OR c.title LIKE ?
+          OR ua.full_name LIKE ?
+        )
+      ORDER BY m.sent_at DESC, m.message_id DESC
+      LIMIT ? OFFSET ?
+    `,
+    [
+      userId,
+      userId,
+      archived ? 1 : 0,
+      searchText,
+      searchText,
+      searchText,
+      searchText,
+      limit,
+      offset,
+    ],
+  );
+
+  return rows.map((row) => ({
+    messageId: row.messageId,
+    conversationId: row.conversationId,
+    senderId: row.senderId,
+    senderName: row.senderName,
+    messageType: row.messageType,
+    content: row.content,
+    fileUrl: row.fileUrl,
+    sentAt: row.sentAt,
+    conversationType: row.conversationType,
+    conversationTitle: row.conversationTitle,
+    otherName: row.otherName,
+    displayName:
+      row.conversationType === "GROUP"
+        ? row.conversationTitle || "Nhóm"
+        : row.otherName || "Cuộc trò chuyện",
+  }));
+}
 
 async function dashboardStats(userId) {
   const [[row]] = await pool.query(
@@ -385,4 +734,6 @@ module.exports = {
   findMessageById,
   setArchived,
   dashboardStats,
+  ensureStudentGroupConversations,
+  searchMessages,
 };

@@ -147,24 +147,49 @@ async function archiveConversation(req, res) {
 // POST /teachers/communication/upload  (multipart field "file")
 async function uploadFile(req, res) {
   try {
-    if (!req.file) return res.status(400).json({ success: false, message: "Không có tệp được tải lên" });
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Không có tệp được tải lên",
+      });
+    }
 
-    const fileUrl = `/uploads/messages/${req.file.filename}`;
+    const fileUrl = req.file.cloudinaryUrl;
     const isImage = req.file.mimetype.startsWith("image/");
 
-    // Audit: persist attachment metadata
     await pool.query(
-      `INSERT INTO attachment (related_type, related_id, file_name, file_url, file_type, uploaded_by)
-       VALUES ('MESSAGE', 0, ?, ?, ?, ?)`,
-      [req.file.originalname, fileUrl, req.file.mimetype, req.user.userId],
+      `
+        INSERT INTO attachment
+          (related_type, related_id, file_name, file_url, file_type, uploaded_by)
+        VALUES
+          ('MESSAGE', 0, ?, ?, ?, ?)
+      `,
+      [
+        req.file.originalname,
+        fileUrl,
+        req.file.mimetype,
+        req.user.userId,
+      ],
     );
 
     return res.status(201).json({
       success: true,
-      data: { fileUrl, fileName: req.file.originalname, messageType: isImage ? "IMAGE" : "FILE" },
+      data: {
+        fileUrl,
+        fileName: req.file.originalname,
+        fileType: req.file.mimetype,
+        size: req.file.size,
+        publicId: req.file.cloudinaryPublicId,
+        resourceType: req.file.cloudinaryResourceType,
+        messageType: isImage ? "IMAGE" : "FILE",
+      },
     });
   } catch (error) {
-    return handleError(res, error, "Không thể tải tệp lên");
+    return handleError(
+      res,
+      error,
+      "Không thể tải tệp lên",
+    );
   }
 }
 

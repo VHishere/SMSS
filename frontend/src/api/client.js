@@ -118,6 +118,47 @@ export const studentApi = {
   getMyHomeworks: () =>
     request("/students/me/homeworks"),
 
+  getMyHomeworkDetail: (homeworkId) =>
+    request(`/students/me/homeworks/${homeworkId}`),
+
+  submitHomework: (homeworkId, { content, file }) => {
+    const formData = new FormData();
+    formData.append("content", content || "");
+
+    if (file) {
+      formData.append("file", file);
+    }
+
+    return uploadRequest(
+      `/students/me/homeworks/${homeworkId}/submission`,
+      formData,
+    );
+  },
+
+  updateMyProfile: (body) => {
+    const formData = new FormData();
+
+    formData.append("fullName", body.fullName || "");
+    formData.append("phone", body.phone || "");
+    formData.append("dateOfBirth", body.dateOfBirth || "");
+    formData.append("gender", body.gender || "OTHER");
+    formData.append("address", body.address || "");
+
+    if (body.avatarFile) {
+      formData.append("avatar", body.avatarFile);
+    }
+
+    return uploadRequest("/students/me", formData, {
+      method: "PATCH",
+    });
+  },
+
+  searchMessageHistory: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/communication/search${qs ? `?${qs}` : ""}`);
+  },
+
   getMyGrades: () =>
     request("/students/me/grades"),
 
@@ -298,7 +339,11 @@ export const teacherApi = {
     }),
 };
 
-async function uploadRequest(path, formData) {
+async function uploadRequest(
+  path,
+  formData,
+  options = {},
+) {
   const token = getAuthToken();
 
   const headers = {};
@@ -313,7 +358,7 @@ async function uploadRequest(path, formData) {
     response = await fetch(
       `${API_BASE}${path}`,
       {
-        method: "POST",
+        method: options.method || "POST",
         headers,
         body: formData,
       },

@@ -379,6 +379,82 @@ async function markAllNotificationsRead(userId) {
   return result.affectedRows;
 }
 
+async function findTeacherContactsByUserId(userId) {
+  const [teachers] = await pool.query(
+    `
+      SELECT DISTINCT
+        t.teacher_id  AS teacherId,
+        t.user_id     AS teacherUserId,
+        ua.full_name  AS teacherName,
+        ua.email,
+        ua.phone,
+        ua.avatar,
+        tc.role_in_class AS roleInClass,
+        sb.subject_name  AS subjectName,
+        sc.class_name    AS className,
+        s.student_id     AS studentId,
+        sua.full_name    AS studentName
+
+      FROM parent_profile pp
+      INNER JOIN student_parent sp
+        ON sp.parent_id = pp.parent_id
+
+      INNER JOIN student s
+        ON s.student_id = sp.student_id
+        AND s.status    = 'ACTIVE'
+
+      INNER JOIN user_account sua
+        ON sua.user_id = s.user_id
+
+      INNER JOIN class_enrollment ce
+        ON ce.student_id = s.student_id
+        AND ce.status    = 'ACTIVE'
+
+      INNER JOIN school_class sc
+        ON sc.class_id = ce.class_id
+
+      INNER JOIN teacher_class tc
+        ON tc.class_id = sc.class_id
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+
+      LEFT JOIN subject sb
+        ON sb.subject_id = tc.subject_id
+
+      INNER JOIN teacher t
+        ON t.teacher_id = tc.teacher_id
+
+      INNER JOIN user_account ua
+        ON ua.user_id = t.user_id
+        AND ua.status = 'ACTIVE'
+
+      WHERE pp.user_id = ?
+
+      ORDER BY
+        sua.full_name ASC,
+        CASE tc.role_in_class WHEN 'HOMEROOM_TEACHER' THEN 0 ELSE 1 END,
+        ua.full_name ASC
+    `,
+    [userId],
+  );
+
+  const studentMap = new Map();
+
+  teachers.forEach((row) => {
+    if (!studentMap.has(row.studentId)) {
+      studentMap.set(row.studentId, {
+        studentId: row.studentId,
+        studentName: row.studentName,
+        className: row.className,
+      });
+    }
+  });
+
+  return {
+    students: Array.from(studentMap.values()),
+    teachers,
+  };
+}
+
 module.exports = {
   findProfileByUserId,
   findLinkedStudentsByUserId,
@@ -387,4 +463,5 @@ module.exports = {
   findNotificationsByUserId,
   markNotificationRead,
   markAllNotificationsRead,
+  findTeacherContactsByUserId,
 };

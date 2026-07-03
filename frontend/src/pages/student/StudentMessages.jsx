@@ -7,7 +7,6 @@ import {
   FiMessageSquare,
   FiSearch,
   FiSend,
-  FiUsers,
 } from "react-icons/fi";
 
 import { studentApi } from "../../api/client";
@@ -211,7 +210,7 @@ function TeacherList({
   return (
     <aside
       className="
-        min-h-[650px] overflow-hidden
+        min-h-162.5 overflow-hidden
         rounded-3xl border border-orange-100
         bg-white shadow-sm
       "
@@ -246,7 +245,7 @@ function TeacherList({
         </div>
       </div>
 
-      <div className="h-[560px] overflow-y-auto px-3 py-3">
+      <div className="h-140 overflow-y-auto px-3 py-3">
         {filteredTeachers.length === 0 ? (
           <div className="px-4 py-8">
             <EmptyState title="Không tìm thấy giáo viên" />
@@ -412,7 +411,7 @@ function ThreadPanel({
     return (
       <div
         className="
-          flex min-h-[650px] items-center
+          flex min-h-162.5 items-center
           justify-center rounded-3xl
           border border-dashed border-orange-200
           bg-white p-8 text-center
@@ -457,7 +456,7 @@ function ThreadPanel({
   return (
     <div
       className="
-        flex min-h-[650px] flex-col
+        flex min-h-162.5 flex-col
         overflow-hidden rounded-3xl
         border border-orange-100
         bg-white shadow-sm

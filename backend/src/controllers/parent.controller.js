@@ -3,6 +3,7 @@ const timetableModel = require("../models/timetable.model");
 const behaviourModel = require("../models/behaviour.model");
 const behaviourService = require("../services/behaviour.service");
 const goalModel = require("../models/goal.model");
+const commModel = require("../models/communication.model");
 const { TIMETABLE_SLOTS, WEEK_DAYS } = require("../config/timetable.config");
 
 async function getMyProfile(req, res) {
@@ -302,6 +303,88 @@ async function markAllMyNotificationsRead(req, res) {
   }
 }
 
+// ── Messages ──────────────────────────────────────────────────────────────────
+
+async function getMyMessageContacts(req, res) {
+  try {
+    const result = await parentModel.findTeacherContactsByUserId(req.user.userId);
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    console.error("getMyMessageContacts error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể tải danh bạ giáo viên",
+    });
+  }
+}
+
+async function startMyTeacherConversation(req, res) {
+  try {
+    const teacherUserId = Number(req.body.teacherUserId);
+
+    if (!teacherUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu giáo viên nhận tin nhắn",
+      });
+    }
+
+    const ok = await commModel.teacherAccessibleByParent(req.user.userId, teacherUserId);
+
+    if (!ok) {
+      return res.status(403).json({
+        success: false,
+        message: "Bạn không thể nhắn tin với giáo viên này",
+      });
+    }
+
+    const existing = await commModel.findAnyDirectConversation(
+      "PARENT_TEACHER",
+      req.user.userId,
+      teacherUserId,
+    );
+
+    if (existing) {
+      return res.json({
+        success: true,
+        data: {
+          conversationId: existing,
+          created: false,
+        },
+      });
+    }
+
+    const conversationId = await commModel.createConversation({
+      type: "PARENT_TEACHER",
+      title: null,
+      studentId: null,
+      createdBy: req.user.userId,
+      participants: [
+        { userId: req.user.userId, role: "PARENT" },
+        { userId: teacherUserId, role: "TEACHER" },
+      ],
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        conversationId,
+        created: true,
+      },
+    });
+  } catch (error) {
+    console.error("startMyTeacherConversation error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể bắt đầu trò chuyện",
+    });
+  }
+}
+
 module.exports = {
   getMyProfile,
   getMyStudents,
@@ -315,4 +398,6 @@ module.exports = {
   getMyNotifications,
   markMyNotificationRead,
   markAllMyNotificationsRead,
+  getMyMessageContacts,
+  startMyTeacherConversation,
 };

@@ -405,10 +405,10 @@ function GradeSemesterTable({ semester }) {
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1080px]">
+        <table className="w-full min-w-270">
           <thead className="bg-[#0F2747] text-white">
             <tr>
-              <th className="w-[260px] px-5 py-4 text-left text-sm font-bold">
+              <th className="w-65 px-5 py-4 text-left text-sm font-bold">
                 Môn học
               </th>
 
@@ -428,7 +428,7 @@ function GradeSemesterTable({ semester }) {
                 TB môn
               </th>
 
-              <th className="w-[240px] px-5 py-4 text-left text-sm font-bold">
+              <th className="w-60 px-5 py-4 text-left text-sm font-bold">
                 Nhận xét
               </th>
             </tr>

@@ -233,7 +233,7 @@ function MessagesPage() {
                               <FiPaperclip size={14} /> {m.content || "Tệp đính kèm"}
                             </a>
                           ) : (
-                            <span className="whitespace-pre-wrap break-words">{m.content}</span>
+                            <span className="whitespace-pre-wrap wrap-break-word">{m.content}</span>
                           )}
                         </div>
                         <div className={`mt-0.5 flex items-center gap-1 px-1 text-xs text-slate-400 ${mine ? "justify-end" : "justify-start"}`}>

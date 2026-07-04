@@ -60,7 +60,6 @@ function TeacherTimetablePage() {
       <section className="mb-6 rounded-2xl p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6", backgroundColor: "#fff" }}>
         <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Giáo viên</p>
         <h1 className="text-2xl font-bold sm:text-3xl" style={{ color: "#0F2747" }}>Thời khóa biểu</h1>
-        <p className="text-sm text-slate-500">Xem lịch dạy theo tuần và gửi yêu cầu đổi tiết / dạy thay.</p>
       </section>
 
       <div className="mb-6 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">

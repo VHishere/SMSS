@@ -1146,6 +1146,25 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
+  getTeachers: (search = "") => {
+    const query = search ? `?search=${encodeURIComponent(search)}` : "";
+    return request(`/staff/teachers${query}`);
+  },
+
+  getTeacher: (id) => request(`/staff/teachers/${id}`),
+
+  createTeacher: (payload) =>
+    request("/staff/teachers", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateTeacher: (id, payload) =>
+    request(`/staff/teachers/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
   getSchoolYears: () => request("/staff/school-years"),
 
   createSchoolYear: (payload) =>
@@ -1206,6 +1225,42 @@ export const staffApi = {
       method: "DELETE",
     }),
 
+  getClassTimetable: (classId) =>
+    request(`/staff/classes/${classId}/timetable`),
+
+  createClassTimetableLesson: (classId, payload) =>
+    request(`/staff/classes/${classId}/timetable`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateClassTimetableLesson: (classId, timetableId, payload) =>
+    request(`/staff/classes/${classId}/timetable/${timetableId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteClassTimetableLesson: (classId, timetableId) =>
+    request(`/staff/classes/${classId}/timetable/${timetableId}`, {
+      method: "DELETE",
+    }),
+
+  getActivities: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/activities${query ? `?${query}` : ""}`);
+  },
+
+  createActivity: (payload) =>
+    request("/staff/activities", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteActivity: (eventId) =>
+    request(`/staff/activities/${eventId}`, { method: "DELETE" }),
+
   getPromotionCandidates: (fromSchoolYearId, fromGradeId) =>
     request(
       `/staff/promotion/candidates?fromSchoolYearId=${fromSchoolYearId}&fromGradeId=${fromGradeId}`,
@@ -1220,5 +1275,62 @@ export const staffApi = {
     request("/staff/promotion", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+
+  getCurriculum: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/curriculum${query ? `?${query}` : ""}`);
+  },
+
+  getCurriculumItem: (id) => request(`/staff/curriculum/${id}`),
+
+  createCurriculumItem: (payload) =>
+    request("/staff/curriculum", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateCurriculumItem: (id, payload) =>
+    request(`/staff/curriculum/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteCurriculumItem: (id) =>
+    request(`/staff/curriculum/${id}`, { method: "DELETE" }),
+
+  updateStudySession: (sessionId, payload) =>
+    request(`/staff/curriculum/sessions/${sessionId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  getYearSchedule: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/year-schedule${query ? `?${query}` : ""}`);
+  },
+
+  createYearScheduleEntry: (payload) =>
+    request("/staff/year-schedule", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateYearScheduleEntry: (id, payload) =>
+    request(`/staff/year-schedule/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteYearScheduleEntry: (id) =>
+    request(`/staff/year-schedule/${id}`, { method: "DELETE" }),
+
+  generateYearSchedule: (schoolYearId) =>
+    request(`/staff/school-years/${schoolYearId}/year-schedule/generate`, {
+      method: "POST",
     }),
 };

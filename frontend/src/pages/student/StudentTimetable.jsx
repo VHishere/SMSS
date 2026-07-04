@@ -127,9 +127,6 @@ function StudentTimetable() {
                 Thời khóa biểu
               </h1>
 
-              <p className="mb-0 text-sm text-slate-500">
-                Xem thời khóa biểu của lớp theo tuần.
-              </p>
             </div>
           </div>
 

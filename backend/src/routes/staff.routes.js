@@ -82,6 +82,34 @@ router.put(
 );
 
 router.get(
+  "/teachers",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getTeachers,
+);
+
+router.get(
+  "/teachers/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getTeacherById,
+);
+
+router.post(
+  "/teachers",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createTeacher,
+);
+
+router.put(
+  "/teachers/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.updateTeacher,
+);
+
+router.get(
   "/school-years",
   authenticate,
   authorize(...staffRoles),
@@ -166,6 +194,55 @@ router.delete(
 );
 
 router.get(
+  "/classes/:id/timetable",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getClassTimetable,
+);
+
+router.post(
+  "/classes/:id/timetable",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createClassTimetableLesson,
+);
+
+router.put(
+  "/classes/:id/timetable/:timetableId",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.updateClassTimetableLesson,
+);
+
+router.delete(
+  "/classes/:id/timetable/:timetableId",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.deleteClassTimetableLesson,
+);
+
+router.get(
+  "/activities",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getStaffActivities,
+);
+
+router.post(
+  "/activities",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createStaffActivity,
+);
+
+router.delete(
+  "/activities/:eventId",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.deleteStaffActivity,
+);
+
+router.get(
   "/promotion/candidates",
   authenticate,
   authorize(...staffRoles),
@@ -184,6 +261,83 @@ router.post(
   authenticate,
   authorize(...staffRoles),
   staffController.promoteStudents,
+);
+
+router.get(
+  "/curriculum",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getCurriculum,
+);
+
+router.get(
+  "/curriculum/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getCurriculumById,
+);
+
+router.post(
+  "/curriculum",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createCurriculumItem,
+);
+
+router.put(
+  "/curriculum/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.updateCurriculumItem,
+);
+
+router.delete(
+  "/curriculum/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.deleteCurriculumItem,
+);
+
+router.put(
+  "/curriculum/sessions/:sessionId",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.updateStudySession,
+);
+
+router.get(
+  "/year-schedule",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getYearSchedule,
+);
+
+router.post(
+  "/year-schedule",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createYearScheduleEntry,
+);
+
+router.put(
+  "/year-schedule/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.updateYearScheduleEntry,
+);
+
+router.delete(
+  "/year-schedule/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.deleteYearScheduleEntry,
+);
+
+router.post(
+  "/school-years/:id/year-schedule/generate",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.generateYearSchedule,
 );
 
 module.exports = router;

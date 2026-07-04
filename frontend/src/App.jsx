@@ -11,25 +11,29 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 
 import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
-import { StaffDashboard } from "./pages/dashboards/StaffDashboard";
 import { TeacherDashboard } from "./pages/dashboards/TeacherDashboard";
-
-import StaffDashboardLayout from './pages/dashboards/staff/StaffDashboardLayout';
-import StaffOverviewPage from './pages/dashboards/staff/StaffOverviewPage';
-import StaffStudentsPage from './pages/dashboards/staff/StaffStudentsPage';
-import StaffParentsPage from './pages/dashboards/staff/StaffParentsPage';
-import StaffReportsPage from './pages/dashboards/staff/StaffReportsPage';
-import StaffSchoolYearsPage from './pages/dashboards/staff/StaffSchoolYearsPage';
-import StaffClassesPage from './pages/dashboards/staff/StaffClassesPage';
-import StaffClassDetailPage from './pages/dashboards/staff/StaffClassDetailPage';
-import StaffPromotionPage from './pages/dashboards/staff/StaffPromotionPage';
-import StaffStudentDetailPage from './pages/dashboards/staff/StaffStudentDetailPage';
-import StaffStudentFormPage from './pages/dashboards/staff/StaffStudentFormPage';
-import StaffParentDetailPage from './pages/dashboards/staff/StaffParentDetailPage';
-import StaffParentFormPage from './pages/dashboards/staff/StaffParentFormPage';
-
-import { ParentDashboard } from './pages/dashboards/ParentDashboard';
+import ParentDashboard from "./pages/dashboards/ParentDashboard";
 import StudentDashboard from "./pages/dashboards/StudentDashboard";
+
+import StaffDashboardLayout from "./pages/dashboards/staff/StaffDashboardLayout";
+import StaffOverviewPage from "./pages/dashboards/staff/StaffOverviewPage";
+import StaffStudentsPage from "./pages/dashboards/staff/StaffStudentsPage";
+import StaffParentsPage from "./pages/dashboards/staff/StaffParentsPage";
+import StaffReportsPage from "./pages/dashboards/staff/StaffReportsPage";
+import StaffSchoolYearsPage from "./pages/dashboards/staff/StaffSchoolYearsPage";
+import StaffClassesPage from "./pages/dashboards/staff/StaffClassesPage";
+import StaffClassDetailPage from "./pages/dashboards/staff/StaffClassDetailPage";
+import StaffPromotionPage from "./pages/dashboards/staff/StaffPromotionPage";
+import StaffStudentDetailPage from "./pages/dashboards/staff/StaffStudentDetailPage";
+import StaffStudentFormPage from "./pages/dashboards/staff/StaffStudentFormPage";
+import StaffParentDetailPage from "./pages/dashboards/staff/StaffParentDetailPage";
+import StaffParentFormPage from "./pages/dashboards/staff/StaffParentFormPage";
+import StaffTeachersPage from "./pages/dashboards/staff/StaffTeachersPage";
+import StaffTeacherDetailPage from "./pages/dashboards/staff/StaffTeacherDetailPage";
+import StaffTeacherFormPage from "./pages/dashboards/staff/StaffTeacherFormPage";
+import StaffCurriculumPage from "./pages/dashboards/staff/StaffCurriculumPage";
+import StaffCurriculumDetailPage from "./pages/dashboards/staff/StaffCurriculumDetailPage";
+import StaffTimetablePage from "./pages/dashboards/staff/StaffTimetablePage";
 
 import StudentProfile from "./pages/student/StudentProfile";
 import StudentTimetable from "./pages/student/StudentTimetable";
@@ -75,77 +79,9 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route
-            path="/"
-            element={<HomePage />}
-          />
-
-          <Route
-            path="/login/school"
-            element={<LoginPage portal="school" />}
-          />
-                    <Route
-                        path="/admin"
-                        element={
-                            <ProtectedRoute allowedRoles={['ADMIN']}>
-                                <AdminDashboard />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/staff"
-                        element={
-                            <ProtectedRoute allowedRoles={['STAFF', 'ADMIN']}>
-                                <StaffDashboardLayout />
-                            </ProtectedRoute>
-                        }
-                    >
-                        <Route index element={<StaffOverviewPage />} />
-                        <Route path="students" element={<StaffStudentsPage />} />
-                        <Route path="students/new" element={<StaffStudentFormPage />} />
-                        <Route path="students/:id" element={<StaffStudentDetailPage />} />
-                        <Route path="students/:id/edit" element={<StaffStudentFormPage />} />
-                        <Route path="parents" element={<StaffParentsPage />} />
-                        <Route path="parents/new" element={<StaffParentFormPage />} />
-                        <Route path="parents/:id" element={<StaffParentDetailPage />} />
-                        <Route path="parents/:id/edit" element={<StaffParentFormPage />} />
-                        <Route path="school-years" element={<StaffSchoolYearsPage />} />
-                        <Route path="classes" element={<StaffClassesPage />} />
-                        <Route path="classes/:id" element={<StaffClassDetailPage />} />
-                        <Route path="promotion" element={<StaffPromotionPage />} />
-                        <Route path="reports" element={<StaffReportsPage />} />
-                    </Route>
-                    <Route
-                        path="/teacher"
-                        element={
-                            <ProtectedRoute
-                                allowedRoles={['HOMEROOM_TEACHER', 'SUBJECT_TEACHER', 'DORM_SUPERVISOR']}
-                            >
-                                <TeacherDashboard />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/parent"
-                        element={
-                            <ProtectedRoute allowedRoles={['PARENT']}>
-                                <ParentDashboard />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/student"
-                        element={
-                            <ProtectedRoute allowedRoles={['STUDENT']}>
-                                <StudentDashboard />
-                            </ProtectedRoute>
-                        }
-                    />
-
-          <Route
-            path="/login/parent"
-            element={<LoginPage portal="parent" />}
-          />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login/school" element={<LoginPage portal="school" />} />
+          <Route path="/login/parent" element={<LoginPage portal="parent" />} />
 
           <Route
             path="/admin"
@@ -159,11 +95,33 @@ function App() {
           <Route
             path="/staff"
             element={
-              <ProtectedRoute allowedRoles={["STAFF"]}>
-                <StaffDashboard />
+              <ProtectedRoute allowedRoles={["STAFF", "ADMIN"]}>
+                <StaffDashboardLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<StaffOverviewPage />} />
+            <Route path="students" element={<StaffStudentsPage />} />
+            <Route path="students/new" element={<StaffStudentFormPage />} />
+            <Route path="students/:id" element={<StaffStudentDetailPage />} />
+            <Route path="students/:id/edit" element={<StaffStudentFormPage />} />
+            <Route path="parents" element={<StaffParentsPage />} />
+            <Route path="parents/new" element={<StaffParentFormPage />} />
+            <Route path="parents/:id" element={<StaffParentDetailPage />} />
+            <Route path="parents/:id/edit" element={<StaffParentFormPage />} />
+            <Route path="teachers" element={<StaffTeachersPage />} />
+            <Route path="teachers/new" element={<StaffTeacherFormPage />} />
+            <Route path="teachers/:id" element={<StaffTeacherDetailPage />} />
+            <Route path="teachers/:id/edit" element={<StaffTeacherFormPage />} />
+            <Route path="curriculum" element={<StaffCurriculumPage />} />
+            <Route path="curriculum/:id" element={<StaffCurriculumDetailPage />} />
+            <Route path="timetable" element={<StaffTimetablePage />} />
+            <Route path="school-years" element={<StaffSchoolYearsPage />} />
+            <Route path="classes" element={<StaffClassesPage />} />
+            <Route path="classes/:id" element={<StaffClassDetailPage />} />
+            <Route path="promotion" element={<StaffPromotionPage />} />
+            <Route path="reports" element={<StaffReportsPage />} />
+          </Route>
 
           <Route
             path="/teacher"
@@ -444,10 +402,7 @@ function App() {
             }
           />
 
-          <Route
-            path="*"
-            element={<Navigate to="/" replace />}
-          />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

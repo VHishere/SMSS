@@ -39,3 +39,16 @@ export function formatStatus(value) {
 
   return map[value] || value || "—";
 }
+
+export function formatAccountStatus(value) {
+  const map = {
+    ACTIVE: "Hoạt động",
+    INACTIVE: "Ngưng hoạt động",
+  };
+
+  return map[value] || value || "—";
+}
+
+export function formatTeacherType(isHomeroom) {
+  return isHomeroom ? "Giáo viên chủ nhiệm" : "Giáo viên bộ môn";
+}

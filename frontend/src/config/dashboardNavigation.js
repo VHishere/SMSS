@@ -131,6 +131,21 @@ export const dashboardNavigation = {
       icon: FiUserCheck,
     },
     {
+      label: "Giáo viên",
+      path: "/staff/teachers",
+      icon: FiAward,
+    },
+    {
+      label: "Thêm lịch học",
+      path: "/staff/timetable",
+      icon: FiClock,
+    },
+    {
+      label: "Chương trình học",
+      path: "/staff/curriculum",
+      icon: FiFileText,
+    },
+    {
       label: "Báo cáo",
       path: "/staff/reports",
       icon: FiBarChart2,

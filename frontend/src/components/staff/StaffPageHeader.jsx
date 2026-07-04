@@ -1,6 +1,5 @@
 function StaffPageHeader({
   title,
-  description,
   action,
 }) {
   return (
@@ -10,11 +9,6 @@ function StaffPageHeader({
           {title}
         </h1>
 
-        {description && (
-          <p className="mb-0 text-sm text-slate-500">
-            {description}
-          </p>
-        )}
       </div>
 
       {action}

@@ -118,7 +118,7 @@ async function createParent(data) {
         INSERT INTO parent_profile (user_id, relationship, is_primary)
         VALUES (?, ?, ?)
       `,
-      [data.relationship || "Guardian", Boolean(data.isPrimary)],
+      [userId, data.relationship || "Guardian", Boolean(data.isPrimary)],
     );
 
     const parentId = parentResult.insertId;

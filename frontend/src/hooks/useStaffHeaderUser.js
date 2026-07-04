@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../context/useAuth";
 
 function useStaffHeaderUser() {
   const { user } = useAuth();

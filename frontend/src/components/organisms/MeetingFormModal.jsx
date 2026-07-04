@@ -66,6 +66,8 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
     if (!title.trim()) { setErrorMsg("Nhập tiêu đề"); return; }
     if (!meetingDate) { setErrorMsg("Chọn thời gian họp"); return; }
     if (!classId) { setErrorMsg("Chọn lớp"); return; }
+    if (meetingType === "INDIVIDUAL" && !studentId) { setErrorMsg("Họp cá nhân cần chọn học sinh"); return; }
+    if (endTime && new Date(endTime) <= new Date(meetingDate)) { setErrorMsg("Thời gian kết thúc phải sau thời gian bắt đầu"); return; }
     if (!isEdit && selected.size === 0) { setErrorMsg("Chọn ít nhất một người tham dự"); return; }
 
     setBusy(true); setErrorMsg("");
@@ -120,9 +122,9 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
           </div>
           {meetingType === "INDIVIDUAL" && (
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-600">Học sinh liên quan</label>
+              <label className="mb-1.5 block text-xs font-medium text-slate-600">Học sinh liên quan <span className="text-red-500">*</span></label>
               <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
-                <option value="">— Không —</option>
+                <option value="">— Chọn học sinh —</option>
                 {studentOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </select>
             </div>
@@ -134,7 +136,7 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Kết thúc</label>
-              <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} />
+              <input type="datetime-local" value={endTime} min={meetingDate || undefined} onChange={(e) => setEndTime(e.target.value)} className={inputCls} />
             </div>
           </div>
           <div>

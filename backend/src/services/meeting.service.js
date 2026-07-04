@@ -30,12 +30,24 @@ async function ensureOwner(meetingId, teacher) {
   return meeting;
 }
 
+const MEETING_TYPES = ["CLASS", "INDIVIDUAL"];
+
+function validateMeetingPayload(payload) {
+  if (!payload.title || !payload.title.trim()) throw httpError("Tiêu đề cuộc họp là bắt buộc", 400);
+  if (!payload.meetingDate) throw httpError("Thời gian họp là bắt buộc", 400);
+  const meetingType = payload.meetingType ?? "CLASS";
+  if (!MEETING_TYPES.includes(meetingType)) throw httpError("Loại cuộc họp không hợp lệ", 400);
+  if (meetingType === "INDIVIDUAL" && !payload.studentId) throw httpError("Họp cá nhân cần chọn học sinh", 400);
+  if (payload.endTime && new Date(payload.endTime).getTime() <= new Date(payload.meetingDate).getTime()) {
+    throw httpError("Thời gian kết thúc phải sau thời gian bắt đầu", 400);
+  }
+}
+
 // ── Scheduling ────────────────────────────────────────────────────────────────
 
 async function createMeeting({ teacher, payload }) {
-  if (!payload.title || !payload.title.trim()) throw httpError("Tiêu đề cuộc họp là bắt buộc", 400);
-  if (!payload.meetingDate) throw httpError("Thời gian họp là bắt buộc", 400);
   if (!payload.classId) throw httpError("Cần chọn lớp", 400);
+  validateMeetingPayload(payload);
 
   const ok = await meetingModel.isTeacherForClass(teacher.teacherId, payload.classId);
   if (!ok) throw httpError("Bạn không phụ trách lớp này", 403);
@@ -70,8 +82,11 @@ async function createMeeting({ teacher, payload }) {
 async function updateMeeting({ teacher, meetingId, payload }) {
   const meeting = await ensureOwner(meetingId, teacher);
   if (["ARCHIVED", "CANCELLED"].includes(meeting.status)) throw httpError("Cuộc họp đã đóng, không thể sửa", 409);
-  if (!payload.title || !payload.title.trim()) throw httpError("Tiêu đề là bắt buộc", 400);
-  if (!payload.meetingDate) throw httpError("Thời gian họp là bắt buộc", 400);
+  validateMeetingPayload({
+    ...payload,
+    meetingType: payload.meetingType ?? meeting.meetingType,
+    studentId: payload.studentId ?? meeting.studentId,
+  });
 
   const affected = await meetingModel.updateMeeting(meetingId, {
     title: payload.title.trim(),

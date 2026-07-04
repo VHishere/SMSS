@@ -139,7 +139,7 @@ export const dashboardNavigation = {
 
   TEACHER: [
     {
-      label: "Dashboard",
+      label: "Tổng quan",
       path: "/teacher",
       icon: FiGrid,
       end: true,
@@ -155,7 +155,7 @@ export const dashboardNavigation = {
       icon: FiUsers,
     },
     {
-      label: "Ca hỗ trợ",
+      label: "Hỗ trợ học sinh",
       path: "/teacher/support-cases",
       icon: FiLifeBuoy,
     },

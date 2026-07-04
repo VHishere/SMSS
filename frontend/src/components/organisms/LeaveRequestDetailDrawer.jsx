@@ -11,6 +11,7 @@ import {
 } from "react-icons/fi";
 
 import { useLeaveRequestDetail } from "../../hooks/useLeaveRequestDetail";
+import { formatDateVN, formatLeaveDateRange, formatLeavePeriods } from "../../utils/leaveTime";
 
 const LEAVE_TYPE_LABEL = {
   SICK_LEAVE:   "Nghỉ ốm",
@@ -136,11 +137,12 @@ function LeaveRequestDetailDrawer({
                   {leaveTypeLabel(data.leaveType)}
                 </InfoRow>
                 <div style={{ borderTop: "1px solid #FFF7F2" }} />
-                <InfoRow icon={FiCalendar} label="Thời gian nghỉ">
-                  {data.startDate}
-                  {data.endDate && data.endDate !== data.startDate && (
-                    <> → {data.endDate}</>
-                  )}
+                <InfoRow icon={FiCalendar} label="Ngày nghỉ">
+                  {formatLeaveDateRange(data.startDate, data.endDate)}
+                </InfoRow>
+                <div style={{ borderTop: "1px solid #FFF7F2" }} />
+                <InfoRow icon={FiClock} label="Tiết nghỉ">
+                  {formatLeavePeriods(data.startDate, data.endDate) || "—"}
                 </InfoRow>
                 <div style={{ borderTop: "1px solid #FFF7F2" }} />
                 <InfoRow icon={FiUsers} label="Lớp">
@@ -160,7 +162,7 @@ function LeaveRequestDetailDrawer({
                 </InfoRow>
                 <div style={{ borderTop: "1px solid #FFF7F2" }} />
                 <InfoRow icon={FiClock} label="Ngày nộp">
-                  {data.createdAt}
+                  {formatDateVN(data.createdAt)}
                 </InfoRow>
               </div>
 
@@ -243,26 +245,21 @@ function LeaveRequestDetailDrawer({
 
         {/* Footer actions (only for PENDING) */}
         {!loading && !error && data && isPending && (
-          <div
-            className="flex gap-3 px-5 py-4"
-            style={{ borderTop: "1px solid #FFE7D6" }}
-          >
+          <div className="flex gap-3 px-5 py-4" style={{ borderTop: "1px solid #FFE7D6" }}>
             <button
               type="button"
               onClick={() => onReject(data)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white transition"
-              style={{ backgroundColor: "#DC2626" }}
+              className="flex-1 rounded-full border-2 py-2.5 text-sm font-semibold transition hover:bg-red-50"
+              style={{ borderColor: "#DC2626", color: "#DC2626" }}
             >
-              <FiXCircle size={15} />
               Từ chối
             </button>
             <button
               type="button"
               onClick={() => onApprove(data)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white transition"
+              className="flex-1 rounded-full py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105"
               style={{ backgroundColor: "#16A34A" }}
             >
-              <FiCheckCircle size={15} />
               Duyệt đơn
             </button>
           </div>

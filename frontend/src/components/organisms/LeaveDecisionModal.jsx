@@ -110,7 +110,7 @@ function LeaveDecisionModal({ request, decision, onClose, onDone }) {
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            className="flex-1 rounded-full border border-slate-200 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
           >
             Hủy
           </button>
@@ -118,7 +118,7 @@ function LeaveDecisionModal({ request, decision, onClose, onDone }) {
             type="button"
             onClick={handleSubmit}
             disabled={saving}
-            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-50"
+            className="flex-1 rounded-full py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:opacity-50"
             style={{ backgroundColor: config.color }}
           >
             {saving ? "Đang xử lý..." : config.button}

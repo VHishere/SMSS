@@ -1,20 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  FiArrowLeft, FiAward, FiCalendar, FiFlag, FiPlus, FiShield, FiUser,
+  FiArrowLeft, FiAward, FiCalendar, FiFlag, FiShield, FiUser,
 } from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
-import GoalFormModal from "../../components/organisms/GoalFormModal";
-import GoalProgressModal from "../../components/organisms/GoalProgressModal";
-import GoalEvaluationModal from "../../components/organisms/GoalEvaluationModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
-import { studentProfileApi, goalApi } from "../../api/client";
+import { studentProfileApi } from "../../api/client";
 import { useStudentProfile } from "../../hooks/useStudentProfile";
 import { useStudentGoals } from "../../hooks/useStudentGoals";
 import { useStudentAcademic } from "../../hooks/useStudentAcademic";
 import { useStudentBehaviour } from "../../hooks/useStudentBehaviour";
+import { formatDateVN } from "../../utils/datetime";
 
 const TABS = [
   { key: "overview",   label: "Tổng quan", icon: FiUser },
@@ -35,7 +33,7 @@ const GOAL_TYPE_LABEL = { ACADEMIC: "Học tập", BEHAVIOUR: "Hạnh kiểm", A
 
 function StatBox({ label, value, color = "#0F2747", sub }) {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+    <div className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
       <p className="mb-1 text-xs font-medium text-slate-500">{label}</p>
       <p className="text-2xl font-bold leading-none" style={{ color }}>{value}</p>
       {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
@@ -91,11 +89,11 @@ function OverviewTab({ data }) {
             {[
               ["Mã học sinh", profile.studentCode],
               ["Giới tính", profile.gender === "MALE" ? "Nam" : profile.gender === "FEMALE" ? "Nữ" : "Khác"],
-              ["Ngày sinh", profile.dateOfBirth ?? "—"],
+              ["Ngày sinh", profile.dateOfBirth ? formatDateVN(profile.dateOfBirth) : "—"],
               ["Địa chỉ", profile.address ?? "—"],
               ["Lớp", `${profile.className ?? "—"} · ${profile.gradeName ?? ""}`],
               ["Năm học", profile.schoolYearName ?? "—"],
-              ["Ngày nhập học", profile.enrollmentDate ?? "—"],
+              ["Ngày nhập học", profile.enrollmentDate ? formatDateVN(profile.enrollmentDate) : "—"],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-3">
                 <dt className="text-slate-400">{k}</dt>
@@ -128,66 +126,154 @@ function OverviewTab({ data }) {
   );
 }
 
+// ─── GPA trend chart (SVG line chart) ─────────────────────────────────────────
+
+function GpaTrendChart({ history }) {
+  const stepX = 88, padX = 38, padTop = 26, chartH = 120, padBottom = 26;
+  const n = history.length;
+  const W = padX * 2 + Math.max(1, n - 1) * stepX;
+  const H = padTop + chartH + padBottom;
+  const baseY = padTop + chartH;
+  const x = (i) => padX + i * stepX;
+  const y = (gpa) => padTop + (1 - Math.min(gpa, 10) / 10) * chartH;
+  const linePts = history.map((s, i) => `${x(i)},${y(s.gpa)}`).join(" ");
+  const areaPath = n
+    ? `M ${x(0)},${baseY} ${history.map((s, i) => `L ${x(i)},${y(s.gpa)}`).join(" ")} L ${x(n - 1)},${baseY} Z`
+    : "";
+
+  return (
+    <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+      <h3 className="mb-3 text-sm font-bold" style={{ color: "#0F2747" }}>Lịch sử GPA</h3>
+      <div className="overflow-x-auto">
+        <svg width={W} height={H} className="block">
+          {[0, 2.5, 5, 7.5, 10].map((g) => (
+            <g key={g}>
+              <line x1={padX - 6} y1={y(g)} x2={W - padX + 6} y2={y(g)} stroke="#F1F5F9" strokeWidth="1" />
+              <text x={padX - 12} y={y(g) + 3} fontSize="9" fill="#94A3B8" textAnchor="end">{g}</text>
+            </g>
+          ))}
+          {n > 1 && <path d={areaPath} fill="rgba(242,113,35,0.10)" />}
+          {n > 1 && <polyline points={linePts} fill="none" stroke="#F27123" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+          {history.map((s, i) => (
+            <g key={s.semesterId}>
+              <circle cx={x(i)} cy={y(s.gpa)} r="4.5" fill="#fff" stroke="#F27123" strokeWidth="2.5" />
+              <text x={x(i)} y={y(s.gpa) - 11} fontSize="11" fontWeight="700" fill="#0F2747" textAnchor="middle">{s.gpa}</text>
+              <text x={x(i)} y={baseY + 17} fontSize="9" fill="#64748B" textAnchor="middle">{s.semesterName}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 // ─── Academic Tab (reuses academic endpoint) ──────────────────────────────────
 
-function AcademicTab({ studentId, semesterId }) {
-  const { data, loading, error } = useStudentAcademic(studentId, semesterId);
-  if (loading) return <div className="h-48 animate-pulse rounded-xl bg-slate-100" />;
-  if (error) return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
-  if (!data) return null;
-  const c = data.current;
+function AcademicTab({ studentId, semesterId, semesters = [] }) {
+  const [sem, setSem] = useState(semesterId);
+  const { data, loading, error } = useStudentAcademic(studentId, sem);
+
+  const c = data?.current;
+  const gpaHistory = useMemo(
+    () => (data?.semesterSummaries ? [...data.semesterSummaries].filter((s) => s.gpa !== null).reverse() : []),
+    [data],
+  );
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatBox label="GPA học kỳ" value={c?.gpa ?? "—"} color="#F27123" />
-        <StatBox label="Xếp loại" value={c?.standing?.label ?? "—"} color="#08509F" />
-        <StatBox label="Xếp hạng" value={data.ranking?.rank ? `#${data.ranking.rank}` : "—"} sub={data.ranking?.totalRanked ? `/${data.ranking.totalRanked}` : ""} color="#0F2747" />
-        <StatBox label="Môn chưa đạt" value={c?.failedCount ?? 0} color={(c?.failedCount ?? 0) > 0 ? "#DC2626" : "#16A34A"} />
-      </div>
-      {c?.subjects?.length > 0 && (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          <table className="min-w-full text-sm">
-            <thead><tr className="border-b text-left" style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}>
-              {["MÔN", "ĐIỂM TB", "KẾT QUẢ"].map((h, i) => <th key={i} className="px-4 py-2.5 text-xs font-bold uppercase" style={{ color: "#F27123" }}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {c.subjects.map((s, idx) => (
-                <tr key={s.subjectId} className="border-b last:border-b-0" style={{ borderColor: "#FFF7F2", backgroundColor: idx % 2 ? "#FAFAFA" : "#fff" }}>
-                  <td className="px-4 py-2.5 font-medium text-[#0F2747]">{s.subjectName}</td>
-                  <td className="px-4 py-2.5 font-semibold text-[#0F2747]">{s.average ?? "—"}</td>
-                  <td className="px-4 py-2.5">{s.passed === null ? "—" : (
-                    <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={s.passed ? { backgroundColor: "#ECFDF5", color: "#16A34A" } : { backgroundColor: "#FEF2F2", color: "#DC2626" }}>
-                      {s.passed ? "Đạt" : "Chưa đạt"}
-                    </span>)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {semesters.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-xs font-medium text-slate-500">Học kỳ:</label>
+          <select value={sem} onChange={(e) => setSem(e.target.value)}
+            className="rounded-lg border border-[#FFE7D6] bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]">
+            {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
+          </select>
         </div>
       )}
-      {data.semesterSummaries?.length > 0 && (
-        <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          <h3 className="mb-3 text-sm font-bold" style={{ color: "#0F2747" }}>Lịch sử GPA</h3>
-          <div className="flex items-end gap-4 overflow-x-auto pb-2">
-            {[...data.semesterSummaries].reverse().filter((s) => s.gpa !== null).map((s) => (
-              <div key={s.semesterId} className="flex flex-col items-center gap-1" style={{ minWidth: 64 }}>
-                <span className="text-xs font-bold text-[#0F2747]">{s.gpa}</span>
-                <div className="flex h-24 w-7 items-end overflow-hidden rounded-lg bg-slate-100">
-                  <div className="w-full rounded-lg" style={{ height: `${(s.gpa / 10) * 100}%`, backgroundColor: "#F27123" }} />
-                </div>
-                <span className="text-center text-[10px] text-slate-500">{s.semesterName}</span>
-              </div>
-            ))}
+
+      {loading && <div className="h-48 animate-pulse rounded-xl bg-slate-100" />}
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
+
+      {!loading && !error && data && (
+        <>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <StatBox label="GPA học kỳ" value={c?.gpa ?? "—"} color="#F27123" />
+            <StatBox label="Xếp loại" value={c?.standing?.label ?? "—"} color="#08509F" />
+            <StatBox label="Xếp hạng" value={data.ranking?.rank ? `#${data.ranking.rank}` : "—"} sub={data.ranking?.totalRanked ? `/${data.ranking.totalRanked}` : ""} color="#0F2747" />
+            <StatBox label="Môn chưa đạt" value={c?.failedCount ?? 0} color={(c?.failedCount ?? 0) > 0 ? "#DC2626" : "#16A34A"} />
           </div>
-        </div>
+
+          {c?.subjects?.length > 0 && (
+            <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+              <table className="min-w-full text-sm">
+                <thead><tr className="border-b text-left" style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}>
+                  {["MÔN", "ĐIỂM TB", "KẾT QUẢ"].map((h, i) => <th key={i} className="px-4 py-2.5 text-xs font-bold uppercase" style={{ color: "#F27123" }}>{h}</th>)}
+                </tr></thead>
+                <tbody>
+                  {c.subjects.map((s, idx) => (
+                    <tr key={s.subjectId} className="border-b last:border-b-0 transition hover:bg-[#FFF7F2]" style={{ borderColor: "#FFF7F2" }}>
+                      <td className="px-4 py-2.5 font-medium text-[#0F2747]">{s.subjectName}</td>
+                      <td className="px-4 py-2.5 font-semibold text-[#0F2747]">{s.average ?? "—"}</td>
+                      <td className="px-4 py-2.5">{s.passed === null ? "—" : (
+                        <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={s.passed ? { backgroundColor: "#ECFDF5", color: "#16A34A" } : { backgroundColor: "#FEF2F2", color: "#DC2626" }}>
+                          {s.passed ? "Đạt" : "Chưa đạt"}
+                        </span>)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {gpaHistory.length > 0 && <GpaTrendChart history={gpaHistory} />}
+        </>
       )}
     </div>
   );
 }
 
 // ─── Attendance Tab ───────────────────────────────────────────────────────────
+
+function MonthlyAttendanceChart({ monthly }) {
+  const stepX = 72, padX = 40, padTop = 24, chartH = 130, padBottom = 28;
+  const n = monthly.length;
+  const W = padX * 2 + Math.max(1, n - 1) * stepX;
+  const H = padTop + chartH + padBottom;
+  const baseY = padTop + chartH;
+  const x = (i) => padX + i * stepX;
+  const y = (rate) => padTop + (1 - Math.min(rate, 100) / 100) * chartH;
+  const linePts = monthly.map((m, i) => `${x(i)},${y(m.rate)}`).join(" ");
+  const areaPath = n
+    ? `M ${x(0)},${baseY} ${monthly.map((m, i) => `L ${x(i)},${y(m.rate)}`).join(" ")} L ${x(n - 1)},${baseY} Z`
+    : "";
+  const dotColor = (rate) => (rate >= 90 ? "#16A34A" : rate >= 75 ? "#F59E0B" : "#DC2626");
+
+  return (
+    <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+      <h3 className="mb-3 text-sm font-bold" style={{ color: "#0F2747" }}>Tỷ lệ chuyên cần theo tháng</h3>
+      <div className="overflow-x-auto">
+        <svg width={W} height={H} className="block">
+          {[0, 25, 50, 75, 100].map((g) => (
+            <g key={g}>
+              <line x1={padX - 6} y1={y(g)} x2={W - padX + 6} y2={y(g)} stroke="#F1F5F9" strokeWidth="1" />
+              <text x={padX - 12} y={y(g) + 3} fontSize="9" fill="#94A3B8" textAnchor="end">{g}%</text>
+            </g>
+          ))}
+          {n > 1 && <path d={areaPath} fill="rgba(242,113,35,0.10)" />}
+          {n > 1 && <polyline points={linePts} fill="none" stroke="#F27123" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+          {monthly.map((m, i) => (
+            <g key={m.month}>
+              <circle cx={x(i)} cy={y(m.rate)} r="4.5" fill="#fff" stroke={dotColor(m.rate)} strokeWidth="2.5" />
+              <text x={x(i)} y={y(m.rate) - 11} fontSize="11" fontWeight="700" fill="#0F2747" textAnchor="middle">{m.rate}%</text>
+              <text x={x(i)} y={baseY + 17} fontSize="9" fill="#64748B" textAnchor="middle">{m.month}</text>
+            </g>
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+}
 
 function AttendanceTab({ studentId, semesterId }) {
   const [data, setData] = useState(null);
@@ -208,7 +294,6 @@ function AttendanceTab({ studentId, semesterId }) {
   if (error) return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
   if (!data) return null;
   const s = data.summary;
-  const maxRate = 100;
 
   return (
     <div className="space-y-5">
@@ -220,22 +305,7 @@ function AttendanceTab({ studentId, semesterId }) {
         <StatBox label="Vắng không phép" value={s.absentUnexcused} color="#DC2626" />
       </div>
 
-      {data.monthly?.length > 0 && (
-        <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          <h3 className="mb-4 text-sm font-bold" style={{ color: "#0F2747" }}>Tỷ lệ chuyên cần theo tháng</h3>
-          <div className="flex items-end gap-4 overflow-x-auto pb-2">
-            {data.monthly.map((m) => (
-              <div key={m.month} className="flex flex-col items-center gap-1" style={{ minWidth: 56 }}>
-                <span className="text-xs font-bold text-[#0F2747]">{m.rate}%</span>
-                <div className="flex h-24 w-7 items-end overflow-hidden rounded-lg bg-slate-100">
-                  <div className="w-full rounded-lg" style={{ height: `${(m.rate / maxRate) * 100}%`, backgroundColor: m.rate >= 90 ? "#16A34A" : m.rate >= 75 ? "#F59E0B" : "#DC2626" }} />
-                </div>
-                <span className="text-[10px] text-slate-500">{m.month}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {data.monthly?.length > 0 && <MonthlyAttendanceChart monthly={data.monthly} />}
     </div>
   );
 }
@@ -255,8 +325,8 @@ function BehaviourTab({ studentId, semesterId }) {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <StatBox label="Điểm thưởng" value={`+${cc.meritPoints}`} color="#16A34A" />
           <StatBox label="Điểm trừ" value={`-${cc.demeritPoints}`} color="#DC2626" />
-          <StatBox label="Hạnh kiểm" value={cc.finalScore} color="#F27123" />
-          <StatBox label="Xếp loại" value={cc.grade?.label ?? "—"} color="#08509F" />
+          <StatBox label="Điểm rèn luyện" value={cc.finalScore} color="#0F2747" />
+          <StatBox label="Hạnh kiểm" value={cc.grade?.label ?? "—"} color="#F27123" />
         </div>
       )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -283,29 +353,14 @@ function BehaviourTab({ studentId, semesterId }) {
 
 // ─── Goals Tab ────────────────────────────────────────────────────────────────
 
-function GoalsTab({ studentId, goalTypes }) {
-  const [refreshKey, setRefreshKey] = useState(0);
-  const { data: goals, loading, error } = useStudentGoals(studentId, {}, refreshKey);
-  const [formModal, setFormModal] = useState(null);  // { mode, goal? }
-  const [progressGoal, setProgressGoal] = useState(null);
-  const [evalGoal, setEvalGoal] = useState(null);
-
-  async function handleArchive(goal) {
-    const note = window.prompt("Lý do lưu trữ mục tiêu? (tùy chọn)") ?? "";
-    if (note === null) return;
-    try { await goalApi.archive(goal.goalId, note || null); setRefreshKey((k) => k + 1); }
-    catch (err) { alert(err.message); }
-  }
-
-  function refresh() { setRefreshKey((k) => k + 1); }
+function GoalsTab({ studentId }) {
+  const { data: goals, loading, error } = useStudentGoals(studentId, {});
 
   return (
-    <div>
-      <div className="mb-4 flex justify-end">
-        <button type="button" onClick={() => setFormModal({ mode: "create" })}
-          className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white" style={{ backgroundColor: "#F27123" }}>
-          <FiPlus size={15} /> Tạo mục tiêu
-        </button>
+    <div className="space-y-4">
+      <div className="flex items-start gap-2 rounded-xl px-4 py-3 text-xs" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>
+        <FiFlag size={14} className="mt-0.5 shrink-0" />
+        <span>Mục tiêu do học sinh tự thiết lập. Giáo viên theo dõi tiến độ và kết quả tại đây.</span>
       </div>
 
       {loading && <div className="space-y-2">{[0,1,2].map((n) => <div key={n} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}</div>}
@@ -314,70 +369,45 @@ function GoalsTab({ studentId, goalTypes }) {
       {!loading && !error && goals && (
         !goals.length ? (
           <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-            Chưa có mục tiêu nào. Nhấn "Tạo mục tiêu" để bắt đầu.
+            Học sinh chưa thiết lập mục tiêu nào.
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {goals.map((g) => {
               const st = GOAL_STATUS[g.status] ?? GOAL_STATUS.IN_PROGRESS;
-              const editable = g.status !== "ARCHIVED";
-              const active = g.status === "IN_PROGRESS";
+              const barColor = g.status === "FAILED" ? "#DC2626" : g.status === "COMPLETED" ? "#16A34A" : "#F27123";
               return (
-                <div key={g.goalId} className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>{GOAL_TYPE_LABEL[g.goalType] ?? g.goalType}</span>
-                        <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
-                      </div>
-                      <h4 className="mt-1.5 text-sm font-bold text-[#0F2747]">{g.title}</h4>
-                      {g.description && <p className="text-xs text-slate-500">{g.description}</p>}
-                      {g.targetDate && <p className="mt-0.5 text-xs text-slate-400">Hạn: {g.targetDate}</p>}
-                    </div>
+                <div key={g.goalId} className="flex flex-col rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>{GOAL_TYPE_LABEL[g.goalType] ?? g.goalType}</span>
+                    <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
+                    {g.targetDate && <span className="ml-auto text-xs text-slate-400">Hạn: {formatDateVN(g.targetDate)}</span>}
                   </div>
+                  <h4 className="text-sm font-bold text-[#0F2747]">{g.title}</h4>
+                  {g.description && <p className="mt-0.5 text-xs text-slate-500">{g.description}</p>}
 
-                  {/* progress bar */}
                   <div className="mt-3">
-                    <div className="mb-1 flex justify-between text-xs text-slate-500"><span>Tiến độ</span><span className="font-semibold">{g.progress}%</span></div>
+                    <div className="mb-1 flex justify-between text-xs text-slate-500"><span>Tiến độ</span><span className="font-semibold" style={{ color: barColor }}>{g.progress}%</span></div>
                     <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full" style={{ width: `${g.progress}%`, backgroundColor: g.status === "FAILED" ? "#DC2626" : g.status === "COMPLETED" ? "#16A34A" : "#F27123" }} />
+                      <div className="h-full rounded-full transition-all" style={{ width: `${g.progress}%`, backgroundColor: barColor }} />
                     </div>
                   </div>
 
-                  {g.finalComment && (
-                    <p className="mt-2 rounded-lg px-3 py-2 text-xs text-slate-600" style={{ backgroundColor: "#FFF7F2" }}>
-                      <span className="font-semibold">Đánh giá: </span>{g.finalComment}
+                  {g.teacherRemark && (
+                    <p className="mt-3 rounded-lg px-3 py-2 text-xs text-slate-600" style={{ backgroundColor: "#FFF7F2" }}>
+                      <span className="font-semibold">GV nhận xét: </span>{g.teacherRemark}
                     </p>
                   )}
-
-                  {editable && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {active && (
-                        <>
-                          <button type="button" onClick={() => setProgressGoal(g)} className="rounded-lg px-3 py-1.5 text-xs font-medium text-white" style={{ backgroundColor: "#08509F" }}>Cập nhật tiến độ</button>
-                          <button type="button" onClick={() => setEvalGoal(g)} className="rounded-lg px-3 py-1.5 text-xs font-medium text-white" style={{ backgroundColor: "#16A34A" }}>Đánh giá</button>
-                          <button type="button" onClick={() => setFormModal({ mode: "edit", goal: g })} className="rounded-lg px-3 py-1.5 text-xs font-medium" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>Sửa</button>
-                        </>
-                      )}
-                      <button type="button" onClick={() => handleArchive(g)} className="rounded-lg px-3 py-1.5 text-xs font-medium" style={{ backgroundColor: "#F1F5F9", color: "#475569" }}>Lưu trữ</button>
-                    </div>
+                  {g.finalComment && (
+                    <p className="mt-2 rounded-lg px-3 py-2 text-xs text-slate-600" style={{ backgroundColor: "#ECFDF5" }}>
+                      <span className="font-semibold">Đánh giá cuối: </span>{g.finalComment}
+                    </p>
                   )}
                 </div>
               );
             })}
           </div>
         )
-      )}
-
-      {formModal && (
-        <GoalFormModal mode={formModal.mode} studentId={studentId} goal={formModal.goal} goalTypes={goalTypes}
-          onClose={() => setFormModal(null)} onSaved={() => { setFormModal(null); refresh(); }} />
-      )}
-      {progressGoal && (
-        <GoalProgressModal goal={progressGoal} onClose={() => setProgressGoal(null)} onSaved={() => { setProgressGoal(null); refresh(); }} />
-      )}
-      {evalGoal && (
-        <GoalEvaluationModal goal={evalGoal} onClose={() => setEvalGoal(null)} onSaved={() => { setEvalGoal(null); refresh(); }} />
       )}
     </div>
   );
@@ -394,13 +424,6 @@ function StudentProfilePage() {
   const activeTab = searchParams.get("tab") || "overview";
 
   const { data, loading, error } = useStudentProfile(studentId, semesterId);
-  const [goalTypes, setGoalTypes] = useState([]);
-
-  useEffect(() => {
-    let m = true;
-    goalApi.getTypes().then((res) => { if (m) setGoalTypes(res.data); }).catch(() => {});
-    return () => { m = false; };
-  }, []);
 
   const headerUser = useMemo(() => {
     const roleEntry = user?.roles?.find((r) =>
@@ -447,14 +470,14 @@ function StudentProfilePage() {
             </div>
             {data.semesters?.length > 0 && (
               <select value={effSemesterId} onChange={(e) => changeSemester(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]">
+                className="rounded-lg border border-[#FFE7D6] bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]">
                 {data.semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
               </select>
             )}
           </section>
 
           {/* Tabs */}
-          <div className="mb-6 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          <div className="mb-6 flex gap-1 overflow-x-auto rounded-2xl border border-[#FFE7D6] bg-white p-1 shadow-sm">
             {TABS.map(({ key, label, icon: Icon }) => (
               <button key={key} type="button" onClick={() => setTab(key)}
                 className="flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-medium transition"
@@ -466,10 +489,10 @@ function StudentProfilePage() {
 
           <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6" }}>
             {activeTab === "overview"   && <OverviewTab data={data} />}
-            {activeTab === "academic"   && <AcademicTab studentId={studentId} semesterId={effSemesterId} />}
+            {activeTab === "academic"   && <AcademicTab studentId={studentId} semesterId={effSemesterId} semesters={data.semesters ?? []} />}
             {activeTab === "attendance" && <AttendanceTab studentId={studentId} semesterId={effSemesterId} />}
             {activeTab === "behaviour"  && <BehaviourTab studentId={studentId} semesterId={effSemesterId} />}
-            {activeTab === "goals"      && <GoalsTab studentId={studentId} goalTypes={goalTypes} />}
+            {activeTab === "goals"      && <GoalsTab studentId={studentId} />}
           </div>
         </>
       )}

@@ -3,13 +3,26 @@ import { FiX } from "react-icons/fi";
 
 import { eventApi } from "../../api/client";
 
+const EVENT_TYPES = [
+  { value: "WORKSHOP", label: "Workshop / Chuyên đề" },
+  { value: "CLUB", label: "Câu lạc bộ" },
+  { value: "COMPETITION", label: "Cuộc thi" },
+  { value: "FIELD_TRIP", label: "Dã ngoại / Tham quan" },
+  { value: "SPORT", label: "Thể thao" },
+  { value: "CULTURE", label: "Văn nghệ" },
+  { value: "SEMINAR", label: "Hội thảo / Tọa đàm" },
+  { value: "MUSIC", label: "Âm nhạc" },
+  { value: "SUPPORT_CLASS", label: "Phụ đạo" },
+  { value: "OTHER", label: "Khác" },
+];
+
 function toLocalInput(value) { return value ? value.replace(" ", "T").slice(0, 16) : ""; }
 
 function EventFormModal({ mode, classes = [], categories = [], event = null, onClose, onSaved }) {
   const isEdit = mode === "edit";
 
   const [title, setTitle] = useState(event?.title ?? "");
-  const [category, setCategory] = useState(event?.category ?? (categories[0]?.key ?? ""));
+  const [category, setCategory] = useState(event?.category ?? "");
   const [eventType, setEventType] = useState(event?.eventType ?? "");
   const [classId, setClassId] = useState(event?.classId != null ? String(event.classId) : "");
   const [startDate, setStartDate] = useState(toLocalInput(event?.startDate));
@@ -45,8 +58,12 @@ function EventFormModal({ mode, classes = [], categories = [], event = null, onC
 
   async function handleSubmit() {
     if (!title.trim()) { setErrorMsg("Nhập tiêu đề"); return; }
+    if (!eventType) { setErrorMsg("Chọn loại sự kiện"); return; }
+    if (!category) { setErrorMsg("Chọn danh mục"); return; }
     if (!startDate) { setErrorMsg("Chọn thời gian bắt đầu"); return; }
+    if (endDate && new Date(endDate) <= new Date(startDate)) { setErrorMsg("Thời gian kết thúc phải sau thời gian bắt đầu"); return; }
     if (!organizer.trim()) { setErrorMsg("Nhập đơn vị/người tổ chức"); return; }
+    if (capacity && Number(capacity) <= 0) { setErrorMsg("Sức chứa phải lớn hơn 0"); return; }
     setBusy(true); setErrorMsg("");
     try {
       const body = {
@@ -79,18 +96,26 @@ function EventFormModal({ mode, classes = [], categories = [], event = null, onC
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-600">Danh mục</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
-                {categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+              <label className="mb-1.5 block text-xs font-medium text-slate-600">Loại sự kiện <span className="text-red-500">*</span></label>
+              <select value={eventType} onChange={(e) => setEventType(e.target.value)} className={inputCls}>
+                <option value="">— Chọn loại —</option>
+                {EVENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-600">Lớp (để trống = toàn trường)</label>
-              <select value={classId} onChange={(e) => { setClassId(e.target.value); setSelected(new Set()); }} className={inputCls} disabled={isEdit}>
-                <option value="">Toàn trường</option>
-                {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
+              <label className="mb-1.5 block text-xs font-medium text-slate-600">Danh mục <span className="text-red-500">*</span></label>
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
+                <option value="">— Chọn danh mục —</option>
+                {categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
               </select>
             </div>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-medium text-slate-600">Lớp (để trống = toàn trường)</label>
+            <select value={classId} onChange={(e) => { setClassId(e.target.value); setSelected(new Set()); }} className={inputCls} disabled={isEdit}>
+              <option value="">Toàn trường</option>
+              {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -99,7 +124,7 @@ function EventFormModal({ mode, classes = [], categories = [], event = null, onC
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Kết thúc</label>
-              <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
+              <input type="datetime-local" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">

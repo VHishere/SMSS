@@ -14,6 +14,7 @@ import LeaveRequestDetailDrawer from "../../components/organisms/LeaveRequestDet
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useLeaveRequests } from "../../hooks/useLeaveRequests";
+import { formatDateVN, formatLeaveDateRange, formatLeavePeriods } from "../../utils/leaveTime";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ function StatusBadge({ status }) {
   );
 }
 
-const TABLE_COLS = ["HỌC SINH", "LỚP", "LOẠI NGHỈ", "THỜI GIAN", "NGÀY NỘP", "TRẠNG THÁI", ""];
+const TABLE_COLS = ["HỌC SINH", "LỚP", "LOẠI NGHỈ", "THỜI GIAN NGHỈ", "NGÀY NỘP", "TRẠNG THÁI", ""];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -137,22 +138,6 @@ function LeaveRequestsPage() {
       sidebarFooterLabel="Đơn chờ duyệt"
       sidebarFooterValue={String(counts.PENDING)}
     >
-      {/* Page header */}
-      <section
-        className="mb-6 rounded-2xl p-5 shadow-sm sm:p-6"
-        style={{ border: "1px solid #FFE7D6", backgroundColor: "#fff" }}
-      >
-        <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>
-          Giáo viên
-        </p>
-        <h1 className="mb-1 text-2xl font-bold sm:text-3xl" style={{ color: "#0F2747" }}>
-          Đơn xin nghỉ phép
-        </h1>
-        <p className="text-sm text-slate-500">
-          Xem xét, duyệt hoặc từ chối đơn xin nghỉ của học sinh trong lớp phụ trách.
-        </p>
-      </section>
-
       {/* Status tabs */}
       <div className="mb-5 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
         {STATUS_TABS.map(({ key, label, icon: Icon, countKey }) => (
@@ -184,7 +169,7 @@ function LeaveRequestsPage() {
       </div>
 
       {/* Filters */}
-      <div className="mb-5 flex flex-wrap items-end gap-3">
+      <div className="mb-5 flex flex-wrap items-end justify-end gap-3">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium text-slate-500">Lớp</label>
           <select
@@ -290,7 +275,8 @@ function LeaveRequestsPage() {
                     {data.items.map((row, idx) => (
                       <tr
                         key={row.leaveRequestId}
-                        className="border-b last:border-b-0 transition hover:bg-[#FFF7F2]"
+                        onClick={() => setDetailId(row.leaveRequestId)}
+                        className="group cursor-pointer border-b last:border-b-0 transition hover:bg-[#FFF7F2]"
                         style={{
                           borderColor: "#FFF7F2",
                           backgroundColor: idx % 2 === 1 ? "#FAFAFA" : "#fff",
@@ -318,26 +304,18 @@ function LeaveRequestsPage() {
                         </td>
                         <td className="px-4 py-3 text-slate-600">{row.className ?? "—"}</td>
                         <td className="px-4 py-3 text-slate-600">{leaveTypeLabel(row.leaveType)}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                          {row.startDate}
-                          {row.endDate && row.endDate !== row.startDate && (
-                            <div className="text-xs text-slate-400">→ {row.endDate}</div>
+                        <td className="whitespace-nowrap px-4 py-3">
+                          <div className="font-medium text-[#0F2747]">{formatLeaveDateRange(row.startDate, row.endDate)}</div>
+                          {formatLeavePeriods(row.startDate, row.endDate) && (
+                            <div className="text-xs text-slate-400">{formatLeavePeriods(row.startDate, row.endDate)}</div>
                           )}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-500">{row.createdAt}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-slate-500">{formatDateVN(row.createdAt)}</td>
                         <td className="px-4 py-3">
                           <StatusBadge status={row.status} />
                         </td>
-                        <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => setDetailId(row.leaveRequestId)}
-                            className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition"
-                            style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}
-                          >
-                            <FiEye size={12} />
-                            Chi tiết
-                          </button>
+                        <td className="px-4 py-3 text-right">
+                          <FiEye size={17} className="inline text-slate-300 transition group-hover:text-[#08509F]" />
                         </td>
                       </tr>
                     ))}

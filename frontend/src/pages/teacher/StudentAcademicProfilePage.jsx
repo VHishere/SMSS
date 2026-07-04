@@ -13,7 +13,7 @@ const STANDING_COLOR = {
 
 function StatBox({ label, value, sub, color = "#0F2747" }) {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+    <div className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
       <p className="mb-1 text-xs font-medium text-slate-500">{label}</p>
       <p className="text-2xl font-bold leading-none" style={{ color }}>{value}</p>
       {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
@@ -92,7 +92,7 @@ function StudentAcademicProfilePage() {
 
           {/* Current-semester summary */}
           {!current ? (
-            <div className="rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid #FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>
+            <div className="rounded-2xl border-dashed px-4 py-3 text-sm" style={{ border: "1px dashed #FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>
               Chưa có điểm trong học kỳ này.
             </div>
           ) : (
@@ -124,8 +124,8 @@ function StudentAcademicProfilePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {current.subjects.map((sub, idx) => (
-                        <tr key={sub.subjectId} className="border-b last:border-b-0" style={{ borderColor: "#FFF7F2", backgroundColor: idx % 2 === 1 ? "#FAFAFA" : "#fff" }}>
+                      {current.subjects.map((sub) => (
+                        <tr key={sub.subjectId} className="border-b last:border-b-0 transition hover:bg-[#FFF7F2]" style={{ borderColor: "#FFF7F2" }}>
                           <td className="px-4 py-2.5 font-medium text-[#0F2747]">{sub.subjectName}</td>
                           <td className="px-4 py-2.5 font-semibold" style={{ color: "#0F2747" }}>{sub.average ?? "—"}</td>
                           <td className="px-4 py-2.5">

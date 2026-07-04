@@ -27,7 +27,7 @@ function DashboardShell({
         }
       />
 
-      <div className="min-h-screen lg:pl-64">
+      <div className="min-h-screen lg:pl-80">
         <DashboardHeader
           user={user}
           onOpenSidebar={() =>

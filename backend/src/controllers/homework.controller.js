@@ -34,7 +34,7 @@ async function listHomework(req, res) {
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
     const {
-      classId, subjectId, status, search, sort,
+      classId, subjectId, status, search, sort, due,
       page = "1", limit = "12",
     } = req.query;
 
@@ -47,7 +47,7 @@ async function listHomework(req, res) {
 
     const [{ total, rows }, summary, assignments] = await Promise.all([
       homeworkModel.findByTeacher(profile.teacherId, {
-        classId, subjectId, status, search, sort,
+        classId, subjectId, status, search, sort, due,
         page: parsedPage, limit: parsedLimit,
       }),
       homeworkModel.findTeacherSummary(profile.teacherId),

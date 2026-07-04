@@ -191,8 +191,7 @@ async function bulkUpsertAttendance(records) {
          VALUES (?, ?, ?, 'CLASS', ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            attendance_type_id = VALUES(attendance_type_id),
-           note               = VALUES(note),
-           updated_at         = NOW()`,
+           note               = VALUES(note)`,
         [r.studentId, r.classId, r.date, r.typeId, r.note ?? null, r.createdBy],
       );
     }
@@ -229,8 +228,7 @@ async function updateAttendanceRecord(attendanceId, typeId, note) {
   const [result] = await pool.query(
     `UPDATE attendance
      SET attendance_type_id = ?,
-         note               = ?,
-         updated_at         = NOW()
+         note               = ?
      WHERE attendance_id = ?
        AND created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)`,
     [typeId, note ?? null, attendanceId],

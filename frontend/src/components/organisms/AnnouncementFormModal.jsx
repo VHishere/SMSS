@@ -13,6 +13,12 @@ function toLocalInput(value) {
   return value ? value.replace(" ", "T").slice(0, 16) : "";
 }
 
+function nowLocalInput() {
+  const p = (n) => String(n).padStart(2, "0");
+  const d = new Date();
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 function AnnouncementFormModal({ classes, announcement = null, onClose, onSaved }) {
   const isEdit = Boolean(announcement);
   const [title, setTitle] = useState(announcement?.title ?? "");
@@ -33,6 +39,8 @@ function AnnouncementFormModal({ classes, announcement = null, onClose, onSaved 
   async function save(publishNow) {
     if (!title.trim()) { setErrorMsg("Nhập tiêu đề"); return; }
     if (!classId) { setErrorMsg("Chọn lớp"); return; }
+    if (publishNow && !content.trim()) { setErrorMsg("Nhập nội dung trước khi phát hành"); return; }
+    if (!publishNow && scheduledAt && new Date(scheduledAt).getTime() <= Date.now()) { setErrorMsg("Thời gian lên lịch phải ở tương lai"); return; }
     setBusy(true); setErrorMsg("");
     try {
       if (isEdit) {
@@ -85,7 +93,7 @@ function AnnouncementFormModal({ classes, announcement = null, onClose, onSaved 
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Lên lịch (tùy chọn)</label>
-            <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className={inputCls} />
+            <input type="datetime-local" value={scheduledAt} min={nowLocalInput()} onChange={(e) => setScheduledAt(e.target.value)} className={inputCls} />
             <p className="mt-1 text-xs text-slate-400">Để trống = lưu nháp. Có thời gian = lên lịch tự phát hành.</p>
           </div>
           {errorMsg && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>}

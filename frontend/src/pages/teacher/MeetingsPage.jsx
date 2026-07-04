@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  FiCalendar, FiCheckSquare, FiChevronLeft, FiChevronRight, FiClock, FiList, FiMail, FiPlus, FiSearch, FiGrid,
-} from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight, FiGrid, FiList, FiPlus, FiSearch } from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
 import MeetingFormModal from "../../components/organisms/MeetingFormModal";
@@ -17,27 +15,16 @@ const STATUS = {
   ARCHIVED:  { label: "Lưu trữ",     bg: "#F1F5F9", text: "#475569" },
 };
 const selectCls =
-  "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+  "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
 const WD = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-
-function StatBox({ icon: Icon, label, value, color, bg }) {
-  return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-      <div className="flex items-center justify-between gap-3">
-        <div><p className="mb-1 text-xs font-medium text-slate-500">{label}</p><p className="text-2xl font-bold leading-none" style={{ color }}>{value}</p></div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ backgroundColor: bg }}><Icon size={18} style={{ color }} /></div>
-      </div>
-    </div>
-  );
-}
 
 function MeetingsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const [meta, setMeta] = useState({ classes: [] });
-  const [stats, setStats] = useState({ upcoming: 0, pendingInvites: 0, openActions: 0, totalMeetings: 0 });
-  const [view, setView] = useState("list"); // list | calendar
+  const [upcoming, setUpcoming] = useState(0);
+  const [view, setView] = useState("list");
   const [statusF, setStatusF] = useState("");
   const [classF, setClassF] = useState("");
   const [search, setSearch] = useState("");
@@ -50,7 +37,7 @@ function MeetingsPage() {
   useEffect(() => {
     let m = true;
     meetingApi.getMeta().then((res) => { if (m) setMeta(res.data); }).catch(() => {});
-    meetingApi.getDashboard().then((res) => { if (m) setStats(res.data.stats); }).catch(() => {});
+    meetingApi.getDashboard().then((res) => { if (m) setUpcoming(res.data.stats?.upcoming ?? 0); }).catch(() => {});
     return () => { m = false; };
   }, [refresh]);
 
@@ -71,20 +58,15 @@ function MeetingsPage() {
 
   const meetings = data?.items ?? [];
 
-  // group meetings by day for calendar
   const byDay = useMemo(() => {
     const map = {};
-    for (const m of meetings) {
-      const day = m.meetingDate?.slice(0, 10);
-      if (!day) continue;
-      (map[day] = map[day] || []).push(m);
-    }
+    for (const m of meetings) { const day = m.meetingDate?.slice(0, 10); if (day) (map[day] = map[day] || []).push(m); }
     return map;
   }, [meetings]);
 
   const calendarCells = useMemo(() => {
     const first = new Date(monthCursor.y, monthCursor.m, 1);
-    const startDow = (first.getDay() + 6) % 7; // Mon=0
+    const startDow = (first.getDay() + 6) % 7;
     const daysInMonth = new Date(monthCursor.y, monthCursor.m + 1, 0).getDate();
     const cells = [];
     for (let i = 0; i < startDow; i++) cells.push(null);
@@ -96,55 +78,39 @@ function MeetingsPage() {
   }, [monthCursor, byDay]);
 
   return (
-    <DashboardShell user={headerUser} menuItems={dashboardNavigation.TEACHER} sidebarFooterLabel="Cuộc họp sắp tới" sidebarFooterValue={String(stats.upcoming)}>
-      <section className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6", backgroundColor: "#fff" }}>
-        <div>
-          <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Giáo viên</p>
-          <h1 className="text-2xl font-bold sm:text-3xl" style={{ color: "#0F2747" }}>Họp phụ huynh</h1>
-          <p className="text-sm text-slate-500">Lên lịch, mời phụ huynh, ghi biên bản và theo dõi việc cần làm.</p>
-        </div>
+    <DashboardShell user={headerUser} menuItems={dashboardNavigation.TEACHER} sidebarFooterLabel="Cuộc họp sắp tới" sidebarFooterValue={String(upcoming)}>
+      {/* Toolbar */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-bold sm:text-2xl" style={{ color: "#0F2747" }}>Họp phụ huynh</h1>
         <button type="button" onClick={() => setShowCreate(true)} disabled={meta.classes.length === 0}
-          className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
+          className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
           <FiPlus size={15} /> Tạo cuộc họp
         </button>
-      </section>
-
-      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatBox icon={FiClock}      label="Sắp diễn ra"     value={stats.upcoming}       color="#F27123" bg="#FFF0E8" />
-        <StatBox icon={FiMail}       label="Lời mời chờ"     value={stats.pendingInvites} color="#08509F" bg="#EBF3FF" />
-        <StatBox icon={FiCheckSquare} label="Việc chưa xong" value={stats.openActions}    color="#F59E0B" bg="#FFFBEB" />
-        <StatBox icon={FiCalendar}   label="Tổng cuộc họp"   value={stats.totalMeetings}  color="#0F2747" bg="#FFF7F2" />
       </div>
 
-      {/* Controls */}
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Trạng thái</label>
-            <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className={selectCls}>
-              <option value="">Tất cả</option>
-              {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Lớp</label>
-            <select value={classF} onChange={(e) => setClassF(e.target.value)} className={selectCls}>
-              <option value="">Tất cả</option>
-              {meta.classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Tìm</label>
-            <div className="flex items-center rounded-lg border border-slate-200 px-2.5"><FiSearch size={14} className="text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tiêu đề..." className="w-40 px-2 py-2 text-sm outline-none" /></div>
-          </div>
-        </div>
-        <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1">
+      {/* Controls: view toggle (left) + filters (right) */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
           <button type="button" onClick={() => setView("list")} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium" style={view === "list" ? { backgroundColor: "#F27123", color: "#fff" } : { color: "#64748B" }}><FiList size={14} /> Danh sách</button>
           <button type="button" onClick={() => setView("calendar")} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium" style={view === "calendar" ? { backgroundColor: "#F27123", color: "#fff" } : { color: "#64748B" }}><FiGrid size={14} /> Lịch</button>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className={selectCls}>
+            <option value="">Mọi trạng thái</option>
+            {Object.entries(STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+          <select value={classF} onChange={(e) => setClassF(e.target.value)} className={selectCls}>
+            <option value="">Tất cả lớp</option>
+            {meta.classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
+          </select>
+          <div className="flex items-center rounded-xl border border-slate-200 bg-white px-2.5 shadow-sm">
+            <FiSearch size={14} className="text-slate-400" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm tiêu đề..." className="w-40 px-2 py-2 text-sm outline-none" />
+          </div>
+        </div>
       </div>
 
-      {loading && <div className="space-y-2">{[0,1,2].map((n) => <div key={n} className="h-20 animate-pulse rounded-xl bg-slate-100" />)}</div>}
+      {loading && <div className="space-y-2">{[0,1,2].map((n) => <div key={n} className="h-20 animate-pulse rounded-2xl bg-slate-100" />)}</div>}
 
       {!loading && view === "list" && (
         meetings.length === 0 ? (
@@ -155,11 +121,11 @@ function MeetingsPage() {
               const st = STATUS[m.status] ?? STATUS.SCHEDULED;
               return (
                 <button key={m.meetingId} type="button" onClick={() => navigate(`/teacher/meetings/${m.meetingId}`)}
-                  className="flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 text-left shadow-sm transition hover:shadow-md" style={{ border: "1px solid #FFE7D6" }}>
+                  className="flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md" style={{ border: "1px solid #FFE7D6" }}>
                   <div className="flex items-center gap-3">
                     <div className="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl" style={{ backgroundColor: "#FFF7F2" }}>
-                      <span className="text-xs text-slate-400">{m.meetingDate?.slice(5, 7)}/{m.meetingDate?.slice(8, 10)}</span>
-                      <span className="text-xs font-bold" style={{ color: "#F27123" }}>{m.meetingDate?.slice(11)}</span>
+                      <span className="text-xs font-bold" style={{ color: "#F27123" }}>{m.meetingDate?.slice(8, 10)}/{m.meetingDate?.slice(5, 7)}</span>
+                      <span className="text-[10px] text-slate-400">{m.meetingDate?.slice(11, 16)}</span>
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-[#0F2747]">{m.title}</p>
@@ -193,7 +159,7 @@ function MeetingsPage() {
                       {cell.meetings.slice(0, 2).map((m) => (
                         <button key={m.meetingId} type="button" onClick={() => navigate(`/teacher/meetings/${m.meetingId}`)}
                           className="block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-medium text-white" style={{ backgroundColor: "#F27123" }}>
-                          {m.meetingDate?.slice(11)} {m.title}
+                          {m.meetingDate?.slice(11, 16)} {m.title}
                         </button>
                       ))}
                       {cell.meetings.length > 2 && <span className="text-[10px] text-slate-400">+{cell.meetings.length - 2} nữa</span>}

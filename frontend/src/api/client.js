@@ -468,6 +468,11 @@ export const academicApi = {
     );
   },
 
+  getGradebook: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/teachers/academic/gradebook?${qs}`);
+  },
+
   submitScores: (body) =>
     request("/teachers/academic/scores", {
       method: "POST",

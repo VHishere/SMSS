@@ -76,6 +76,11 @@ async function findByTeacher(teacherId, filters = {}) {
     where += " AND h.title LIKE ?";
     params.push(`%${search}%`);
   }
+  if (filters.due === "overdue") {
+    where += " AND h.status = 'OPEN' AND h.due_date < NOW()";
+  } else if (filters.due === "upcoming") {
+    where += " AND h.status = 'OPEN' AND h.due_date >= NOW()";
+  }
 
   const ORDER = {
     due_desc:     "h.due_date DESC",

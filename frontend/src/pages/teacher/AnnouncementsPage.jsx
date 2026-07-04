@@ -6,6 +6,7 @@ import AnnouncementFormModal from "../../components/organisms/AnnouncementFormMo
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { announcementApi, communicationApi } from "../../api/client";
+import { formatDateTimeVN } from "../../utils/datetime";
 
 const STATUS = {
   DRAFT:     { label: "Nháp",        bg: "#F1F5F9", text: "#475569" },
@@ -65,19 +66,15 @@ function AnnouncementsPage() {
 
   return (
     <DashboardShell user={headerUser} menuItems={dashboardNavigation.TEACHER} sidebarFooterLabel="Khu vực" sidebarFooterValue="Thông báo">
-      <section className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6", backgroundColor: "#fff" }}>
-        <div>
-          <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Giáo viên</p>
-          <h1 className="text-2xl font-bold sm:text-3xl" style={{ color: "#0F2747" }}>Trung tâm thông báo</h1>
-          <p className="text-sm text-slate-500">Tạo, lên lịch, ghim và phát hành thông báo tới phụ huynh/học sinh.</p>
-        </div>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-bold sm:text-2xl" style={{ color: "#0F2747" }}>Trung tâm thông báo</h1>
         <button type="button" onClick={() => setModal({})} disabled={classes.length === 0}
-          className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
+          className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
           <FiPlus size={15} /> Tạo thông báo
         </button>
-      </section>
+      </div>
 
-      <div className="mb-5 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+      <div className="mb-5 flex gap-1 rounded-2xl border border-[#FFE7D6] bg-white p-1 shadow-sm">
         {["", "DRAFT", "SCHEDULED", "PUBLISHED", "ARCHIVED"].map((s) => (
           <button key={s || "ALL"} type="button" onClick={() => setStatusFilter(s)}
             className="flex-1 rounded-lg px-3 py-2 text-sm font-medium transition"
@@ -110,7 +107,7 @@ function AnnouncementsPage() {
                       </div>
                       <p className="text-xs text-slate-400">
                         {a.className ?? "—"} · {AUDIENCE_LABEL[a.audience]} ·{" "}
-                        {a.status === "SCHEDULED" ? `lên lịch ${a.scheduledAt}` : a.status === "PUBLISHED" ? `phát hành ${a.publishedAt}` : `tạo ${a.createdAt}`}
+                        {a.status === "SCHEDULED" ? `lên lịch ${formatDateTimeVN(a.scheduledAt)}` : a.status === "PUBLISHED" ? `phát hành ${formatDateTimeVN(a.publishedAt)}` : `tạo ${formatDateTimeVN(a.createdAt)}`}
                       </p>
                     </div>
                     <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>

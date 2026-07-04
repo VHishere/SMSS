@@ -10,6 +10,12 @@ function toLocalInput(value) {
   return value.replace(" ", "T").slice(0, 16);
 }
 
+function nowLocalInput() {
+  const p = (n) => String(n).padStart(2, "0");
+  const d = new Date();
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 function assignmentKey(a) {
   return `${a.classId}::${a.subjectId}`;
 }
@@ -80,6 +86,7 @@ function HomeworkFormModal({ mode, assignments = [], homework = null, onClose, o
   function validate() {
     if (!title.trim()) return "Tiêu đề bài tập là bắt buộc";
     if (!dueDate) return "Hạn nộp là bắt buộc";
+    if (!isEdit && new Date(dueDate).getTime() <= Date.now()) return "Hạn nộp phải sau thời điểm hiện tại";
     const ms = Number(maxScore);
     if (!Number.isFinite(ms) || ms <= 0) return "Điểm tối đa phải lớn hơn 0";
     if (ms > 100) return "Điểm tối đa không được vượt quá 100";
@@ -240,6 +247,7 @@ function HomeworkFormModal({ mode, assignments = [], homework = null, onClose, o
               <input
                 type="datetime-local"
                 value={dueDate}
+                min={!isEdit ? nowLocalInput() : undefined}
                 onChange={(e) => setDueDate(e.target.value)}
                 className={inputCls}
               />

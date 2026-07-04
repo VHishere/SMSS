@@ -16,10 +16,16 @@ function httpError(message, statusCode) {
 }
 
 function validCategory(behaviorType, category) {
-  if (!category) return true; // category optional
+  if (!category) return false; // category bắt buộc
   return behaviorType === "POSITIVE"
     ? MERIT_CATEGORIES.includes(category)
     : VIOLATION_CATEGORIES.includes(category);
+}
+
+function todayStr() {
+  const p = (n) => String(n).padStart(2, "0");
+  const d = new Date();
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 async function resolveSemesterId(recordDate) {
@@ -41,6 +47,8 @@ async function createRecord({ teacherId, actorUserId, payload }) {
   if (!studentId) throw httpError("Thiếu học sinh", 400);
   if (!title || !title.trim()) throw httpError("Tiêu đề là bắt buộc", 400);
   if (!recordDate) throw httpError("Ngày ghi nhận là bắt buộc", 400);
+  if (recordDate > todayStr()) throw httpError("Ngày ghi nhận không được ở tương lai", 400);
+  if (!category) throw httpError("Vui lòng chọn danh mục", 400);
 
   const pts = Number(points);
   if (!Number.isInteger(pts) || pts <= 0) {
@@ -90,6 +98,8 @@ async function updateRecord({ teacherId, actorUserId, behaviorId, payload }) {
   if (!Number.isInteger(pts) || pts <= 0) throw httpError("Điểm phải là số dương", 400);
   if (!payload.title || !payload.title.trim()) throw httpError("Tiêu đề là bắt buộc", 400);
   if (!payload.recordDate) throw httpError("Ngày ghi nhận là bắt buộc", 400);
+  if (payload.recordDate > todayStr()) throw httpError("Ngày ghi nhận không được ở tương lai", 400);
+  if (!payload.category) throw httpError("Vui lòng chọn danh mục", 400);
   if (!validCategory(existing.behaviorType, payload.category)) throw httpError("Danh mục không hợp lệ", 400);
 
   await behaviourModel.updateRecord({
@@ -156,6 +166,11 @@ async function evaluateConduct({ teacherId, actorUserId, payload }) {
 
   const allowed = await behaviourModel.isTeacherForStudent(teacherId, parseInt(studentId, 10));
   if (!allowed) throw httpError("Bạn không phụ trách học sinh này", 403);
+
+  const existingEval = await behaviourModel.findConductEvaluation(parseInt(studentId, 10), parseInt(semesterId, 10));
+  if (existingEval && existingEval.status === "APPROVED") {
+    throw httpError("Đánh giá hạnh kiểm đã được duyệt, không thể chỉnh sửa", 409);
+  }
 
   const semester = await behaviourModel.findSemesterById(semesterId);
   if (!semester) throw httpError("Không tìm thấy học kỳ", 404);

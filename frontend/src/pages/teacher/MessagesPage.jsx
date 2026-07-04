@@ -134,10 +134,10 @@ function MessagesPage() {
           <p className="text-sm text-slate-500">{stats.totalConversations} cuộc trò chuyện · {stats.unreadMessages} chưa đọc</p>
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={() => setShowGroup(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white" style={{ backgroundColor: "#08509F" }}>
+          <button type="button" onClick={() => setShowGroup(true)} className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-white" style={{ backgroundColor: "#08509F" }}>
             <FiUsers size={15} /> Tạo nhóm
           </button>
-          <button type="button" onClick={() => setShowNew(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white" style={{ backgroundColor: "#F27123" }}>
+          <button type="button" onClick={() => setShowNew(true)} className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-white" style={{ backgroundColor: "#F27123" }}>
             <FiPlus size={15} /> Soạn tin
           </button>
         </div>
@@ -147,11 +147,11 @@ function MessagesPage() {
         {/* Conversation list */}
         <div className={`rounded-2xl bg-white shadow-sm lg:col-span-1 ${activeId ? "hidden lg:block" : "block"}`} style={{ border: "1px solid #FFE7D6" }}>
           <div className="border-b p-3" style={{ borderColor: "#FFE7D6" }}>
-            <div className="mb-2 flex items-center rounded-lg border border-slate-200 px-2.5">
+            <div className="mb-2 flex items-center rounded-lg border border-[#FFE7D6] px-2.5">
               <FiSearch size={15} className="text-slate-400" />
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm trò chuyện..." className="w-full px-2 py-2 text-sm outline-none" />
             </div>
-            <div className="flex gap-1 rounded-lg border border-slate-200 p-0.5 text-xs">
+            <div className="flex gap-1 rounded-lg border border-[#FFE7D6] p-0.5 text-xs">
               <button type="button" onClick={() => { setShowArchived(false); setActiveId(null); }} className="flex flex-1 items-center justify-center gap-1 rounded-md py-1.5 font-medium" style={!showArchived ? { backgroundColor: "#F27123", color: "#fff" } : { color: "#64748B" }}>
                 <FiInbox size={12} /> Đang hoạt động
               </button>
@@ -267,10 +267,10 @@ function MessagesPage() {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                   placeholder={uploading ? "Đang tải tệp..." : "Nhập tin nhắn..."}
-                  className="flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]"
+                  className="flex-1 rounded-xl border border-[#FFE7D6] px-3 py-2.5 text-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]"
                 />
                 <button type="button" onClick={handleSend} disabled={sending || !input.trim()}
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white transition disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white transition disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
                   <FiSend size={16} />
                 </button>
               </div>

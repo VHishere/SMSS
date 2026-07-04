@@ -97,6 +97,13 @@ async function submitAttendance(req, res) {
       return res.status(400).json({ success: false, message: "Ngày không hợp lệ (YYYY-MM-DD)" });
     }
 
+    const _p = (n) => String(n).padStart(2, "0");
+    const _now = new Date();
+    const _today = `${_now.getFullYear()}-${_p(_now.getMonth() + 1)}-${_p(_now.getDate())}`;
+    if (date > _today) {
+      return res.status(400).json({ success: false, message: "Không thể điểm danh cho ngày trong tương lai" });
+    }
+
     if (!Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ success: false, message: "Danh sách điểm danh không được rỗng" });
     }

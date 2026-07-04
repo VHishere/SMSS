@@ -7,6 +7,7 @@ import SubstitutionModal from "../../components/organisms/SubstitutionModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { timetableApi } from "../../api/client";
+import { formatDateVN } from "../../utils/datetime";
 
 const TABS = [
   { key: "schedule", label: "Thời khóa biểu", icon: FiCalendar },
@@ -57,13 +58,9 @@ function TeacherTimetablePage() {
 
   return (
     <DashboardShell user={headerUser} menuItems={dashboardNavigation.TEACHER} sidebarFooterLabel="Thời khóa biểu" sidebarFooterValue="Tuần này">
-      <section className="mb-6 rounded-2xl p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6", backgroundColor: "#fff" }}>
-        <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Giáo viên</p>
-        <h1 className="text-2xl font-bold sm:text-3xl" style={{ color: "#0F2747" }}>Thời khóa biểu</h1>
-        <p className="text-sm text-slate-500">Xem lịch dạy theo tuần và gửi yêu cầu đổi tiết / dạy thay.</p>
-      </section>
+      <h1 className="mb-6 text-xl font-bold sm:text-2xl" style={{ color: "#0F2747" }}>Thời khóa biểu</h1>
 
-      <div className="mb-6 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+      <div className="mb-6 flex gap-1 rounded-2xl border border-[#FFE7D6] bg-white p-1 shadow-sm">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button key={key} type="button" onClick={() => setTab(key)} className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition" style={tab === key ? { backgroundColor: "#F27123", color: "#fff" } : { color: "#64748B" }}>
             <Icon size={15} /><span>{label}</span>
@@ -86,7 +83,7 @@ function TeacherTimetablePage() {
       {tab === "swap" && (
         <div>
           <div className="mb-4 flex justify-end">
-            <button type="button" onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white" style={{ backgroundColor: "#F27123" }}>
+            <button type="button" onClick={() => setShowModal(true)} className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-white" style={{ backgroundColor: "#F27123" }}>
               <FiPlus size={15} /> Yêu cầu đổi tiết
             </button>
           </div>
@@ -107,7 +104,7 @@ function TeacherTimetablePage() {
                             <span className="text-sm font-bold text-[#0F2747]">{s.subjectName} · {s.className}</span>
                           </div>
                           <p className="mt-0.5 text-xs text-slate-400">
-                            {WD[s.dayOfWeek] ?? ""} tiết {s.periodNo} · áp dụng ngày {s.targetDate}
+                            {WD[s.dayOfWeek] ?? ""} tiết {s.periodNo} · áp dụng ngày {formatDateVN(s.targetDate)}
                             {s.substituteName ? ` · GV thay: ${s.substituteName}` : ""}
                           </p>
                         </div>

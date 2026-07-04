@@ -28,8 +28,9 @@ async function findProfileByUserId(userId) {
        g.grade_name         AS gradeName,
        sy.school_year_id    AS schoolYearId,
        sy.year_name         AS schoolYearName,
-       tc.role_in_class     AS roleInClass,
-       COUNT(ce.student_id) AS studentCount
+       CASE WHEN MAX(tc.role_in_class = 'HOMEROOM_TEACHER') = 1
+            THEN 'HOMEROOM_TEACHER' ELSE 'SUBJECT_TEACHER' END AS roleInClass,
+       COUNT(DISTINCT ce.student_id) AS studentCount
      FROM teacher_class tc
      INNER JOIN school_class sc
        ON sc.class_id = tc.class_id
@@ -45,10 +46,9 @@ async function findProfileByUserId(userId) {
      WHERE tc.teacher_id = ?
      GROUP BY
        sc.class_id, sc.class_name, sc.room_name,
-       g.grade_name, sy.school_year_id, sy.year_name,
-       tc.role_in_class
+       g.grade_name, sy.school_year_id, sy.year_name
      ORDER BY
-       CASE tc.role_in_class WHEN 'HOMEROOM_TEACHER' THEN 0 ELSE 1 END ASC,
+       MAX(tc.role_in_class = 'HOMEROOM_TEACHER') DESC,
        sc.class_name ASC`,
     [teacher.teacherId],
   );

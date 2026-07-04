@@ -8,6 +8,7 @@ import { useAuth } from "../../context/useAuth";
 import { useParentStudentAttendance } from "../../hooks/useParentStudentAttendance";
 import { useParentStudentAttendanceStats } from "../../hooks/useParentStudentAttendanceStats";
 import { useParentStudents } from "../../hooks/useParentStudents";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
 
 // ── Date utilities ────────────────────────────────────────────────────────────
 
@@ -552,11 +553,6 @@ function ParentStudentAttendanceHistory() {
     return students[0].studentId;
   }, [students, studentsLoading, paramStudentId]);
 
-  const activeStudent = useMemo(
-    () => students.find((s) => s.studentId === activeStudentId) ?? null,
-    [students, activeStudentId],
-  );
-
   // ── Header user ──
   const headerUser = useMemo(() => {
     const role = user?.roles?.find((r) => r.roleName === "PARENT");
@@ -571,8 +567,8 @@ function ParentStudentAttendanceHistory() {
     <DashboardShell
       user={headerUser}
       menuItems={dashboardNavigation.PARENT}
-      sidebarFooterLabel="Điểm danh"
-      sidebarFooterValue={activeTab === "stats" ? "Thống kê" : "Lịch sử"}
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={getCurrentSchoolYearLabel(students)}
     >
       {/* Student selector — only when parent has multiple students */}
       {!studentsLoading && students.length > 1 && (
@@ -588,7 +584,7 @@ function ParentStudentAttendanceHistory() {
                   return p;
                 })
               }
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
                 s.studentId === activeStudentId
                   ? "bg-[#08509F] text-white"
                   : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
@@ -600,31 +596,6 @@ function ParentStudentAttendanceHistory() {
               )}
             </button>
           ))}
-        </div>
-      )}
-
-      {/* Student info banner */}
-      {activeStudent && (
-        <div className="mb-6 flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
-          {activeStudent.studentAvatar ? (
-            <img
-              src={activeStudent.studentAvatar}
-              alt={activeStudent.studentFullName}
-              className="h-8 w-8 shrink-0 rounded-full object-cover"
-            />
-          ) : (
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#08509F] text-sm font-bold text-white">
-              {activeStudent.studentFullName?.[0] ?? "?"}
-            </div>
-          )}
-          <div>
-            <span className="text-sm font-semibold text-[#0F2747]">
-              {activeStudent.studentFullName}
-            </span>
-            <span className="ml-2 text-xs text-slate-500">
-              {activeStudent.studentCode} · {activeStudent.relationship}
-            </span>
-          </div>
         </div>
       )}
 

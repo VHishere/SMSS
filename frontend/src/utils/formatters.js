@@ -39,3 +39,8 @@ export function formatStatus(value) {
 
   return map[value] || value || "—";
 }
+
+export function getCurrentSchoolYearLabel(students = []) {
+  const primary = students.find((s) => s.isPrimary === 1) || students[0];
+  return primary?.schoolYearName || "Chưa cập nhật";
+}

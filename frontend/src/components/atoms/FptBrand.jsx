@@ -1,4 +1,4 @@
-import fptLogo from "../../assets/logoFPT.jpg";
+import fptLogo from "../../assets/logoFPT.png";
 
 function FptBrand() {
   return (

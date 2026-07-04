@@ -140,19 +140,20 @@ function StudentTimetable() {
               colorClass="bg-orange-50 text-[#F27123]"
             />
 
-          <InfoItem
-            icon={FiGrid}
-            label="Khối"
-            value={data?.context?.gradeName}
-            colorClass="bg-blue-50 text-[#08509F]"
-          />
+            <InfoItem
+              icon={FiGrid}
+              label="Khối"
+              value={data?.context?.gradeName}
+              colorClass="bg-blue-50 text-[#08509F]"
+            />
 
-          <InfoItem
-            icon={FiBookOpen}
-            label="Năm học"
-            value={data?.context?.schoolYearName}
-            colorClass="bg-green-50 text-green-600"
-          />
+            <InfoItem
+              icon={FiBookOpen}
+              label="Năm học"
+              value={data?.context?.schoolYearName}
+              colorClass="bg-green-50 text-green-600"
+            />
+          </div>
         </div>
       </section>
 

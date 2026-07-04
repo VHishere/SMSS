@@ -605,6 +605,104 @@ async function ensureBoardingGroupConversation({
   return getGroupSummary(group.conversationId, "BOARDING");
 }
 
+async function findParentClassGroupParticipants(classId) {
+  const [rows] = await pool.query(
+    `
+      SELECT DISTINCT
+        pp.user_id AS userId,
+        'PARENT' AS role
+      FROM class_enrollment ce
+      INNER JOIN student s
+        ON s.student_id = ce.student_id
+        AND s.status = 'ACTIVE'
+      INNER JOIN student_parent sp
+        ON sp.student_id = s.student_id
+      INNER JOIN parent_profile pp
+        ON pp.parent_id = sp.parent_id
+      INNER JOIN user_account ua
+        ON ua.user_id = pp.user_id
+        AND ua.status = 'ACTIVE'
+      WHERE ce.class_id = ?
+        AND ce.status = 'ACTIVE'
+
+      UNION
+
+      SELECT
+        t.user_id AS userId,
+        'TEACHER' AS role
+      FROM teacher_class tc
+      INNER JOIN teacher t
+        ON t.teacher_id = tc.teacher_id
+      INNER JOIN user_account ua
+        ON ua.user_id = t.user_id
+        AND ua.status = 'ACTIVE'
+      WHERE tc.class_id = ?
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+    `,
+    [classId, classId],
+  );
+
+  return rows;
+}
+
+async function ensureParentClassGroupConversation({
+  userId,
+  classId,
+  className,
+}) {
+  const title = `Nhóm phụ huynh lớp ${className}`;
+  const participants = await findParentClassGroupParticipants(classId);
+
+  if (!participants.some((p) => Number(p.userId) === Number(userId))) {
+    participants.push({
+      userId,
+      role: "PARENT",
+    });
+  }
+
+  let group = await findGroupByTitle(title);
+
+  if (!group) {
+    const conversationId = await createConversation({
+      type: "GROUP",
+      title,
+      studentId: null,
+      createdBy: userId,
+      participants,
+    });
+
+    return getGroupSummary(conversationId, "CLASS_PARENTS");
+  }
+
+  await addMissingParticipants(group.conversationId, participants);
+
+  return getGroupSummary(group.conversationId, "CLASS_PARENTS");
+}
+
+async function ensureParentGroupConversations({
+  userId,
+  students = [],
+}) {
+  const groups = [];
+  const seenClassIds = new Set();
+
+  for (const student of students) {
+    if (!student.classId || seenClassIds.has(student.classId)) continue;
+
+    seenClassIds.add(student.classId);
+
+    const group = await ensureParentClassGroupConversation({
+      userId,
+      classId: student.classId,
+      className: student.className,
+    });
+
+    if (group) groups.push(group);
+  }
+
+  return groups;
+}
+
 async function ensureStudentGroupConversations({
   userId,
   context,
@@ -770,5 +868,6 @@ module.exports = {
   setArchived,
   dashboardStats,
   ensureStudentGroupConversations,
+  ensureParentGroupConversations,
   searchMessages,
 };

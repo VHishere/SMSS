@@ -391,6 +391,7 @@ async function findTeacherContactsByUserId(userId) {
         ua.avatar,
         tc.role_in_class AS roleInClass,
         sb.subject_name  AS subjectName,
+        sc.class_id      AS classId,
         sc.class_name    AS className,
         s.student_id     AS studentId,
         sua.full_name    AS studentName
@@ -444,6 +445,7 @@ async function findTeacherContactsByUserId(userId) {
       studentMap.set(row.studentId, {
         studentId: row.studentId,
         studentName: row.studentName,
+        classId: row.classId,
         className: row.className,
       });
     }

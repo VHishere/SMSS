@@ -12,7 +12,24 @@ import { LoginPage } from "./pages/LoginPage";
 
 import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
 import { TeacherDashboard } from "./pages/dashboards/TeacherDashboard";
-import ParentDashboard from "./pages/dashboards/ParentDashboard";
+<<<<<<< HEAD
+=======
+
+import StaffDashboardLayout from './pages/dashboards/staff/StaffDashboardLayout';
+import StaffOverviewPage from './pages/dashboards/staff/StaffOverviewPage';
+import StaffStudentsPage from './pages/dashboards/staff/StaffStudentsPage';
+import StaffParentsPage from './pages/dashboards/staff/StaffParentsPage';
+import StaffReportsPage from './pages/dashboards/staff/StaffReportsPage';
+import StaffSchoolYearsPage from './pages/dashboards/staff/StaffSchoolYearsPage';
+import StaffClassesPage from './pages/dashboards/staff/StaffClassesPage';
+import StaffClassDetailPage from './pages/dashboards/staff/StaffClassDetailPage';
+import StaffPromotionPage from './pages/dashboards/staff/StaffPromotionPage';
+import StaffStudentDetailPage from './pages/dashboards/staff/StaffStudentDetailPage';
+import StaffStudentFormPage from './pages/dashboards/staff/StaffStudentFormPage';
+import StaffParentDetailPage from './pages/dashboards/staff/StaffParentDetailPage';
+import StaffParentFormPage from './pages/dashboards/staff/StaffParentFormPage';
+
+import { ParentDashboard } from './pages/dashboards/ParentDashboard';
 import StudentDashboard from "./pages/dashboards/StudentDashboard";
 
 import StaffDashboardLayout from "./pages/dashboards/staff/StaffDashboardLayout";
@@ -39,10 +56,25 @@ import StudentProfile from "./pages/student/StudentProfile";
 import StudentTimetable from "./pages/student/StudentTimetable";
 import StudentHomeworks from "./pages/student/StudentHomeworks";
 import StudentGrades from "./pages/student/StudentGrades";
+import StudentAttendance from "./pages/student/StudentAttendance";
+import StudentBehaviour from "./pages/student/StudentBehaviour";
+import StudentGoals from "./pages/student/StudentGoals";
+import StudentEvents from "./pages/student/StudentEvents";
+import StudentMessages from "./pages/student/StudentMessages";
+import StudentNotifications from "./pages/student/StudentNotifications";
 
 import ParentStudentTimetable from "./pages/parent/StudentTimetable";
+import ParentStudentProfilePage from "./pages/parent/StudentProfilePage";
+import ParentStudentRedirect from "./pages/parent/StudentRedirect";
 import ParentStudentAttendanceHistory from "./pages/parent/StudentAttendanceHistory";
 import ParentStudentLeaveRequests from "./pages/parent/StudentLeaveRequests";
+import ParentStudentGrades from "./pages/parent/StudentGrades";
+import ParentStudentBehaviour from "./pages/parent/StudentBehaviour";
+import ParentStudentHomework from "./pages/parent/StudentHomework";
+import ParentMeetingsPage from "./pages/parent/MeetingsPage";
+import ParentMeetingDetailPage from "./pages/parent/MeetingDetailPage";
+import ParentMessages from "./pages/parent/ParentMessages";
+import ParentNotifications from "./pages/parent/ParentNotifications";
 
 import AttendancePage from "./pages/teacher/AttendancePage";
 import LeaveRequestsPage from "./pages/teacher/LeaveRequestsPage";
@@ -66,6 +98,8 @@ import EventDetailPage from "./pages/teacher/EventDetailPage";
 import TeacherTimetablePage from "./pages/teacher/TeacherTimetablePage";
 import SupportCasesPage from "./pages/teacher/SupportCasesPage";
 
+import StudentHomeworkDetail from "./pages/student/StudentHomeworkDetail";
+
 import "./App.css";
 
 const TEACHER_ROLES = [
@@ -79,9 +113,77 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/login/school" element={<LoginPage portal="school" />} />
-          <Route path="/login/parent" element={<LoginPage portal="parent" />} />
+          <Route
+            path="/"
+            element={<HomePage />}
+          />
+
+          <Route
+            path="/login/school"
+            element={<LoginPage portal="school" />}
+          />
+                    <Route
+                        path="/admin"
+                        element={
+                            <ProtectedRoute allowedRoles={['ADMIN']}>
+                                <AdminDashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/staff"
+                        element={
+                            <ProtectedRoute allowedRoles={['STAFF', 'ADMIN']}>
+                                <StaffDashboardLayout />
+                            </ProtectedRoute>
+                        }
+                    >
+                        <Route index element={<StaffOverviewPage />} />
+                        <Route path="students" element={<StaffStudentsPage />} />
+                        <Route path="students/new" element={<StaffStudentFormPage />} />
+                        <Route path="students/:id" element={<StaffStudentDetailPage />} />
+                        <Route path="students/:id/edit" element={<StaffStudentFormPage />} />
+                        <Route path="parents" element={<StaffParentsPage />} />
+                        <Route path="parents/new" element={<StaffParentFormPage />} />
+                        <Route path="parents/:id" element={<StaffParentDetailPage />} />
+                        <Route path="parents/:id/edit" element={<StaffParentFormPage />} />
+                        <Route path="school-years" element={<StaffSchoolYearsPage />} />
+                        <Route path="classes" element={<StaffClassesPage />} />
+                        <Route path="classes/:id" element={<StaffClassDetailPage />} />
+                        <Route path="promotion" element={<StaffPromotionPage />} />
+                        <Route path="reports" element={<StaffReportsPage />} />
+                    </Route>
+                    <Route
+                        path="/teacher"
+                        element={
+                            <ProtectedRoute
+                                allowedRoles={['HOMEROOM_TEACHER', 'SUBJECT_TEACHER', 'DORM_SUPERVISOR']}
+                            >
+                                <TeacherDashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/parent"
+                        element={
+                            <ProtectedRoute allowedRoles={['PARENT']}>
+                                <ParentDashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/student"
+                        element={
+                            <ProtectedRoute allowedRoles={['STUDENT']}>
+                                <StudentDashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+
+          <Route
+            path="/login/parent"
+            element={<LoginPage portal="parent" />}
+          />
 
           <Route
             path="/admin"
@@ -95,33 +197,11 @@ function App() {
           <Route
             path="/staff"
             element={
-              <ProtectedRoute allowedRoles={["STAFF", "ADMIN"]}>
-                <StaffDashboardLayout />
+              <ProtectedRoute allowedRoles={["STAFF"]}>
+                <StaffDashboard />
               </ProtectedRoute>
             }
-          >
-            <Route index element={<StaffOverviewPage />} />
-            <Route path="students" element={<StaffStudentsPage />} />
-            <Route path="students/new" element={<StaffStudentFormPage />} />
-            <Route path="students/:id" element={<StaffStudentDetailPage />} />
-            <Route path="students/:id/edit" element={<StaffStudentFormPage />} />
-            <Route path="parents" element={<StaffParentsPage />} />
-            <Route path="parents/new" element={<StaffParentFormPage />} />
-            <Route path="parents/:id" element={<StaffParentDetailPage />} />
-            <Route path="parents/:id/edit" element={<StaffParentFormPage />} />
-            <Route path="teachers" element={<StaffTeachersPage />} />
-            <Route path="teachers/new" element={<StaffTeacherFormPage />} />
-            <Route path="teachers/:id" element={<StaffTeacherDetailPage />} />
-            <Route path="teachers/:id/edit" element={<StaffTeacherFormPage />} />
-            <Route path="curriculum" element={<StaffCurriculumPage />} />
-            <Route path="curriculum/:id" element={<StaffCurriculumDetailPage />} />
-            <Route path="timetable" element={<StaffTimetablePage />} />
-            <Route path="school-years" element={<StaffSchoolYearsPage />} />
-            <Route path="classes" element={<StaffClassesPage />} />
-            <Route path="classes/:id" element={<StaffClassDetailPage />} />
-            <Route path="promotion" element={<StaffPromotionPage />} />
-            <Route path="reports" element={<StaffReportsPage />} />
-          </Route>
+          />
 
           <Route
             path="/teacher"
@@ -340,6 +420,24 @@ function App() {
           />
 
           <Route
+            path="/parent/student"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentStudentRedirect />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/student/:studentId"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentStudentProfilePage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/parent/attendance"
             element={
               <ProtectedRoute allowedRoles={["PARENT"]}>
@@ -353,6 +451,69 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["PARENT"]}>
                 <ParentStudentLeaveRequests />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/grades"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentStudentGrades />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/behaviour"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentStudentBehaviour />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/homework"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentStudentHomework />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/meetings"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentMeetingsPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/meetings/:meetingId"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentMeetingDetailPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/messages"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentMessages />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/notifications"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentNotifications />
               </ProtectedRoute>
             }
           />
@@ -385,6 +546,15 @@ function App() {
           />
 
           <Route
+            path="/student/attendance"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <StudentAttendance />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/student/homeworks"
             element={
               <ProtectedRoute allowedRoles={["STUDENT"]}>
@@ -402,7 +572,10 @@ function App() {
             }
           />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route
+            path="*"
+            element={<Navigate to="/" replace />}
+          />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

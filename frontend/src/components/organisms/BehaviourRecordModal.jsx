@@ -8,6 +8,12 @@ function toLocalDate(value) {
   return value.slice(0, 10);
 }
 
+function todayLocal() {
+  const p = (n) => String(n).padStart(2, "0");
+  const d = new Date();
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /**
  * mode: "create" | "edit"
  * behaviorType: "POSITIVE" | "VIOLATION"
@@ -51,9 +57,11 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
   function validate() {
     if (!isEdit && !studentId) return "Vui lòng chọn học sinh";
     if (!title.trim()) return "Tiêu đề là bắt buộc";
+    if (!category) return "Vui lòng chọn danh mục";
     const p = Number(points);
     if (!Number.isInteger(p) || p <= 0) return "Điểm phải là số nguyên dương";
     if (!recordDate) return "Vui lòng chọn ngày";
+    if (recordDate > todayLocal()) return "Ngày ghi nhận không được ở tương lai";
     return "";
   }
 
@@ -122,9 +130,9 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-600">Danh mục</label>
+            <label className="mb-1.5 block text-xs font-medium text-slate-600">Danh mục <span className="text-red-500">*</span></label>
             <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
-              <option value="">— Không phân loại —</option>
+              <option value="">— Chọn danh mục —</option>
               {categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
           </div>
@@ -138,7 +146,7 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Ngày <span className="text-red-500">*</span></label>
-              <input type="date" value={recordDate} onChange={(e) => setRecordDate(e.target.value)} className={inputCls} />
+              <input type="date" value={recordDate} max={todayLocal()} onChange={(e) => setRecordDate(e.target.value)} className={inputCls} />
             </div>
           </div>
 

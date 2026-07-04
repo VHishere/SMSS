@@ -67,6 +67,31 @@ async function getScoreSheet(req, res) {
   }
 }
 
+// GET /teachers/academic/gradebook  — all score types per student (matrix)
+async function getGradebook(req, res) {
+  try {
+    const { classId, subjectId, semesterId } = req.query;
+    if (!classId || !subjectId || !semesterId) {
+      return res.status(400).json({ success: false, message: "Thiếu tham số lớp/môn/học kỳ" });
+    }
+    const profile = await resolveTeacher(req.user.userId);
+    if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
+
+    const ok = await academicModel.isTeacherAssigned(profile.teacherId, parseInt(classId, 10), parseInt(subjectId, 10));
+    if (!ok) return res.status(403).json({ success: false, message: "Bạn không được phân công dạy lớp/môn này" });
+
+    const students = await academicModel.findGradebook(
+      parseInt(classId, 10), parseInt(subjectId, 10), parseInt(semesterId, 10),
+    );
+    return res.json({
+      success: true,
+      data: { students, scoreTypes: SCORE_TYPES.map((key) => ({ key, label: SCORE_TYPE_LABELS[key] })) },
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy bảng điểm");
+  }
+}
+
 // POST /teachers/academic/scores
 async function submitScores(req, res) {
   try {
@@ -268,6 +293,7 @@ async function updateWarning(req, res) {
 module.exports = {
   getMeta,
   getScoreSheet,
+  getGradebook,
   submitScores,
   updateScore,
   deleteScore,

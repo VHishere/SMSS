@@ -6,12 +6,13 @@ import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useStudentBehaviour } from "../../hooks/useStudentBehaviour";
+import { formatDateVN } from "../../utils/datetime";
 
 const GRADE_COLOR = { TOT: "#16A34A", KHA: "#08509F", TB: "#F59E0B", YEU: "#DC2626", NA: "#64748B" };
 
 function StatBox({ label, value, color = "#0F2747" }) {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+    <div className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
       <p className="mb-1 text-xs font-medium text-slate-500">{label}</p>
       <p className="text-2xl font-bold leading-none" style={{ color }}>{value}</p>
     </div>
@@ -20,7 +21,7 @@ function StatBox({ label, value, color = "#0F2747" }) {
 
 function RecordList({ items, isMerit }) {
   if (!items.length) {
-    return <p className="rounded-xl px-4 py-6 text-center text-sm text-slate-400" style={{ backgroundColor: "#FFF7F2" }}>Chưa có dữ liệu.</p>;
+    return <p className="rounded-2xl border border-dashed px-4 py-6 text-center text-sm text-slate-400" style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}>Chưa có dữ liệu.</p>;
   }
   return (
     <div className="space-y-2">
@@ -30,7 +31,7 @@ function RecordList({ items, isMerit }) {
             <p className="text-sm font-medium text-[#0F2747]">{r.title}</p>
             {r.description && <p className="text-xs text-slate-500">{r.description}</p>}
             <p className="mt-0.5 text-xs text-slate-400">
-              {r.recordDate}{r.createdByName ? ` · ${r.createdByName}` : ""}
+              {formatDateVN(r.recordDate)}{r.createdByName ? ` · ${r.createdByName}` : ""}
               {r.evidenceUrl && <> · <a href={r.evidenceUrl} target="_blank" rel="noreferrer" style={{ color: "#08509F" }}>minh chứng</a></>}
             </p>
           </div>
@@ -94,7 +95,7 @@ function StudentBehaviourProfilePage() {
             </div>
             {data.semesters?.length > 0 && (
               <select value={data.targetSemesterId ?? ""} onChange={(e) => setSearchParams({ semesterId: e.target.value })}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]">
+                className="rounded-lg border border-[#FFE7D6] bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]">
                 {data.semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
               </select>
             )}
@@ -105,8 +106,8 @@ function StudentBehaviourProfilePage() {
             <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
               <StatBox label="Điểm thưởng" value={`+${cc.meritPoints}`} color="#16A34A" />
               <StatBox label="Điểm trừ" value={`-${cc.demeritPoints}`} color="#DC2626" />
-              <StatBox label="Hạnh kiểm" value={cc.finalScore} color="#F27123" />
-              <StatBox label="Xếp loại" value={cc.grade?.label ?? "—"} color={GRADE_COLOR[cc.grade?.key] ?? "#0F2747"} />
+              <StatBox label="Điểm rèn luyện" value={cc.finalScore} color="#0F2747" />
+              <StatBox label="Hạnh kiểm" value={cc.grade?.label ?? "—"} color={GRADE_COLOR[cc.grade?.key] ?? "#0F2747"} />
             </div>
           )}
 
@@ -134,7 +135,7 @@ function StudentBehaviourProfilePage() {
                       <span className="text-sm font-bold" style={{ color: GRADE_COLOR[
                         h.finalScore >= 80 ? "TOT" : h.finalScore >= 65 ? "KHA" : h.finalScore >= 50 ? "TB" : "YEU"
                       ] }}>
-                        {h.finalScore}/100 · {h.conductGrade}
+                        {h.conductGrade} · {h.finalScore}/100
                         {h.status === "APPROVED" ? "" : " (nháp)"}
                       </span>
                     </div>

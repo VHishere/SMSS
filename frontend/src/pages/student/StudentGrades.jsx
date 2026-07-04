@@ -34,31 +34,11 @@ const EXTRA_SUBJECTS = [
 ];
 
 const SCORE_SLOTS = [
-  {
-    key: "tx1",
-    label: "TX1",
-    weight: 1,
-  },
-  {
-    key: "tx2",
-    label: "TX2",
-    weight: 1,
-  },
-  {
-    key: "tx3",
-    label: "TX3",
-    weight: 1,
-  },
-  {
-    key: "onePeriod",
-    label: "1 tiết",
-    weight: 2,
-  },
-  {
-    key: "final",
-    label: "Cuối kỳ",
-    weight: 3,
-  },
+  { key: "tx1", label: "TX1", weight: 1 },
+  { key: "tx2", label: "TX2", weight: 1 },
+  { key: "tx3", label: "TX3", weight: 1 },
+  { key: "onePeriod", label: "1 tiết", weight: 2 },
+  { key: "final", label: "Cuối kỳ", weight: 3 },
 ];
 
 const SUBJECT_ORDER = [
@@ -114,9 +94,7 @@ function getSubjectKey(item) {
     return `subject-${item.subjectId}`;
   }
 
-  return `subject-${normalizeCode(
-    item?.subjectName || item?.subjectCode,
-  )}`;
+  return `subject-${normalizeCode(item?.subjectName || item?.subjectCode)}`;
 }
 
 function dateValue(value) {
@@ -129,8 +107,7 @@ function isExtraSubject(subjectName) {
   const normalizedName = normalizeText(subjectName);
 
   return EXTRA_SUBJECTS.some(
-    (subject) =>
-      normalizeText(subject.subjectName) === normalizedName,
+    (subject) => normalizeText(subject.subjectName) === normalizedName,
   );
 }
 
@@ -184,11 +161,7 @@ function mergeSubjectCatalog(subjects = []) {
 }
 
 function formatScore(score) {
-  if (
-    score === null ||
-    score === undefined ||
-    score === ""
-  ) {
+  if (score === null || score === undefined || score === "") {
     return "--";
   }
 
@@ -228,36 +201,15 @@ function scoreColor(score) {
 function detectScoreSlot(scoreType) {
   const type = normalizeCode(scoreType).toUpperCase();
 
-  if (
-    [
-      "TX1",
-      "REGULAR_1",
-      "FREQUENT_1",
-      "THUONG_XUYEN_1",
-    ].includes(type)
-  ) {
+  if (["TX1", "REGULAR_1", "FREQUENT_1", "THUONG_XUYEN_1"].includes(type)) {
     return "tx1";
   }
 
-  if (
-    [
-      "TX2",
-      "REGULAR_2",
-      "FREQUENT_2",
-      "THUONG_XUYEN_2",
-    ].includes(type)
-  ) {
+  if (["TX2", "REGULAR_2", "FREQUENT_2", "THUONG_XUYEN_2"].includes(type)) {
     return "tx2";
   }
 
-  if (
-    [
-      "TX3",
-      "REGULAR_3",
-      "FREQUENT_3",
-      "THUONG_XUYEN_3",
-    ].includes(type)
-  ) {
+  if (["TX3", "REGULAR_3", "FREQUENT_3", "THUONG_XUYEN_3"].includes(type)) {
     return "tx3";
   }
 
@@ -274,14 +226,7 @@ function detectScoreSlot(scoreType) {
     return "onePeriod";
   }
 
-  if (
-    [
-      "FINAL",
-      "FINAL_EXAM",
-      "CUOI_KY",
-      "END_TERM",
-    ].includes(type)
-  ) {
+  if (["FINAL", "FINAL_EXAM", "CUOI_KY", "END_TERM"].includes(type)) {
     return "final";
   }
 
@@ -289,17 +234,9 @@ function detectScoreSlot(scoreType) {
 }
 
 function getNextRegularSlot(scores) {
-  if (!scores.tx1) {
-    return "tx1";
-  }
-
-  if (!scores.tx2) {
-    return "tx2";
-  }
-
-  if (!scores.tx3) {
-    return "tx3";
-  }
+  if (!scores.tx1) return "tx1";
+  if (!scores.tx2) return "tx2";
+  if (!scores.tx3) return "tx3";
 
   return null;
 }
@@ -335,9 +272,7 @@ function putGradeIntoSubjectRow(row, grade) {
     targetSlot = getNextRegularSlot(row.scores);
   }
 
-  if (!targetSlot) {
-    return;
-  }
+  if (!targetSlot) return;
 
   row.scores[targetSlot] = grade;
 
@@ -353,11 +288,7 @@ function calculateSubjectAverage(scores) {
   SCORE_SLOTS.forEach((slot) => {
     const grade = scores[slot.key];
 
-    if (
-      !grade ||
-      grade.scoreValue === null ||
-      grade.scoreValue === undefined
-    ) {
+    if (!grade || grade.scoreValue === null || grade.scoreValue === undefined) {
       return;
     }
 
@@ -384,22 +315,10 @@ function ensureYear(yearMap, item) {
   if (!yearMap.has(yearKey)) {
     yearMap.set(yearKey, {
       key: yearKey,
-      label:
-        item.schoolYearName ||
-        item.yearName ||
-        "Năm học",
-      startDate:
-        item.schoolYearStartDate ||
-        item.startDate ||
-        "",
-      endDate:
-        item.schoolYearEndDate ||
-        item.endDate ||
-        "",
-      isActive:
-        item.isActive ||
-        item.schoolYearIsActive ||
-        false,
+      label: item.schoolYearName || item.yearName || "Năm học",
+      startDate: item.schoolYearStartDate || item.startDate || "",
+      endDate: item.schoolYearEndDate || item.endDate || "",
+      isActive: item.isActive || item.schoolYearIsActive || false,
       semesters: new Map(),
     });
   }
@@ -425,9 +344,7 @@ function ensureSemester(year, item) {
 
 function buildGradeHistory(data) {
   const yearMap = new Map();
-  const subjectCatalog = mergeSubjectCatalog(
-    data?.subjects || [],
-  );
+  const subjectCatalog = mergeSubjectCatalog(data?.subjects || []);
 
   (data?.schoolYears || []).forEach((item) => {
     const year = ensureYear(yearMap, item);
@@ -437,7 +354,6 @@ function buildGradeHistory(data) {
   (data?.grades || []).forEach((grade) => {
     const year = ensureYear(yearMap, grade);
     const semester = ensureSemester(year, grade);
-
     const subjectKey = getSubjectKey(grade);
 
     if (!semester.subjects.has(subjectKey)) {
@@ -451,10 +367,7 @@ function buildGradeHistory(data) {
       );
     }
 
-    putGradeIntoSubjectRow(
-      semester.subjects.get(subjectKey),
-      grade,
-    );
+    putGradeIntoSubjectRow(semester.subjects.get(subjectKey), grade);
   });
 
   yearMap.forEach((year) => {
@@ -463,10 +376,7 @@ function buildGradeHistory(data) {
         const subjectKey = getSubjectKey(subject);
 
         if (!semester.subjects.has(subjectKey)) {
-          semester.subjects.set(
-            subjectKey,
-            createSubjectRow(subject),
-          );
+          semester.subjects.set(subjectKey, createSubjectRow(subject));
         }
       });
     });
@@ -474,13 +384,9 @@ function buildGradeHistory(data) {
 
   return Array.from(yearMap.values())
     .sort((first, second) => {
-      const dateDiff =
-        dateValue(second.startDate) -
-        dateValue(first.startDate);
+      const dateDiff = dateValue(second.startDate) - dateValue(first.startDate);
 
-      if (dateDiff !== 0) {
-        return dateDiff;
-      }
+      if (dateDiff !== 0) return dateDiff;
 
       return second.label.localeCompare(first.label);
     })
@@ -488,21 +394,15 @@ function buildGradeHistory(data) {
       ...year,
       semesters: Array.from(year.semesters.values())
         .sort((first, second) => {
-          const dateDiff =
-            dateValue(first.startDate) -
-            dateValue(second.startDate);
+          const dateDiff = dateValue(first.startDate) - dateValue(second.startDate);
 
-          if (dateDiff !== 0) {
-            return dateDiff;
-          }
+          if (dateDiff !== 0) return dateDiff;
 
           return first.label.localeCompare(second.label);
         })
         .map((semester) => ({
           ...semester,
-          subjects: sortSubjects(
-            Array.from(semester.subjects.values()),
-          ),
+          subjects: sortSubjects(Array.from(semester.subjects.values())),
         })),
     }));
 }
@@ -610,10 +510,6 @@ function GradeSemesterTable({ semester }) {
           <h3 className="mb-1 text-base font-bold text-[#0F2747]">
             {semester.label}
           </h3>
-
-          <p className="mb-0 text-sm text-slate-500">
-            3 điểm thường xuyên, 1 điểm 1 tiết và 1 điểm cuối kỳ.
-          </p>
         </div>
 
         <span className="rounded-full bg-[#FFF7F2] px-4 py-2 text-xs font-bold text-[#F27123]">
@@ -653,9 +549,7 @@ function GradeSemesterTable({ semester }) {
 
           <tbody>
             {sections.map((section) => {
-              if (section.subjects.length === 0) {
-                return null;
-              }
+              if (section.subjects.length === 0) return null;
 
               return (
                 <Fragment key={section.key}>
@@ -669,8 +563,7 @@ function GradeSemesterTable({ semester }) {
                   </tr>
 
                   {section.subjects.map((subject) => {
-                    const average =
-                      calculateSubjectAverage(subject.scores);
+                    const average = calculateSubjectAverage(subject.scores);
 
                     const comment =
                       subject.comments.length > 0
@@ -684,9 +577,7 @@ function GradeSemesterTable({ semester }) {
                       >
                         <td className="px-5 py-4">
                           <div className="mb-2 flex flex-wrap items-center gap-2">
-                            <SubjectBadge
-                              isExtra={subject.isExtra}
-                            />
+                            <SubjectBadge isExtra={subject.isExtra} />
                           </div>
 
                           <p className="mb-1 text-sm font-bold text-[#0F2747]">
@@ -703,9 +594,7 @@ function GradeSemesterTable({ semester }) {
                             key={`${subject.subjectKey}-${slot.key}`}
                             className="px-4 py-4 text-center"
                           >
-                            <ScoreCell
-                              grade={subject.scores[slot.key]}
-                            />
+                            <ScoreCell grade={subject.scores[slot.key]} />
                           </td>
                         ))}
 
@@ -860,43 +749,27 @@ function StudentGrades() {
       )}
 
       {!loading && !error && data && (
-        <section className="overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-orange-100 px-5 py-4">
-            <div>
-              <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-[#F27123]">
-                Học tập
-              </p>
+        <>
+          <section className="mb-5 flex flex-wrap items-center justify-end gap-3">
+            <FilterSelect
+              label="Năm học"
+              value={activeYearKey}
+              options={yearOptions}
+              onChange={(value) => {
+                setSelectedYearKey(value);
+                setSelectedSemesterKey("ALL");
+              }}
+            />
 
-              <h1 className="mb-1 text-2xl font-bold text-[#0F2747]">
-                Bảng điểm
-              </h1>
+            <FilterSelect
+              label="Học kỳ"
+              value={selectedSemesterKey}
+              options={semesterOptions}
+              onChange={setSelectedSemesterKey}
+            />
+          </section>
 
-              <p className="mb-0 text-sm text-slate-500">
-                Xem điểm theo năm học và học kỳ.
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <FilterSelect
-                label="Năm học"
-                value={activeYearKey}
-                options={yearOptions}
-                onChange={(value) => {
-                  setSelectedYearKey(value);
-                  setSelectedSemesterKey("ALL");
-                }}
-              />
-
-              <FilterSelect
-                label="Học kỳ"
-                value={selectedSemesterKey}
-                options={semesterOptions}
-                onChange={setSelectedSemesterKey}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-5 bg-[#FFF9F4] p-5">
+          <section className="space-y-5">
             {visibleSemesters.length > 0 ? (
               visibleSemesters.map((semester) => (
                 <GradeSemesterTable
@@ -905,12 +778,12 @@ function StudentGrades() {
                 />
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
                 Hiện chưa có dữ liệu điểm cho năm học này.
               </div>
             )}
-          </div>
-        </section>
+          </section>
+        </>
       )}
     </DashboardShell>
   );

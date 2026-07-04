@@ -9,6 +9,7 @@ import EventFormModal from "../../components/organisms/EventFormModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { eventApi } from "../../api/client";
+import { formatDateTimeVN } from "../../utils/datetime";
 
 const TABS = [
   { key: "info", label: "Thông tin", icon: FiInfo },
@@ -31,7 +32,7 @@ const ATT_STATUS = {
   LATE: { label: "Muộn", bg: "#FFFBEB", text: "#F59E0B" },
 };
 const PTYPE = { STUDENT: "Học sinh", PARENT: "Phụ huynh", TEACHER: "Giáo viên" };
-const inputCls = "w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+const inputCls = "w-full rounded-xl border border-[#FFE7D6] px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
 
 function EventDetailPage() {
   const { eventId } = useParams();
@@ -99,20 +100,20 @@ function EventDetailPage() {
                   <span className="text-xs text-slate-400">{event.className ?? "Toàn trường"}</span>
                 </div>
                 <h1 className="text-2xl font-bold" style={{ color: "#0F2747" }}>{event.title}</h1>
-                <p className="text-sm text-slate-500">{event.startDate}{event.endDate ? ` – ${event.endDate.slice(11)}` : ""}{event.location ? ` · ${event.location}` : ""} · Tổ chức: {event.organizer ?? "—"}</p>
+                <p className="text-sm text-slate-500">{formatDateTimeVN(event.startDate)}{event.endDate ? ` – ${formatDateTimeVN(event.endDate)}` : ""}{event.location ? ` · ${event.location}` : ""} · Tổ chức: {event.organizer ?? "—"}</p>
                 <p className="mt-1 text-xs text-slate-400">
                   {data.stats.total} người tham dự{data.stats.attendanceRate !== null ? ` · ${data.stats.attendanceRate}% có mặt` : ""}{event.capacity ? ` · sức chứa ${event.capacity}` : ""}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={reminder} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#FFF7F2", color: "#F27123" }}><FiBell size={14} /> Nhắc</button>
-                <button type="button" onClick={duplicate} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}><FiCopy size={14} /> Nhân bản</button>
+                <button type="button" onClick={reminder} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#FFF7F2", color: "#F27123" }}><FiBell size={14} /> Nhắc</button>
+                <button type="button" onClick={duplicate} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}><FiCopy size={14} /> Nhân bản</button>
                 {!readOnly && event.status === "ACTIVE" && <>
-                  <button type="button" onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#08509F" }}><FiEdit3 size={14} /> Sửa</button>
-                  <button type="button" onClick={() => changeStatus("COMPLETED")} className="rounded-xl px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#16A34A" }}>Hoàn thành</button>
-                  <button type="button" onClick={() => changeStatus("CANCELLED")} className="rounded-xl px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#DC2626" }}>Hủy</button>
+                  <button type="button" onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#08509F" }}><FiEdit3 size={14} /> Sửa</button>
+                  <button type="button" onClick={() => changeStatus("COMPLETED")} className="rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#16A34A" }}>Hoàn thành</button>
+                  <button type="button" onClick={() => changeStatus("CANCELLED")} className="rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#DC2626" }}>Hủy</button>
                 </>}
-                {event.status === "COMPLETED" && <button type="button" onClick={() => changeStatus("ARCHIVED")} className="rounded-xl px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#F1F5F9", color: "#475569" }}>Lưu trữ</button>}
+                {event.status === "COMPLETED" && <button type="button" onClick={() => changeStatus("ARCHIVED")} className="rounded-full px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#F1F5F9", color: "#475569" }}>Lưu trữ</button>}
               </div>
             </div>
             {event.description && <p className="mt-3 rounded-xl px-4 py-3 text-sm text-slate-600" style={{ backgroundColor: "#FFF7F2" }}>{event.description}</p>}
@@ -148,7 +149,7 @@ function InfoTab({ event, stats }) {
     <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {[
         ["Danh mục", event.category ?? "—"], ["Loại", event.eventType ?? "—"],
-        ["Bắt đầu", event.startDate], ["Kết thúc", event.endDate ?? "—"],
+        ["Bắt đầu", formatDateTimeVN(event.startDate)], ["Kết thúc", event.endDate ? formatDateTimeVN(event.endDate) : "—"],
         ["Địa điểm", event.location ?? "—"], ["Tổ chức", event.organizer ?? "—"],
         ["Sức chứa", event.capacity ?? "—"], ["Tham dự", `${stats.total}${stats.participationRate !== null ? ` (${stats.participationRate}%)` : ""}`],
       ].map(([k, v]) => (
@@ -271,7 +272,7 @@ function DocumentsTab({ eventId, documents, readOnly, onChanged }) {
             <li key={d.attachmentId} className="flex items-center gap-2 rounded-xl px-4 py-2.5" style={{ border: "1px solid #FFE7D6" }}>
               <FiPaperclip size={15} style={{ color: "#08509F" }} />
               <a href={d.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium" style={{ color: "#08509F" }}>{d.fileName}</a>
-              <span className="text-xs text-slate-400">{d.uploadedAt}</span>
+              <span className="text-xs text-slate-400">{formatDateTimeVN(d.uploadedAt)}</span>
               {!readOnly && <button type="button" onClick={() => remove(d)} className="text-slate-300 hover:text-red-500"><FiTrash2 size={14} /></button>}
             </li>
           ))}
@@ -302,7 +303,7 @@ function ReportTab({ eventId, event, stats, onChanged }) {
 
       {submitted ? (
         <div>
-          <div className="mb-2 rounded-xl px-3 py-2 text-xs font-medium" style={{ backgroundColor: "#ECFDF5", color: "#16A34A" }}>Báo cáo đã chốt lúc {event.outcomeSubmittedAt} — chỉ đọc.</div>
+          <div className="mb-2 rounded-xl px-3 py-2 text-xs font-medium" style={{ backgroundColor: "#ECFDF5", color: "#16A34A" }}>Báo cáo đã chốt lúc {formatDateTimeVN(event.outcomeSubmittedAt)} — chỉ đọc.</div>
           <p className="whitespace-pre-wrap rounded-xl px-4 py-3 text-sm text-slate-700" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>{event.outcome || "—"}</p>
         </div>
       ) : (
@@ -328,7 +329,7 @@ function LogTab({ logs }) {
       {logs.map((l, i) => (
         <div key={i} className="flex items-start justify-between gap-3 rounded-xl px-4 py-2.5" style={{ backgroundColor: "#FFF7F2" }}>
           <div><p className="text-sm text-[#0F2747]">{l.detail || l.action}</p><p className="text-xs text-slate-400">{l.changedByName}</p></div>
-          <span className="shrink-0 text-xs text-slate-400">{l.createdAt}</span>
+          <span className="shrink-0 text-xs text-slate-400">{formatDateTimeVN(l.createdAt)}</span>
         </div>
       ))}
     </div>

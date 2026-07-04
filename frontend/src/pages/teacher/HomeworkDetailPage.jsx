@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   FiArrowLeft,
+  FiAward,
   FiBarChart2,
+  FiCalendar,
   FiCheckCircle,
   FiClock,
   FiEdit3,
@@ -21,6 +23,7 @@ import { homeworkApi } from "../../api/client";
 import { useHomeworkAnalytics } from "../../hooks/useHomeworkAnalytics";
 import { useHomeworkDetail } from "../../hooks/useHomeworkDetail";
 import { useHomeworkSubmissions } from "../../hooks/useHomeworkSubmissions";
+import { formatDateTimeVN } from "../../utils/datetime";
 
 const TABS = [
   { key: "info",        label: "Thông tin",  icon: FiFileText },
@@ -89,18 +92,27 @@ function InfoTab({ homework, onEdit, onToggleStatus }) {
       <h2 className="mb-1 text-xl font-bold" style={{ color: "#0F2747" }}>{homework.title}</h2>
       <p className="mb-4 text-sm text-slate-500">{homework.className} · {homework.gradeName} · {homework.subjectName}</p>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
-          <p className="text-xs text-slate-400">Ngày giao</p>
-          <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{homework.assignDate}</p>
+      <div className="mb-5 flex flex-wrap gap-x-10 gap-y-3 rounded-xl border border-slate-100 px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <FiCalendar size={16} className="text-slate-400" />
+          <div>
+            <p className="text-xs text-slate-400">Ngày giao</p>
+            <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{formatDateTimeVN(homework.assignDate)}</p>
+          </div>
         </div>
-        <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
-          <p className="text-xs text-slate-400">Hạn nộp</p>
-          <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{homework.dueDate}</p>
+        <div className="flex items-center gap-2.5">
+          <FiClock size={16} style={{ color: homework.status === "OPEN" && homework.isOverdue ? "#DC2626" : "#94A3B8" }} />
+          <div>
+            <p className="text-xs text-slate-400">Hạn nộp</p>
+            <p className="text-sm font-semibold" style={{ color: homework.status === "OPEN" && homework.isOverdue ? "#DC2626" : "#0F2747" }}>{formatDateTimeVN(homework.dueDate)}</p>
+          </div>
         </div>
-        <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
-          <p className="text-xs text-slate-400">Điểm tối đa</p>
-          <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{homework.maxScore}</p>
+        <div className="flex items-center gap-2.5">
+          <FiAward size={16} className="text-slate-400" />
+          <div>
+            <p className="text-xs text-slate-400">Điểm tối đa</p>
+            <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{homework.maxScore}</p>
+          </div>
         </div>
       </div>
 
@@ -146,8 +158,10 @@ function InfoTab({ homework, onEdit, onToggleStatus }) {
 function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
   const { data, loading, error } = useHomeworkSubmissions(homeworkId, refreshKey);
   const [grading, setGrading] = useState(null);
+  const [statusF, setStatusF] = useState("");
+  const [sortBy,  setSortBy]  = useState("name");
 
-  const submissions = data?.submissions ?? [];
+  const submissions = useMemo(() => data?.submissions ?? [], [data]);
 
   const counts = useMemo(() => {
     let submitted = 0, graded = 0, missing = 0;
@@ -159,6 +173,15 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
     return { submitted, graded, missing };
   }, [submissions]);
 
+  const view = useMemo(() => {
+    let list = statusF ? submissions.filter((s) => s.status === statusF) : submissions;
+    list = [...list];
+    if (sortBy === "score_desc") list.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    else if (sortBy === "score_asc") list.sort((a, b) => (a.score ?? Number.POSITIVE_INFINITY) - (b.score ?? Number.POSITIVE_INFINITY));
+    else list.sort((a, b) => a.studentName.localeCompare(b.studentName));
+    return list;
+  }, [submissions, statusF, sortBy]);
+
   if (loading) {
     return (
       <div className="space-y-2">
@@ -166,17 +189,33 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
       </div>
     );
   }
-
   if (error) {
     return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
   }
 
+  const selectCls = "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+
   return (
     <div>
-      <div className="mb-4 flex flex-wrap gap-2">
-        <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>Đã nộp: {counts.submitted}</span>
-        <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#ECFDF5", color: "#16A34A" }}>Đã chấm: {counts.graded}</span>
-        <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}>Chưa nộp: {counts.missing}</span>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>Đã nộp: {counts.submitted}</span>
+          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#ECFDF5", color: "#16A34A" }}>Đã chấm: {counts.graded}</span>
+          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}>Chưa nộp: {counts.missing}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className={selectCls}>
+            <option value="">Tất cả trạng thái</option>
+            <option value="GRADED">Đã chấm</option>
+            <option value="SUBMITTED">Chờ chấm</option>
+            <option value="MISSING">Chưa nộp</option>
+          </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={selectCls}>
+            <option value="name">Tên A→Z</option>
+            <option value="score_desc">Điểm cao → thấp</option>
+            <option value="score_asc">Điểm thấp → cao</option>
+          </select>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
@@ -190,7 +229,9 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
               </tr>
             </thead>
             <tbody>
-              {submissions.map((s, idx) => (
+              {view.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">Không có bài nộp phù hợp.</td></tr>
+              ) : view.map((s, idx) => (
                 <tr key={s.studentId} className="border-b last:border-b-0" style={{ borderColor: "#FFF7F2", backgroundColor: idx % 2 === 1 ? "#FAFAFA" : "#fff" }}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
@@ -209,7 +250,7 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
                       {s.isLate && <span className="text-xs font-medium" style={{ color: "#DC2626" }}>Muộn</span>}
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">{s.submitTime ?? "—"}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">{s.submitTime ? formatDateTimeVN(s.submitTime) : "—"}</td>
                   <td className="px-4 py-3">
                     {s.score === null ? <span className="text-slate-400">—</span> : (
                       <span className="font-semibold" style={{ color: "#0F2747" }}>{s.score}/{maxScore}</span>
@@ -251,9 +292,41 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
 
 // ── Analytics Tab ─────────────────────────────────────────────────────────────
 
-function AnalyticItem({ label, value, suffix = "", color = "#0F2747" }) {
+function DonutChart({ segments, total }) {
+  const R = 52, cx = 70, cy = 70, C = 2 * Math.PI * R;
+  const arcs = segments.map((s, i) => {
+    const before = segments.slice(0, i).reduce((sum, x) => sum + x.count, 0);
+    const len = total > 0 ? (s.count / total) * C : 0;
+    const off = total > 0 ? -(before / total) * C : 0;
+    return { color: s.color, len, off };
+  });
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+    <div className="flex flex-wrap items-center justify-center gap-6">
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
+        {arcs.map((arc, i) => arc.len > 0 && (
+          <circle key={i} cx={cx} cy={cy} r={R} fill="none" stroke={arc.color} strokeWidth="16"
+            strokeDasharray={`${arc.len} ${C}`} strokeDashoffset={arc.off} transform={`rotate(-90 ${cx} ${cy})`} />
+        ))}
+        <text x={cx} y={cy - 2} textAnchor="middle" fontSize="22" fontWeight="700" fill="#0F2747">{total}</text>
+        <text x={cx} y={cy + 16} textAnchor="middle" fontSize="10" fill="#64748B">học sinh</text>
+      </svg>
+      <div className="space-y-1.5">
+        {segments.map((s) => (
+          <div key={s.label} className="flex items-center gap-2 text-xs">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+            <span className="text-slate-600">{s.label}</span>
+            <span className="ml-auto pl-4 font-semibold text-[#0F2747]">{s.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, suffix = "", color = "#0F2747" }) {
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
       <p className="mb-1 text-xs font-medium text-slate-500">{label}</p>
       <p className="text-2xl font-bold leading-none" style={{ color }}>{value}{suffix}</p>
     </div>
@@ -265,8 +338,8 @@ function AnalyticsTab({ homeworkId, enabled, refreshKey }) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {[0, 1, 2, 3, 4, 5].map((n) => <div key={n} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {[0, 1].map((n) => <div key={n} className="h-40 animate-pulse rounded-xl bg-slate-100" />)}
       </div>
     );
   }
@@ -274,15 +347,25 @@ function AnalyticsTab({ homeworkId, enabled, refreshKey }) {
   if (!data) return null;
 
   const a = data.analytics;
+  const pending = Math.max(0, a.totalSubmissions - a.gradedCount);
+  const segments = [
+    { label: "Đã chấm",  color: "#16A34A", count: a.gradedCount },
+    { label: "Chờ chấm", color: "#F59E0B", count: pending },
+    { label: "Chưa nộp", color: "#DC2626", count: a.missingCount },
+  ];
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-      <AnalyticItem label="Tỷ lệ nộp"        value={a.submissionRate} suffix="%" color="#F27123" />
-      <AnalyticItem label="Tỷ lệ hoàn thành" value={a.completionRate} suffix="%" color="#16A34A" />
-      <AnalyticItem label="Điểm trung bình"  value={a.avgScore === null ? "—" : a.avgScore} color="#08509F" />
-      <AnalyticItem label="Tổng bài nộp"     value={`${a.totalSubmissions}/${a.totalStudents}`} />
-      <AnalyticItem label="Nộp muộn"         value={a.lateCount} color="#F59E0B" />
-      <AnalyticItem label="Chưa nộp"         value={a.missingCount} color="#DC2626" />
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+        <h3 className="mb-4 text-sm font-bold" style={{ color: "#0F2747" }}>Tình hình nộp bài</h3>
+        <DonutChart segments={segments} total={a.totalStudents} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <MetricCard label="Tỷ lệ nộp"       value={a.submissionRate} suffix="%" color="#F27123" />
+        <MetricCard label="Đã chấm"         value={a.completionRate} suffix="%" color="#16A34A" />
+        <MetricCard label="Điểm trung bình" value={a.avgScore === null ? "—" : a.avgScore} color="#08509F" />
+        <MetricCard label="Nộp muộn"        value={a.lateCount} color="#F59E0B" />
+      </div>
     </div>
   );
 }

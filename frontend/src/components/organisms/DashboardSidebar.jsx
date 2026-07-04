@@ -11,11 +11,11 @@ function SidebarContent({
 }) {
   return (
     <div className="flex h-full flex-col bg-[#0F2747] p-4">
-      <div className="flex justify-center px-2 py-4">
+      <div className="flex shrink-0 justify-center px-2 py-3">
         <FptBrand />
       </div>
 
-      <nav className="mt-4 flex flex-1 flex-col gap-2">
+      <nav className="mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1.5 [scrollbar-color:rgba(255,255,255,0.25)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 hover:[&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1.5">
         {items.map((item) => (
           <SidebarMenuItem
             key={item.path}
@@ -29,7 +29,7 @@ function SidebarContent({
       </nav>
 
       {footerValue && (
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="mt-6 shrink-0 rounded-2xl border border-white/10 bg-white/5 p-4">
           {footerLabel && (
             <p className="mb-1 text-xs text-blue-200">
               {footerLabel}
@@ -55,7 +55,7 @@ function DashboardSidebar({
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 lg:block">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-80 lg:block">
         <SidebarContent
           items={items}
           footerLabel={footerLabel}

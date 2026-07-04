@@ -18,7 +18,7 @@ function toMysqlDateTime(value) {
   );
 }
 
-function validatePayload({ title, dueDate, maxScore }) {
+function validatePayload({ title, dueDate, maxScore }, { requireFutureDue = false } = {}) {
   if (!title || !title.trim()) {
     throw httpError("Tiêu đề bài tập là bắt buộc", 400);
   }
@@ -27,6 +27,9 @@ function validatePayload({ title, dueDate, maxScore }) {
   }
   if (isNaN(Date.parse(dueDate))) {
     throw httpError("Hạn nộp không hợp lệ", 400);
+  }
+  if (requireFutureDue && new Date(dueDate).getTime() <= Date.now()) {
+    throw httpError("Hạn nộp phải sau thời điểm hiện tại", 400);
   }
   const score = Number(maxScore);
   if (!Number.isFinite(score) || score <= 0) {
@@ -46,7 +49,7 @@ function validatePayload({ title, dueDate, maxScore }) {
 async function createHomework({ teacherId, payload }) {
   const { title, description, instructions, dueDate, maxScore, assignments, attachmentIds = [] } = payload;
 
-  validatePayload({ title, dueDate, maxScore });
+  validatePayload({ title, dueDate, maxScore }, { requireFutureDue: true });
 
   if (!Array.isArray(assignments) || assignments.length === 0) {
     throw httpError("Phải chọn ít nhất một lớp để giao bài", 400);

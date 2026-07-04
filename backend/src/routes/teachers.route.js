@@ -208,6 +208,12 @@ router.get(
   academicController.getScoreSheet,
 );
 
+router.get(
+  "/academic/gradebook",
+  authenticate, authorize(...TEACHER_ROLES),
+  academicController.getGradebook,
+);
+
 router.post(
   "/academic/scores",
   authenticate, authorize(...TEACHER_ROLES),

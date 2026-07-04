@@ -1,6 +1,7 @@
 const teacherModel  = require("../models/teacher.model");
 const homeworkModel = require("../models/homework.model");
 const homeworkService = require("../services/homework.service");
+const parentModel   = require("../models/parents");
 
 async function resolveTeacher(userId) {
   return teacherModel.findProfileByUserId(userId);
@@ -33,7 +34,7 @@ async function listHomework(req, res) {
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
     const {
-      classId, subjectId, status, search, sort,
+      classId, subjectId, status, search, sort, due,
       page = "1", limit = "12",
     } = req.query;
 
@@ -46,7 +47,7 @@ async function listHomework(req, res) {
 
     const [{ total, rows }, summary, assignments] = await Promise.all([
       homeworkModel.findByTeacher(profile.teacherId, {
-        classId, subjectId, status, search, sort,
+        classId, subjectId, status, search, sort, due,
         page: parsedPage, limit: parsedLimit,
       }),
       homeworkModel.findTeacherSummary(profile.teacherId),
@@ -248,22 +249,24 @@ async function getAnalytics(req, res) {
   }
 }
 
-// POST /teachers/homework/attachments  (multipart/form-data, field "file")
 async function uploadAttachment(req, res) {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: "Không có tệp được tải lên" });
+      return res.status(400).json({
+        success: false,
+        message: "Không có tệp được tải lên",
+      });
     }
 
-    const fileUrl = `/uploads/homework/${req.file.filename}`;
+    const fileUrl = req.file.cloudinaryUrl;
 
     const attachmentId = await homeworkModel.insertAttachment({
       relatedType: "HOMEWORK_DRAFT",
-      relatedId:   0,
-      fileName:    req.file.originalname,
+      relatedId: 0,
+      fileName: req.file.originalname,
       fileUrl,
-      fileType:    req.file.mimetype,
-      uploadedBy:  req.user.userId,
+      fileType: req.file.mimetype,
+      uploadedBy: req.user.userId,
     });
 
     return res.status(201).json({
@@ -273,11 +276,17 @@ async function uploadAttachment(req, res) {
         fileName: req.file.originalname,
         fileUrl,
         fileType: req.file.mimetype,
+        publicId: req.file.cloudinaryPublicId,
+        resourceType: req.file.cloudinaryResourceType,
       },
     });
   } catch (error) {
     console.error("uploadAttachment error:", error);
-    return res.status(500).json({ success: false, message: "Không thể lưu tệp đính kèm" });
+
+    return res.status(500).json({
+      success: false,
+      message: "Không thể lưu tệp đính kèm",
+    });
   }
 }
 
@@ -309,6 +318,65 @@ async function deleteAttachment(req, res) {
   }
 }
 
+// ── Parent read-only homework endpoints ───────────────────────────────────────
+
+async function checkStudentLink(userId, studentId) {
+  const linked = await parentModel.findLinkedStudentsByUserId(userId);
+  return linked.some((s) => s.studentId === studentId);
+}
+
+// GET /parents/me/students/:studentId/homework
+async function getParentStudentHomework(req, res) {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+    if (!await checkStudentLink(req.user.userId, studentId)) {
+      return res.status(403).json({ success: false, message: "Không có quyền xem thông tin học sinh này" });
+    }
+
+    const { subjectId, status, submissionStatus, search, sort, page = "1", limit = "12" } = req.query;
+    const parsedPage  = Math.max(1, parseInt(page, 10));
+    const parsedLimit = Math.min(50, Math.max(1, parseInt(limit, 10)));
+
+    const { total, summary, rows } = await homeworkModel.findByStudentId(studentId, {
+      subjectId, status, submissionStatus, search, sort, page: parsedPage, limit: parsedLimit,
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        items: rows,
+        summary,
+        pagination: { total, page: parsedPage, limit: parsedLimit, totalPages: Math.ceil(total / parsedLimit) },
+      },
+    });
+  } catch (error) {
+    console.error("getParentStudentHomework error:", error);
+    return res.status(500).json({ success: false, message: "Không thể lấy danh sách bài tập" });
+  }
+}
+
+// GET /parents/me/students/:studentId/homework/:homeworkId
+async function getParentStudentHomeworkDetail(req, res) {
+  try {
+    const studentId  = parseInt(req.params.studentId, 10);
+    const homeworkId = parseInt(req.params.homeworkId, 10);
+
+    if (!await checkStudentLink(req.user.userId, studentId)) {
+      return res.status(403).json({ success: false, message: "Không có quyền xem thông tin học sinh này" });
+    }
+
+    const detail = await homeworkModel.findDetailWithStudentSubmission(homeworkId, studentId);
+    if (!detail) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy bài tập hoặc bài tập không thuộc lớp của học sinh" });
+    }
+
+    return res.json({ success: true, data: detail });
+  } catch (error) {
+    console.error("getParentStudentHomeworkDetail error:", error);
+    return res.status(500).json({ success: false, message: "Không thể lấy chi tiết bài tập" });
+  }
+}
+
 module.exports = {
   getTeachingAssignments,
   listHomework,
@@ -322,4 +390,6 @@ module.exports = {
   getAnalytics,
   uploadAttachment,
   deleteAttachment,
+  getParentStudentHomework,
+  getParentStudentHomeworkDetail,
 };

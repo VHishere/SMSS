@@ -16,7 +16,7 @@ import { useTeacherDashboard } from "../../hooks/useTeacherDashboard";
 function StatCard({ icon: Icon, iconBg, iconColor, label, value, subtext, loading }) {
   return (
     <div
-      className="rounded-xl bg-white p-5 shadow-sm"
+      className="rounded-2xl bg-white p-5 shadow-sm"
       style={{ border: "1px solid #FFE7D6" }}
     >
       <div className="flex items-start justify-between gap-3">
@@ -50,7 +50,7 @@ function StatCard({ icon: Icon, iconBg, iconColor, label, value, subtext, loadin
   );
 }
 
-// ─── Weekly Attendance Bar Chart ─────────────────────────────────────────────
+// ─── Weekly Attendance Line Chart ────────────────────────────────────────────
 
 const VI_DAYS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
 
@@ -58,7 +58,7 @@ function WeeklyAttendanceChart({ data }) {
   if (!data || data.length === 0) {
     return (
       <div
-        className="flex h-48 items-center justify-center rounded-xl border border-dashed text-sm text-slate-400"
+        className="flex h-64 items-center justify-center rounded-2xl border border-dashed text-sm text-slate-400"
         style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}
       >
         Chưa có dữ liệu điểm danh tuần này
@@ -66,104 +66,132 @@ function WeeklyAttendanceChart({ data }) {
     );
   }
 
-  const SLOT = 56;
-  const BAR_W = 38;
-  const CHART_H = 120;
-  const PAD_T = 22;
-  const LABEL_H = 22;
-  const SVG_H = PAD_T + CHART_H + LABEL_H;
-  const SVG_W = data.length * SLOT;
-  const maxTotal = Math.max(...data.map((d) => d.total), 1);
+  const W = 700;
+  const H = 260;
+  const padL = 34;
+  const padR = 18;
+  const padT = 26;
+  const padB = 34;
+  const plotW = W - padL - padR;
+  const plotH = H - padT - padB;
+  const n = data.length;
+
+  const xAt = (i) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
+  const yAt = (rate) => padT + (1 - rate / 100) * plotH;
+
+  const points = data.map((d, i) => {
+    const attended = d.present + d.late;
+    const rate = d.total > 0 ? Math.round((attended / d.total) * 100) : null;
+    const dateObj = new Date(d.date + "T00:00:00");
+    return {
+      i,
+      rate,
+      total: d.total,
+      label: VI_DAYS[dateObj.getDay()],
+      cx: xAt(i),
+    };
+  });
+
+  const valid = points.filter((p) => p.rate !== null);
+  const linePath = valid
+    .map((p, k) => `${k === 0 ? "M" : "L"} ${p.cx} ${yAt(p.rate)}`)
+    .join(" ");
+  const areaPath =
+    valid.length > 1
+      ? `${linePath} L ${valid[valid.length - 1].cx} ${padT + plotH} L ${valid[0].cx} ${padT + plotH} Z`
+      : "";
+
+  const gridVals = [0, 25, 50, 75, 100];
 
   return (
     <svg
-      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+      viewBox={`0 0 ${W} ${H}`}
       className="w-full"
       role="img"
-      aria-label="Biểu đồ điểm danh tuần"
+      aria-label="Biểu đồ tỷ lệ điểm danh tuần"
     >
-      {data.map((day, i) => {
-        const cx = i * SLOT + SLOT / 2;
-        const bx = cx - BAR_W / 2;
+      <defs>
+        <linearGradient id="attArea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#F27123" stopOpacity="0.24" />
+          <stop offset="100%" stopColor="#F27123" stopOpacity="0" />
+        </linearGradient>
+      </defs>
 
-        const attended = day.present + day.late;
-        const totalBarH = Math.round((day.total / maxTotal) * CHART_H);
-        const attendedH =
-          day.total > 0
-            ? Math.round((attended / day.total) * totalBarH)
-            : 0;
-        const absentH = totalBarH - attendedH;
-        const barTop = PAD_T + CHART_H - totalBarH;
+      {/* Gridlines + y-axis labels */}
+      {gridVals.map((g) => (
+        <g key={g}>
+          <line
+            x1={padL}
+            y1={yAt(g)}
+            x2={W - padR}
+            y2={yAt(g)}
+            stroke="#EEF2F6"
+            strokeWidth="1"
+          />
+          <text
+            x={padL - 8}
+            y={yAt(g) + 3}
+            textAnchor="end"
+            fontSize="10"
+            fontFamily="Segoe UI, system-ui, sans-serif"
+            fill="#94A3B8"
+          >
+            {g}%
+          </text>
+        </g>
+      ))}
 
-        const dateObj = new Date(day.date + "T00:00:00");
-        const dayLabel = VI_DAYS[dateObj.getDay()];
+      {/* Area fill + line */}
+      {areaPath && <path d={areaPath} fill="url(#attArea)" />}
+      {valid.length > 1 && (
+        <path
+          d={linePath}
+          fill="none"
+          stroke="#F27123"
+          strokeWidth="2.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+      )}
 
-        return (
-          <g key={day.date}>
-            {/* Background slot */}
-            <rect
-              x={bx}
-              y={PAD_T}
-              width={BAR_W}
-              height={CHART_H}
-              rx={6}
-              fill="#F1F5F9"
-            />
-
-            {/* Total bar: orange (attended) base */}
-            {totalBarH > 1 && (
-              <rect
-                x={bx}
-                y={barTop}
-                width={BAR_W}
-                height={totalBarH}
-                rx={6}
-                fill="#F27123"
+      {/* Points, value labels, day labels */}
+      {points.map((p) => (
+        <g key={p.i}>
+          {p.rate !== null && (
+            <>
+              <circle
+                cx={p.cx}
+                cy={yAt(p.rate)}
+                r="4.5"
+                fill="#fff"
+                stroke="#F27123"
+                strokeWidth="2.5"
               />
-            )}
-
-            {/* Absent overlay on top */}
-            {absentH > 1 && (
-              <rect
-                x={bx}
-                y={barTop}
-                width={BAR_W}
-                height={absentH}
-                rx={attendedH > 1 ? 3 : 6}
-                fill="#0F2747"
-                fillOpacity={0.55}
-              />
-            )}
-
-            {/* Count label above bar */}
-            {day.total > 0 && (
               <text
-                x={cx}
-                y={barTop - 5}
+                x={p.cx}
+                y={yAt(p.rate) - 12}
                 textAnchor="middle"
-                fontSize="10"
-                fontWeight="600"
+                fontSize="11"
+                fontWeight="700"
                 fontFamily="Segoe UI, system-ui, sans-serif"
                 fill="#0F2747"
               >
-                {day.total}
+                {p.rate}%
               </text>
-            )}
-
-            {/* Day label */}
-            <text
-              x={cx}
-              y={PAD_T + CHART_H + 16}
-              textAnchor="middle"
-              fontSize="11"
-              fontFamily="Segoe UI, system-ui, sans-serif"
-              fill="#64748B"
-            >
-              {dayLabel}
-            </text>
-          </g>
-        );
-      })}
+            </>
+          )}
+          <text
+            x={p.cx}
+            y={H - 12}
+            textAnchor="middle"
+            fontSize="11"
+            fontFamily="Segoe UI, system-ui, sans-serif"
+            fill="#64748B"
+          >
+            {p.label}
+          </text>
+        </g>
+      ))}
     </svg>
   );
 }
@@ -406,7 +434,7 @@ function TeacherDashboard() {
       <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Weekly Attendance Chart */}
         <div
-          className="rounded-xl bg-white p-6 shadow-sm xl:col-span-2"
+          className="rounded-2xl bg-white p-6 shadow-sm xl:col-span-2"
           style={{ border: "1px solid #FFE7D6" }}
         >
           <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -425,26 +453,17 @@ function TeacherDashboard() {
             </div>
 
             {/* Legend */}
-            <div className="flex items-center gap-4 text-xs text-slate-500">
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-sm"
-                  style={{ backgroundColor: "#F27123" }}
-                />
-                Có mặt / Muộn
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-sm opacity-55"
-                  style={{ backgroundColor: "#0F2747" }}
-                />
-                Vắng
-              </span>
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+              <span
+                className="inline-block h-1 w-5 rounded-full"
+                style={{ backgroundColor: "#F27123" }}
+              />
+              Tỷ lệ có mặt (%)
             </div>
           </div>
 
           {loading ? (
-            <SkeletonBlock className="h-48" />
+            <SkeletonBlock className="h-64" />
           ) : (
             <WeeklyAttendanceChart data={data?.weeklyAttendance} />
           )}
@@ -452,7 +471,7 @@ function TeacherDashboard() {
 
         {/* At-Risk Students */}
         <div
-          className="rounded-xl bg-white p-6 shadow-sm"
+          className="rounded-2xl bg-white p-6 shadow-sm"
           style={{ border: "1px solid #FFE7D6" }}
         >
           <div className="mb-4">
@@ -494,7 +513,7 @@ function TeacherDashboard() {
       {/* ── Section 3: Parent Engagement ── */}
       <section>
         <div
-          className="rounded-xl bg-white p-6 shadow-sm"
+          className="rounded-2xl bg-white p-6 shadow-sm"
           style={{ border: "1px solid #FFE7D6" }}
         >
           <div className="mb-4">

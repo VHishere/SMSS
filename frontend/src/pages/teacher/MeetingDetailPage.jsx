@@ -9,6 +9,7 @@ import MeetingFormModal from "../../components/organisms/MeetingFormModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { meetingApi } from "../../api/client";
+import { formatDateVN, formatDateTimeVN } from "../../utils/datetime";
 
 const TABS = [
   { key: "info", label: "Thông tin", icon: FiInfo },
@@ -33,7 +34,7 @@ const ACTION_STATUS = {
   IN_PROGRESS: { label: "Đang làm", bg: "#FFFBEB", text: "#F59E0B" },
   COMPLETED: { label: "Hoàn thành", bg: "#ECFDF5", text: "#16A34A" },
 };
-const inputCls = "w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+const inputCls = "w-full rounded-xl border border-[#FFE7D6] px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
 
 function MeetingDetailPage() {
   const { meetingId } = useParams();
@@ -103,17 +104,17 @@ function MeetingDetailPage() {
                 </div>
                 <h1 className="text-2xl font-bold" style={{ color: "#0F2747" }}>{meeting.title}</h1>
                 <p className="text-sm text-slate-500">
-                  {meeting.meetingDate}{meeting.endTime ? ` – ${meeting.endTime.slice(11)}` : ""} · {meeting.className ?? "—"}{meeting.location ? ` · ${meeting.location}` : ""}{meeting.studentName ? ` · HS: ${meeting.studentName}` : ""}
+                  {formatDateTimeVN(meeting.meetingDate)}{meeting.endTime ? ` – ${formatDateTimeVN(meeting.endTime)}` : ""} · {meeting.className ?? "—"}{meeting.location ? ` · ${meeting.location}` : ""}{meeting.studentName ? ` · HS: ${meeting.studentName}` : ""}
                 </p>
               </div>
               {!readOnly && (
                 <div className="flex flex-wrap gap-2">
                   {meeting.status === "SCHEDULED" && <>
-                    <button type="button" onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#08509F" }}><FiEdit3 size={14} /> Sửa</button>
-                    <button type="button" onClick={() => changeStatus("COMPLETED")} className="rounded-xl px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#16A34A" }}>Hoàn thành</button>
-                    <button type="button" onClick={() => changeStatus("CANCELLED")} className="rounded-xl px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#DC2626" }}>Hủy</button>
+                    <button type="button" onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#08509F" }}><FiEdit3 size={14} /> Sửa</button>
+                    <button type="button" onClick={() => changeStatus("COMPLETED")} className="rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#16A34A" }}>Hoàn thành</button>
+                    <button type="button" onClick={() => changeStatus("CANCELLED")} className="rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#DC2626" }}>Hủy</button>
                   </>}
-                  {meeting.status === "COMPLETED" && <button type="button" onClick={() => changeStatus("ARCHIVED")} className="rounded-xl px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#F1F5F9", color: "#475569" }}>Lưu trữ</button>}
+                  {meeting.status === "COMPLETED" && <button type="button" onClick={() => changeStatus("ARCHIVED")} className="rounded-full px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#F1F5F9", color: "#475569" }}>Lưu trữ</button>}
                 </div>
               )}
             </div>
@@ -147,10 +148,13 @@ function MeetingDetailPage() {
 
 // ── Info + invitations ────────────────────────────────────────────────────────
 
-function InfoTab({ meetingId, meeting, invitations, readOnly, onChanged }) {
+function InfoTab({ meetingId, meeting, invitations: initialInvitations, readOnly, onChanged }) {
+  const [localInvitations, setLocalInvitations] = useState(initialInvitations);
   const [parents, setParents] = useState([]);
   const [selected, setSelected] = useState(new Set());
   const [showInvite, setShowInvite] = useState(false);
+
+  useEffect(() => { setLocalInvitations(initialInvitations); }, [initialInvitations]);
 
   useEffect(() => {
     if (!showInvite) return;
@@ -159,10 +163,15 @@ function InfoTab({ meetingId, meeting, invitations, readOnly, onChanged }) {
     return () => { m = false; };
   }, [showInvite, meeting.classId]);
 
-  const invitedUserIds = new Set(invitations.map((i) => i.userId));
+  const invitedUserIds = new Set(localInvitations.map((i) => i.userId));
 
   async function resend(inv) {
-    try { await meetingApi.resendInvitation(meetingId, inv.invitationId, inv.userId); onChanged(); }
+    try {
+      await meetingApi.resendInvitation(meetingId, inv.invitationId, inv.userId);
+      setLocalInvitations((prev) =>
+        prev.map((i) => i.invitationId === inv.invitationId ? { ...i, status: "SENT" } : i)
+      );
+    }
     catch (err) { alert(err.message); }
   }
   async function inviteMore() {
@@ -175,7 +184,7 @@ function InfoTab({ meetingId, meeting, invitations, readOnly, onChanged }) {
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-sm font-bold" style={{ color: "#0F2747" }}><FiMail size={15} /> Người tham dự ({invitations.length})</h3>
+        <h3 className="flex items-center gap-2 text-sm font-bold" style={{ color: "#0F2747" }}><FiMail size={15} /> Người tham dự ({localInvitations.length})</h3>
         {!readOnly && <button type="button" onClick={() => setShowInvite((s) => !s)} className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white" style={{ backgroundColor: "#F27123" }}><FiPlus size={12} /> Mời thêm</button>}
       </div>
 
@@ -198,7 +207,7 @@ function InfoTab({ meetingId, meeting, invitations, readOnly, onChanged }) {
       )}
 
       <div className="space-y-2">
-        {invitations.length === 0 ? <p className="text-sm text-slate-400">Chưa mời ai.</p> : invitations.map((inv) => {
+        {localInvitations.length === 0 ? <p className="text-sm text-slate-400">Chưa mời ai.</p> : localInvitations.map((inv) => {
           const st = INVITE_STATUS[inv.status] ?? INVITE_STATUS.SENT;
           return (
             <div key={inv.invitationId} className="flex items-center justify-between gap-2 rounded-xl px-4 py-2.5" style={{ border: "1px solid #FFE7D6" }}>
@@ -238,7 +247,7 @@ function MinutesTab({ meetingId, minutes, readOnly, onChanged }) {
   if (submitted) {
     return (
       <div className="space-y-4">
-        <div className="rounded-xl px-3 py-2 text-xs font-medium" style={{ backgroundColor: "#ECFDF5", color: "#16A34A" }}>Biên bản đã chốt lúc {minutes.submittedAt} — chỉ đọc.</div>
+        <div className="rounded-xl px-3 py-2 text-xs font-medium" style={{ backgroundColor: "#ECFDF5", color: "#16A34A" }}>Biên bản đã chốt lúc {formatDateTimeVN(minutes.submittedAt)} — chỉ đọc.</div>
         {[["Nội dung thảo luận", minutes.discussion], ["Thống nhất", minutes.agreements], ["Quyết định", minutes.decisions]].map(([label, val]) => (
           <div key={label}><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p><p className="whitespace-pre-wrap rounded-xl px-4 py-3 text-sm text-slate-700" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>{val || "—"}</p></div>
         ))}
@@ -315,14 +324,14 @@ function ActionsTab({ meetingId, actions, invitations, readOnly, onChanged }) {
               <div>
                 <p className="text-sm font-medium text-[#0F2747]">{a.title}</p>
                 <p className="text-xs text-slate-400">
-                  Hạn {a.deadline}{a.assigneeName ? ` · ${a.assigneeName}` : ""}
+                  Hạn {formatDateVN(a.deadline)}{a.assigneeName ? ` · ${a.assigneeName}` : ""}
                   {a.isOverdue && <span className="ml-1 font-semibold" style={{ color: "#DC2626" }}>· Quá hạn</span>}
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
                 {!readOnly && a.status !== "COMPLETED" && (
-                  <select value={a.status} onChange={(e) => setStatus(a.actionId, e.target.value)} className="rounded-lg border border-slate-200 px-2 py-1 text-xs outline-none">
+                  <select value={a.status} onChange={(e) => setStatus(a.actionId, e.target.value)} className="rounded-lg border border-[#FFE7D6] px-2 py-1 text-xs outline-none">
                     <option value="PENDING">Chờ</option>
                     <option value="IN_PROGRESS">Đang làm</option>
                     <option value="COMPLETED">Hoàn thành</option>
@@ -346,7 +355,7 @@ function LogTab({ logs }) {
       {logs.map((l, i) => (
         <div key={i} className="flex items-start justify-between gap-3 rounded-xl px-4 py-2.5" style={{ backgroundColor: "#FFF7F2" }}>
           <div><p className="text-sm text-[#0F2747]">{l.detail || l.action}</p><p className="text-xs text-slate-400">{l.changedByName}</p></div>
-          <span className="shrink-0 text-xs text-slate-400">{l.createdAt}</span>
+          <span className="shrink-0 text-xs text-slate-400">{formatDateTimeVN(l.createdAt)}</span>
         </div>
       ))}
     </div>

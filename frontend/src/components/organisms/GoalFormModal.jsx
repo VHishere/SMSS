@@ -7,6 +7,12 @@ function toLocalDate(value) {
   return value ? value.slice(0, 10) : "";
 }
 
+function todayLocal() {
+  const p = (n) => String(n).padStart(2, "0");
+  const d = new Date();
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /**
  * mode: "create" | "edit"
  * studentId required for create. goal required for edit.
@@ -27,6 +33,8 @@ function GoalFormModal({ mode, studentId, goal = null, goalTypes = [], onClose, 
   function validate() {
     if (!title.trim()) return "Tiêu đề mục tiêu là bắt buộc";
     if (!goalType) return "Loại mục tiêu là bắt buộc";
+    if (!targetDate) return "Hạn hoàn thành là bắt buộc";
+    if (targetDate < todayLocal()) return "Hạn hoàn thành phải từ hôm nay trở đi";
     return "";
   }
 
@@ -75,8 +83,8 @@ function GoalFormModal({ mode, studentId, goal = null, goalTypes = [], onClose, 
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder="Chi tiết mục tiêu..." className={`${inputCls} resize-none`} />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-600">Hạn hoàn thành</label>
-            <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className={inputCls} />
+            <label className="mb-1.5 block text-xs font-medium text-slate-600">Hạn hoàn thành <span className="text-red-500">*</span></label>
+            <input type="date" value={targetDate} min={todayLocal()} onChange={(e) => setTargetDate(e.target.value)} className={inputCls} />
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Ghi chú của giáo viên</label>

@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import {
   FiBookOpen,
-  FiCalendar,
   FiGrid,
   FiUsers,
 } from "react-icons/fi";
@@ -21,23 +20,23 @@ function InfoItem({
   colorClass,
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2.5">
       <div
         className={`
-          flex h-11 w-11 shrink-0 items-center justify-center
+          flex h-9 w-9 shrink-0 items-center justify-center
           rounded-full
           ${colorClass}
         `}
       >
-        <Icon size={20} />
+        <Icon size={17} />
       </div>
 
       <div>
-        <p className="mb-1 text-xs font-medium text-slate-500">
+        <p className="mb-0 text-[11px] font-medium text-slate-500">
           {label}
         </p>
 
-        <p className="mb-0 text-base font-bold text-[#0F2747]">
+        <p className="mb-0 text-sm font-bold text-[#0F2747]">
           {value || "Chưa cập nhật"}
         </p>
       </div>
@@ -87,13 +86,7 @@ function StudentTimetable() {
         "Chưa cập nhật"
       }
     >
-      <section
-        className="
-          mb-6 overflow-hidden rounded-3xl
-          border border-orange-100
-          bg-white shadow-sm
-        "
-      >
+      <section className="mb-3 flex justify-end">
         <div
           className="
             flex flex-wrap items-center justify-between
@@ -147,20 +140,19 @@ function StudentTimetable() {
               colorClass="bg-orange-50 text-[#F27123]"
             />
 
-            <InfoItem
-              icon={FiGrid}
-              label="Khối"
-              value={data?.context?.gradeName}
-              colorClass="bg-blue-50 text-[#08509F]"
-            />
+          <InfoItem
+            icon={FiGrid}
+            label="Khối"
+            value={data?.context?.gradeName}
+            colorClass="bg-blue-50 text-[#08509F]"
+          />
 
-            <InfoItem
-              icon={FiBookOpen}
-              label="Năm học"
-              value={data?.context?.schoolYearName}
-              colorClass="bg-green-50 text-green-600"
-            />
-          </div>
+          <InfoItem
+            icon={FiBookOpen}
+            label="Năm học"
+            value={data?.context?.schoolYearName}
+            colorClass="bg-green-50 text-green-600"
+          />
         </div>
       </section>
 

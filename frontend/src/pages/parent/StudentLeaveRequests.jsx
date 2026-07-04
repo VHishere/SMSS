@@ -605,16 +605,6 @@ function ParentStudentLeaveRequests() {
 
   return (
     <DashboardShell user={headerUser} menuItems={dashboardNavigation.PARENT}>
-      <section className="mb-6 rounded-2xl border border-orange-100 bg-white p-5 shadow-sm sm:p-6">
-        <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#F27123]">
-          Theo dõi học sinh
-        </p>
-        <h1 className="mb-1 text-2xl font-bold text-[#0F2747] sm:text-3xl">Đơn xin nghỉ</h1>
-        <p className="text-sm text-slate-500">
-          Tạo và theo dõi các đơn xin nghỉ của học sinh.
-        </p>
-      </section>
-
       {!studentsLoading && students.length > 1 && (
         <div className="mb-6 flex flex-wrap gap-2">
           {students.map((s) => (

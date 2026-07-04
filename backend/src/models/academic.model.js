@@ -124,6 +124,53 @@ async function findScoreSheet(classId, subjectId, semesterId, scoreType) {
   }));
 }
 
+// Gradebook: all score types per student for a class+subject+semester (matrix).
+async function findGradebook(classId, subjectId, semesterId) {
+  const [rows] = await pool.query(
+    `SELECT
+       s.student_id   AS studentId,
+       s.student_code AS studentCode,
+       ua.full_name   AS studentName,
+       ua.avatar      AS studentAvatar,
+       ar.result_id   AS resultId,
+       ar.score_type  AS scoreType,
+       ar.score_value AS scoreValue,
+       ar.comment
+     FROM class_enrollment ce
+     INNER JOIN student s ON s.student_id = ce.student_id AND s.status = 'ACTIVE'
+     INNER JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
+     LEFT JOIN academic_result ar
+       ON ar.student_id = s.student_id AND ar.subject_id = ? AND ar.semester_id = ?
+     WHERE ce.class_id = ? AND ce.status = 'ACTIVE'
+     ORDER BY ua.full_name ASC`,
+    [subjectId, semesterId, classId],
+  );
+
+  const map = new Map();
+  for (const r of rows) {
+    if (!map.has(r.studentId)) {
+      map.set(r.studentId, {
+        studentId:     r.studentId,
+        studentCode:   r.studentCode,
+        studentName:   r.studentName,
+        studentAvatar: r.studentAvatar,
+        scores:        {},
+        comment:       "",
+      });
+    }
+    const stu = map.get(r.studentId);
+    if (r.scoreType) {
+      stu.scores[r.scoreType] = {
+        resultId:   r.resultId,
+        scoreValue: r.scoreValue === null ? null : Number(r.scoreValue),
+        comment:    r.comment ?? null,
+      };
+      if (!stu.comment && r.comment) stu.comment = r.comment;
+    }
+  }
+  return Array.from(map.values());
+}
+
 async function findResultById(resultId) {
   const [[row]] = await pool.query(
     `SELECT
@@ -536,6 +583,7 @@ module.exports = {
   isTeacherForStudent,
   findSemesters,
   findScoreSheet,
+  findGradebook,
   findResultById,
   bulkUpsertScores,
   updateSingleScore,

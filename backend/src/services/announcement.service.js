@@ -30,6 +30,12 @@ async function fanOut(announcement) {
 
 async function createAnnouncement({ teacher, actorUserId, payload }) {
   validate(payload);
+  if (payload.publishNow && (!payload.content || !payload.content.trim())) {
+    throw httpError("Không thể phát hành thông báo trống nội dung", 400);
+  }
+  if (!payload.publishNow && payload.scheduledAt && new Date(payload.scheduledAt).getTime() <= Date.now()) {
+    throw httpError("Thời gian lên lịch phải ở tương lai", 400);
+  }
   const ok = await commModel.isTeacherForClass(teacher.teacherId, payload.classId);
   if (!ok) throw httpError("Bạn không phụ trách lớp này", 403);
 
@@ -64,6 +70,9 @@ async function updateAnnouncement({ teacher, announcementId, payload }) {
   if (existing.status === "PUBLISHED") throw httpError("Thông báo đã phát hành, không thể sửa", 409);
 
   validate(payload);
+  if (payload.scheduledAt && new Date(payload.scheduledAt).getTime() <= Date.now()) {
+    throw httpError("Thời gian lên lịch phải ở tương lai", 400);
+  }
   const ok = await commModel.isTeacherForClass(teacher.teacherId, payload.classId);
   if (!ok) throw httpError("Bạn không phụ trách lớp này", 403);
 
@@ -82,6 +91,7 @@ async function publishAnnouncement({ teacher, announcementId }) {
   if (existing.createdBy !== teacher.userId) throw httpError("Bạn không có quyền phát hành", 403);
   if (existing.status === "PUBLISHED") throw httpError("Thông báo đã được phát hành", 409);
   if (existing.status === "ARCHIVED") throw httpError("Thông báo đã lưu trữ", 409);
+  if (!existing.content || !existing.content.trim()) throw httpError("Không thể phát hành thông báo trống nội dung", 400);
 
   await announcementModel.setStatus(announcementId, "PUBLISHED");
   const sent = await fanOut(existing);

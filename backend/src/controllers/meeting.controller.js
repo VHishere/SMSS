@@ -198,6 +198,70 @@ async function updateActionStatus(req, res) {
   }
 }
 
+// PATCH /parents/me/meetings/:meetingId/invitation
+async function respondToInvitation(req, res) {
+  try {
+    const meetingId = parseInt(req.params.meetingId, 10);
+    const { action } = req.body;
+    if (!["ACCEPT", "DECLINE"].includes(action)) {
+      return res.status(400).json({ success: false, message: "action phải là ACCEPT hoặc DECLINE" });
+    }
+    const newStatus = action === "ACCEPT" ? "ACCEPTED" : "DECLINED";
+    const affected = await meetingModel.respondToInvitation(meetingId, req.user.userId, newStatus);
+    if (affected === 0) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy lời mời hoặc đã phản hồi trước đó" });
+    }
+    return res.json({ success: true, message: action === "ACCEPT" ? "Đã xác nhận tham dự" : "Đã từ chối lời mời" });
+  } catch (error) {
+    return handleError(res, error, "Không thể phản hồi lời mời");
+  }
+}
+
+// GET /parents/me/meetings/dashboard
+async function getParentDashboard(req, res) {
+  try {
+    const stats = await meetingModel.parentDashboardStats(req.user.userId);
+    return res.json({ success: true, data: { stats } });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy dữ liệu cuộc họp");
+  }
+}
+
+// GET /parents/me/meetings
+async function listParentMeetings(req, res) {
+  try {
+    const { status, search, page, limit } = req.query;
+    const result = await meetingModel.findMeetingsByParent(req.user.userId, {
+      status, search,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 100,
+    });
+    return res.json({ success: true, data: { items: result.rows, total: result.total } });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy danh sách cuộc họp");
+  }
+}
+
+// GET /parents/me/meetings/:meetingId
+async function getParentMeetingDetail(req, res) {
+  try {
+    const meetingId = parseInt(req.params.meetingId, 10);
+    const meeting = await meetingModel.findMeetingByIdForParent(meetingId, req.user.userId);
+    if (!meeting) return res.status(404).json({ success: false, message: "Không tìm thấy cuộc họp hoặc bạn không được mời" });
+
+    const [invitations, minutes, actions, logs] = await Promise.all([
+      meetingModel.findInvitations(meetingId),
+      meetingModel.findMinutes(meetingId),
+      meetingModel.findActions(meetingId),
+      meetingModel.findLog(meetingId),
+    ]);
+
+    return res.json({ success: true, data: { meeting, invitations, minutes, actions, logs } });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy thông tin cuộc họp");
+  }
+}
+
 module.exports = {
   getMeta,
   getClassParents,
@@ -212,4 +276,8 @@ module.exports = {
   saveMinutes,
   createAction,
   updateActionStatus,
+  respondToInvitation,
+  getParentDashboard,
+  listParentMeetings,
+  getParentMeetingDetail,
 };

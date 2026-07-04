@@ -8,6 +8,7 @@ import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { reportApi } from "../../api/client";
+import { formatDateTimeVN } from "../../utils/datetime";
 
 const REPORT_CARDS = [
   { key: "ATTENDANCE",    label: "Chuyên cần",      desc: "Tỷ lệ có mặt, vắng, muộn theo lớp & thời gian", icon: FiCalendar,   color: "#F27123", bg: "#FFF0E8" },
@@ -49,11 +50,7 @@ function ReportsPage() {
 
   return (
     <DashboardShell user={headerUser} menuItems={dashboardNavigation.TEACHER} sidebarFooterLabel="Khu vực" sidebarFooterValue="Báo cáo">
-      <section className="mb-6 rounded-2xl p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6", backgroundColor: "#fff" }}>
-        <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Giáo viên</p>
-        <h1 className="mb-1 text-2xl font-bold sm:text-3xl" style={{ color: "#0F2747" }}>Trung tâm báo cáo</h1>
-        <p className="text-sm text-slate-500">Tạo, xem trước và xuất báo cáo (Excel / PDF) cho lớp phụ trách. Dữ liệu lấy trực tiếp từ hệ thống.</p>
-      </section>
+      <h1 className="mb-6 text-xl font-bold sm:text-2xl" style={{ color: "#0F2747" }}>Trung tâm báo cáo</h1>
 
       {/* Report type cards */}
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -86,7 +83,7 @@ function ReportsPage() {
                     <p className="text-xs text-slate-400">
                       {REPORT_CARDS.find((c) => c.key === t.reportType)?.label ?? t.reportType}
                       {" · "}<FiClock size={10} className="inline" /> {SCHEDULE_LABEL[t.schedule]}
-                      {t.lastRunAt ? ` · chạy lần cuối ${t.lastRunAt}` : ""}
+                      {t.lastRunAt ? ` · chạy lần cuối ${formatDateTimeVN(t.lastRunAt)}` : ""}
                     </p>
                   </button>
                   <button type="button" onClick={() => handleDeleteTemplate(t)} className="shrink-0 text-slate-400 hover:text-red-600"><FiTrash2 size={15} /></button>
@@ -106,7 +103,7 @@ function ReportsPage() {
               {history.map((h) => (
                 <div key={h.reportId} className="flex items-center justify-between gap-2 rounded-xl px-3 py-2.5" style={{ backgroundColor: "#FFF7F2" }}>
                   <span className="truncate text-sm text-[#0F2747]">{h.title}</span>
-                  <span className="shrink-0 text-xs text-slate-400">{h.createdAt}</span>
+                  <span className="shrink-0 text-xs text-slate-400">{formatDateTimeVN(h.createdAt)}</span>
                 </div>
               ))}
             </div>

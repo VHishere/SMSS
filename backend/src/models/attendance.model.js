@@ -191,8 +191,7 @@ async function bulkUpsertAttendance(records) {
          VALUES (?, ?, ?, 'CLASS', ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            attendance_type_id = VALUES(attendance_type_id),
-           note               = VALUES(note),
-           updated_at         = NOW()`,
+           note               = VALUES(note)`,
         [r.studentId, r.classId, r.date, r.typeId, r.note ?? null, r.createdBy],
       );
     }
@@ -229,8 +228,7 @@ async function updateAttendanceRecord(attendanceId, typeId, note) {
   const [result] = await pool.query(
     `UPDATE attendance
      SET attendance_type_id = ?,
-         note               = ?,
-         updated_at         = NOW()
+         note               = ?
      WHERE attendance_id = ?
        AND created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)`,
     [typeId, note ?? null, attendanceId],
@@ -374,6 +372,45 @@ async function findClassAttendanceAnalytics(classId, startDate, endDate) {
   return { typeSummary, timeline, students };
 }
 
+// ── Parent-facing: per-student analytics ─────────────────────────────────────
+
+async function findStudentAttendanceAnalytics(studentId, startDate, endDate, context) {
+  const contextClause = context ? " AND a.attendance_context = ?" : "";
+  const baseParams = [studentId, startDate, endDate];
+  if (context) baseParams.push(context);
+
+  const [typeSummary] = await pool.query(
+    `SELECT at.type_name AS typeName, COUNT(*) AS count
+     FROM attendance a
+     INNER JOIN attendance_type at
+       ON at.attendance_type_id = a.attendance_type_id
+     WHERE a.student_id = ?
+       AND a.attendance_date BETWEEN ? AND ?
+       ${contextClause}
+     GROUP BY at.attendance_type_id, at.type_name
+     ORDER BY at.attendance_type_id ASC`,
+    baseParams,
+  );
+
+  const [timeline] = await pool.query(
+    `SELECT
+       DATE_FORMAT(a.attendance_date, '%Y-%m-%d') AS date,
+       at.type_name                               AS typeName,
+       COUNT(*)                                   AS count
+     FROM attendance a
+     INNER JOIN attendance_type at
+       ON at.attendance_type_id = a.attendance_type_id
+     WHERE a.student_id = ?
+       AND a.attendance_date BETWEEN ? AND ?
+       ${contextClause}
+     GROUP BY a.attendance_date, at.attendance_type_id, at.type_name
+     ORDER BY a.attendance_date ASC`,
+    baseParams,
+  );
+
+  return { typeSummary, timeline };
+}
+
 // ── Notifications ─────────────────────────────────────────────────────────────
 
 async function findStudentParentUserIds(studentIds) {
@@ -415,6 +452,7 @@ async function createAbsenceNotifications(notifications) {
 module.exports = {
   findStatsByStudentId,
   findHistoryByStudentId,
+  findStudentAttendanceAnalytics,
   findAttendanceTypes,
   findEnrolledStudents,
   findAttendanceByClassAndDate,

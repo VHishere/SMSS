@@ -38,7 +38,7 @@ async function request(
   } catch {
     throw new Error(
       "Không kết nối được backend. " +
-        "Hãy chạy backend bằng npm run dev.",
+      "Hãy chạy backend bằng npm run dev.",
     );
   }
 
@@ -49,11 +49,19 @@ async function request(
   if (!response.ok) {
     throw new Error(
       data.message ||
-        `Yêu cầu thất bại (${response.status})`,
+      `Yêu cầu thất bại (${response.status})`,
     );
   }
 
   return data;
+}
+
+function cleanParams(params = {}) {
+  return Object.fromEntries(
+    Object.entries(params).filter(
+      ([, value]) => value !== "" && value != null,
+    ),
+  );
 }
 
 export const authApi = {
@@ -75,6 +83,22 @@ export const authApi = {
       }),
     }),
 
+  loginGoogleSchool: (credential) =>
+    request("/auth/google/school", {
+      method: "POST",
+      body: JSON.stringify({
+        credential,
+      }),
+    }),
+
+  loginGoogleParent: (credential) =>
+    request("/auth/google/parent", {
+      method: "POST",
+      body: JSON.stringify({
+        credential,
+      }),
+    }),
+
   getMe: () => request("/auth/me"),
 };
 
@@ -82,14 +106,175 @@ export const studentApi = {
   getMyProfile: () =>
     request("/students/me"),
 
-  getMyTimetable: () =>
-    request("/students/me/timetable"),
+  getMyDashboard: () =>
+    request("/students/me/dashboard"),
+
+  getMyTimetable: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/timetable${qs ? `?${qs}` : ""}`);
+  },
 
   getMyHomeworks: () =>
     request("/students/me/homeworks"),
 
+  getMyHomeworkDetail: (homeworkId) =>
+    request(`/students/me/homeworks/${homeworkId}`),
+
+  submitHomework: (homeworkId, { content, file }) => {
+    const formData = new FormData();
+    formData.append("content", content || "");
+
+    if (file) {
+      formData.append("file", file);
+    }
+
+    return uploadRequest(
+      `/students/me/homeworks/${homeworkId}/submission`,
+      formData,
+    );
+  },
+
+  updateMyProfile: (body) => {
+    const formData = new FormData();
+
+    formData.append("fullName", body.fullName || "");
+    formData.append("phone", body.phone || "");
+    formData.append("dateOfBirth", body.dateOfBirth || "");
+    formData.append("gender", body.gender || "OTHER");
+    formData.append("address", body.address || "");
+
+    if (body.avatarFile) {
+      formData.append("avatar", body.avatarFile);
+    }
+
+    return uploadRequest("/students/me", formData, {
+      method: "PATCH",
+    });
+  },
+
+  searchMessageHistory: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/communication/search${qs ? `?${qs}` : ""}`);
+  },
+
   getMyGrades: () =>
     request("/students/me/grades"),
+
+  getMyAttendanceHistory: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/attendance/history${qs ? `?${qs}` : ""}`);
+  },
+
+  getMyAttendanceAnalytics: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/attendance/analytics${qs ? `?${qs}` : ""}`);
+  },
+
+  getMyBehaviour: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/behaviour${qs ? `?${qs}` : ""}`);
+  },
+
+  getGoalTypes: () =>
+    request("/students/me/goals/types"),
+
+  getMyGoals: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/goals${qs ? `?${qs}` : ""}`);
+  },
+
+  createMyGoal: (body) =>
+    request("/students/me/goals", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateMyGoalProgress: (goalId, body) =>
+    request(`/students/me/goals/${goalId}/progress`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+
+  getMyGoalLog: (goalId) =>
+    request(`/students/me/goals/${goalId}/log`),
+
+  getMyEvents: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/events${qs ? `?${qs}` : ""}`);
+  },
+
+  registerMyEvent: (eventId) =>
+    request(`/students/me/events/${eventId}/register`, {
+      method: "POST",
+    }),
+
+  getMyNotifications: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/notifications${qs ? `?${qs}` : ""}`);
+  },
+
+  markNotificationRead: (notificationId) =>
+    request(`/students/me/notifications/${notificationId}/read`, {
+      method: "PATCH",
+    }),
+
+  markAllNotificationsRead: () =>
+    request("/students/me/notifications/read-all", {
+      method: "PATCH",
+    }),
+
+  getMessageContacts: () =>
+    request("/students/me/communication/contacts"),
+
+  listConversations: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/communication/conversations${qs ? `?${qs}` : ""}`);
+  },
+
+  startConversation: (teacherUserId) =>
+    request("/students/me/communication/conversations", {
+      method: "POST",
+      body: JSON.stringify({ teacherUserId }),
+    }),
+
+  uploadMessageFile: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return uploadRequest("/students/me/communication/upload", formData);
+  },
+
+  getThread: (conversationId, params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/communication/conversations/${conversationId}${qs ? `?${qs}` : ""}`);
+  },
+
+  sendMessage: (conversationId, body) =>
+    request(`/students/me/communication/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  deleteMessage: (messageId) =>
+    request(`/students/me/communication/messages/${messageId}`, {
+      method: "DELETE",
+    }),
+
+  archiveConversation: (conversationId, archived) =>
+    request(`/students/me/communication/conversations/${conversationId}/archive`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived }),
+    }),
 };
 
 export const teacherApi = {
@@ -154,7 +339,11 @@ export const teacherApi = {
     }),
 };
 
-async function uploadRequest(path, formData) {
+async function uploadRequest(
+  path,
+  formData,
+  options = {},
+) {
   const token = getAuthToken();
 
   const headers = {};
@@ -169,7 +358,7 @@ async function uploadRequest(path, formData) {
     response = await fetch(
       `${API_BASE}${path}`,
       {
-        method: "POST",
+        method: options.method || "POST",
         headers,
         body: formData,
       },
@@ -177,7 +366,7 @@ async function uploadRequest(path, formData) {
   } catch {
     throw new Error(
       "Không kết nối được backend. " +
-        "Hãy chạy backend bằng npm run dev.",
+      "Hãy chạy backend bằng npm run dev.",
     );
   }
 
@@ -188,7 +377,7 @@ async function uploadRequest(path, formData) {
   if (!response.ok) {
     throw new Error(
       data.message ||
-        `Tải tệp thất bại (${response.status})`,
+      `Tải tệp thất bại (${response.status})`,
     );
   }
 
@@ -277,6 +466,11 @@ export const academicApi = {
     return request(
       `/teachers/academic/scoresheet?${qs}`,
     );
+  },
+
+  getGradebook: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/teachers/academic/gradebook?${qs}`);
   },
 
   submitScores: (body) =>
@@ -589,7 +783,7 @@ async function downloadRequest(path, body, fallbackName) {
   } catch {
     throw new Error(
       "Không kết nối được backend. " +
-        "Hãy chạy backend bằng npm run dev.",
+      "Hãy chạy backend bằng npm run dev.",
     );
   }
 
@@ -600,7 +794,7 @@ async function downloadRequest(path, body, fallbackName) {
 
     throw new Error(
       data.message ||
-        `Xuất báo cáo thất bại (${response.status})`,
+      `Xuất báo cáo thất bại (${response.status})`,
     );
   }
 
@@ -890,6 +1084,28 @@ export const meetingApi = {
     }),
 };
 
+export const parentMeetingApi = {
+  getDashboard: () =>
+    request("/parents/me/meetings/dashboard"),
+
+  list: (params = {}) => {
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null),
+    );
+    const qs = new URLSearchParams(cleaned).toString();
+    return request(`/parents/me/meetings${qs ? `?${qs}` : ""}`);
+  },
+
+  getDetail: (id) =>
+    request(`/parents/me/meetings/${id}`),
+
+  respond: (id, action) =>
+    request(`/parents/me/meetings/${id}/invitation`, {
+      method: "PATCH",
+      body: JSON.stringify({ action }),
+    }),
+};
+
 export const eventApi = {
   getMeta: () =>
     request("/teachers/events/meta"),
@@ -1070,11 +1286,22 @@ export const parentApi = {
   getStudentTimetable: (studentId) =>
     request(`/parents/me/students/${studentId}/timetable`),
 
+  getStudentGrades: (studentId) =>
+    request(`/parents/me/students/${studentId}/grades`),
+
   getStudentAttendanceHistory: (studentId, params = {}) => {
     const qs = new URLSearchParams(params).toString();
 
     return request(
       `/parents/me/students/${studentId}/attendance/history${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  getStudentAttendanceAnalytics: (studentId, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+
+    return request(
+      `/parents/me/students/${studentId}/attendance/analytics${qs ? `?${qs}` : ""}`,
     );
   },
 
@@ -1100,6 +1327,96 @@ export const parentApi = {
   cancelLeaveRequest: (studentId, leaveRequestId) =>
     request(`/parents/me/students/${studentId}/leave-requests/${leaveRequestId}/cancel`, {
       method: "PATCH",
+    }),
+
+  getStudentBehaviourSemesters: (studentId) =>
+    request(`/parents/me/students/${studentId}/behaviour/semesters`),
+
+  getStudentBehaviourRecords: (studentId, params = {}) => {
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null),
+    );
+    const qs = new URLSearchParams(cleaned).toString();
+    return request(`/parents/me/students/${studentId}/behaviour/records${qs ? `?${qs}` : ""}`);
+  },
+
+  getStudentBehaviourConduct: (studentId, semesterId) =>
+    request(`/parents/me/students/${studentId}/behaviour/conduct?semesterId=${semesterId}`),
+
+  getStudentHomework: (studentId, params = {}) => {
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null),
+    );
+    const qs = new URLSearchParams(cleaned).toString();
+    return request(`/parents/me/students/${studentId}/homework${qs ? `?${qs}` : ""}`);
+  },
+
+  getStudentHomeworkDetail: (studentId, homeworkId) =>
+    request(`/parents/me/students/${studentId}/homework/${homeworkId}`),
+
+  getStudentGoals: (studentId, params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/parents/me/students/${studentId}/goals${qs ? `?${qs}` : ""}`);
+  },
+
+  getMyNotifications: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/parents/me/notifications${qs ? `?${qs}` : ""}`);
+  },
+
+  markNotificationRead: (notificationId) =>
+    request(`/parents/me/notifications/${notificationId}/read`, {
+      method: "PATCH",
+    }),
+
+  markAllNotificationsRead: () =>
+    request("/parents/me/notifications/read-all", {
+      method: "PATCH",
+    }),
+
+  getMessageContacts: () =>
+    request("/parents/me/communication/contacts"),
+
+  listConversations: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/parents/me/communication/conversations${qs ? `?${qs}` : ""}`);
+  },
+
+  startConversation: (teacherUserId) =>
+    request("/parents/me/communication/conversations", {
+      method: "POST",
+      body: JSON.stringify({ teacherUserId }),
+    }),
+
+  uploadMessageFile: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    return uploadRequest("/parents/me/communication/upload", formData);
+  },
+
+  getThread: (conversationId, params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/parents/me/communication/conversations/${conversationId}${qs ? `?${qs}` : ""}`);
+  },
+
+  sendMessage: (conversationId, body) =>
+    request(`/parents/me/communication/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  deleteMessage: (messageId) =>
+    request(`/parents/me/communication/messages/${messageId}`, {
+      method: "DELETE",
+    }),
+
+  archiveConversation: (conversationId, archived) =>
+    request(`/parents/me/communication/conversations/${conversationId}/archive`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived }),
     }),
 };
 

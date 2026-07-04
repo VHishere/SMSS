@@ -41,11 +41,13 @@ const MIN_CONDUCT_SCORE = 0;
 const MAX_CONDUCT_SCORE = 100;
 
 // Conduct grade bands (final score), evaluated top-down.
+// Labels follow Thông tư 22/2021 (GDPT 2018): Tốt / Khá / Đạt / Chưa đạt.
+// (Keys kept stable for FE color mapping.)
 const CONDUCT_BANDS = [
-  { key: "TOT", label: "Tốt",        min: 80 },
-  { key: "KHA", label: "Khá",        min: 65 },
-  { key: "TB",  label: "Trung bình", min: 50 },
-  { key: "YEU", label: "Yếu",        min: 0 },
+  { key: "TOT", label: "Tốt",      min: 80 },
+  { key: "KHA", label: "Khá",      min: 65 },
+  { key: "TB",  label: "Đạt",      min: 50 },
+  { key: "YEU", label: "Chưa đạt", min: 0 },
 ];
 
 const WARNING_RULES = {
@@ -55,8 +57,8 @@ const WARNING_RULES = {
 };
 
 const CONDUCT_BUCKETS = [
-  { key: "0-50",   label: "Yếu (<50)",       min: 0,  max: 50 },
-  { key: "50-65",  label: "Trung bình (50–65)", min: 50, max: 65 },
+  { key: "0-50",   label: "Chưa đạt (<50)",  min: 0,  max: 50 },
+  { key: "50-65",  label: "Đạt (50–65)",     min: 50, max: 65 },
   { key: "65-80",  label: "Khá (65–80)",     min: 65, max: 80 },
   { key: "80-100", label: "Tốt (80–100)",    min: 80, max: 101 },
 ];

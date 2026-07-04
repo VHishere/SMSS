@@ -9,6 +9,12 @@ const TYPES = [
   { value: "CANCEL", label: "Xin nghỉ tiết" },
 ];
 
+function todayLocal() {
+  const p = (n) => String(n).padStart(2, "0");
+  const d = new Date();
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 function SubstitutionModal({ onClose, onSaved }) {
   const [meta, setMeta] = useState({ lessons: [], candidates: [] });
   const [timetableId, setTimetableId] = useState("");
@@ -38,6 +44,8 @@ function SubstitutionModal({ onClose, onSaved }) {
   async function handleSubmit() {
     if (!timetableId) { setErrorMsg("Chọn tiết học"); return; }
     if (!targetDate) { setErrorMsg("Chọn ngày áp dụng"); return; }
+    if (targetDate < todayLocal()) { setErrorMsg("Ngày áp dụng phải từ hôm nay trở đi"); return; }
+    if (!reason.trim()) { setErrorMsg("Vui lòng nhập lý do"); return; }
     if (requestType === "SUBSTITUTE" && !substituteTeacherId) { setErrorMsg("Chọn giáo viên dạy thay"); return; }
     if (requestType === "SWAP" && !swapTimetableId) { setErrorMsg("Chọn tiết để hoán đổi"); return; }
 
@@ -80,7 +88,7 @@ function SubstitutionModal({ onClose, onSaved }) {
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Ngày áp dụng <span className="text-red-500">*</span></label>
-              <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className={inputCls} />
+              <input type="date" value={targetDate} min={todayLocal()} onChange={(e) => setTargetDate(e.target.value)} className={inputCls} />
             </div>
           </div>
 
@@ -104,7 +112,7 @@ function SubstitutionModal({ onClose, onSaved }) {
           )}
 
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-600">Lý do</label>
+            <label className="mb-1.5 block text-xs font-medium text-slate-600">Lý do <span className="text-red-500">*</span></label>
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="Nêu lý do đổi tiết..." className={`${inputCls} resize-none`} />
           </div>
 

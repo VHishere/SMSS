@@ -22,6 +22,7 @@ import { useParentBehaviourSemesters } from "../../hooks/useParentBehaviourSemes
 import { useParentBehaviourRecords } from "../../hooks/useParentBehaviourRecords";
 import { useParentBehaviourConduct } from "../../hooks/useParentBehaviourConduct";
 import { formatDate } from "../../utils/dateFormat";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
 
 const TYPE_LABEL = {
   POSITIVE: "Điểm cộng",
@@ -125,33 +126,39 @@ function StudentBehaviour() {
   }, [conduct, summary]);
 
   return (
-    <DashboardShell user={headerUser} menuItems={dashboardNavigation.PARENT}>
-      {/* Student selector — only shown when parent has more than one child */}
-      {!studentsLoading && students.length > 1 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {students.map((s) => (
-            <button
-              key={s.studentId}
-              type="button"
-              onClick={() => selectStudent(s.studentId)}
-              className="rounded-full px-4 py-2 text-sm font-medium transition"
-              style={
-                String(s.studentId) === effStudentId
-                  ? { backgroundColor: "#08509F", color: "#fff" }
-                  : { border: "1px solid #e2e8f0", backgroundColor: "#fff", color: "#475569" }
-              }
-            >
-              {s.studentFullName}
-              {s.className && (
-                <span className="ml-1.5 opacity-70">· {s.className}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+    <DashboardShell
+      user={headerUser}
+      menuItems={dashboardNavigation.PARENT}
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={getCurrentSchoolYearLabel(students)}
+    >
+      {/* Student selector + Semester filter — same row */}
+      <section className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        {!studentsLoading && students.length > 1 ? (
+          <div className="flex flex-wrap gap-2">
+            {students.map((s) => (
+              <button
+                key={s.studentId}
+                type="button"
+                onClick={() => selectStudent(s.studentId)}
+                className="rounded-xl px-4 py-2 text-sm font-medium transition"
+                style={
+                  String(s.studentId) === effStudentId
+                    ? { backgroundColor: "#08509F", color: "#fff" }
+                    : { border: "1px solid #e2e8f0", backgroundColor: "#fff", color: "#475569" }
+                }
+              >
+                {s.studentFullName}
+                {s.className && (
+                  <span className="ml-1.5 opacity-70">· {s.className}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div />
+        )}
 
-      {/* Semester filter */}
-      <section className="mb-5 flex justify-end">
         <FilterSelect
           label="Học kỳ"
           value={effSemesterId}

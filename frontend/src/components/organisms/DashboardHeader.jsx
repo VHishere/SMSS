@@ -84,28 +84,26 @@ const NotificationToggle = forwardRef(
 function NotificationDropdown({ api, allNotificationsPath }) {
   const navigate = useNavigate();
 
-  const [data, setData] = useState({
-    items: [],
-    summary: {},
-  });
-
+  const [data, setData] = useState({ items: [], summary: {} });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState("all");
 
   const unreadCount = useMemo(() => {
-    const summaryUnread =
-      data?.summary?.unreadNotifications;
-
-    if (
-      summaryUnread !== undefined &&
-      summaryUnread !== null
-    ) {
+    const summaryUnread = data?.summary?.unreadNotifications;
+    if (summaryUnread !== undefined && summaryUnread !== null) {
       return Number(summaryUnread);
     }
-
     return data.items.filter((item) => !item.isRead).length;
   }, [data]);
+
+  const displayItems = useMemo(() => {
+    const base = activeTab === "unread"
+      ? data.items.filter((item) => !item.isRead)
+      : data.items;
+    return base.slice(0, 6);
+  }, [data.items, activeTab]);
 
   useEffect(() => {
     let mounted = true;
@@ -114,10 +112,9 @@ function NotificationDropdown({ api, allNotificationsPath }) {
     setError("");
 
     api
-      .getMyNotifications()
+      .getMyNotifications({ limit: 30 })
       .then((response) => {
         if (!mounted) return;
-
         setData({
           items: response?.data?.items || [],
           summary: response?.data?.summary || {},
@@ -125,161 +122,136 @@ function NotificationDropdown({ api, allNotificationsPath }) {
       })
       .catch((requestError) => {
         if (!mounted) return;
-
-        setError(
-          requestError.message ||
-            "Không tải được thông báo",
-        );
+        setError(requestError.message || "Không tải được thông báo");
       })
       .finally(() => {
-        if (mounted) {
-          setLoading(false);
-        }
+        if (mounted) setLoading(false);
       });
 
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [refreshKey, api]);
 
   async function markRead(notificationId) {
     if (!notificationId) return;
-
     try {
       await api.markNotificationRead(notificationId);
-
       setRefreshKey((key) => key + 1);
     } catch {
-      // Không chặn UI nếu lỗi nhỏ khi đánh dấu đã đọc.
+      // silent
     }
-  }
-
-  function goToAllNotifications() {
-    navigate(allNotificationsPath);
   }
 
   return (
     <Dropdown align="end">
-      <Dropdown.Toggle
-        as={NotificationToggle}
-        unreadCount={unreadCount}
-      />
+      <Dropdown.Toggle as={NotificationToggle} unreadCount={unreadCount} />
 
       <Dropdown.Menu
         className="
-          mt-2 w-[360px] max-w-[calc(100vw-32px)]
+          mt-2 w-90 max-w-[calc(100vw-32px)]
           rounded-2xl border-orange-100
           p-0 shadow-xl
         "
       >
-        <div
-          className="
-            border-b border-orange-100
-            px-4 py-3
-          "
-        >
-          <p className="mb-0 text-sm font-bold text-[#0F2747]">
-            Thông báo
-          </p>
+        {/* Header + Tabs */}
+        <div className="border-b border-orange-100 px-3 pt-3 pb-2">
+          <p className="mb-2 px-1 text-sm font-bold text-[#0F2747]">Thông báo</p>
 
-          <p className="mb-0 text-xs text-slate-500">
-            {unreadCount} thông báo chưa đọc
-          </p>
+          <div className="flex gap-1 rounded-xl bg-orange-50 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("all")}
+              className="flex-1 rounded-lg py-1.5 text-xs font-semibold transition"
+              style={
+                activeTab === "all"
+                  ? { backgroundColor: "#F27123", color: "#fff" }
+                  : { color: "#64748B" }
+              }
+            >
+              Tất cả
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("unread")}
+              className="flex-1 rounded-lg py-1.5 text-xs font-semibold transition"
+              style={
+                activeTab === "unread"
+                  ? { backgroundColor: "#F27123", color: "#fff" }
+                  : { color: "#64748B" }
+              }
+            >
+              Chưa đọc{unreadCount > 0 ? ` (${unreadCount})` : ""}
+            </button>
+          </div>
         </div>
 
-        <div className="max-h-[420px] overflow-y-auto p-2">
+        {/* Items */}
+        <div className="max-h-100 overflow-y-auto p-2">
           {loading && (
-            <div className="px-4 py-6 text-center text-sm text-slate-500">
-              Đang tải thông báo...
+            <div className="space-y-2 p-2">
+              {[0, 1, 2].map((n) => (
+                <div key={n} className="h-16 animate-pulse rounded-xl bg-slate-100" />
+              ))}
             </div>
           )}
 
           {!loading && error && (
-            <div className="px-4 py-6 text-center text-sm text-red-600">
-              {error}
-            </div>
+            <div className="px-4 py-6 text-center text-sm text-red-600">{error}</div>
           )}
 
-          {!loading && !error && data.items.length === 0 && (
+          {!loading && !error && displayItems.length === 0 && (
             <div className="px-4 py-8 text-center">
-              <div
-                className="
-                  mx-auto mb-3 flex h-12 w-12
-                  items-center justify-center
-                  rounded-full bg-slate-100
-                  text-slate-400
-                "
-              >
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                 <FiInbox size={20} />
               </div>
-
               <p className="mb-0 text-sm font-semibold text-slate-500">
-                Chưa có thông báo
+                {activeTab === "unread" ? "Không có thông báo chưa đọc" : "Chưa có thông báo"}
               </p>
             </div>
           )}
 
-          {!loading &&
-            !error &&
-            data.items.slice(0, 6).map((item) => (
-              <button
-                key={item.notificationId}
-                type="button"
-                onClick={() => {
-                  if (!item.isRead) {
-                    markRead(item.notificationId);
-                  }
-                }}
-                className="
-                  mb-2 w-full rounded-xl
-                  bg-white px-3 py-3
-                  text-left transition
-                  hover:bg-orange-50
-                "
-              >
-                <div className="mb-2 flex items-start justify-between gap-3">
-                  <span
-                    className="
-                      rounded-full bg-orange-50
-                      px-2 py-0.5
-                      text-[11px] font-bold
-                      text-[#F27123]
-                    "
-                  >
-                    {getNotificationTypeLabel(item.type)}
-                  </span>
+          {!loading && !error && displayItems.map((item) => (
+            <button
+              key={item.notificationId}
+              type="button"
+              onClick={() => { if (!item.isRead) markRead(item.notificationId); }}
+              className="mb-1.5 w-full rounded-xl px-3 py-3 text-left transition hover:brightness-95"
+              style={{
+                backgroundColor: item.isRead ? "#F8FAFC" : "#FFF7F2",
+                border: item.isRead ? "1px solid #F1F5F9" : "1px solid rgba(242,113,35,0.25)",
+              }}
+            >
+              <div className="mb-1.5 flex items-start justify-between gap-2">
+                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-bold text-[#F27123]">
+                  {getNotificationTypeLabel(item.type)}
+                </span>
+                {!item.isRead && (
+                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#F27123]" />
+                )}
+              </div>
 
-                  {!item.isRead && (
-                    <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#F27123]" />
-                  )}
-                </div>
+              <p className="mb-1 line-clamp-1 text-sm font-bold text-[#0F2747]">
+                {item.title}
+              </p>
 
-                <p className="mb-1 line-clamp-1 text-sm font-bold text-[#0F2747]">
-                  {item.title}
-                </p>
+              <p className="mb-1.5 line-clamp-2 text-xs leading-5 text-slate-500">
+                {item.content || "Không có nội dung chi tiết."}
+              </p>
 
-                <p className="mb-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                  {item.content || "Không có nội dung chi tiết."}
-                </p>
-
-                <p className="mb-0 text-[11px] text-slate-400">
-                  {item.createdAt || ""}
-                </p>
-              </button>
-            ))}
+              <p className="mb-0 text-[11px] text-slate-400">{item.createdAt || ""}</p>
+            </button>
+          ))}
         </div>
 
-        <div className="border-t border-orange-100 px-4 py-3">
+        {/* Footer */}
+        <div className="border-t border-orange-100 px-3 py-2.5">
           <button
             type="button"
-            onClick={goToAllNotifications}
+            onClick={() => navigate(allNotificationsPath)}
             className="
-              inline-flex w-full items-center
-              justify-center gap-2
-              rounded-xl bg-[#F27123]
-              px-4 py-2.5 text-sm
-              font-bold text-white
-              transition hover:bg-[#d95f17]
+              inline-flex w-full items-center justify-center gap-2
+              rounded-xl bg-[#F27123] px-4 py-2.5
+              text-sm font-bold text-white transition hover:bg-[#d95f17]
             "
           >
             <FiInbox size={16} />

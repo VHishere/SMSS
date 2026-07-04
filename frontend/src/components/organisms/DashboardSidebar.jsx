@@ -15,7 +15,7 @@ function SidebarContent({
         <FptBrand />
       </div>
 
-      <nav className="mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1.5 [scrollbar-color:rgba(255,255,255,0.25)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 hover:[&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1.5">
+      <nav className="mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1.5 [scrollbar-color:rgba(255,255,255,0.25)_transparent] [scrollbar-thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 hover:[&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1.5">
         {items.map((item) => (
           <SidebarMenuItem
             key={item.path}

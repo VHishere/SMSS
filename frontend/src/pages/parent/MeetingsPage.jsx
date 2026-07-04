@@ -8,6 +8,8 @@ import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { parentMeetingApi } from "../../api/client";
+import { useParentStudents } from "../../hooks/useParentStudents";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
 
 const STATUS = {
   SCHEDULED: { label: "Đã lên lịch", bg: "#FFFBEB", text: "#F59E0B" },
@@ -44,6 +46,7 @@ function StatBox({ icon: Icon, label, value, color, bg }) {
 function MeetingsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { students } = useParentStudents();
 
   const [stats, setStats] = useState({ upcoming: 0, pendingResponse: 0, accepted: 0, totalMeetings: 0 });
   const [view, setView] = useState("list");
@@ -109,8 +112,8 @@ function MeetingsPage() {
     <DashboardShell
       user={headerUser}
       menuItems={dashboardNavigation.PARENT}
-      sidebarFooterLabel="Cuộc họp sắp tới"
-      sidebarFooterValue={String(stats.upcoming)}
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={getCurrentSchoolYearLabel(students)}
     >
       {/* Header */}
 

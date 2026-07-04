@@ -8,6 +8,8 @@ import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { parentMeetingApi } from "../../api/client";
+import { useParentStudents } from "../../hooks/useParentStudents";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
 
 const TABS = [
   { key: "info",    label: "Thông tin",     icon: FiInfo },
@@ -37,6 +39,7 @@ function MeetingDetailPage() {
   const { meetingId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { students } = useParentStudents();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "info";
 
@@ -90,8 +93,8 @@ function MeetingDetailPage() {
     <DashboardShell
       user={headerUser}
       menuItems={dashboardNavigation.PARENT}
-      sidebarFooterLabel="Cuộc họp"
-      sidebarFooterValue={meeting?.className ?? ""}
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={getCurrentSchoolYearLabel(students)}
     >
       <button
         type="button"

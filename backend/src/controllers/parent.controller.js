@@ -309,15 +309,60 @@ async function getMyMessageContacts(req, res) {
   try {
     const result = await parentModel.findTeacherContactsByUserId(req.user.userId);
 
+    const groups = await commModel.ensureParentGroupConversations({
+      userId: req.user.userId,
+      students: result.students,
+    });
+
     return res.json({
       success: true,
-      data: result,
+      data: {
+        ...result,
+        groups,
+      },
     });
   } catch (error) {
     console.error("getMyMessageContacts error:", error);
     return res.status(500).json({
       success: false,
       message: "Không thể tải danh bạ giáo viên",
+    });
+  }
+}
+
+async function searchMyMessages(req, res) {
+  try {
+    const keyword = String(req.query.keyword || "").trim();
+
+    if (!keyword) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng nhập từ khóa tìm kiếm",
+      });
+    }
+
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || "20", 10)));
+
+    const items = await commModel.searchMessages(req.user.userId, {
+      keyword,
+      archived: req.query.archived === "true",
+      page,
+      limit,
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        items,
+        page,
+      },
+    });
+  } catch (error) {
+    console.error("searchMyMessages error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể tìm kiếm lịch sử tin nhắn",
     });
   }
 }
@@ -400,4 +445,5 @@ module.exports = {
   markAllMyNotificationsRead,
   getMyMessageContacts,
   startMyTeacherConversation,
+  searchMyMessages,
 };

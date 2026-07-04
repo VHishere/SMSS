@@ -3,11 +3,14 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
+import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentStudentGrades } from "../../hooks/useParentStudentGrades";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
 
 const EXTRA_SUBJECTS = [
   {
@@ -514,11 +517,37 @@ function GradeSemesterTable({ semester }) {
 
 function ParentStudentGrades() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const { data, studentInfo, loading, error } = useParentStudentGrades();
+  const { students, loading: studentsLoading } = useParentStudents();
+
+  const paramStudentId = searchParams.get("student")
+    ? parseInt(searchParams.get("student"), 10)
+    : null;
+
+  const activeStudentId = useMemo(() => {
+    if (studentsLoading || students.length === 0) return null;
+    if (paramStudentId && students.some((s) => s.studentId === paramStudentId))
+      return paramStudentId;
+    return students[0].studentId;
+  }, [students, studentsLoading, paramStudentId]);
+
+  const activeStudent = useMemo(
+    () => students.find((s) => s.studentId === activeStudentId) ?? null,
+    [students, activeStudentId],
+  );
+
+  const { data, loading: gradesLoading, error } = useParentStudentGrades(activeStudentId);
+  const loading = studentsLoading || gradesLoading;
 
   const [selectedYearKey, setSelectedYearKey] = useState("");
   const [selectedSemesterKey, setSelectedSemesterKey] = useState("ALL");
+
+  function selectStudent(id) {
+    setSearchParams({ student: id });
+    setSelectedYearKey("");
+    setSelectedSemesterKey("ALL");
+  }
 
   const headerUser = useMemo(() => {
     const parentRole = user?.roles?.find((role) => role.roleName === "PARENT");
@@ -571,9 +600,30 @@ function ParentStudentGrades() {
     <DashboardShell
       user={headerUser}
       menuItems={dashboardNavigation.PARENT}
-      sidebarFooterLabel="Vai trò"
-      sidebarFooterValue="Phụ huynh"
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={getCurrentSchoolYearLabel(students)}
     >
+      {/* Student selector — only shown when parent has more than one child */}
+      {!studentsLoading && students.length > 1 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {students.map((s) => (
+            <button
+              key={s.studentId}
+              type="button"
+              onClick={() => selectStudent(s.studentId)}
+              className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                s.studentId === activeStudentId
+                  ? "bg-[#08509F] text-white"
+                  : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {s.studentFullName}
+              {s.className && <span className="ml-1.5 opacity-70">· {s.className}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
       {loading && (
         <div className="rounded-2xl border border-orange-100 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
           Đang tải bảng điểm...
@@ -596,8 +646,8 @@ function ParentStudentGrades() {
               </h1>
 
               <p className="mb-0 text-sm text-slate-500">
-                {studentInfo?.studentFullName
-                  ? `Bảng điểm của ${studentInfo.studentFullName}`
+                {activeStudent?.studentFullName
+                  ? `Bảng điểm của ${activeStudent.studentFullName}`
                   : "Xem điểm theo năm học và học kỳ."}
               </p>
             </div>

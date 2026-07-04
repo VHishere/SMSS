@@ -8,6 +8,7 @@ import { useParentNotifications } from "../../hooks/useParentNotifications";
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
 
 function StudentCard({ student }) {
   return (
@@ -43,19 +44,6 @@ function StudentCard({ student }) {
             <h4 className="truncate text-base font-bold text-[#0F2747]">
               {student.studentFullName}
             </h4>
-
-            {student.isPrimary === 1 && (
-              <span
-                className="
-                  shrink-0 rounded-full
-                  bg-blue-100 px-2 py-0.5
-                  text-xs font-medium
-                  text-blue-700
-                "
-              >
-                Chính
-              </span>
-            )}
           </div>
 
           <p className="mb-0.5 text-xs text-slate-500">
@@ -169,11 +157,9 @@ function ParentDashboard() {
     <DashboardShell
       user={headerUser}
       menuItems={dashboardNavigation.PARENT}
-      sidebarFooterLabel="Số học sinh"
+      sidebarFooterLabel="Năm học hiện tại"
       sidebarFooterValue={
-        studentsLoading
-          ? "Đang tải..."
-          : `${students.length} học sinh`
+        studentsLoading ? "Đang tải..." : getCurrentSchoolYearLabel(students)
       }
     >
       {profileError && (

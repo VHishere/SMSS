@@ -22,6 +22,7 @@ import { useAuth } from "../../context/useAuth";
 import { parentApi } from "../../api/client";
 import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentStudentHomework } from "../../hooks/useParentStudentHomework";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -355,7 +356,6 @@ function StudentHomework() {
   const LIMIT = 12;
 
   const effStudentId  = selectedStudentId || (students[0]?.studentId ? String(students[0].studentId) : "");
-  const activeStudent = students.find((s) => String(s.studentId) === effStudentId) ?? null;
 
   const params = useMemo(() => ({
     status:           statusFilter     || undefined,
@@ -425,7 +425,12 @@ function StudentHomework() {
   }, [data?.items]);
 
   return (
-    <DashboardShell user={headerUser} menuItems={dashboardNavigation.PARENT}>
+    <DashboardShell
+      user={headerUser}
+      menuItems={dashboardNavigation.PARENT}
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={getCurrentSchoolYearLabel(students)}
+    >
       {studentsLoading ? (
         <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
       ) : students.length === 0 ? (
@@ -442,7 +447,7 @@ function StudentHomework() {
                   key={s.studentId}
                   type="button"
                   onClick={() => handleStudentChange(s.studentId)}
-                  className="rounded-full px-4 py-2 text-sm font-medium transition"
+                  className="rounded-xl px-4 py-2 text-sm font-medium transition"
                   style={
                     String(s.studentId) === effStudentId
                       ? { backgroundColor: "#08509F", color: "#fff" }
@@ -453,28 +458,6 @@ function StudentHomework() {
                   {s.className && <span className="ml-1.5 opacity-70">· {s.className}</span>}
                 </button>
               ))}
-            </div>
-          )}
-
-          {/* Student info banner */}
-          {activeStudent && (
-            <div className="mb-5 flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
-              {activeStudent.studentAvatar ? (
-                <img src={activeStudent.studentAvatar} alt={activeStudent.studentFullName}
-                  className="h-9 w-9 shrink-0 rounded-full object-cover" />
-              ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#08509F] text-sm font-bold text-white">
-                  {activeStudent.studentFullName?.[0] ?? "?"}
-                </div>
-              )}
-              <div>
-                <span className="text-sm font-semibold" style={{ color: "#0F2747" }}>{activeStudent.studentFullName}</span>
-                <span className="ml-2 text-xs text-slate-500">
-                  {activeStudent.studentCode}
-                  {activeStudent.className && ` · ${activeStudent.className}`}
-                  {activeStudent.relationship && ` · ${activeStudent.relationship}`}
-                </span>
-              </div>
             </div>
           )}
 

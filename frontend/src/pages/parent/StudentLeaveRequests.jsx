@@ -10,6 +10,7 @@ import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentStudentLeaveRequests } from "../../hooks/useParentStudentLeaveRequests";
 import { useParentStudentTimetable } from "../../hooks/useParentStudentTimetable";
 import { parentApi } from "../../api/client";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
 
 const LEAVE_TYPE_LABELS = {
   SICK_LEAVE: "Nghỉ ốm",
@@ -604,7 +605,12 @@ function ParentStudentLeaveRequests() {
   }, [user]);
 
   return (
-    <DashboardShell user={headerUser} menuItems={dashboardNavigation.PARENT}>
+    <DashboardShell
+      user={headerUser}
+      menuItems={dashboardNavigation.PARENT}
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={getCurrentSchoolYearLabel(students)}
+    >
       {!studentsLoading && students.length > 1 && (
         <div className="mb-6 flex flex-wrap gap-2">
           {students.map((s) => (
@@ -612,7 +618,7 @@ function ParentStudentLeaveRequests() {
               key={s.studentId}
               type="button"
               onClick={() => setSearchParams({ student: s.studentId })}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
                 s.studentId === activeStudentId
                   ? "bg-[#08509F] text-white"
                   : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"

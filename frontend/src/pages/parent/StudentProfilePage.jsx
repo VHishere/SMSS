@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  FiArrowLeft, FiAward, FiCalendar, FiFlag, FiShield, FiUser,
+  FiAward, FiCalendar, FiFlag, FiShield, FiUser,
 } from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { parentApi } from "../../api/client";
+import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentBehaviourSemesters } from "../../hooks/useParentBehaviourSemesters";
 import { useParentBehaviourConduct } from "../../hooks/useParentBehaviourConduct";
 import { useParentBehaviourRecords } from "../../hooks/useParentBehaviourRecords";
@@ -621,8 +622,13 @@ function StudentProfilePage() {
   const { studentId } = useParams();
   const navigate      = useNavigate();
   const { user }      = useAuth();
+  const { students }  = useParentStudents();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "overview";
+
+  function selectStudent(id) {
+    navigate(`/parent/student/${id}`);
+  }
 
   const [profile, setProfile] = useState(null);
   const [error, setError]     = useState("");
@@ -662,12 +668,32 @@ function StudentProfilePage() {
     <DashboardShell
       user={headerUser}
       menuItems={dashboardNavigation.PARENT}
-      sidebarFooterLabel="Học sinh"
-      sidebarFooterValue={profile?.fullName ?? ""}
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={profile?.schoolYearName ?? "Chưa cập nhật"}
     >
-      <button type="button" onClick={() => navigate(-1)} className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-[#0F2747]">
-        <FiArrowLeft size={15} /> Quay lại
-      </button>
+      {/* Student selector — only shown when parent has more than one child */}
+      {students.length > 1 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {students.map((s) => (
+            <button
+              key={s.studentId}
+              type="button"
+              onClick={() => selectStudent(s.studentId)}
+              className="rounded-xl px-4 py-2 text-sm font-medium transition"
+              style={
+                String(s.studentId) === studentId
+                  ? { backgroundColor: "#08509F", color: "#fff" }
+                  : { border: "1px solid #e2e8f0", backgroundColor: "#fff", color: "#475569" }
+              }
+            >
+              {s.studentFullName}
+              {s.className && (
+                <span className="ml-1.5 opacity-70">· {s.className}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading && (
         <div className="space-y-4">

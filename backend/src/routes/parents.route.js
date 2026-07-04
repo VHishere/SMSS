@@ -170,6 +170,13 @@ router.patch(
 );
 
 router.get(
+  "/me/communication/search",
+  authenticate,
+  authorize("PARENT"),
+  parentController.searchMyMessages,
+);
+
+router.get(
   "/me/communication/contacts",
   authenticate,
   authorize("PARENT"),

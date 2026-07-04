@@ -1377,6 +1377,12 @@ export const parentApi = {
   getMessageContacts: () =>
     request("/parents/me/communication/contacts"),
 
+  searchMessageHistory: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/parents/me/communication/search${qs ? `?${qs}` : ""}`);
+  },
+
   listConversations: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
 

@@ -1359,6 +1359,19 @@ export const parentApi = {
     return request(`/parents/me/students/${studentId}/goals${qs ? `?${qs}` : ""}`);
   },
 
+  getStudentEvents: (studentId, params = {}) => {
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null),
+    );
+    const qs = new URLSearchParams(cleaned).toString();
+    return request(`/parents/me/students/${studentId}/events${qs ? `?${qs}` : ""}`);
+  },
+
+  registerStudentEvent: (studentId, eventId) =>
+    request(`/parents/me/students/${studentId}/events/${eventId}/register`, {
+      method: "POST",
+    }),
+
   getMyNotifications: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
     return request(`/parents/me/notifications${qs ? `?${qs}` : ""}`);

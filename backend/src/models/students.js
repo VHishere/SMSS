@@ -681,7 +681,7 @@ async function findEventsByUserId(userId, filters = {}) {
     where += " AND e.status = ?";
     params.push(status);
   } else {
-    where += " AND e.status IN ('ACTIVE', 'PUBLISHED', 'SCHEDULED', 'COMPLETED')";
+    where += " AND e.status IN ('ACTIVE', 'PUBLISHED', 'SCHEDULED', 'COMPLETED', 'CANCELLED')";
   }
 
   if (search) {

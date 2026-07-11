@@ -303,6 +303,116 @@ async function markAllMyNotificationsRead(req, res) {
   }
 }
 
+// ── Events ────────────────────────────────────────────────────────────────────
+
+async function getStudentEvents(req, res) {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+
+    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
+    const student = students.find((s) => s.studentId === studentId);
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem sự kiện này",
+      });
+    }
+
+    const events = await parentModel.findEventsByStudentId(
+      {
+        studentUserId: student.studentUserId,
+        studentId: student.studentId,
+        classId: student.classId,
+      },
+      {
+        status: req.query.status,
+        search: req.query.search,
+      },
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        context: {
+          studentId: student.studentId,
+          studentFullName: student.studentFullName,
+          className: student.className,
+          schoolYearName: student.schoolYearName,
+        },
+        events,
+      },
+    });
+  } catch (error) {
+    console.error("getStudentEvents error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể tải danh sách sự kiện",
+    });
+  }
+}
+
+async function registerStudentEvent(req, res) {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+    const eventId = parseInt(req.params.eventId, 10);
+
+    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
+    const student = students.find((s) => s.studentId === studentId);
+
+    if (!student) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy học sinh hoặc bạn không có quyền đăng ký sự kiện này",
+      });
+    }
+
+    const event = await parentModel.findEventForChild(eventId, student.classId);
+
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy sự kiện hoặc sự kiện không dành cho lớp của học sinh",
+      });
+    }
+
+    if (!["ACTIVE", "PUBLISHED", "SCHEDULED"].includes(event.status)) {
+      return res.status(409).json({
+        success: false,
+        message: "Sự kiện hiện không mở đăng ký",
+      });
+    }
+
+    if (event.capacity && event.registeredCount >= event.capacity) {
+      return res.status(409).json({
+        success: false,
+        message: "Sự kiện đã đủ số lượng đăng ký",
+      });
+    }
+
+    await parentModel.registerEventForChild({
+      studentUserId: student.studentUserId,
+      studentId: student.studentId,
+      eventId,
+      registeredBy: req.user.userId,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Đã đăng ký sự kiện cho học sinh",
+      data: {
+        eventId,
+      },
+    });
+  } catch (error) {
+    console.error("registerStudentEvent error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể đăng ký sự kiện",
+    });
+  }
+}
+
 // ── Messages ──────────────────────────────────────────────────────────────────
 
 async function getMyMessageContacts(req, res) {
@@ -440,6 +550,8 @@ module.exports = {
   getStudentBehaviourRecords,
   getStudentBehaviourConduct,
   getStudentGoals,
+  getStudentEvents,
+  registerStudentEvent,
   getMyNotifications,
   markMyNotificationRead,
   markAllMyNotificationsRead,

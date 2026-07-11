@@ -264,6 +264,11 @@ export const dashboardNavigation = {
       icon: FiEdit3,
     },
     {
+      label: "Sự kiện",
+      path: "/parent/events",
+      icon: FiStar,
+    },
+    {
       label: "Họp phụ huynh",
       path: "/parent/meetings",
       icon: FiCalendar,

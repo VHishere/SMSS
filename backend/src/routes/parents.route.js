@@ -142,6 +142,20 @@ router.get(
 );
 
 router.get(
+  "/me/students/:studentId/events",
+  authenticate,
+  authorize("PARENT"),
+  parentController.getStudentEvents,
+);
+
+router.post(
+  "/me/students/:studentId/events/:eventId/register",
+  authenticate,
+  authorize("PARENT"),
+  parentController.registerStudentEvent,
+);
+
+router.get(
   "/me/meetings/dashboard",
   authenticate,
   authorize("PARENT"),

@@ -11,7 +11,6 @@ import {
   FiGrid,
   FiLifeBuoy,
   FiMessageSquare,
-  FiSettings,
   FiShield,
   FiStar,
   FiTrendingUp,
@@ -80,21 +79,6 @@ export const dashboardNavigation = {
       label: "Tài khoản",
       path: "/admin/users",
       icon: FiUsers,
-    },
-    {
-      label: "Lớp học",
-      path: "/admin/classes",
-      icon: FiBookOpen,
-    },
-    {
-      label: "Báo cáo",
-      path: "/admin/reports",
-      icon: FiBarChart2,
-    },
-    {
-      label: "Cài đặt",
-      path: "/admin/settings",
-      icon: FiSettings,
     },
   ],
 

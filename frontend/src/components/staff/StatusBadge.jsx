@@ -4,6 +4,7 @@ function StatusBadge({ value, tone = "success" }) {
     info: "bg-blue-50 text-[#08509F]",
     warning: "bg-[#FFE7D6] text-[#F27123]",
     neutral: "bg-slate-100 text-slate-600",
+    danger: "bg-red-50 text-red-600",
   };
 
   return (

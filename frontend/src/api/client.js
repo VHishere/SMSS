@@ -1558,3 +1558,22 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 };
+
+export const adminApi = {
+  getUsers: (params = {}) => {
+    const query = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/users${query ? `?${query}` : ""}`);
+  },
+
+  createUser: (payload) =>
+    request("/admin/users", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  setUserStatus: (id, status) =>
+    request(`/admin/users/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
+};

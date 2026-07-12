@@ -44,3 +44,29 @@ export function getCurrentSchoolYearLabel(students = []) {
   const primary = students.find((s) => s.isPrimary === 1) || students[0];
   return primary?.schoolYearName || "Chưa cập nhật";
 }
+
+export const ROLE_LABELS = {
+  ADMIN: "Admin",
+  STAFF: "Staff",
+  HOMEROOM_TEACHER: "Teacher",
+  SUBJECT_TEACHER: "Teacher",
+  DORM_SUPERVISOR: "Mentor",
+  PARENT: "Parent",
+  STUDENT: "Student",
+};
+
+export function formatRoleLabel(roleNames = []) {
+  const list = Array.isArray(roleNames) ? roleNames : [roleNames].filter(Boolean);
+  if (list.length === 0) return "Chưa có vai trò";
+  return list.map((name) => ROLE_LABELS[name] || name).join(", ");
+}
+
+export function formatAccountStatus(status) {
+  const map = {
+    ACTIVE: { label: "Hoạt động", tone: "success" },
+    LOCKED: { label: "Đã khóa", tone: "danger" },
+    INACTIVE: { label: "Ngưng hoạt động", tone: "warning" },
+  };
+
+  return map[status] || { label: status || "—", tone: "neutral" };
+}

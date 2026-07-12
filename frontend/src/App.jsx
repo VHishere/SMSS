@@ -10,8 +10,12 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 
-import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
 import { TeacherDashboard } from "./pages/dashboards/TeacherDashboard";
+
+import AdminDashboardLayout from "./pages/dashboards/admin/AdminDashboardLayout";
+import AdminOverviewPage from "./pages/dashboards/admin/AdminOverviewPage";
+import AdminUsersPage from "./pages/dashboards/admin/AdminUsersPage";
+import AdminUserFormPage from "./pages/dashboards/admin/AdminUserFormPage";
 
 import StaffDashboardLayout from "./pages/dashboards/staff/StaffDashboardLayout";
 import StaffOverviewPage from "./pages/dashboards/staff/StaffOverviewPage";
@@ -134,10 +138,14 @@ function App() {
             path="/admin"
             element={
               <ProtectedRoute allowedRoles={["ADMIN"]}>
-                <AdminDashboard />
+                <AdminDashboardLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<AdminOverviewPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="users/new" element={<AdminUserFormPage />} />
+          </Route>
 
           <Route
             path="/teacher"

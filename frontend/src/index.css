@@ -36,3 +36,12 @@ body {
 a {
     color: var(--blue);
 }
+
+/*
+ * Bootstrap's reset ships unlayered CSS, which always wins the cascade
+ * over Tailwind utilities (Tailwind wraps them in @layer). This keeps
+ * .no-underline actually effective on <a>/<Link> elements.
+ */
+.no-underline {
+    text-decoration: none;
+}

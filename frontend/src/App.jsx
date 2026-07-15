@@ -66,6 +66,7 @@ import HomeworkDetailPage from "./pages/teacher/HomeworkDetailPage";
 import AcademicPage from "./pages/teacher/AcademicPage";
 import StudentAcademicProfilePage from "./pages/teacher/StudentAcademicProfilePage";
 import BehaviourPage from "./pages/teacher/BehaviourPage";
+import ConductPage from "./pages/teacher/ConductPage";
 import StudentBehaviourProfilePage from "./pages/teacher/StudentBehaviourProfilePage";
 import StudentsOverviewPage from "./pages/teacher/StudentsOverviewPage";
 import StudentProfilePage from "./pages/teacher/StudentProfilePage";
@@ -224,6 +225,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={TEACHER_ROLES}>
                 <StudentBehaviourProfilePage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/teacher/conduct"
+            element={
+              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+                <ConductPage />
               </ProtectedRoute>
             }
           />

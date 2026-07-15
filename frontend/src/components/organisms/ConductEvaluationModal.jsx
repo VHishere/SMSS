@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { FiX } from "react-icons/fi";
+function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { behaviourApi } from "../../api/client";
 
-const GRADE_COLOR = { TOT: "#16A34A", KHA: "#08509F", TB: "#F59E0B", YEU: "#DC2626", NA: "#64748B" };
+const GRADE_COLOR = { TOT: "#16A34A", KHA: "#225DAD", TB: "#F59E0B", YEU: "#DC2626", NA: "#64748B" };
 
 function ConductEvaluationModal({ student, semesterId, onClose, onSaved }) {
   const [preview,    setPreview]    = useState(null);
@@ -58,17 +58,17 @@ function ConductEvaluationModal({ student, semesterId, onClose, onSaved }) {
   }
 
   const inputCls =
-    "w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+    "w-full rounded-xl border border-[#DFC0B2] px-3 py-2.5 text-sm text-[#1A1C1C] outline-none focus:border-[#225DAD] focus:ring-1 focus:ring-[#225DAD]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-xl" style={{ border: "1px solid #FFE7D6" }}>
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #FFE7D6" }}>
+      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-3xl bg-white shadow-xl" style={{ border: "1px solid #DFC0B2" }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #DFC0B2" }}>
           <div>
-            <h3 className="text-base font-bold" style={{ color: "#0F2747" }}>Đánh giá hạnh kiểm</h3>
+            <h3 className="text-base font-bold" style={{ color: "#1A1C1C" }}>Đánh giá hạnh kiểm</h3>
             <p className="text-xs text-slate-500">{student.studentName} · {student.studentCode}</p>
           </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><FiX size={20} /></button>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><Ms name="close" className="!text-[20px]" /></button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
@@ -85,7 +85,7 @@ function ConductEvaluationModal({ student, semesterId, onClose, onSaved }) {
                   <p className="text-xs text-slate-500">Điểm trừ</p>
                   <p className="text-lg font-bold" style={{ color: "#DC2626" }}>-{preview.aggregate.demeritPoints}</p>
                 </div>
-                <div className="rounded-xl px-3 py-3 text-center" style={{ backgroundColor: "#FFF7F2" }}>
+                <div className="rounded-xl px-3 py-3 text-center" style={{ backgroundColor: "#F3F3F3" }}>
                   <p className="text-xs text-slate-500">Hạnh kiểm</p>
                   <p className="text-lg font-bold" style={{ color: GRADE_COLOR[preview.computed.grade.key] }}>{liveFinal}</p>
                 </div>
@@ -118,9 +118,9 @@ function ConductEvaluationModal({ student, semesterId, onClose, onSaved }) {
           )}
         </div>
 
-        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #FFE7D6" }}>
+        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #DFC0B2" }}>
           <button type="button" onClick={() => handleSave("DRAFT")} disabled={saving || loading}
-            className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
+            className="flex-1 rounded-xl border border-[#DFC0B2] py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
             Lưu nháp
           </button>
           <button type="button" onClick={() => handleSave("APPROVED")} disabled={saving || loading}

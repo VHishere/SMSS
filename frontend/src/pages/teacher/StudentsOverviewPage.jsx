@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiAlertTriangle, FiChevronDown, FiChevronUp, FiSearch, FiUsers } from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
@@ -8,37 +7,62 @@ import { useAuth } from "../../context/useAuth";
 import { useClassOverview } from "../../hooks/useClassOverview";
 import { useStudentMeta } from "../../hooks/useStudentMeta";
 
-// "Cần quan tâm" thay cho "Rủi ro" cho bớt tiêu cực.
-const ATTENTION = {
-  HIGH:   { label: "Ưu tiên",      bg: "#FEF2F2", text: "#DC2626" },
-  MEDIUM: { label: "Cần theo dõi", bg: "#FFFBEB", text: "#F59E0B" },
-  LOW:    { label: "Lưu ý",        bg: "#FFF7F2", text: "#F27123" },
-  NONE:   { label: "Ổn định",      bg: "#ECFDF5", text: "#16A34A" },
+// ─── FSchool Stitch design tokens ────────────────────────────────────────────
+const C = {
+  onSurface: "#1A1C1C",
+  muted: "#584238",
+  border: "#DFC0B2",
+  orange: "#F27123",
+  secondary: "#225DAD",
+  deepBlue: "#00458E",
+  success: "#15803D",
+  surfaceLow: "#F3F3F3",
+  surfaceHigh: "#E8E8E8",
 };
 
-// Xếp loại hạnh kiểm theo điểm rèn luyện (đồng bộ CONDUCT_BANDS phía backend).
+function Ms({ name, className = "", style }) {
+  return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>;
+}
+
+function initials(name) {
+  const p = (name || "").trim().split(/\s+/);
+  if (!p.length) return "?";
+  if (p.length === 1) return p[0][0]?.toUpperCase() ?? "?";
+  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+}
+
+// "Cần quan tâm" thay cho "Rủi ro" cho bớt tiêu cực.
+const ATTENTION = {
+  HIGH:   { label: "Ưu tiên",      bg: "#FFDAD6", text: "#93000A" },
+  MEDIUM: { label: "Cần theo dõi", bg: "#FEF3C7", text: "#B45309" },
+  LOW:    { label: "Lưu ý",        bg: "rgba(242,113,35,0.12)", text: "#9F4200" },
+  NONE:   { label: "Ổn định",      bg: "#DCFCE7", text: "#15803D" },
+};
+
+// Xếp loại hạnh kiểm theo điểm rèn luyện (đồng bộ CONDUCT_BANDS phía backend, keys TT22).
 const CONDUCT_BANDS = [
-  { key: "TOT", min: 80, label: "Tốt",        bg: "#ECFDF5", text: "#16A34A" },
-  { key: "KHA", min: 65, label: "Khá",        bg: "#EFF6FF", text: "#08509F" },
-  { key: "TB",  min: 50, label: "Đạt",      bg: "#FFFBEB", text: "#F59E0B" },
-  { key: "YEU", min: 0,  label: "Chưa đạt", bg: "#FEF2F2", text: "#DC2626" },
+  { key: "TOT", min: 80, label: "Tốt",      bg: "#DCFCE7", text: "#15803D" },
+  { key: "KHA", min: 65, label: "Khá",      bg: "rgba(34,93,173,0.12)", text: "#00458E" },
+  { key: "TB",  min: 50, label: "Đạt",      bg: "#FEF3C7", text: "#B45309" },
+  { key: "YEU", min: 0,  label: "Chưa đạt", bg: "#FFDAD6", text: "#93000A" },
 ];
 
 function conductGrade(score) {
   if (score === null || score === undefined) {
-    return { key: "NA", label: "Chưa đánh giá", bg: "#F1F5F9", text: "#64748B" };
+    return { key: "NA", label: "Chưa đánh giá", bg: "#E8E8E8", text: "#584238" };
   }
   return CONDUCT_BANDS.find((b) => score >= b.min) ?? CONDUCT_BANDS[CONDUCT_BANDS.length - 1];
 }
 
 const selectCls =
-  "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+  "rounded-xl border bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]";
+const selStyle = { borderColor: C.border, color: C.onSurface };
 
-function StatBox({ label, value, color }) {
+function StatCard({ label, value, accent }) {
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-      <p className="mb-1 text-xs font-medium text-slate-500">{label}</p>
-      <p className="text-2xl font-bold leading-none" style={{ color }}>{value}</p>
+    <div className="rounded-[2rem] bg-white p-4 shadow-sm" style={{ borderLeft: `4px solid ${accent}` }}>
+      <p className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: C.muted }}>{label}</p>
+      <p className="text-3xl font-extrabold leading-none" style={{ color: accent }}>{value}</p>
     </div>
   );
 }
@@ -102,8 +126,10 @@ function StudentsOverviewPage() {
 
   const sortIcon = (key) =>
     sort.key === key
-      ? (sort.dir === "asc" ? <FiChevronUp size={12} className="inline" /> : <FiChevronDown size={12} className="inline" />)
+      ? <Ms name={sort.dir === "asc" ? "arrow_upward" : "arrow_downward"} className="!text-[13px]" />
       : null;
+
+  const TH = "px-4 py-3 text-xs font-medium uppercase tracking-wider";
 
   return (
     <DashboardShell
@@ -113,30 +139,28 @@ function StudentsOverviewPage() {
       sidebarFooterValue={classes.find((c) => String(c.classId) === effClassId)?.className ?? "—"}
     >
       {metaLoading ? (
-        <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="h-64 animate-pulse rounded-[2rem] bg-slate-200/60" />
       ) : classes.length === 0 ? (
-        <div className="rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid #FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>
+        <div className="rounded-[2rem] px-4 py-3 text-sm" style={{ border: `1px solid ${C.border}`, backgroundColor: C.surfaceLow, color: C.onSurface }}>
           Bạn chưa phụ trách lớp nào.
         </div>
       ) : (
         <>
-          {/* Chọn lớp — dạng pill nổi bật */}
+          <h2 className="mb-5 text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Quản lý học sinh</h2>
+
+          {/* Chọn lớp — pill */}
           <div className="mb-5">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Lớp phụ trách</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: C.muted }}>Lớp phụ trách</p>
             <div className="flex flex-wrap gap-2">
               {classes.map((c) => {
                 const active = String(c.classId) === effClassId;
                 return (
-                  <button
-                    key={c.classId}
-                    type="button"
-                    onClick={() => setClassId(String(c.classId))}
-                    className="rounded-xl px-4 py-2 text-sm font-semibold transition"
+                  <button key={c.classId} type="button" onClick={() => setClassId(String(c.classId))}
+                    className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition"
                     style={active
-                      ? { backgroundColor: "#F27123", color: "#fff", boxShadow: "0 4px 12px rgba(242,113,35,0.30)" }
-                      : { backgroundColor: "#fff", color: "#0F2747", border: "1px solid #FFE7D6" }}
-                  >
-                    {c.className}
+                      ? { backgroundColor: C.orange, color: "#fff", boxShadow: "0 4px 12px rgba(242,113,35,0.30)" }
+                      : { backgroundColor: "#fff", color: C.onSurface, border: `1px solid ${C.border}` }}>
+                    <Ms name="school" className="!text-[16px]" /> {c.className}
                   </button>
                 );
               })}
@@ -147,13 +171,13 @@ function StudentsOverviewPage() {
           <div className="mb-5 flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Học kỳ</label>
-              <select value={effSemesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls}>
+              <select value={effSemesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls} style={selStyle}>
                 {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
               </select>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Mức quan tâm</label>
-              <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)} className={selectCls}>
+              <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)} className={selectCls} style={selStyle}>
                 <option value="">Tất cả</option>
                 <option value="HIGH">Ưu tiên</option>
                 <option value="MEDIUM">Cần theo dõi</option>
@@ -163,7 +187,7 @@ function StudentsOverviewPage() {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Hạnh kiểm</label>
-              <select value={conductFilter} onChange={(e) => setConductFilter(e.target.value)} className={selectCls}>
+              <select value={conductFilter} onChange={(e) => setConductFilter(e.target.value)} className={selectCls} style={selStyle}>
                 <option value="">Tất cả</option>
                 <option value="TOT">Tốt</option>
                 <option value="KHA">Khá</option>
@@ -174,73 +198,65 @@ function StudentsOverviewPage() {
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Tìm học sinh</label>
-              <div className="flex items-center rounded-lg border border-slate-200 bg-white px-2.5 shadow-sm">
-                <FiSearch size={15} className="text-slate-400" />
+              <div className="flex items-center rounded-full border bg-white px-3 shadow-sm" style={{ borderColor: C.border }}>
+                <Ms name="search" className="!text-[18px]" style={{ color: "#94A3B8" }} />
                 <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tên hoặc mã..."
-                  className="w-44 px-2 py-2 text-sm text-[#0F2747] outline-none" />
+                  className="w-44 bg-transparent px-2 py-2 text-sm outline-none" style={{ color: C.onSurface }} />
               </div>
             </div>
           </div>
 
           {/* Tổng hợp mức quan tâm */}
           <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <StatBox label="Tổng học sinh" value={summary.total} color="#08509F" />
-            <StatBox label="Ưu tiên" value={summary.high} color="#DC2626" />
-            <StatBox label="Cần theo dõi" value={summary.medium} color="#F59E0B" />
-            <StatBox label="Lưu ý" value={summary.low} color="#F27123" />
+            <StatCard label="Tổng học sinh" value={summary.total} accent={C.secondary} />
+            <StatCard label="Ưu tiên" value={summary.high} accent="#BA1A1A" />
+            <StatCard label="Cần theo dõi" value={summary.medium} accent="#B45309" />
+            <StatCard label="Lưu ý" value={summary.low} accent={C.orange} />
           </div>
 
-          {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
-          {loading && <div className="space-y-2">{[0,1,2,3,4].map((n) => <div key={n} className="h-16 animate-pulse rounded-xl bg-slate-100" />)}</div>}
+          {error && <div className="rounded-[2rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
+          {loading && <div className="space-y-2">{[0, 1, 2, 3, 4].map((n) => <div key={n} className="h-16 animate-pulse rounded-[2rem] bg-slate-200/60" />)}</div>}
 
           {!loading && !error && data && (
             !filtered.length ? (
-              <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+              <div className="rounded-[2rem] bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                 Không có học sinh phù hợp.
               </div>
             ) : (
-              <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+              <div className="overflow-hidden rounded-[2rem] bg-white shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left" style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}>
-                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>
-                          <button type="button" onClick={() => toggleSort("name")} className="inline-flex items-center gap-1 uppercase">Học sinh {sortIcon("name")}</button>
-                        </th>
-                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>
-                          <button type="button" onClick={() => toggleSort("attendance")} className="inline-flex items-center gap-1 uppercase">Chuyên cần {sortIcon("attendance")}</button>
-                        </th>
-                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>
-                          <button type="button" onClick={() => toggleSort("conduct")} className="inline-flex items-center gap-1 uppercase">Hạnh kiểm {sortIcon("conduct")}</button>
-                        </th>
-                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>
-                          <button type="button" onClick={() => toggleSort("goals")} className="inline-flex items-center gap-1 uppercase">Mục tiêu {sortIcon("goals")}</button>
-                        </th>
-                        <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>Cần quan tâm</th>
-                        <th className="px-4 py-3" />
+                    <thead className="text-white" style={{ backgroundColor: C.deepBlue }}>
+                      <tr className="text-left">
+                        <th className={TH}><button type="button" onClick={() => toggleSort("name")} className="inline-flex items-center gap-1 uppercase">Học sinh {sortIcon("name")}</button></th>
+                        <th className={TH}><button type="button" onClick={() => toggleSort("attendance")} className="inline-flex items-center gap-1 uppercase">Chuyên cần {sortIcon("attendance")}</button></th>
+                        <th className={TH}><button type="button" onClick={() => toggleSort("conduct")} className="inline-flex items-center gap-1 uppercase">Hạnh kiểm {sortIcon("conduct")}</button></th>
+                        <th className={TH}><button type="button" onClick={() => toggleSort("goals")} className="inline-flex items-center gap-1 uppercase">Mục tiêu {sortIcon("goals")}</button></th>
+                        <th className={TH}>Cần quan tâm</th>
+                        <th className={TH} />
                       </tr>
                     </thead>
-                    <tbody>
-                      {filtered.map((s, idx) => {
+                    <tbody className="divide-y" style={{ borderColor: C.border }}>
+                      {filtered.map((s) => {
                         const rc = ATTENTION[s.riskLevel] ?? ATTENTION.NONE;
                         const cg = conductGrade(s.conductScore);
                         return (
-                          <tr key={s.studentId} className="border-b last:border-b-0 transition hover:bg-[#FFF7F2]"
-                            style={{ borderColor: "#FFF7F2", backgroundColor: idx % 2 === 1 ? "#FAFAFA" : "#fff" }}>
+                          <tr key={s.studentId} className="cursor-pointer transition-colors hover:bg-[#F3F3F3]"
+                            onClick={() => navigate(`/teacher/students/${s.studentId}?semesterId=${effSemesterId}`)}>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-2.5">
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "#08509F" }}>
-                                  {s.studentAvatar ? <img src={s.studentAvatar} alt={s.studentName} className="h-8 w-8 rounded-full object-cover" /> : (s.studentName?.[0]?.toUpperCase() ?? "?")}
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold text-white" style={{ backgroundColor: C.deepBlue }}>
+                                  {s.studentAvatar ? <img src={s.studentAvatar} alt={s.studentName} className="h-8 w-8 rounded-full object-cover" /> : initials(s.studentName)}
                                 </div>
                                 <div>
-                                  <div className="text-sm font-medium text-[#0F2747]">{s.studentName}</div>
+                                  <div className="text-sm font-medium" style={{ color: C.onSurface }}>{s.studentName}</div>
                                   <div className="text-xs text-slate-400">{s.studentCode}</div>
                                 </div>
                               </div>
                             </td>
                             <td className="px-4 py-3 text-slate-600">{s.attendanceRate === null ? "—" : `${s.attendanceRate}%`}</td>
                             <td className="px-4 py-3">
-                              <span title={s.conductScore != null ? `${s.conductScore}/100` : undefined}
+                              <span title={s.conductScore != null ? `${s.conductScore}đ rèn luyện` : undefined}
                                 className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
                                 style={{ backgroundColor: cg.bg, color: cg.text }}>{cg.label}</span>
                             </td>
@@ -248,13 +264,13 @@ function StudentsOverviewPage() {
                             <td className="px-4 py-3">
                               <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: rc.bg, color: rc.text }}>{rc.label}</span>
                               {s.riskReasons?.length > 0 && (
-                                <span title={s.riskReasons.join("\n")} className="ml-1 inline-flex"><FiAlertTriangle size={12} style={{ color: rc.text }} /></span>
+                                <span title={s.riskReasons.join("\n")} className="ml-1 inline-flex"><Ms name="warning" className="!text-[13px]" style={{ color: rc.text }} /></span>
                               )}
                             </td>
-                            <td className="px-4 py-3">
-                              <button type="button" onClick={() => navigate(`/teacher/students/${s.studentId}?semesterId=${effSemesterId}`)}
-                                className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>
-                                <FiUsers size={11} /> Hồ sơ
+                            <td className="px-4 py-3 text-right">
+                              <button type="button" onClick={(e) => { e.stopPropagation(); navigate(`/teacher/students/${s.studentId}?semesterId=${effSemesterId}`); }}
+                                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: "rgba(34,93,173,0.1)", color: C.secondary }}>
+                                <Ms name="person" className="!text-[13px]" /> Hồ sơ
                               </button>
                             </td>
                           </tr>

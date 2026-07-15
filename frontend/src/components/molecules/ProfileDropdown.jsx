@@ -22,9 +22,42 @@ const ProfileToggle = forwardRef(
     {
       onClick,
       user,
+      variant = "default",
     },
     ref,
   ) {
+    if (variant === "stitch") {
+      // FSchool Teacher Portal (Stitch design):
+      // right-aligned name + uppercase role, avatar with orange ring
+      return (
+        <button
+          ref={ref}
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            onClick?.(event);
+          }}
+          className="group flex items-center gap-3 border-0 bg-transparent px-1 py-1 text-left"
+        >
+          <div className="hidden min-w-0 text-right sm:block">
+            <p className="mb-0 max-w-40 truncate text-sm font-bold text-[#1A1C1C]">
+              {user.name}
+            </p>
+            <p className="mb-0 text-[10px] uppercase tracking-wider text-[#584238]">
+              {user.role}
+            </p>
+          </div>
+
+          <span className="inline-flex rounded-full border-2 border-[#F27123]">
+            <UserAvatar
+              name={user.name}
+              src={user.avatar}
+            />
+          </span>
+        </button>
+      );
+    }
+
     return (
       <button
         ref={ref}
@@ -65,7 +98,7 @@ const ProfileToggle = forwardRef(
   },
 );
 
-function ProfileDropdown({ user }) {
+function ProfileDropdown({ user, variant = "default" }) {
   const navigate = useNavigate();
   const {
     logout,
@@ -99,6 +132,7 @@ function ProfileDropdown({ user }) {
       <Dropdown.Toggle
         as={ProfileToggle}
         user={user}
+        variant={variant}
       />
 
       <Dropdown.Menu

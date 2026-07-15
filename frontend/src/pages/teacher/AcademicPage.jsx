@@ -1,13 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import {
-  FiAlertTriangle,
-  FiBarChart2,
-  FiEdit3,
-  FiExternalLink,
-  FiRefreshCw,
-  FiTrendingUp,
-} from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
 import WarningInterventionModal from "../../components/organisms/WarningInterventionModal";
@@ -18,30 +10,143 @@ import { useAcademicAnalytics } from "../../hooks/useAcademicAnalytics";
 import { useAcademicMeta } from "../../hooks/useAcademicMeta";
 import { useAcademicWarnings } from "../../hooks/useAcademicWarnings";
 
+const C = {
+  onSurface: "#1A1C1C", muted: "#584238", border: "#DFC0B2", primary: "#9F4200",
+  orange: "#F27123", secondary: "#225DAD", deepBlue: "#00458E", tertiary: "#4A5F82",
+  error: "#BA1A1A", success: "#15803D", surface: "#F9F9F9", surfaceLow: "#F3F3F3", surfaceHigh: "#E8E8E8",
+};
+function Ms({ name, className = "", style }) {
+  return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>;
+}
+function initials(name) {
+  const p = (name || "").trim().split(/\s+/);
+  return p.length ? (p.length === 1 ? p[0][0] : p[0][0] + p[p.length - 1][0]).toUpperCase() : "?";
+}
+// mirrors backend academic.config SCORE_TYPE_WEIGHTS (hệ số) — for display ĐTB
+const WEIGHTS = { QUIZ: 1, PARTICIPATION: 1, HOMEWORK: 1, ASSIGNMENT: 1, MIDTERM: 2, FINAL: 3 };
+function cellVal(raw) { const v = raw && typeof raw === "object" ? raw.scoreValue : raw; return v === "" || v == null ? null : Number(v); }
+function weightedAvg(scores, scoreTypes) {
+  let sw = 0, s = 0;
+  for (const t of scoreTypes) {
+    const n = cellVal(scores?.[t.key]);
+    if (n == null || !Number.isFinite(n)) continue;
+    const w = WEIGHTS[t.key] ?? 1; s += n * w; sw += w;
+  }
+  return sw > 0 ? Math.round((s / sw) * 100) / 100 : null;
+}
+function band(avg) {
+  if (avg == null) return null;
+  if (avg >= 8) return { label: "GIỎI", bg: "#DCFCE7", text: "#15803D" };
+  if (avg >= 6.5) return { label: "KHÁ", bg: "#EBF3FF", text: "#225DAD" };
+  if (avg >= 5) return { label: "TRUNG BÌNH", bg: "#FEF3C7", text: "#B45309" };
+  return { label: "KHÔNG ĐẠT", bg: "#FFDAD6", text: "#93000A" };
+}
+
 const TABS = [
-  { key: "scores",    label: "Bảng điểm", icon: FiEdit3 },
-  { key: "analytics", label: "Thống kê",  icon: FiBarChart2 },
-  { key: "warnings",  label: "Cảnh báo",  icon: FiAlertTriangle },
+  { key: "scores",    label: "Số điểm",  ms: "grade" },
+  { key: "detail",    label: "Chi tiết", ms: "person_search" },
+  { key: "analytics", label: "Phân tích", ms: "insights" },
+  { key: "warnings",  label: "Cảnh báo", ms: "warning" },
 ];
-
 const WARNING_LABEL = {
-  LOW_GPA:       { label: "GPA thấp",        color: "#F59E0B" },
-  MULTIPLE_FAIL: { label: "Trượt nhiều môn", color: "#DC2626" },
-  DECLINING:     { label: "Sa sút",          color: "#F27123" },
-  AT_RISK:       { label: "Nguy cơ cao",     color: "#DC2626" },
+  LOW_GPA:       { label: "GPA thấp",        color: "#B45309" },
+  MULTIPLE_FAIL: { label: "Trượt nhiều môn", color: C.error },
+  DECLINING:     { label: "Sa sút",          color: C.orange },
+  AT_RISK:       { label: "Nguy cơ cao",     color: C.error },
 };
-
 const WARNING_STATUS = {
-  IN_PROGRESS: { label: "Đang can thiệp", bg: "#FFFBEB", text: "#F59E0B" },
-  RESOLVED:    { label: "Đã xử lý",        bg: "#ECFDF5", text: "#16A34A" },
+  IN_PROGRESS: { label: "Đang can thiệp", bg: "#FEF3C7", text: "#B45309" },
+  RESOLVED:    { label: "Đã xử lý",        bg: "#DCFCE7", text: C.success },
 };
+const BUCKET_COLOR = { "0-3.5": "#BA1A1A", "3.5-5": "#B45309", "5-6.5": "#225DAD", "6.5-8": "#4A5F82", "8-10": "#15803D" };
 
-const selectCls =
-  "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+const selectCls = "rounded-xl border bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]";
+const selectStyle = { borderColor: C.border, color: C.onSurface };
+const THEAD = "text-white";
+const THEAD_STYLE = { backgroundColor: C.deepBlue };
+const TH = "px-4 py-3 text-xs font-medium uppercase tracking-wider";
 
-// ─── Gradebook Tab (multi-score-type entry + list) ────────────────────────────
+// ─── Charts ───────────────────────────────────────────────────────────────────
+function BarChart({ items, color = C.orange }) {
+  if (!items.length) return <p className="py-6 text-center text-sm text-slate-400">Chưa có dữ liệu.</p>;
+  const bw = 46, gap = 26, padTop = 16, chartH = 150, baseY = padTop + chartH, padL = 30, padB = 26;
+  const W = padL + items.length * (bw + gap) + gap;
+  const H = baseY + padB;
+  const y = (v) => padTop + (1 - Math.min(v, 10) / 10) * chartH;
+  const colorFor = (i) => [C.orange, C.secondary, C.tertiary, C.deepBlue][i % 4];
+  return (
+    <div className="overflow-x-auto">
+      <svg width={W} height={H} className="block">
+        {[0, 5, 10].map((g) => <g key={g}><line x1={padL} y1={y(g)} x2={W - gap} y2={y(g)} stroke="#EEEEEE" /><text x={padL - 6} y={y(g) + 3} fontSize="9" fill="#94A3B8" textAnchor="end">{g}</text></g>)}
+        {items.map((it, i) => {
+          const x = padL + gap + i * (bw + gap);
+          const h = baseY - y(it.value);
+          return (
+            <g key={it.label}>
+              <rect x={x} y={y(it.value)} width={bw} height={Math.max(h, 1)} rx="6" fill={color === "cycle" ? colorFor(i) : color} />
+              <text x={x + bw / 2} y={y(it.value) - 5} fontSize="10" fontWeight="700" fill={C.onSurface} textAnchor="middle">{it.value}</text>
+              <text x={x + bw / 2} y={baseY + 16} fontSize="9" fill="#64748B" textAnchor="middle">{it.label.length > 8 ? it.label.slice(0, 7) + "…" : it.label}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+function Donut({ segments, total, centerLabel }) {
+  const R = 52, cx = 70, cy = 70, Circ = 2 * Math.PI * R;
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-6">
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
+        {segments.map((s, i) => {
+          const before = segments.slice(0, i).reduce((a, x) => a + x.count, 0);
+          const len = total > 0 ? (s.count / total) * Circ : 0;
+          const off = total > 0 ? -(before / total) * Circ : 0;
+          return len > 0 ? <circle key={i} cx={cx} cy={cy} r={R} fill="none" stroke={s.color} strokeWidth="16" strokeDasharray={`${len} ${Circ}`} strokeDashoffset={off} transform={`rotate(-90 ${cx} ${cy})`} /> : null;
+        })}
+        <text x={cx} y={cy - 2} textAnchor="middle" fontSize="22" fontWeight="700" fill={C.onSurface}>{total}</text>
+        <text x={cx} y={cy + 16} textAnchor="middle" fontSize="9" fill="#64748B">{centerLabel}</text>
+      </svg>
+      <div className="space-y-1.5">
+        {segments.map((s) => (
+          <div key={s.label} className="flex items-center gap-2 text-xs">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+            <span className="text-slate-600">{s.label}</span>
+            <span className="ml-auto pl-4 font-semibold" style={{ color: C.onSurface }}>{s.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+function AreaChart({ points }) {
+  if (!points.length) return <p className="py-6 text-center text-sm text-slate-400">Chưa có dữ liệu.</p>;
+  const stepX = 120, padX = 36, padTop = 16, chartH = 140, padB = 28;
+  const n = points.length, maxV = Math.max(...points.map((p) => p.count), 1);
+  const W = padX * 2 + Math.max(1, n - 1) * stepX, H = padTop + chartH + padB, baseY = padTop + chartH;
+  const x = (i) => padX + i * stepX, y = (v) => padTop + (1 - v / maxV) * chartH;
+  const line = points.map((p, i) => `${x(i)},${y(p.count)}`).join(" ");
+  const area = `M ${x(0)},${baseY} ${points.map((p, i) => `L ${x(i)},${y(p.count)}`).join(" ")} L ${x(n - 1)},${baseY} Z`;
+  return (
+    <div className="overflow-x-auto">
+      <svg width={W} height={H} className="block">
+        <path d={area} fill="rgba(34,93,173,0.12)" />
+        <polyline points={line} fill="none" stroke={C.secondary} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        {points.map((p, i) => (
+          <g key={p.label}>
+            <circle cx={x(i)} cy={y(p.count)} r="4" fill="#fff" stroke={C.secondary} strokeWidth="2.5" />
+            <text x={x(i)} y={y(p.count) - 10} fontSize="10" fontWeight="700" fill={C.onSurface} textAnchor="middle">{p.count}</text>
+            <text x={x(i)} y={baseY + 16} fontSize="8.5" fill="#64748B" textAnchor="middle">{p.label}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
 
-function GradebookTab({ classId, subjectId, semesterId, scoreTypes }) {
+// ─── Số điểm (Gradebook) ──────────────────────────────────────────────────────
+function GradebookTab({ classId, subjectId, semesterId, scoreTypes, subjectName }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -51,33 +156,31 @@ function GradebookTab({ classId, subjectId, semesterId, scoreTypes }) {
   const [saveMsg, setSaveMsg] = useState({ text: "", isError: false });
 
   const ready = Boolean(classId && subjectId && semesterId);
-
   useEffect(() => {
     if (!ready) return;
-    let m = true;
-    setLoading(true); setError("");
+    let m = true; setLoading(true); setError("");
     academicApi.getGradebook({ classId, subjectId, semesterId })
-      .then((res) => { if (m) setData(res.data); })
-      .catch((e) => { if (m) setError(e.message); })
-      .finally(() => { if (m) setLoading(false); });
+      .then((res) => { if (m) setData(res.data); }).catch((e) => { if (m) setError(e.message); }).finally(() => { if (m) setLoading(false); });
     return () => { m = false; };
   }, [classId, subjectId, semesterId, refreshKey, ready]);
 
   useEffect(() => {
     if (!data) return;
     const init = {};
-    for (const s of data.students) {
-      const row = { comment: s.comment ?? "" };
-      for (const t of scoreTypes) row[t.key] = s.scores?.[t.key]?.scoreValue ?? "";
-      init[s.studentId] = row;
-    }
-    setDraft(init);
-    setSaveMsg({ text: "", isError: false });
+    for (const s of data.students) { const row = { comment: s.comment ?? "" }; for (const t of scoreTypes) row[t.key] = s.scores?.[t.key]?.scoreValue ?? ""; init[s.studentId] = row; }
+    setDraft(init); setSaveMsg({ text: "", isError: false });
   }, [data, scoreTypes]);
 
-  function setCell(studentId, key, value) {
-    setDraft((p) => ({ ...p, [studentId]: { ...p[studentId], [key]: value } }));
-  }
+  function setCell(sid, key, value) { setDraft((p) => ({ ...p, [sid]: { ...p[sid], [key]: value } })); }
+
+  const summary = useMemo(() => {
+    const avgs = Object.values(draft).map((r) => weightedAvg(r, scoreTypes)).filter((v) => v != null);
+    if (!avgs.length) return null;
+    const classAvg = Math.round((avgs.reduce((a, b) => a + b, 0) / avgs.length) * 100) / 100;
+    const pass = avgs.filter((v) => v >= 5).length;
+    const gioi = avgs.filter((v) => v >= 8).length;
+    return { classAvg, passRate: Math.round((pass / avgs.length) * 1000) / 10, gioiRate: Math.round((gioi / avgs.length) * 1000) / 10, count: avgs.length };
+  }, [draft, scoreTypes]);
 
   async function handleSave() {
     const byType = {};
@@ -85,279 +188,361 @@ function GradebookTab({ classId, subjectId, semesterId, scoreTypes }) {
       const row = draft[sid];
       for (const t of scoreTypes) {
         const v = row[t.key];
-        if (v === "" || v === null || v === undefined) continue;
+        if (v === "" || v == null) continue;
         const n = Number(v);
-        if (!Number.isFinite(n) || n < 0 || n > 10) {
-          setSaveMsg({ text: "Điểm phải trong khoảng 0–10.", isError: true });
-          return;
-        }
+        if (!Number.isFinite(n) || n < 0 || n > 10) { setSaveMsg({ text: "Điểm phải trong khoảng 0–10.", isError: true }); return; }
         (byType[t.key] ??= []).push({ studentId: Number(sid), scoreValue: n, comment: row.comment || null });
       }
     }
     const types = Object.keys(byType);
-    if (types.length === 0) { setSaveMsg({ text: "Chưa nhập điểm nào.", isError: true }); return; }
-
+    if (!types.length) { setSaveMsg({ text: "Chưa nhập điểm nào.", isError: true }); return; }
     setSaving(true); setSaveMsg({ text: "", isError: false });
     try {
       let total = 0;
-      for (const type of types) {
-        const res = await academicApi.submitScores({ classId, subjectId, semesterId, scoreType: type, maxScore: 10, records: byType[type] });
-        total += res.data.saved;
-      }
-      setSaveMsg({ text: `Đã lưu ${total} điểm.`, isError: false });
-      setRefreshKey((k) => k + 1);
-    } catch (err) {
-      setSaveMsg({ text: err.message, isError: true });
-    } finally {
-      setSaving(false);
-    }
+      for (const type of types) { const res = await academicApi.submitScores({ classId, subjectId, semesterId, scoreType: type, maxScore: 10, records: byType[type] }); total += res.data.saved; }
+      setSaveMsg({ text: `Đã lưu ${total} điểm.`, isError: false }); setRefreshKey((k) => k + 1);
+    } catch (err) { setSaveMsg({ text: err.message, isError: true }); } finally { setSaving(false); }
   }
 
-  if (!ready) {
-    return <div className="rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid #FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>Vui lòng chọn lớp, môn và học kỳ.</div>;
+  function exportCsv() {
+    if (!data) return;
+    const head = ["Học sinh", "Mã", ...scoreTypes.map((t) => t.label), "TB môn", "Xếp loại", "Ghi chú"];
+    const rows = data.students.map((s) => {
+      const r = draft[s.studentId] ?? {};
+      const avg = weightedAvg(r, scoreTypes);
+      return [s.studentName, s.studentCode, ...scoreTypes.map((t) => r[t.key] ?? ""), avg ?? "", band(avg)?.label ?? "", r.comment ?? ""];
+    });
+    const csv = [head, ...rows].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = `so-diem-${subjectName ?? subjectId}.csv`; a.click(); URL.revokeObjectURL(url);
   }
-  if (loading) {
-    return <div className="space-y-2">{[0,1,2,3].map((n) => <div key={n} className="h-12 animate-pulse rounded-xl bg-slate-100" />)}</div>;
-  }
-  if (error) {
-    return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
-  }
+
+  if (!ready) return <div className="rounded-3xl px-4 py-3 text-sm" style={{ border: `1px solid ${C.border}`, backgroundColor: C.surfaceLow, color: C.onSurface }}>Vui lòng chọn lớp, môn và học kỳ.</div>;
+  if (loading) return <div className="space-y-2">{[0, 1, 2, 3].map((n) => <div key={n} className="h-12 animate-pulse rounded-xl bg-slate-200/60" />)}</div>;
+  if (error) return <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
   if (!data) return null;
-
-  const inputCls = "w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+  const inputCls = "w-16 rounded-xl border px-2 py-1.5 text-center text-sm outline-none focus:ring-1 focus:ring-[#9F4200]";
 
   return (
-    <div>
-      <p className="mb-3 text-xs text-slate-400">Thang điểm 10. Nhập tất cả đầu điểm ngay trên bảng — không cần đổi bộ lọc.</p>
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-        {data.students.length === 0 ? (
-          <p className="p-10 text-center text-sm text-slate-400">Lớp chưa có học sinh.</p>
-        ) : (
+    <div className="space-y-5">
+      {/* Summary banner */}
+      {summary && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl p-5" style={{ backgroundColor: "rgba(242,113,35,0.08)" }}>
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: C.orange }}><Ms name="calculate" /></div>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.primary }}>Trung bình môn {subjectName ? `· ${subjectName}` : ""}</p>
+              <p className="text-3xl font-extrabold" style={{ color: C.orange }}>{summary.classAvg}</p>
+            </div>
+          </div>
+          <div className="flex gap-8">
+            <div className="text-right"><p className="text-[10px] font-bold uppercase" style={{ color: C.muted }}>Tỷ lệ đạt</p><p className="text-lg font-bold" style={{ color: C.success }}>{summary.passRate}%</p></div>
+            <div className="text-right"><p className="text-[10px] font-bold uppercase" style={{ color: C.muted }}>Xếp loại giỏi</p><p className="text-lg font-bold" style={{ color: C.secondary }}>{summary.gioiRate}%</p></div>
+          </div>
+        </div>
+      )}
+
+      <p className="flex items-center gap-1.5 text-xs" style={{ color: C.muted }}><Ms name="info" className="!text-[14px]" /> Thang điểm 10. Nhập điểm trực tiếp; cột TB môn & xếp loại tự tính theo hệ số.</p>
+
+      <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+        {data.students.length === 0 ? <p className="p-10 text-center text-sm text-slate-400">Lớp chưa có học sinh.</p> : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead>
-                <tr className="border-b text-left" style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}>
-                  <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>Học sinh</th>
-                  {scoreTypes.map((t) => (
-                    <th key={t.key} className="whitespace-nowrap px-3 py-3 text-center text-xs font-bold" style={{ color: "#F27123" }}>{t.label}</th>
-                  ))}
-                  <th className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>Nhận xét</th>
+              <thead className={THEAD} style={THEAD_STYLE}>
+                <tr className="text-left">
+                  <th className={TH}>Họ và tên</th>
+                  {scoreTypes.map((t) => <th key={t.key} className={`${TH} whitespace-nowrap text-center`}>{t.label}</th>)}
+                  <th className={`${TH} text-center`}>TB môn</th>
+                  <th className={TH}>Ghi chú</th>
+                  <th className={`${TH} text-center`}>Xếp loại</th>
                 </tr>
               </thead>
-              <tbody>
-                {data.students.map((s, idx) => (
-                  <tr key={s.studentId} className="border-b last:border-b-0" style={{ borderColor: "#FFF7F2", backgroundColor: idx % 2 === 1 ? "#FAFAFA" : "#fff" }}>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "#08509F" }}>
-                          {s.studentAvatar ? <img src={s.studentAvatar} alt={s.studentName} className="h-8 w-8 rounded-full object-cover" /> : (s.studentName?.[0]?.toUpperCase() ?? "?")}
+              <tbody className="divide-y" style={{ borderColor: C.border }}>
+                {data.students.map((s) => {
+                  const r = draft[s.studentId] ?? {};
+                  const avg = weightedAvg(r, scoreTypes);
+                  const b = band(avg);
+                  return (
+                    <tr key={s.studentId} className="transition-colors hover:bg-[#F3F3F3]">
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: C.deepBlue }}>
+                            {s.studentAvatar ? <img src={s.studentAvatar} alt={s.studentName} className="h-8 w-8 rounded-full object-cover" /> : initials(s.studentName)}
+                          </div>
+                          <div className="min-w-0"><div className="truncate text-sm font-medium" style={{ color: C.onSurface }}>{s.studentName}</div><div className="text-xs text-slate-400">{s.studentCode}</div></div>
                         </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-medium text-[#0F2747]">{s.studentName}</div>
-                          <div className="text-xs text-slate-400">{s.studentCode}</div>
-                        </div>
-                      </div>
-                    </td>
-                    {scoreTypes.map((t) => (
-                      <td key={t.key} className="px-3 py-2.5 text-center">
-                        <input type="number" min="0" max="10" step="0.25"
-                          value={draft[s.studentId]?.[t.key] ?? ""}
-                          onChange={(e) => setCell(s.studentId, t.key, e.target.value)}
-                          placeholder="—" className={inputCls} />
                       </td>
-                    ))}
-                    <td className="px-4 py-2.5">
-                      <input type="text" value={draft[s.studentId]?.comment ?? ""}
-                        onChange={(e) => setCell(s.studentId, "comment", e.target.value)}
-                        placeholder="Ghi chú..."
-                        className="w-44 rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]" />
-                    </td>
-                  </tr>
-                ))}
+                      {scoreTypes.map((t) => (
+                        <td key={t.key} className="px-3 py-2.5 text-center">
+                          <input type="number" min="0" max="10" step="0.25" value={r[t.key] ?? ""} onChange={(e) => setCell(s.studentId, t.key, e.target.value)} placeholder="—" className={inputCls} style={{ borderColor: C.border, color: C.onSurface, backgroundColor: C.surfaceLow }} />
+                        </td>
+                      ))}
+                      <td className="px-3 py-2.5 text-center font-bold" style={{ color: C.orange }}>{avg ?? "—"}</td>
+                      <td className="px-4 py-2.5">
+                        <input type="text" value={r.comment ?? ""} onChange={(e) => setCell(s.studentId, "comment", e.target.value)} placeholder="Ghi chú..." className="w-40 rounded-xl border px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#9F4200]" style={{ borderColor: C.border, color: C.onSurface }} />
+                      </td>
+                      <td className="px-3 py-2.5 text-center">{b && <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: b.bg, color: b.text }}>{b.label}</span>}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-end gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3">
         {saveMsg.text && <span className={`text-xs font-medium ${saveMsg.isError ? "text-red-600" : "text-green-600"}`}>{saveMsg.text}</span>}
-        <button type="button" onClick={handleSave} disabled={saving || data.students.length === 0}
-          className="rounded-full px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:opacity-50"
-          style={{ backgroundColor: "#F27123" }}>
-          {saving ? "Đang lưu..." : "Lưu điểm"}
+        <button type="button" onClick={exportCsv} className="flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium hover:bg-[#F3F3F3]" style={{ borderColor: C.border, color: C.onSurface }}><Ms name="file_download" className="!text-[18px]" /> Xuất báo cáo</button>
+        <button type="button" onClick={handleSave} disabled={saving || data.students.length === 0} className="flex items-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-50" style={{ backgroundColor: C.orange }}>
+          <Ms name={saving ? "sync" : "save"} className={`!text-[18px] ${saving ? "animate-spin" : ""}`} /> {saving ? "Đang lưu..." : "Lưu điểm"}
         </button>
       </div>
     </div>
   );
 }
 
-// ─── Analytics Tab ────────────────────────────────────────────────────────────
+// ─── Chi tiết (student component breakdown across the teacher's subjects) ──────
+function DetailTab({ classId, semesterId, subjectOptions, scoreTypes, onOpenStudent }) {
+  const [gradebooks, setGradebooks] = useState(null); // [{subjectId, subjectName, students}]
+  const [loading, setLoading] = useState(false);
+  const [studentId, setStudentId] = useState("");
 
-function StatBox({ label, value, suffix = "", color = "#0F2747" }) {
-  return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-      <p className="mb-1 text-xs font-medium text-slate-500">{label}</p>
-      <p className="text-2xl font-bold leading-none" style={{ color }}>{value}{suffix}</p>
-    </div>
-  );
-}
+  const ready = Boolean(classId && semesterId && subjectOptions.length);
+  useEffect(() => {
+    if (!ready) return;
+    let m = true; setLoading(true);
+    Promise.all(subjectOptions.map((o) =>
+      academicApi.getGradebook({ classId, subjectId: o.id, semesterId }).then((r) => ({ subjectId: o.id, subjectName: o.name, students: r.data.students })).catch(() => null)))
+      .then((res) => { if (m) setGradebooks(res.filter(Boolean)); })
+      .finally(() => { if (m) setLoading(false); });
+    return () => { m = false; };
+  }, [classId, semesterId, subjectOptions, ready]);
 
-function TrendLineChart({ trend }) {
-  const pts = trend.filter((t) => t.classAverage != null);
-  if (pts.length === 0) return <p className="text-sm text-slate-400">Chưa đủ dữ liệu nhiều kỳ.</p>;
-  const stepX = 100, padX = 36, padTop = 22, chartH = 130, padBottom = 30;
-  const n = pts.length;
-  const W = padX * 2 + Math.max(1, n - 1) * stepX;
-  const H = padTop + chartH + padBottom;
-  const baseY = padTop + chartH;
-  const x = (i) => padX + i * stepX;
-  const y = (v) => padTop + (1 - Math.min(v, 10) / 10) * chartH;
-  const line = pts.map((t, i) => `${x(i)},${y(t.classAverage)}`).join(" ");
-  const area = `M ${x(0)},${baseY} ${pts.map((t, i) => `L ${x(i)},${y(t.classAverage)}`).join(" ")} L ${x(n - 1)},${baseY} Z`;
-  return (
-    <div className="overflow-x-auto">
-      <svg width={W} height={H} className="block">
-        {[0, 2.5, 5, 7.5, 10].map((g) => (
-          <g key={g}>
-            <line x1={padX - 6} y1={y(g)} x2={W - padX + 6} y2={y(g)} stroke="#F1F5F9" strokeWidth="1" />
-            <text x={padX - 10} y={y(g) + 3} fontSize="9" fill="#94A3B8" textAnchor="end">{g}</text>
-          </g>
-        ))}
-        {n > 1 && <path d={area} fill="rgba(242,113,35,0.10)" />}
-        {n > 1 && <polyline points={line} fill="none" stroke="#F27123" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
-        {pts.map((t, i) => (
-          <g key={t.semesterName}>
-            <circle cx={x(i)} cy={y(t.classAverage)} r="4.5" fill="#fff" stroke="#F27123" strokeWidth="2.5" />
-            <text x={x(i)} y={y(t.classAverage) - 11} fontSize="11" fontWeight="700" fill="#0F2747" textAnchor="middle">{t.classAverage}</text>
-            <text x={x(i)} y={baseY + 18} fontSize="9" fill="#64748B" textAnchor="middle">{t.semesterName}</text>
-          </g>
-        ))}
-      </svg>
-    </div>
-  );
-}
+  const roster = useMemo(() => {
+    const map = {};
+    for (const g of gradebooks ?? []) for (const s of g.students) map[s.studentId] = { studentId: s.studentId, studentName: s.studentName, studentCode: s.studentCode, studentAvatar: s.studentAvatar };
+    return Object.values(map).sort((a, b) => a.studentName.localeCompare(b.studentName));
+  }, [gradebooks]);
 
-function AnalyticsTab({ classId, semesterId, onOpenStudent }) {
-  const { data, trend, loading, error } = useAcademicAnalytics(classId, semesterId, Boolean(classId && semesterId));
+  useEffect(() => { if (roster.length && !roster.some((s) => String(s.studentId) === String(studentId))) setStudentId(String(roster[0].studentId)); }, [roster]); // eslint-disable-line
 
-  if (!classId || !semesterId) {
-    return <div className="rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid #FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>Chọn lớp và học kỳ để xem thống kê.</div>;
-  }
-  if (loading) {
-    return <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">{[0,1,2,3].map((n) => <div key={n} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}</div>;
-  }
-  if (error) return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
-  if (!data) return null;
+  const rows = useMemo(() => {
+    if (!gradebooks || !studentId) return [];
+    return gradebooks.map((g) => {
+      const st = g.students.find((s) => String(s.studentId) === String(studentId));
+      const scores = st?.scores ?? {};
+      return { subjectName: g.subjectName, scores, avg: weightedAvg(scores, scoreTypes) };
+    });
+  }, [gradebooks, studentId, scoreTypes]);
 
-  const s = data.summary;
+  const student = roster.find((s) => String(s.studentId) === String(studentId));
+  const withAvg = rows.filter((r) => r.avg != null);
+  const overall = withAvg.length ? Math.round((withAvg.reduce((a, r) => a + r.avg, 0) / withAvg.length) * 100) / 100 : null;
+  const strongest = withAvg.length ? withAvg.reduce((a, b) => (b.avg > a.avg ? b : a)) : null;
+  const weakest = withAvg.length ? withAvg.reduce((a, b) => (b.avg < a.avg ? b : a)) : null;
+
+  if (!ready) return <div className="rounded-3xl px-4 py-3 text-sm" style={{ border: `1px solid ${C.border}`, backgroundColor: C.surfaceLow, color: C.onSurface }}>Chọn lớp, môn và học kỳ để xem chi tiết.</div>;
+  if (loading || !gradebooks) return <div className="h-64 animate-pulse rounded-3xl bg-slate-200/60" />;
+  if (!roster.length) return <p className="rounded-3xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: `1px solid ${C.border}` }}>Lớp chưa có học sinh có điểm.</p>;
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatBox label="Điểm TB lớp" value={s.classAverage ?? "—"} color="#F27123" />
-        <StatBox label="Tỷ lệ đạt" value={s.passRate} suffix="%" color="#16A34A" />
-        <StatBox label="Tỷ lệ trượt" value={s.failRate} suffix="%" color="#DC2626" />
-        <StatBox label="Đã có điểm" value={`${s.scored}/${s.totalStudents}`} color="#08509F" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          {student && <div className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold text-white" style={{ backgroundColor: C.deepBlue }}>{student.studentAvatar ? <img src={student.studentAvatar} alt={student.studentName} className="h-11 w-11 rounded-full object-cover" /> : initials(student.studentName)}</div>}
+          <div>
+            <h3 className="text-lg font-bold" style={{ color: C.onSurface }}>{student?.studentName ?? "—"}</h3>
+            <p className="text-xs text-slate-400">{student?.studentCode} · ĐTB {overall ?? "—"}</p>
+          </div>
+        </div>
+        <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={selectCls} style={selectStyle}>
+          {roster.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName} ({s.studentCode})</option>)}
+        </select>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          <p className="text-xs text-slate-500">Cao nhất</p>
-          <p className="text-sm font-bold" style={{ color: "#16A34A" }}>{s.highest ? `${s.highest.name} · ${s.highest.gpa}` : "—"}</p>
-        </div>
-        <div className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          <p className="text-xs text-slate-500">Thấp nhất</p>
-          <p className="text-sm font-bold" style={{ color: "#DC2626" }}>{s.lowest ? `${s.lowest.name} · ${s.lowest.gpa}` : "—"}</p>
-        </div>
-      </div>
-
-      {/* Single line chart: class-average trend */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-        <h3 className="mb-4 flex items-center gap-1.5 text-sm font-bold" style={{ color: "#0F2747" }}>
-          <FiTrendingUp size={15} /> Xu hướng điểm TB lớp qua các kỳ
-        </h3>
-        <TrendLineChart trend={trend} />
-      </div>
-
-      {/* Centered ranking */}
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-        <div className="border-b px-5 py-3 text-center" style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}>
-          <h3 className="text-sm font-bold" style={{ color: "#0F2747" }}>Bảng xếp hạng lớp</h3>
-        </div>
+      <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: `1px solid ${C.border}` }}>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b" style={{ borderColor: "#FFE7D6" }}>
-                {["HẠNG", "HỌC SINH", "GPA", "XẾP LOẠI", ""].map((c, i) => (
-                  <th key={i} className="px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>{c}</th>
-                ))}
+            <thead className={THEAD} style={THEAD_STYLE}>
+              <tr className="text-left">
+                <th className={TH}>Môn học</th>
+                {scoreTypes.map((t) => <th key={t.key} className={`${TH} text-center`}>{t.label}<br /><span className="text-[9px] opacity-70">HS {WEIGHTS[t.key] ?? 1}</span></th>)}
+                <th className={`${TH} text-center`}>ĐTB</th>
+                <th className={`${TH} text-center`}>Xếp loại</th>
               </tr>
             </thead>
-            <tbody>
-              {data.students.map((st, idx) => (
-                <tr key={st.studentId} className="border-b last:border-b-0" style={{ borderColor: "#FFF7F2", backgroundColor: idx % 2 === 1 ? "#FAFAFA" : "#fff" }}>
-                  <td className="px-4 py-2.5 text-center font-bold" style={{ color: "#0F2747" }}>#{st.rank}</td>
-                  <td className="px-4 py-2.5 text-center">
-                    <div className="text-sm font-medium text-[#0F2747]">{st.studentName}</div>
-                    <div className="text-xs text-slate-400">{st.studentCode}</div>
+            <tbody className="divide-y" style={{ borderColor: C.border }}>
+              {rows.map((r) => {
+                const b = band(r.avg);
+                return (
+                  <tr key={r.subjectName} className="transition-colors hover:bg-[#F3F3F3]">
+                    <td className="px-4 py-3 font-semibold" style={{ color: C.onSurface }}>{r.subjectName}</td>
+                    {scoreTypes.map((t) => <td key={t.key} className="px-4 py-3 text-center" style={{ color: C.muted }}>{cellVal(r.scores?.[t.key]) ?? "—"}</td>)}
+                    <td className="px-4 py-3 text-center font-bold" style={{ color: C.orange }}>{r.avg ?? "—"}</td>
+                    <td className="px-4 py-3 text-center">{b && <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: b.bg, color: b.text }}>{b.label}</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+          <h4 className="mb-3 text-sm font-bold" style={{ color: C.onSurface }}>Cách tính điểm trung bình (ĐTB)</h4>
+          <div className="space-y-2 text-sm">
+            {scoreTypes.map((t) => (
+              <div key={t.key} className="flex items-center justify-between"><span style={{ color: C.muted }}>{t.label}</span><span className="font-bold" style={{ color: C.onSurface }}>Hệ số {WEIGHTS[t.key] ?? 1}</span></div>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] italic" style={{ color: C.muted }}>ĐTB = Σ(điểm × hệ số) / Σ(hệ số) trên thang 10.</p>
+        </div>
+        <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+          <h4 className="mb-3 text-sm font-bold" style={{ color: C.onSurface }}>ĐTB theo môn</h4>
+          <BarChart items={withAvg.map((r) => ({ label: r.subjectName, value: r.avg }))} color="cycle" />
+        </div>
+      </div>
+
+      {strongest && weakest && (
+        <div className="rounded-3xl p-5" style={{ backgroundColor: "rgba(34,93,173,0.06)", border: `1px solid ${C.border}` }}>
+          <p className="mb-1 flex items-center gap-2 text-sm font-bold" style={{ color: C.secondary }}><Ms name="lightbulb" className="!text-[18px]" /> Nhận xét (tự động)</p>
+          <p className="text-sm" style={{ color: C.onSurface }}>
+            {student?.studentName} mạnh nhất ở môn <b>{strongest.subjectName}</b> ({strongest.avg}){strongest.subjectName !== weakest.subjectName && <> và cần cải thiện môn <b>{weakest.subjectName}</b> ({weakest.avg})</>}.
+          </p>
+          <button type="button" onClick={() => onOpenStudent(studentId)} className="mt-3 inline-flex items-center gap-1 rounded-full px-4 py-1.5 text-xs font-bold text-white" style={{ backgroundColor: C.orange }}><Ms name="open_in_new" className="!text-[14px]" /> Mở hồ sơ đầy đủ</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Phân tích (Analytics) ────────────────────────────────────────────────────
+function StatCard({ label, value, delta, sub, color }) {
+  return (
+    <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+      <p className="mb-1 text-[11px] font-bold uppercase tracking-wider" style={{ color: C.muted }}>{label}</p>
+      <div className="flex items-end gap-2">
+        <p className="text-3xl font-extrabold leading-none" style={{ color }}>{value}</p>
+        {delta != null && <span className="mb-0.5 flex items-center gap-0.5 text-xs font-bold" style={{ color: delta >= 0 ? C.success : C.error }}><Ms name={delta >= 0 ? "trending_up" : "trending_down"} className="!text-[14px]" />{delta >= 0 ? "+" : ""}{delta}</span>}
+      </div>
+      {sub && <p className="mt-1 text-xs text-slate-400">{sub}</p>}
+    </div>
+  );
+}
+function AnalyticsTab({ classId, semesterId, onOpenStudent }) {
+  const { data, trend, loading, error } = useAcademicAnalytics(classId, semesterId, Boolean(classId && semesterId));
+  if (!classId || !semesterId) return <div className="rounded-3xl px-4 py-3 text-sm" style={{ border: `1px solid ${C.border}`, backgroundColor: C.surfaceLow, color: C.onSurface }}>Chọn lớp và học kỳ để xem phân tích.</div>;
+  if (loading) return <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">{[0, 1, 2, 3].map((n) => <div key={n} className="h-24 animate-pulse rounded-3xl bg-slate-200/60" />)}</div>;
+  if (error) return <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
+  if (!data) return null;
+
+  const s = data.summary;
+  const dist = data.distribution ?? [];
+  const distTotal = dist.reduce((a, d) => a + d.count, 0);
+  const gioiKha = dist.filter((d) => ["6.5-8", "8-10"].includes(d.key)).reduce((a, d) => a + d.count, 0);
+  const gioiKhaRate = distTotal ? Math.round((gioiKha / distTotal) * 1000) / 10 : 0;
+  const pts = (trend ?? []).filter((t) => t.classAverage != null);
+  const delta = pts.length >= 2 ? Math.round((pts[pts.length - 1].classAverage - pts[pts.length - 2].classAverage) * 10) / 10 : null;
+  const donutSeg = dist.map((d) => ({ label: d.label, count: d.count, color: BUCKET_COLOR[d.key] ?? "#94A3B8" }));
+  const atRisk = (data.students ?? []).filter((st) => st.gpa != null && st.gpa < 6.5).slice(-6).reverse();
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatCard label="Điểm TB lớp" value={s.classAverage ?? "—"} delta={delta} color={C.orange} />
+        <StatCard label="Tỷ lệ khá/giỏi" value={`${gioiKhaRate}%`} sub={`${gioiKha}/${distTotal} học sinh · Đạt ${s.passRate}%`} color={C.secondary} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+          <h3 className="mb-4 flex items-center gap-1.5 text-sm font-bold" style={{ color: C.onSurface }}><Ms name="bar_chart" className="!text-[18px]" style={{ color: C.orange }} /> So sánh theo môn</h3>
+          <BarChart items={(data.subjectPerformance ?? []).map((p) => ({ label: p.subjectName, value: p.average }))} color="cycle" />
+        </div>
+        <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+          <h3 className="mb-4 flex items-center gap-1.5 text-sm font-bold" style={{ color: C.onSurface }}><Ms name="donut_large" className="!text-[18px]" style={{ color: C.secondary }} /> Phân bố xếp loại</h3>
+          {distTotal > 0 ? <Donut segments={donutSeg} total={distTotal} centerLabel="học sinh" /> : <p className="py-6 text-center text-sm text-slate-400">Chưa có dữ liệu.</p>}
+        </div>
+      </div>
+
+      <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+        <h3 className="mb-1 flex items-center gap-1.5 text-sm font-bold" style={{ color: C.onSurface }}><Ms name="show_chart" className="!text-[18px]" style={{ color: C.secondary }} /> Phổ điểm chi tiết</h3>
+        <p className="mb-3 text-xs text-slate-400">Sĩ số {s.totalStudents} · đã có điểm {s.scored}</p>
+        <AreaChart points={dist.map((d) => ({ label: d.label, count: d.count }))} />
+      </div>
+
+      <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+        <div className="flex items-center justify-between border-b px-5 py-3" style={{ borderColor: C.border, backgroundColor: C.surfaceLow }}>
+          <h3 className="flex items-center gap-1.5 text-sm font-bold" style={{ color: C.error }}><Ms name="priority_high" className="!text-[18px]" /> Học sinh cần lưu ý</h3>
+        </div>
+        {atRisk.length === 0 ? <p className="p-6 text-center text-sm text-slate-400">Không có học sinh dưới ngưỡng khá.</p> : (
+          <table className="min-w-full text-sm">
+            <tbody className="divide-y" style={{ borderColor: C.border }}>
+              {atRisk.map((st) => (
+                <tr key={st.studentId} className="transition-colors hover:bg-[#F3F3F3]">
+                  <td className="px-5 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: C.deepBlue }}>{initials(st.studentName)}</div>
+                      <div><div className="text-sm font-medium" style={{ color: C.onSurface }}>{st.studentName}</div><div className="text-xs text-slate-400">{st.studentCode}</div></div>
+                    </div>
                   </td>
-                  <td className="px-4 py-2.5 text-center font-semibold" style={{ color: "#08509F" }}>{st.gpa}</td>
-                  <td className="px-4 py-2.5 text-center text-slate-600">{st.standing?.label}</td>
-                  <td className="px-4 py-2.5 text-center">
-                    <button type="button" onClick={() => onOpenStudent(st.studentId)}
-                      className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium transition"
-                      style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>
-                      <FiExternalLink size={11} /> Hồ sơ
-                    </button>
+                  <td className="px-5 py-3 text-center"><span className="rounded-full px-2.5 py-1 text-sm font-bold" style={{ backgroundColor: "#FFDAD6", color: "#93000A" }}>{st.gpa}</span></td>
+                  <td className="px-5 py-3 text-center text-slate-500">{st.standing?.label}</td>
+                  <td className="px-5 py-3 text-right">
+                    <button type="button" onClick={() => onOpenStudent(st.studentId)} className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold text-white" style={{ backgroundColor: C.orange }}><Ms name="open_in_new" className="!text-[13px]" /> Hồ sơ</button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        )}
       </div>
     </div>
   );
 }
 
-// ─── Warnings Tab ─────────────────────────────────────────────────────────────
-
+// ─── Cảnh báo (Warnings) ──────────────────────────────────────────────────────
 function WarningsTab({ classId, semesterId, onOpenStudent }) {
   const [statusFilter, setStatusFilter] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
   const [generating, setGenerating] = useState(false);
   const [genMsg, setGenMsg] = useState("");
   const [editWarning, setEditWarning] = useState(null);
-
-  const filters = useMemo(
-    () => ({ classId, semesterId, status: statusFilter, _rk: refreshKey }),
-    [classId, semesterId, statusFilter, refreshKey],
-  );
-
+  const filters = useMemo(() => ({ classId, semesterId, status: statusFilter, _rk: refreshKey }), [classId, semesterId, statusFilter, refreshKey]);
   const { data, loading, error } = useAcademicWarnings(filters, Boolean(classId && semesterId));
+
+  const counts = useMemo(() => {
+    const items = data?.items ?? [];
+    return {
+      high: items.filter((w) => ["AT_RISK", "MULTIPLE_FAIL"].includes(w.warningType)).length,
+      declining: items.filter((w) => w.warningType === "DECLINING").length,
+      low: items.filter((w) => w.warningType === "LOW_GPA").length,
+      total: items.length,
+    };
+  }, [data]);
 
   async function handleGenerate() {
     setGenerating(true); setGenMsg("");
-    try {
-      const res = await academicApi.generateWarnings(classId, semesterId);
-      setGenMsg(`Đã tạo/cập nhật ${res.data.generated} cảnh báo.`);
-      setRefreshKey((k) => k + 1);
-    } catch (err) {
-      setGenMsg(err.message);
-    } finally {
-      setGenerating(false);
-    }
+    try { const res = await academicApi.generateWarnings(classId, semesterId); setGenMsg(`Đã tạo/cập nhật ${res.data.generated} cảnh báo.`); setRefreshKey((k) => k + 1); }
+    catch (err) { setGenMsg(err.message); } finally { setGenerating(false); }
   }
 
-  if (!classId || !semesterId) {
-    return <div className="rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid #FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>Chọn lớp và học kỳ để xem cảnh báo.</div>;
-  }
+  if (!classId || !semesterId) return <div className="rounded-3xl px-4 py-3 text-sm" style={{ border: `1px solid ${C.border}`, backgroundColor: C.surfaceLow, color: C.onSurface }}>Chọn lớp và học kỳ để xem cảnh báo.</div>;
 
   return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls}>
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {[["Nguy cơ cao", counts.high, C.error, "dangerous"], ["Sa sút", counts.declining, C.orange, "trending_down"], ["GPA thấp", counts.low, "#B45309", "priority_high"], ["Tổng cảnh báo", counts.total, C.secondary, "notifications_active"]].map(([label, val, color, icon]) => (
+          <div key={label} className="rounded-3xl bg-white p-4 shadow-sm" style={{ borderLeft: `4px solid ${color}` }}>
+            <div className="mb-1 flex items-center gap-1.5"><Ms name={icon} className="!text-[16px]" style={{ color }} /><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.muted }}>{label}</p></div>
+            <p className="text-3xl font-extrabold leading-none" style={{ color }}>{String(val).padStart(2, "0")}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls} style={selectStyle}>
           <option value="">Tất cả trạng thái</option>
           <option value="OPEN">Mở</option>
           <option value="IN_PROGRESS">Đang can thiệp</option>
@@ -365,62 +550,39 @@ function WarningsTab({ classId, semesterId, onOpenStudent }) {
         </select>
         <div className="flex items-center gap-3">
           {genMsg && <span className="text-xs text-slate-500">{genMsg}</span>}
-          <button type="button" onClick={handleGenerate} disabled={generating}
-            className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:opacity-50"
-            style={{ backgroundColor: "#08509F" }}>
-            <FiRefreshCw size={14} className={generating ? "animate-spin" : ""} />
-            {generating ? "Đang quét..." : "Quét cảnh báo tự động"}
+          <button type="button" onClick={handleGenerate} disabled={generating} className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-50" style={{ backgroundColor: C.deepBlue }}>
+            <Ms name="autorenew" className={`!text-[18px] ${generating ? "animate-spin" : ""}`} /> {generating ? "Đang quét..." : "Quét cảnh báo tự động"}
           </button>
         </div>
       </div>
 
-      {loading && <div className="space-y-2">{[0,1,2].map((n) => <div key={n} className="h-16 animate-pulse rounded-xl bg-slate-100" />)}</div>}
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
-
+      {loading && <div className="space-y-2">{[0, 1, 2].map((n) => <div key={n} className="h-16 animate-pulse rounded-3xl bg-slate-200/60" />)}</div>}
+      {error && <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
       {!loading && !error && data && (
         !data.items.length ? (
-          <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-            Không có cảnh báo. Nhấn "Quét cảnh báo tự động" để tạo theo ngưỡng.
-          </div>
+          <div className="rounded-3xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: `1px solid ${C.border}` }}>Không có cảnh báo. Nhấn "Quét cảnh báo tự động" để tạo theo ngưỡng.</div>
         ) : (
           <div className="space-y-3">
             {data.items.map((w) => {
               const typeCfg = WARNING_LABEL[w.warningType] ?? { label: w.warningType, color: "#64748B" };
               const stCfg = WARNING_STATUS[w.status];
               return (
-                <div key={w.warningId} className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+                <div key={w.warningId} className="rounded-3xl bg-white p-4 shadow-sm" style={{ border: `1px solid ${C.border}`, borderLeftWidth: 4, borderLeftColor: typeCfg.color }}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" style={{ backgroundColor: "#08509F" }}>
-                        {w.studentAvatar ? <img src={w.studentAvatar} alt={w.studentName} className="h-10 w-10 rounded-full object-cover" /> : (w.studentName?.[0]?.toUpperCase() ?? "?")}
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold" style={{ color: "#0F2747" }}>{w.studentName}</p>
-                        <p className="text-xs text-slate-400">{w.studentCode} · {w.className ?? "—"} · GPA {w.gpaSnapshot ?? "—"}</p>
-                      </div>
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white" style={{ backgroundColor: C.deepBlue }}>{w.studentAvatar ? <img src={w.studentAvatar} alt={w.studentName} className="h-10 w-10 rounded-full object-cover" /> : initials(w.studentName)}</div>
+                      <div><p className="text-sm font-bold" style={{ color: C.onSurface }}>{w.studentName}</p><p className="text-xs text-slate-400">{w.studentCode} · {w.className ?? "—"} · GPA {w.gpaSnapshot ?? "—"}</p></div>
                     </div>
                     <div className="flex items-center gap-2">
                       <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold text-white" style={{ backgroundColor: typeCfg.color }}>{typeCfg.label}</span>
                       {stCfg && <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: stCfg.bg, color: stCfg.text }}>{stCfg.label}</span>}
                     </div>
                   </div>
-
                   {w.note && <p className="mt-3 text-sm text-slate-600">{w.note}</p>}
-                  {w.intervention && (
-                    <p className="mt-2 rounded-lg px-3 py-2 text-xs text-slate-600" style={{ backgroundColor: "#FFF7F2" }}>
-                      <span className="font-semibold">Can thiệp: </span>{w.intervention}
-                    </p>
-                  )}
-
+                  {w.intervention && <p className="mt-2 rounded-xl px-3 py-2 text-xs text-slate-600" style={{ backgroundColor: C.surfaceLow }}><span className="font-semibold">Can thiệp: </span>{w.intervention}</p>}
                   <div className="mt-3 flex gap-2">
-                    <button type="button" onClick={() => setEditWarning(w)}
-                      className="rounded-full px-4 py-1.5 text-xs font-semibold text-white transition hover:brightness-105" style={{ backgroundColor: "#F27123" }}>
-                      Can thiệp
-                    </button>
-                    <button type="button" onClick={() => onOpenStudent(w.studentId)}
-                      className="rounded-full px-4 py-1.5 text-xs font-medium transition" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>
-                      Xem hồ sơ
-                    </button>
+                    <button type="button" onClick={() => setEditWarning(w)} className="rounded-full px-4 py-1.5 text-xs font-bold text-white transition hover:opacity-90" style={{ backgroundColor: C.orange }}>Can thiệp</button>
+                    <button type="button" onClick={() => onOpenStudent(w.studentId)} className="rounded-full px-4 py-1.5 text-xs font-medium transition" style={{ backgroundColor: "rgba(34,93,173,0.1)", color: C.secondary }}>Xem hồ sơ</button>
                   </div>
                 </div>
               );
@@ -428,145 +590,87 @@ function WarningsTab({ classId, semesterId, onOpenStudent }) {
           </div>
         )
       )}
-
-      {editWarning && (
-        <WarningInterventionModal
-          warning={editWarning}
-          onClose={() => setEditWarning(null)}
-          onSaved={() => { setEditWarning(null); setRefreshKey((k) => k + 1); }}
-        />
-      )}
+      {editWarning && <WarningInterventionModal warning={editWarning} onClose={() => setEditWarning(null)} onSaved={() => { setEditWarning(null); setRefreshKey((k) => k + 1); }} />}
     </div>
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
+// ─── Main ─────────────────────────────────────────────────────────────────────
 function AcademicPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "scores";
-
   const { data: meta, loading: metaLoading, error: metaError } = useAcademicMeta();
 
-  const [classId,    setClassId]    = useState("");
-  const [subjectId,  setSubjectId]  = useState("");
+  const [classId, setClassId] = useState("");
+  const [subjectId, setSubjectId] = useState("");
   const [semesterId, setSemesterId] = useState("");
 
   useEffect(() => {
     if (!meta) return;
-    if (meta.assignments.length && !classId) {
-      setClassId(String(meta.assignments[0].classId));
-      setSubjectId(String(meta.assignments[0].subjectId));
-    }
-    if (meta.semesters.length && !semesterId) {
-      setSemesterId(String(meta.semesters[0].semesterId));
-    }
-  }, [meta]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (meta.assignments.length && !classId) { setClassId(String(meta.assignments[0].classId)); setSubjectId(String(meta.assignments[0].subjectId)); }
+    if (meta.semesters.length && !semesterId) setSemesterId(String(meta.semesters[0].semesterId));
+  }, [meta]); // eslint-disable-line
 
   const assignments = useMemo(() => meta?.assignments ?? [], [meta]);
-
-  const classOptions = useMemo(() => {
-    const map = {};
-    for (const a of assignments) map[a.classId] = a.className;
-    return Object.entries(map).map(([id, name]) => ({ id, name }));
-  }, [assignments]);
-
-  const subjectOptions = useMemo(() => {
-    return assignments
-      .filter((a) => String(a.classId) === String(classId))
-      .map((a) => ({ id: a.subjectId, name: a.subjectName }));
-  }, [assignments, classId]);
-
-  useEffect(() => {
-    if (!subjectOptions.length) return;
-    if (!subjectOptions.some((s) => String(s.id) === String(subjectId))) {
-      setSubjectId(String(subjectOptions[0].id));
-    }
-  }, [subjectOptions]); // eslint-disable-line react-hooks/exhaustive-deps
+  const classOptions = useMemo(() => { const m = {}; for (const a of assignments) m[a.classId] = a.className; return Object.entries(m).map(([id, name]) => ({ id, name })); }, [assignments]);
+  const subjectOptions = useMemo(() => assignments.filter((a) => String(a.classId) === String(classId)).map((a) => ({ id: String(a.subjectId), name: a.subjectName })), [assignments, classId]);
+  useEffect(() => { if (subjectOptions.length && !subjectOptions.some((s) => String(s.id) === String(subjectId))) setSubjectId(String(subjectOptions[0].id)); }, [subjectOptions]); // eslint-disable-line
 
   const headerUser = useMemo(() => {
-    const roleEntry = user?.roles?.find((r) =>
-      ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"].includes(r.roleName),
-    );
-    return {
-      name:   user?.fullName ?? user?.username ?? "Giáo viên",
-      role:   roleEntry?.description ?? "Giáo viên",
-      avatar: user?.avatar ?? "",
-    };
+    const roleEntry = user?.roles?.find((r) => ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"].includes(r.roleName));
+    return { name: user?.fullName ?? user?.username ?? "Giáo viên", role: roleEntry?.description ?? "Giáo viên", avatar: user?.avatar ?? "" };
   }, [user]);
 
   function setTab(key) { setSearchParams({ tab: key }); }
   function openStudent(studentId) { navigate(`/teacher/academic/students/${studentId}?semesterId=${semesterId}`); }
-
-  const showSubject = activeTab === "scores";
+  const showSubject = activeTab === "scores" || activeTab === "detail";
+  const subjectName = subjectOptions.find((s) => String(s.id) === String(subjectId))?.name;
 
   return (
-    <DashboardShell
-      user={headerUser}
-      menuItems={dashboardNavigation.TEACHER}
-      sidebarFooterLabel="Học kỳ"
-      sidebarFooterValue={meta?.semesters.find((s) => String(s.semesterId) === String(semesterId))?.semesterName ?? "—"}
-    >
-      {metaError && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{metaError}</div>}
-
+    <DashboardShell user={headerUser} menuItems={dashboardNavigation.TEACHER} sidebarFooterLabel="Học kỳ" sidebarFooterValue={meta?.semesters.find((s) => String(s.semesterId) === String(semesterId))?.semesterName ?? "—"}>
+      {metaError && <div className="mb-4 rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{metaError}</div>}
       {metaLoading ? (
-        <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="h-64 animate-pulse rounded-3xl bg-slate-200/60" />
       ) : meta && (
-        <>
-          {assignments.length === 0 ? (
-            <div className="rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid #FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>
-              Bạn chưa được phân công dạy lớp/môn nào.
+        assignments.length === 0 ? (
+          <div className="rounded-3xl px-4 py-3 text-sm" style={{ border: `1px solid ${C.border}`, backgroundColor: C.surfaceLow, color: C.onSurface }}>Bạn chưa được phân công dạy lớp/môn nào.</div>
+        ) : (
+          <>
+            <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+              <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Quản lý Sổ điểm</h2>
+              <div className="flex flex-wrap items-end gap-2">
+                <select value={classId} onChange={(e) => setClassId(e.target.value)} className={selectCls} style={selectStyle}>
+                  {classOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                {showSubject && (
+                  <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={selectCls} style={selectStyle}>
+                    {subjectOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                )}
+                <select value={semesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls} style={selectStyle}>
+                  {meta.semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
+                </select>
+              </div>
             </div>
-          ) : (
-            <>
-              {/* Toolbar: title + filters (right) */}
-              <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                <h1 className="text-xl font-bold sm:text-2xl" style={{ color: "#0F2747" }}>Kết quả học tập</h1>
-                <div className="flex flex-wrap items-end gap-3">
-                  <select value={classId} onChange={(e) => setClassId(e.target.value)} className={selectCls}>
-                    {classOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                  {showSubject && (
-                    <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={selectCls}>
-                      {subjectOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  )}
-                  <select value={semesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls}>
-                    {meta.semesters.map((s) => (
-                      <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
 
-              {/* Tabs */}
-              <div className="mb-6 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-                {TABS.map(({ key, label, icon: Icon }) => (
-                  <button key={key} type="button" onClick={() => setTab(key)}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition"
-                    style={activeTab === key ? { backgroundColor: "#F27123", color: "#fff" } : { color: "#64748B" }}>
-                    <Icon size={15} />
-                    <span className="hidden sm:inline">{label}</span>
-                  </button>
-                ))}
-              </div>
+            <div className="mb-6 flex w-fit items-center gap-1 rounded-full border p-1" style={{ backgroundColor: C.surfaceLow, borderColor: C.border }}>
+              {TABS.map(({ key, label, ms }) => (
+                <button key={key} type="button" onClick={() => setTab(key)} className="flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm transition-all" style={activeTab === key ? { backgroundColor: C.orange, color: "#fff", fontWeight: 700 } : { color: C.muted, fontWeight: 500 }}>
+                  <Ms name={ms} className="!text-[18px]" /><span>{label}</span>
+                </button>
+              ))}
+            </div>
 
-              <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6" }}>
-                {activeTab === "scores" && (
-                  <GradebookTab classId={classId} subjectId={subjectId} semesterId={semesterId} scoreTypes={meta.scoreTypes} />
-                )}
-                {activeTab === "analytics" && (
-                  <AnalyticsTab classId={classId} semesterId={semesterId} onOpenStudent={openStudent} />
-                )}
-                {activeTab === "warnings" && (
-                  <WarningsTab classId={classId} semesterId={semesterId} onOpenStudent={openStudent} />
-                )}
-              </div>
-            </>
-          )}
-        </>
+            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6" style={{ border: `1px solid ${C.border}` }}>
+              {activeTab === "scores" && <GradebookTab classId={classId} subjectId={subjectId} semesterId={semesterId} scoreTypes={meta.scoreTypes} subjectName={subjectName} />}
+              {activeTab === "detail" && <DetailTab classId={classId} semesterId={semesterId} subjectOptions={subjectOptions} scoreTypes={meta.scoreTypes} onOpenStudent={openStudent} />}
+              {activeTab === "analytics" && <AnalyticsTab classId={classId} semesterId={semesterId} onOpenStudent={openStudent} />}
+              {activeTab === "warnings" && <WarningsTab classId={classId} semesterId={semesterId} onOpenStudent={openStudent} />}
+            </div>
+          </>
+        )
       )}
     </DashboardShell>
   );

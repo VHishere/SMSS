@@ -14,8 +14,8 @@ import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import { inputClass } from "../../../components/staff/StaffFormCard";
 import {
-  formatAccountStatus,
   formatRoleLabel,
+  getAccountStatusInfo,
 } from "../../../utils/formatters";
 
 const STATUS_OPTIONS = [
@@ -263,7 +263,7 @@ function AdminUsersPage() {
                 </tr>
               ) : (
                 pagedRows.map((user) => {
-                  const statusInfo = formatAccountStatus(user.status);
+                  const statusInfo = getAccountStatusInfo(user.status);
                   const isLocked = user.status !== "ACTIVE";
 
                   return (

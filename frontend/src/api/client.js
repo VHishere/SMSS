@@ -104,6 +104,19 @@ export const authApi = {
   getMe: () => request("/auth/me"),
 };
 
+export const adminApi = {
+  getUsers: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/users${qs ? `?${qs}` : ""}`);
+  },
+
+  setUserStatus: (userId, status) =>
+    request(`/admin/users/${userId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
+};
+
 export const studentApi = {
   getMyProfile: () =>
     request("/students/me"),

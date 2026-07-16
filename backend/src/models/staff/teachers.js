@@ -34,23 +34,57 @@ const teacherSelect = `
   INNER JOIN user_account ua ON ua.user_id = t.user_id
 `;
 
-async function listTeachers(search = "") {
+async function listTeachers(filters = "") {
+  const normalized =
+    typeof filters === "string" ? { search: filters } : filters || {};
+  const search = normalized.search || "";
   const keyword = `%${search.trim()}%`;
+  const conditions = [
+    `(
+      ? = ''
+      OR ua.full_name LIKE ?
+      OR t.teacher_code LIKE ?
+      OR ua.email LIKE ?
+      OR ua.phone LIKE ?
+      OR t.subject_specialize LIKE ?
+    )`,
+  ];
+  const params = [search.trim(), keyword, keyword, keyword, keyword, keyword];
+
+  if (normalized.gradeId) {
+    conditions.push(`
+      EXISTS (
+        SELECT 1
+        FROM teacher_class tc_filter
+        INNER JOIN school_class sc_filter ON sc_filter.class_id = tc_filter.class_id
+        WHERE tc_filter.teacher_id = t.teacher_id
+          AND sc_filter.grade_id = ?
+          AND (tc_filter.end_date IS NULL OR tc_filter.end_date >= CURDATE())
+      )
+    `);
+    params.push(normalized.gradeId);
+  }
+
+  if (normalized.classId) {
+    conditions.push(`
+      EXISTS (
+        SELECT 1
+        FROM teacher_class tc_filter
+        WHERE tc_filter.teacher_id = t.teacher_id
+          AND tc_filter.class_id = ?
+          AND (tc_filter.end_date IS NULL OR tc_filter.end_date >= CURDATE())
+      )
+    `);
+    params.push(normalized.classId);
+  }
 
   const [rows] = await pool.query(
     `
       ${teacherSelect}
-      WHERE (
-        ? = ''
-        OR ua.full_name LIKE ?
-        OR t.teacher_code LIKE ?
-        OR ua.email LIKE ?
-        OR ua.phone LIKE ?
-        OR t.subject_specialize LIKE ?
-      )
+      WHERE ${conditions.join(" AND ")}
       ORDER BY t.teacher_code
     `,
-    [search.trim(), keyword, keyword, keyword, keyword, keyword],
+    params,
   );
 
   return rows.map((row) => ({

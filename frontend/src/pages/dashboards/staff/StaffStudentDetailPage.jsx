@@ -84,8 +84,6 @@ function StaffStudentDetailPage() {
 
         title={student.fullName}
 
-        description={`Mã HS: ${student.studentCode}`}
-
         action={
 
           <div className="flex gap-2">
@@ -108,7 +106,7 @@ function StaffStudentDetailPage() {
 
               to="/staff/students"
 
-              className="rounded-xl border border-[#08509F] px-4 py-2 text-sm font-semibold text-[#08509F] no-underline"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
 
             >
 
@@ -174,11 +172,11 @@ function StaffStudentDetailPage() {
 
               to="/staff/classes"
 
-              className="mt-4 inline-block text-sm font-semibold text-[#08509F] no-underline"
+              className="mt-4 inline-block text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
 
             >
 
-              Quản lý lớp học →
+              Quản lý lớp học
 
             </Link>
 
@@ -202,7 +200,7 @@ function StaffStudentDetailPage() {
 
                   to={`/staff/parents/${parent.parentId}`}
 
-                  className="block rounded-xl bg-[#FFF7F2] p-3 no-underline transition hover:bg-[#FFE7D6]"
+                  className="block rounded-xl border border-slate-200 bg-white p-3 text-[#0F2747] no-underline transition hover:bg-slate-50 hover:text-[#0F2747]"
 
                 >
 

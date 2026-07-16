@@ -6,6 +6,8 @@ async function getLookups() {
       SELECT
         sc.class_id AS classId,
         sc.class_name AS className,
+        sc.grade_id AS gradeId,
+        sc.school_year_id AS schoolYearId,
         g.grade_name AS gradeName,
         sy.year_name AS schoolYearName
       FROM school_class sc

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { FiEye } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
@@ -12,15 +13,25 @@ import {
 
 function StaffTeachersPage() {
   const [teachers, setTeachers] = useState([]);
+  const [lookups, setLookups] = useState(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ gradeId: "", classId: "" });
+
+  useEffect(() => {
+    staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(true);
       staffApi
-        .getTeachers(search)
+        .getTeachers({
+          search,
+          gradeId: filters.gradeId,
+          classId: filters.classId,
+        })
         .then((response) => {
           setTeachers(response.data);
           setError("");
@@ -30,7 +41,7 @@ function StaffTeachersPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, filters.gradeId, filters.classId]);
 
   const rows = useMemo(
     () =>
@@ -41,11 +52,57 @@ function StaffTeachersPage() {
     [teachers],
   );
 
+  const filteredClasses = useMemo(
+    () =>
+      (lookups?.classes || []).filter(
+        (cls) =>
+          !filters.gradeId ||
+          String(cls.gradeId) === String(filters.gradeId),
+      ),
+    [filters.gradeId, lookups?.classes],
+  );
+
+  const filterToolbar = (
+    <>
+      <select
+        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
+        value={filters.gradeId}
+        onChange={(event) =>
+          setFilters((prev) => ({
+            ...prev,
+            gradeId: event.target.value,
+            classId: "",
+          }))
+        }
+      >
+        <option value="">Tất cả khối</option>
+        {lookups?.grades?.map((grade) => (
+          <option key={grade.gradeId} value={grade.gradeId}>
+            {grade.gradeName}
+          </option>
+        ))}
+      </select>
+      <select
+        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
+        value={filters.classId}
+        onChange={(event) =>
+          setFilters((prev) => ({ ...prev, classId: event.target.value }))
+        }
+      >
+        <option value="">Tất cả lớp</option>
+        {filteredClasses.map((cls) => (
+          <option key={cls.classId} value={cls.classId}>
+            {cls.className}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+
   return (
     <>
       <StaffPageHeader
         title="Quản lý giáo viên"
-        description="Theo dõi hồ sơ giáo viên, chuyên môn và lớp phụ trách"
         action={
           <Link
             to="/staff/teachers/new"
@@ -63,13 +120,12 @@ function StaffTeachersPage() {
       )}
 
       <StaffDataTable
-        title="Danh sách giáo viên"
-        description={`${rows.length} giáo viên`}
+        toolbar={filterToolbar}
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Tìm theo tên, mã GV, email, chuyên môn..."
         isLoading={loading}
-        getRowLink={(row) => `/staff/teachers/${row.teacherId}`}
+        tableAlignClassName="text-center"
         columns={[
           { key: "teacherCode", label: "Mã GV" },
           {
@@ -103,6 +159,19 @@ function StaffTeachersPage() {
                 value={formatAccountStatus(row.status)}
                 tone={row.status === "ACTIVE" ? "success" : "neutral"}
               />
+            ),
+          },
+          {
+            key: "detail",
+            label: "Chi tiết",
+            render: (row) => (
+              <Link
+                to={`/staff/teachers/${row.teacherId}`}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50"
+                title="Xem chi tiết"
+              >
+                <FiEye size={18} />
+              </Link>
             ),
           },
         ]}

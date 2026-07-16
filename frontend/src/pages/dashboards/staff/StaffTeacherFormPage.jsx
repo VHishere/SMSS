@@ -87,11 +87,10 @@ function StaffTeacherFormPage() {
     <>
       <StaffPageHeader
         title={isEdit ? "Chỉnh sửa giáo viên" : "Thêm giáo viên mới"}
-        description="Nhập thông tin giáo viên và loại tài khoản đăng nhập"
         action={
           <Link
             to={isEdit ? `/staff/teachers/${id}` : "/staff/teachers"}
-            className="rounded-xl border border-[#08509F] px-4 py-2 text-sm font-semibold text-[#08509F] no-underline"
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
           >
             Hủy
           </Link>

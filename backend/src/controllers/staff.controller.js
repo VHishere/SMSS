@@ -1,4 +1,4 @@
-const staffModel = require("../models/staff");
+﻿const staffModel = require("../models/staff");
 
 function handleError(res, error, fallbackMessage) {
   console.error(fallbackMessage, error);
@@ -6,13 +6,14 @@ function handleError(res, error, fallbackMessage) {
   if (error.code === "ER_DUP_ENTRY") {
     return res.status(409).json({
       success: false,
-      message: "Dữ liệu đã tồn tại (email, mã hoặc username trùng)",
+      message: "Dá»¯ liá»‡u Ä‘Ã£ tá»“n táº¡i (email, mÃ£ hoáº·c username trÃ¹ng)",
     });
   }
 
   return res.status(error.statusCode || 500).json({
     success: false,
     message: error.message || fallbackMessage,
+    details: error.details,
   });
 }
 
@@ -21,7 +22,7 @@ async function getOverview(_req, res) {
     const data = await staffModel.getOverview();
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải tổng quan");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i tá»•ng quan");
   }
 }
 
@@ -30,16 +31,20 @@ async function getLookups(_req, res) {
     const data = await staffModel.getLookups();
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải dữ liệu tham chiếu");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i dá»¯ liá»‡u tham chiáº¿u");
   }
 }
 
 async function getStudents(req, res) {
   try {
-    const data = await staffModel.listStudents(req.query.search || "");
+    const data = await staffModel.listStudents({
+      search: req.query.search || "",
+      gradeId: req.query.gradeId,
+      classId: req.query.classId,
+    });
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải danh sách học sinh");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i danh sÃ¡ch há»c sinh");
   }
 }
 
@@ -50,13 +55,13 @@ async function getStudentById(req, res) {
     if (!data) {
       return res.status(404).json({
         success: false,
-        message: "Không tìm thấy học sinh",
+        message: "KhÃ´ng tÃ¬m tháº¥y há»c sinh",
       });
     }
 
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải chi tiết học sinh");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i chi tiáº¿t há»c sinh");
   }
 }
 
@@ -65,7 +70,7 @@ async function createStudent(req, res) {
     const data = await staffModel.createStudent(req.body, req.user.userId);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tạo học sinh");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº¡o há»c sinh");
   }
 }
 
@@ -74,16 +79,20 @@ async function updateStudent(req, res) {
     const data = await staffModel.updateStudent(req.params.id, req.body);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể cập nhật học sinh");
+    return handleError(res, error, "KhÃ´ng thá»ƒ cáº­p nháº­t há»c sinh");
   }
 }
 
 async function getParents(req, res) {
   try {
-    const data = await staffModel.listParents(req.query.search || "");
+    const data = await staffModel.listParents({
+      search: req.query.search || "",
+      gradeId: req.query.gradeId,
+      classId: req.query.classId,
+    });
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải danh sách phụ huynh");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i danh sÃ¡ch phá»¥ huynh");
   }
 }
 
@@ -94,13 +103,13 @@ async function getParentById(req, res) {
     if (!data) {
       return res.status(404).json({
         success: false,
-        message: "Không tìm thấy phụ huynh",
+        message: "KhÃ´ng tÃ¬m tháº¥y phá»¥ huynh",
       });
     }
 
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải chi tiết phụ huynh");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i chi tiáº¿t phá»¥ huynh");
   }
 }
 
@@ -109,7 +118,7 @@ async function createParent(req, res) {
     const data = await staffModel.createParent(req.body);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tạo phụ huynh");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº¡o phá»¥ huynh");
   }
 }
 
@@ -118,16 +127,20 @@ async function updateParent(req, res) {
     const data = await staffModel.updateParent(req.params.id, req.body);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể cập nhật phụ huynh");
+    return handleError(res, error, "KhÃ´ng thá»ƒ cáº­p nháº­t phá»¥ huynh");
   }
 }
 
 async function getTeachers(req, res) {
   try {
-    const data = await staffModel.listTeachers(req.query.search || "");
+    const data = await staffModel.listTeachers({
+      search: req.query.search || "",
+      gradeId: req.query.gradeId,
+      classId: req.query.classId,
+    });
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải danh sách giáo viên");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i danh sÃ¡ch giÃ¡o viÃªn");
   }
 }
 
@@ -138,13 +151,13 @@ async function getTeacherById(req, res) {
     if (!data) {
       return res.status(404).json({
         success: false,
-        message: "Không tìm thấy giáo viên",
+        message: "KhÃ´ng tÃ¬m tháº¥y giÃ¡o viÃªn",
       });
     }
 
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải chi tiết giáo viên");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i chi tiáº¿t giÃ¡o viÃªn");
   }
 }
 
@@ -153,7 +166,7 @@ async function createTeacher(req, res) {
     const data = await staffModel.createTeacher(req.body);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tạo giáo viên");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº¡o giÃ¡o viÃªn");
   }
 }
 
@@ -162,7 +175,7 @@ async function updateTeacher(req, res) {
     const data = await staffModel.updateTeacher(req.params.id, req.body);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể cập nhật giáo viên");
+    return handleError(res, error, "KhÃ´ng thá»ƒ cáº­p nháº­t giÃ¡o viÃªn");
   }
 }
 
@@ -171,7 +184,7 @@ async function getSchoolYears(_req, res) {
     const data = await staffModel.listSchoolYears();
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải danh sách năm học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i danh sÃ¡ch nÄƒm há»c");
   }
 }
 
@@ -180,7 +193,7 @@ async function createSchoolYear(req, res) {
     const data = await staffModel.createSchoolYear(req.body);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tạo năm học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº¡o nÄƒm há»c");
   }
 }
 
@@ -189,7 +202,7 @@ async function activateSchoolYear(req, res) {
     const data = await staffModel.activateSchoolYear(req.params.id);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể kích hoạt năm học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ kÃ­ch hoáº¡t nÄƒm há»c");
   }
 }
 
@@ -198,7 +211,7 @@ async function updateSchoolYear(req, res) {
     const data = await staffModel.updateSchoolYear(req.params.id, req.body);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể cập nhật năm học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ cáº­p nháº­t nÄƒm há»c");
   }
 }
 
@@ -210,7 +223,7 @@ async function getClasses(req, res) {
     });
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải danh sách lớp học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i danh sÃ¡ch lá»›p há»c");
   }
 }
 
@@ -221,13 +234,13 @@ async function getClassById(req, res) {
     if (!data) {
       return res.status(404).json({
         success: false,
-        message: "Không tìm thấy lớp học",
+        message: "KhÃ´ng tÃ¬m tháº¥y lá»›p há»c",
       });
     }
 
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải chi tiết lớp học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i chi tiáº¿t lá»›p há»c");
   }
 }
 
@@ -236,7 +249,7 @@ async function createClass(req, res) {
     const data = await staffModel.createClass(req.body);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tạo lớp học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº¡o lá»›p há»c");
   }
 }
 
@@ -245,7 +258,7 @@ async function updateClass(req, res) {
     const data = await staffModel.updateClass(req.params.id, req.body);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể cập nhật lớp học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ cáº­p nháº­t lá»›p há»c");
   }
 }
 
@@ -257,7 +270,7 @@ async function enrollStudent(req, res) {
     );
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể thêm học sinh vào lớp");
+    return handleError(res, error, "KhÃ´ng thá»ƒ thÃªm há»c sinh vÃ o lá»›p");
   }
 }
 
@@ -269,7 +282,7 @@ async function removeStudentFromClass(req, res) {
     );
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể xóa học sinh khỏi lớp");
+    return handleError(res, error, "KhÃ´ng thá»ƒ xÃ³a há»c sinh khá»i lá»›p");
   }
 }
 
@@ -278,7 +291,7 @@ async function assignTeacher(req, res) {
     const data = await staffModel.assignTeacher(req.params.id, req.body);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể phân công giáo viên");
+    return handleError(res, error, "KhÃ´ng thá»ƒ phÃ¢n cÃ´ng giÃ¡o viÃªn");
   }
 }
 
@@ -287,7 +300,7 @@ async function removeTeacher(req, res) {
     const data = await staffModel.removeTeacher(req.params.teacherClassId);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể gỡ giáo viên khỏi lớp");
+    return handleError(res, error, "KhÃ´ng thá»ƒ gá»¡ giÃ¡o viÃªn khá»i lá»›p");
   }
 }
 
@@ -296,7 +309,7 @@ async function getClassTimetable(req, res) {
     const data = await staffModel.listClassTimetable(req.params.id);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i thá»i khÃ³a biá»ƒu");
+    return handleError(res, error, "KhÃƒÂ´ng thÃ¡Â»Æ’ tÃ¡ÂºÂ£i thÃ¡Â»Âi khÃƒÂ³a biÃ¡Â»Æ’u");
   }
 }
 
@@ -306,7 +319,16 @@ async function createClassTimetableLesson(req, res) {
     const data = await staffModel.listClassTimetable(req.params.id);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "KhÃ´ng thá»ƒ thÃªm tiáº¿t há»c");
+    return handleError(res, error, "KhÃƒÂ´ng thÃ¡Â»Æ’ thÃƒÂªm tiÃ¡ÂºÂ¿t hÃ¡Â»Âc");
+  }
+}
+
+async function createTimetableLessons(req, res) {
+  try {
+    const data = await staffModel.createTimetableLessons(req.body);
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "KhÃ´ng thá»ƒ thÃªm lá»‹ch há»c");
   }
 }
 
@@ -320,7 +342,7 @@ async function updateClassTimetableLesson(req, res) {
     const data = await staffModel.listClassTimetable(req.params.id);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "KhÃ´ng thá»ƒ cáº­p nháº­t tiáº¿t há»c");
+    return handleError(res, error, "KhÃƒÂ´ng thÃ¡Â»Æ’ cÃ¡ÂºÂ­p nhÃ¡ÂºÂ­t tiÃ¡ÂºÂ¿t hÃ¡Â»Âc");
   }
 }
 
@@ -333,77 +355,9 @@ async function deleteClassTimetableLesson(req, res) {
     const data = await staffModel.listClassTimetable(req.params.id);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "KhÃ´ng thá»ƒ xÃ³a tiáº¿t há»c");
+    return handleError(res, error, "KhÃƒÂ´ng thÃ¡Â»Æ’ xÃƒÂ³a tiÃ¡ÂºÂ¿t hÃ¡Â»Âc");
   }
 }
-
-async function getStaffActivities(req, res) {
-  try {
-    const data = await staffModel.listStaffActivities({
-      schoolYearId: req.query.schoolYearId,
-      gradeId: req.query.gradeId,
-      classId: req.query.classId,
-    });
-    return res.json({ success: true, data });
-  } catch (error) {
-    return handleError(res, error, "Không thể tải hoạt động ngoại khóa");
-  }
-}
-
-async function createStaffActivity(req, res) {
-  try {
-    const data = await staffModel.createStaffActivity(
-      req.body,
-      req.user.userId,
-    );
-    return res.status(201).json({ success: true, data });
-  } catch (error) {
-    return handleError(res, error, "Không thể thêm hoạt động ngoại khóa");
-  }
-}
-
-async function deleteStaffActivity(req, res) {
-  try {
-    await staffModel.deleteStaffActivity(req.params.eventId);
-    return res.json({ success: true, message: "Đã xóa hoạt động ngoại khóa" });
-  } catch (error) {
-    return handleError(res, error, "Không thể xóa hoạt động ngoại khóa");
-  }
-}
-
-async function getPromotionCandidates(req, res) {
-  try {
-    const data = await staffModel.getPromotionCandidates(
-      req.query.fromSchoolYearId,
-      req.query.fromGradeId,
-    );
-    return res.json({ success: true, data });
-  } catch (error) {
-    return handleError(res, error, "Không thể tải danh sách học sinh lên khối");
-  }
-}
-
-async function getTargetClasses(req, res) {
-  try {
-    const data = await staffModel.getTargetClasses(
-      req.query.toSchoolYearId,
-      req.query.toGradeId,
-    );
-    return res.json({ success: true, data });
-  } catch (error) {
-    return handleError(res, error, "Không thể tải lớp đích");
-  }
-}
-
-async function promoteStudents(req, res) {
-  try {
-    const data = await staffModel.promoteStudents(req.body);
-    return res.json({ success: true, data });
-  } catch (error) {
-    return handleError(res, error, "Không thể chuyển học sinh lên khối");
-  }
-}
-
 async function getCurriculum(req, res) {
   try {
     const data = await staffModel.listCurriculum({
@@ -413,7 +367,7 @@ async function getCurriculum(req, res) {
     });
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải chương trình học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i chÆ°Æ¡ng trÃ¬nh há»c");
   }
 }
 
@@ -424,13 +378,13 @@ async function getCurriculumById(req, res) {
     if (!data) {
       return res.status(404).json({
         success: false,
-        message: "Không tìm thấy chương trình học",
+        message: "KhÃ´ng tÃ¬m tháº¥y chÆ°Æ¡ng trÃ¬nh há»c",
       });
     }
 
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải chi tiết chương trình học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i chi tiáº¿t chÆ°Æ¡ng trÃ¬nh há»c");
   }
 }
 
@@ -439,7 +393,7 @@ async function createCurriculumItem(req, res) {
     const data = await staffModel.addCurriculumItem(req.body);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể thêm môn vào chương trình");
+    return handleError(res, error, "KhÃ´ng thá»ƒ thÃªm mÃ´n vÃ o chÆ°Æ¡ng trÃ¬nh");
   }
 }
 
@@ -448,16 +402,16 @@ async function updateCurriculumItem(req, res) {
     const data = await staffModel.updateCurriculumItem(req.params.id, req.body);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể cập nhật chương trình học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ cáº­p nháº­t chÆ°Æ¡ng trÃ¬nh há»c");
   }
 }
 
 async function deleteCurriculumItem(req, res) {
   try {
     await staffModel.deleteCurriculumItem(req.params.id);
-    return res.json({ success: true, message: "Đã xóa môn khỏi chương trình" });
+    return res.json({ success: true, message: "ÄÃ£ xÃ³a mÃ´n khá»i chÆ°Æ¡ng trÃ¬nh" });
   } catch (error) {
-    return handleError(res, error, "Không thể xóa chương trình học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ xÃ³a chÆ°Æ¡ng trÃ¬nh há»c");
   }
 }
 
@@ -466,58 +420,73 @@ async function updateStudySession(req, res) {
     const data = await staffModel.updateStudySession(req.params.sessionId, req.body);
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể cập nhật buổi học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ cáº­p nháº­t buá»•i há»c");
   }
 }
 
-async function getYearSchedule(req, res) {
+async function getFeePlans(req, res) {
   try {
-    const data = await staffModel.listYearSchedule({
+    const data = await staffModel.listFeePlans({
       schoolYearId: req.query.schoolYearId,
-      fromDate: req.query.fromDate,
-      toDate: req.query.toDate,
-      month: req.query.month,
-      entryType: req.query.entryType,
+      status: req.query.status,
+      search: req.query.search || "",
     });
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể tải lịch năm học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i danh sÃ¡ch há»c phÃ­");
   }
 }
 
-async function createYearScheduleEntry(req, res) {
+async function getFeePlanById(req, res) {
   try {
-    const data = await staffModel.createYearScheduleEntry(req.body);
+    await staffModel.refreshFeeAssignmentStatuses(req.params.id);
+    const data = await staffModel.getFeePlanById(req.params.id);
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        message: "KhÃ´ng tÃ¬m tháº¥y khoáº£n há»c phÃ­",
+      });
+    }
+
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº£i chi tiáº¿t há»c phÃ­");
+  }
+}
+
+async function createFeePlan(req, res) {
+  try {
+    const data = await staffModel.createFeePlan(req.body, req.user.userId);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể thêm lịch học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ táº¡o khoáº£n há»c phÃ­");
   }
 }
 
-async function updateYearScheduleEntry(req, res) {
+async function updateFeePlanStatus(req, res) {
   try {
-    const data = await staffModel.updateYearScheduleEntry(req.params.id, req.body);
+    const data = await staffModel.updateFeePlanStatus(
+      req.params.id,
+      req.body.status,
+    );
     return res.json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể cập nhật lịch học");
+    return handleError(res, error, "KhÃ´ng thá»ƒ cáº­p nháº­t tráº¡ng thÃ¡i há»c phÃ­");
   }
 }
 
-async function deleteYearScheduleEntry(req, res) {
+async function recordFeePayment(req, res) {
   try {
-    await staffModel.deleteYearScheduleEntry(req.params.id);
-    return res.json({ success: true, message: "Đã xóa lịch học" });
+    const data = await staffModel.recordFeePayment(
+      req.params.id,
+      req.params.assignmentId,
+      req.body,
+      req.user.userId,
+    );
+    return res.status(201).json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Không thể xóa lịch học");
-  }
-}
-
-async function generateYearSchedule(req, res) {
-  try {
-    const data = await staffModel.generateYearScheduleFromCurriculum(req.params.id);
-    return res.json({ success: true, data });
-  } catch (error) {
-    return handleError(res, error, "Không thể sinh lịch từ chương trình");
+    return handleError(res, error, "KhÃ´ng thá»ƒ ghi nháº­n thanh toÃ¡n");
   }
 }
 
@@ -550,23 +519,18 @@ module.exports = {
   removeTeacher,
   getClassTimetable,
   createClassTimetableLesson,
+  createTimetableLessons,
   updateClassTimetableLesson,
   deleteClassTimetableLesson,
-  getStaffActivities,
-  createStaffActivity,
-  deleteStaffActivity,
-  getPromotionCandidates,
-  getTargetClasses,
-  promoteStudents,
   getCurriculum,
   getCurriculumById,
   createCurriculumItem,
   updateCurriculumItem,
   deleteCurriculumItem,
   updateStudySession,
-  getYearSchedule,
-  createYearScheduleEntry,
-  updateYearScheduleEntry,
-  deleteYearScheduleEntry,
-  generateYearSchedule,
+  getFeePlans,
+  getFeePlanById,
+  createFeePlan,
+  updateFeePlanStatus,
+  recordFeePayment,
 };

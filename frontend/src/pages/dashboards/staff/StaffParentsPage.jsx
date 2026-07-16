@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { FiEye } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
@@ -9,15 +10,25 @@ import { formatRelationship } from "../../../utils/formatters";
 
 function StaffParentsPage() {
   const [parents, setParents] = useState([]);
+  const [lookups, setLookups] = useState(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ gradeId: "", classId: "" });
+
+  useEffect(() => {
+    staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(true);
       staffApi
-        .getParents(search)
+        .getParents({
+          search,
+          gradeId: filters.gradeId,
+          classId: filters.classId,
+        })
         .then((response) => {
           setParents(response.data);
           setError("");
@@ -27,7 +38,7 @@ function StaffParentsPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, filters.gradeId, filters.classId]);
 
   const rows = useMemo(
     () =>
@@ -38,11 +49,57 @@ function StaffParentsPage() {
     [parents],
   );
 
+  const filteredClasses = useMemo(
+    () =>
+      (lookups?.classes || []).filter(
+        (cls) =>
+          !filters.gradeId ||
+          String(cls.gradeId) === String(filters.gradeId),
+      ),
+    [filters.gradeId, lookups?.classes],
+  );
+
+  const filterToolbar = (
+    <>
+      <select
+        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
+        value={filters.gradeId}
+        onChange={(event) =>
+          setFilters((prev) => ({
+            ...prev,
+            gradeId: event.target.value,
+            classId: "",
+          }))
+        }
+      >
+        <option value="">Tất cả khối</option>
+        {lookups?.grades?.map((grade) => (
+          <option key={grade.gradeId} value={grade.gradeId}>
+            {grade.gradeName}
+          </option>
+        ))}
+      </select>
+      <select
+        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
+        value={filters.classId}
+        onChange={(event) =>
+          setFilters((prev) => ({ ...prev, classId: event.target.value }))
+        }
+      >
+        <option value="">Tất cả lớp</option>
+        {filteredClasses.map((cls) => (
+          <option key={cls.classId} value={cls.classId}>
+            {cls.className}
+          </option>
+        ))}
+      </select>
+    </>
+  );
+
   return (
     <>
       <StaffPageHeader
-        title="Quản lý thông tin phụ huynh"
-        description="Theo dõi phụ huynh, mối quan hệ và học sinh liên kết"
+        title="Quản lý phụ huynh"
         action={
           <Link
             to="/staff/parents/new"
@@ -60,13 +117,12 @@ function StaffParentsPage() {
       )}
 
       <StaffDataTable
-        title="Danh sách phụ huynh"
-        description={`${rows.length} phụ huynh`}
+        toolbar={filterToolbar}
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Tìm theo tên, email, SĐT, học sinh..."
         isLoading={loading}
-        getRowLink={(row) => `/staff/parents/${row.parentId}`}
+        tableAlignClassName="text-center"
         columns={[
           {
             key: "fullName",
@@ -105,6 +161,19 @@ function StaffParentsPage() {
                 value={row.isPrimary ? "Chính" : "Phụ"}
                 tone={row.isPrimary ? "warning" : "neutral"}
               />
+            ),
+          },
+          {
+            key: "detail",
+            label: "Chi tiết",
+            render: (row) => (
+              <Link
+                to={`/staff/parents/${row.parentId}`}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50"
+                title="Xem chi tiết"
+              >
+                <FiEye size={18} />
+              </Link>
             ),
           },
         ]}

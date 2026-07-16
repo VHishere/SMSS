@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { FiArrowLeft, FiPlus, FiTrash2 } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
-import StaffDetailCard from "../../../components/staff/StaffDetailCard";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  inputClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 
@@ -25,57 +28,61 @@ const PERIODS = Array.from({ length: 8 }, (_, index) => index + 1);
 
 function StaffClassDetailPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [classInfo, setClassInfo] = useState(null);
   const [timetable, setTimetable] = useState([]);
   const [lookups, setLookups] = useState(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
   const [studentForm, setStudentForm] = useState({ studentId: "" });
   const [teacherForm, setTeacherForm] = useState({
     teacherId: "",
     roleInClass: "HOMEROOM_TEACHER",
     subjectId: "",
   });
-  const [lessonForm, setLessonForm] = useState({
-    timetableId: null,
-    dayOfWeek: "2",
-    periodNo: "1",
-    subjectId: "",
-    teacherId: "",
-    roomName: "",
-  });
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const loadClass = () => {
-    setLoading(true);
-    staffApi
-      .getClass(id)
-      .then((res) => {
-        setClassInfo(res.data);
+  useEffect(() => {
+    staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
+    Promise.all([
+      staffApi.getClass(id),
+      staffApi.getClassTimetable(id),
+    ])
+      .then(([classRes, timetableRes]) => {
+        setClassInfo(classRes.data);
+        setTimetable(timetableRes.data || []);
         setError("");
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  };
-
-  const loadTimetable = () => {
-    staffApi
-      .getClassTimetable(id)
-      .then((res) => setTimetable(res.data))
-      .catch((err) => setError(err.message));
-  };
-
-  useEffect(() => {
-    staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
-    loadClass();
-    loadTimetable();
   }, [id]);
 
   const availableStudents = useMemo(() => {
     if (!lookups?.students || !classInfo?.students) return [];
-    const enrolledIds = new Set(classInfo.students.map((s) => s.studentId));
-    return lookups.students.filter((s) => !enrolledIds.has(s.studentId));
-  }, [lookups, classInfo]);
+    const enrolledIds = new Set(classInfo.students.map((student) => student.studentId));
+    return lookups.students.filter((student) => !enrolledIds.has(student.studentId));
+  }, [classInfo, lookups]);
+
+  const timetableBySlot = useMemo(() => {
+    const slots = new Map();
+    timetable.forEach((lesson) => {
+      slots.set(`${lesson.dayOfWeek}-${lesson.periodNo}`, lesson);
+    });
+    return slots;
+  }, [timetable]);
+
+  const addLessonUrl = useMemo(() => {
+    if (!classInfo) return "/staff/timetable/new";
+    const query = new URLSearchParams({
+      schoolYearId: String(classInfo.schoolYearId || ""),
+      gradeId: String(classInfo.gradeId || ""),
+      classId: String(classInfo.classId || id),
+    });
+    [...query.entries()].forEach(([key, value]) => {
+      if (!value) query.delete(key);
+    });
+    return `/staff/timetable/new?${query.toString()}`;
+  }, [classInfo, id]);
 
   const handleEnrollStudent = (event) => {
     event.preventDefault();
@@ -132,79 +139,23 @@ function StaffClassDetailPage() {
       .catch((err) => setError(err.message));
   };
 
-  const resetLessonForm = () => {
-    setLessonForm({
-      timetableId: null,
-      dayOfWeek: "2",
-      periodNo: "1",
-      subjectId: "",
-      teacherId: "",
-      roomName: "",
-    });
-  };
-
-  const handleSaveLesson = (event) => {
-    event.preventDefault();
-
-    const payload = {
-      dayOfWeek: Number(lessonForm.dayOfWeek),
-      periodNo: Number(lessonForm.periodNo),
-      subjectId: Number(lessonForm.subjectId),
-      teacherId: Number(lessonForm.teacherId),
-      roomName: lessonForm.roomName || null,
-    };
-
-    setSaving(true);
-
-    const request = lessonForm.timetableId
-      ? staffApi.updateClassTimetableLesson(id, lessonForm.timetableId, payload)
-      : staffApi.createClassTimetableLesson(id, payload);
-
-    request
-      .then((res) => {
-        setTimetable(res.data);
-        resetLessonForm();
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setSaving(false));
-  };
-
-  const handleEditLesson = (lesson) => {
-    setLessonForm({
-      timetableId: lesson.timetableId,
-      dayOfWeek: String(lesson.dayOfWeek),
-      periodNo: String(lesson.periodNo),
-      subjectId: String(lesson.subjectId),
-      teacherId: String(lesson.teacherId),
-      roomName: lesson.roomName || "",
-    });
-  };
-
   const handleDeleteLesson = (timetableId) => {
     if (!window.confirm("Xóa tiết học này khỏi thời khóa biểu?")) return;
 
     staffApi
       .deleteClassTimetableLesson(id, timetableId)
-      .then((res) => setTimetable(res.data))
+      .then((res) => setTimetable(res.data || []))
       .catch((err) => setError(err.message));
   };
-
-  const timetableBySlot = useMemo(() => {
-    const slots = new Map();
-    timetable.forEach((lesson) => {
-      slots.set(`${lesson.dayOfWeek}-${lesson.periodNo}`, lesson);
-    });
-    return slots;
-  }, [timetable]);
 
   if (loading) {
     return <div className="py-10 text-center text-slate-500">Đang tải...</div>;
   }
 
-  if (error && !classInfo) {
+  if (!classInfo) {
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-        {error}
+        {error || "Không tìm thấy lớp học"}
       </div>
     );
   }
@@ -213,14 +164,15 @@ function StaffClassDetailPage() {
     <>
       <StaffPageHeader
         title={classInfo.className}
-        description={`${classInfo.gradeName} · ${classInfo.schoolYearName}`}
         action={
-          <Link
-            to="/staff/classes"
-            className="rounded-xl border border-[#08509F] px-4 py-2 text-sm font-semibold text-[#08509F] no-underline"
+          <button
+            type="button"
+            onClick={() => navigate("/staff/classes")}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#08509F] transition hover:border-[#08509F] hover:bg-blue-50"
           >
+            <FiArrowLeft size={18} />
             Quay lại
-          </Link>
+          </button>
         }
       />
 
@@ -230,45 +182,59 @@ function StaffClassDetailPage() {
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StaffDetailCard title="Thông tin lớp">
-          <p className="mb-1 text-sm text-slate-500">Phòng học</p>
-          <p className="mb-0 font-semibold text-[#0F2747]">
-            {classInfo.roomName || "—"}
-          </p>
-        </StaffDetailCard>
-        <StaffDetailCard title="Học sinh">
-          <p className="mb-0 text-3xl font-bold text-[#F27123]">
-            {classInfo.students?.length || 0}
-          </p>
-        </StaffDetailCard>
-        <StaffDetailCard title="Giáo viên">
-          <p className="mb-0 text-3xl font-bold text-[#08509F]">
-            {classInfo.teachers?.length || 0}
-          </p>
-        </StaffDetailCard>
-      </div>
+      <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="mb-0 text-lg font-bold text-[#0F2747]">Thông tin lớp</h2>
+          <Link
+            to={addLessonUrl}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline transition hover:bg-[#E55C0A]"
+          >
+            <FiPlus />
+            Thêm lịch học
+          </Link>
+        </div>
+        <div className="grid gap-4 text-center sm:grid-cols-2 lg:grid-cols-5">
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Lớp</p>
+            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.className}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Khối</p>
+            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.gradeName}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Năm học</p>
+            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.schoolYearName}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Phòng</p>
+            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.roomName || "—"}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 px-4 py-3">
+            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Sĩ số</p>
+            <p className="mb-0 font-bold text-[#F27123]">{classInfo.students?.length || 0}</p>
+          </div>
+        </div>
+      </section>
 
-      <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+      <div className="mb-6 grid grid-cols-1 gap-5 xl:grid-cols-2">
         <StaffFormCard
-          title="Thêm học sinh vào lớp"
+          title="Thêm học sinh"
           onSubmit={handleEnrollStudent}
-          submitLabel="Thêm học sinh"
+          submitLabel="Thêm vào lớp"
           loading={saving}
         >
           <StaffField label="Học sinh" className="md:col-span-2">
             <select
               className={inputClass}
               value={studentForm.studentId}
-              onChange={(e) =>
-                setStudentForm({ studentId: e.target.value })
-              }
+              onChange={(event) => setStudentForm({ studentId: event.target.value })}
               required
             >
               <option value="">Chọn học sinh</option>
               {availableStudents.map((student) => (
                 <option key={student.studentId} value={student.studentId}>
-                  {student.studentCode} — {student.fullName}
+                  {student.studentCode} - {student.fullName}
                 </option>
               ))}
             </select>
@@ -285,10 +251,10 @@ function StaffClassDetailPage() {
             <select
               className={inputClass}
               value={teacherForm.teacherId}
-              onChange={(e) =>
+              onChange={(event) =>
                 setTeacherForm((prev) => ({
                   ...prev,
-                  teacherId: e.target.value,
+                  teacherId: event.target.value,
                 }))
               }
               required
@@ -296,7 +262,7 @@ function StaffClassDetailPage() {
               <option value="">Chọn giáo viên</option>
               {lookups?.teachers?.map((teacher) => (
                 <option key={teacher.teacherId} value={teacher.teacherId}>
-                  {teacher.teacherCode} — {teacher.fullName}
+                  {teacher.teacherCode} - {teacher.fullName}
                 </option>
               ))}
             </select>
@@ -305,10 +271,11 @@ function StaffClassDetailPage() {
             <select
               className={inputClass}
               value={teacherForm.roleInClass}
-              onChange={(e) =>
+              onChange={(event) =>
                 setTeacherForm((prev) => ({
                   ...prev,
-                  roleInClass: e.target.value,
+                  roleInClass: event.target.value,
+                  subjectId: "",
                 }))
               }
             >
@@ -321,12 +288,13 @@ function StaffClassDetailPage() {
               <select
                 className={inputClass}
                 value={teacherForm.subjectId}
-                onChange={(e) =>
+                onChange={(event) =>
                   setTeacherForm((prev) => ({
                     ...prev,
-                    subjectId: e.target.value,
+                    subjectId: event.target.value,
                   }))
                 }
+                required
               >
                 <option value="">Chọn môn</option>
                 {lookups?.subjects?.map((subject) => (
@@ -340,233 +308,129 @@ function StaffClassDetailPage() {
         </StaffFormCard>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[360px_1fr]">
-        <StaffFormCard
-          title={lessonForm.timetableId ? "Cập nhật tiết học" : "Thêm tiết học"}
-          onSubmit={handleSaveLesson}
-          submitLabel={lessonForm.timetableId ? "Cập nhật tiết" : "Thêm tiết"}
-          loading={saving}
-        >
-          <StaffField label="Thứ">
-            <select
-              className={inputClass}
-              value={lessonForm.dayOfWeek}
-              onChange={(e) =>
-                setLessonForm((prev) => ({ ...prev, dayOfWeek: e.target.value }))
-              }
-            >
-              {WEEK_DAYS.map((day) => (
-                <option key={day.value} value={day.value}>
-                  {day.label}
-                </option>
-              ))}
-            </select>
-          </StaffField>
-
-          <StaffField label="Tiết">
-            <select
-              className={inputClass}
-              value={lessonForm.periodNo}
-              onChange={(e) =>
-                setLessonForm((prev) => ({ ...prev, periodNo: e.target.value }))
-              }
-            >
+      <section className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h2 className="mb-0 text-base font-bold text-[#0F2747]">Thời khóa biểu</h2>
+        </div>
+        <div className="overflow-x-auto p-4">
+          <table className="min-w-full table-fixed text-center text-sm">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+              <tr>
+                <th className="w-24 px-3 py-3 text-center">Tiết</th>
+                {WEEK_DAYS.map((day) => (
+                  <th key={day.value} className="min-w-40 px-3 py-3 text-center">
+                    {day.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
               {PERIODS.map((period) => (
-                <option key={period} value={period}>
-                  Tiết {period}
-                </option>
+                <tr key={period} className="border-t border-slate-100 align-top">
+                  <td className="px-3 py-3 font-semibold text-[#0F2747]">Tiết {period}</td>
+                  {WEEK_DAYS.map((day) => {
+                    const lesson = timetableBySlot.get(`${day.value}-${period}`);
+
+                    return (
+                      <td key={day.value} className="px-3 py-3">
+                        {lesson ? (
+                          <div className="rounded-xl border border-slate-200 bg-white p-3">
+                            <p className="mb-1 font-semibold text-[#0F2747]">{lesson.subjectName}</p>
+                            <p className="mb-1 text-xs text-slate-500">{lesson.teacherName}</p>
+                            <p className="mb-3 text-xs text-slate-400">
+                              {lesson.roomName || classInfo.roomName || "Chưa có phòng"}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteLesson(lesson.timetableId)}
+                              className="inline-flex items-center justify-center rounded-lg border border-red-100 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+                            >
+                              <FiTrash2 size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-300">Trống</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
               ))}
-            </select>
-          </StaffField>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-          <StaffField label="Môn học">
-            <select
-              className={inputClass}
-              value={lessonForm.subjectId}
-              onChange={(e) =>
-                setLessonForm((prev) => ({ ...prev, subjectId: e.target.value }))
-              }
-              required
-            >
-              <option value="">Chọn môn</option>
-              {lookups?.subjects?.map((subject) => (
-                <option key={subject.subjectId} value={subject.subjectId}>
-                  {subject.subjectName}
-                </option>
-              ))}
-            </select>
-          </StaffField>
-
-          <StaffField label="Giáo viên">
-            <select
-              className={inputClass}
-              value={lessonForm.teacherId}
-              onChange={(e) =>
-                setLessonForm((prev) => ({ ...prev, teacherId: e.target.value }))
-              }
-              required
-            >
-              <option value="">Chọn giáo viên</option>
-              {classInfo.teachers?.map((teacher) => (
-                <option key={teacher.teacherClassId} value={teacher.teacherId}>
-                  {teacher.fullName}
-                  {teacher.subjectName ? ` - ${teacher.subjectName}` : ""}
-                </option>
-              ))}
-            </select>
-          </StaffField>
-
-          <StaffField label="Phòng học" className="md:col-span-2">
-            <input
-              className={inputClass}
-              value={lessonForm.roomName}
-              onChange={(e) =>
-                setLessonForm((prev) => ({ ...prev, roomName: e.target.value }))
-              }
-              placeholder={classInfo.roomName || "Theo phòng của lớp"}
-            />
-          </StaffField>
-
-          {lessonForm.timetableId && (
-            <div className="md:col-span-2">
-              <button
-                type="button"
-                onClick={resetLessonForm}
-                className="text-sm font-semibold text-[#08509F]"
-              >
-                Hủy chỉnh sửa
-              </button>
-            </div>
-          )}
-        </StaffFormCard>
-
-        <StaffDetailCard title={`Thời khóa biểu - ${classInfo.schoolYearName}`}>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h2 className="mb-0 text-base font-bold text-[#0F2747]">
+              Danh sách học sinh - {classInfo.students?.length || 0} học sinh
+            </h2>
+          </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full table-fixed text-sm">
-              <thead className="bg-[#FFF7F2] text-xs uppercase text-slate-500">
+            <table className="min-w-full text-center text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="w-20 px-3 py-2 text-left">Tiết</th>
-                  {WEEK_DAYS.map((day) => (
-                    <th key={day.value} className="min-w-40 px-3 py-2 text-left">
-                      {day.label}
-                    </th>
-                  ))}
+                  <th className="px-4 py-3 text-center">Mã HS</th>
+                  <th className="px-4 py-3 text-center">Họ tên</th>
+                  <th className="px-4 py-3 text-center">Ngày vào lớp</th>
+                  <th className="px-4 py-3 text-center">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {PERIODS.map((period) => (
-                  <tr key={period} className="border-t border-slate-100 align-top">
-                    <td className="px-3 py-3 font-semibold text-[#0F2747]">
-                      Tiết {period}
-                    </td>
-                    {WEEK_DAYS.map((day) => {
-                      const lesson = timetableBySlot.get(`${day.value}-${period}`);
-
-                      return (
-                        <td key={day.value} className="px-3 py-3">
-                          {lesson ? (
-                            <div className="rounded-xl border border-orange-100 bg-white p-3">
-                              <p className="mb-1 font-semibold text-[#0F2747]">
-                                {lesson.subjectName}
-                              </p>
-                              <p className="mb-1 text-xs text-slate-500">
-                                {lesson.teacherName}
-                              </p>
-                              <p className="mb-2 text-xs text-slate-400">
-                                {lesson.roomName || "Chưa có phòng"}
-                              </p>
-                              <div className="flex gap-3">
-                                <button
-                                  type="button"
-                                  onClick={() => handleEditLesson(lesson)}
-                                  className="text-xs font-semibold text-[#08509F]"
-                                >
-                                  Sửa
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteLesson(lesson.timetableId)}
-                                  className="text-xs font-semibold text-red-500"
-                                >
-                                  Xóa
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-300">Trống</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </StaffDetailCard>
-      </div>
-
-      <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <StaffDetailCard title="Danh sách học sinh">
-          {classInfo.students?.length ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-[#FFF7F2] text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Mã HS</th>
-                    <th className="px-4 py-2 text-left">Họ tên</th>
-                    <th className="px-4 py-2 text-left">Ngày vào lớp</th>
-                    <th className="px-4 py-2 text-left" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {classInfo.students.map((student) => (
+                {classInfo.students?.length ? (
+                  classInfo.students.map((student) => (
                     <tr key={student.studentId} className="border-t border-slate-100">
                       <td className="px-4 py-3">{student.studentCode}</td>
-                      <td className="px-4 py-3">
-                        <Link
-                          to={`/staff/students/${student.studentId}`}
-                          className="font-semibold text-[#08509F] no-underline"
-                        >
-                          {student.fullName}
-                        </Link>
+                      <td className="px-4 py-3 font-semibold text-[#0F2747]">
+                        {student.fullName}
                       </td>
-                      <td className="px-4 py-3">{student.enrollmentDate}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3">{student.enrollmentDate || "—"}</td>
+                      <td className="px-4 py-3">
                         <button
                           type="button"
                           onClick={() => handleRemoveStudent(student.studentId)}
-                          className="text-xs font-semibold text-red-500"
+                          className="rounded-lg border border-red-100 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                         >
                           Gỡ khỏi lớp
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">Chưa có học sinh trong lớp</p>
-          )}
-        </StaffDetailCard>
-
-        <StaffDetailCard title="Giáo viên phụ trách">
-          {classInfo.teachers?.length ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-[#FFF7F2] text-xs uppercase text-slate-500">
+                  ))
+                ) : (
                   <tr>
-                    <th className="px-4 py-2 text-left">Giáo viên</th>
-                    <th className="px-4 py-2 text-left">Vai trò</th>
-                    <th className="px-4 py-2 text-left">Môn</th>
-                    <th className="px-4 py-2 text-left" />
+                    <td colSpan={4} className="px-4 py-8 text-slate-500">
+                      Chưa có học sinh trong lớp
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {classInfo.teachers.map((teacher) => (
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h2 className="mb-0 text-base font-bold text-[#0F2747]">
+              Giáo viên phụ trách - {classInfo.teachers?.length || 0} giáo viên
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-center text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 text-center">Giáo viên</th>
+                  <th className="px-4 py-3 text-center">Vai trò</th>
+                  <th className="px-4 py-3 text-center">Môn</th>
+                  <th className="px-4 py-3 text-center">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {classInfo.teachers?.length ? (
+                  classInfo.teachers.map((teacher) => (
                     <tr key={teacher.teacherClassId} className="border-t border-slate-100">
-                      <td className="px-4 py-3">{teacher.fullName}</td>
+                      <td className="px-4 py-3 font-semibold text-[#0F2747]">{teacher.fullName}</td>
                       <td className="px-4 py-3">
                         <StatusBadge
                           value={ROLE_LABELS[teacher.roleInClass] || teacher.roleInClass}
@@ -574,24 +438,28 @@ function StaffClassDetailPage() {
                         />
                       </td>
                       <td className="px-4 py-3">{teacher.subjectName || "—"}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3">
                         <button
                           type="button"
                           onClick={() => handleRemoveTeacher(teacher.teacherClassId)}
-                          className="text-xs font-semibold text-red-500"
+                          className="rounded-lg border border-red-100 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
                         >
                           Gỡ
                         </button>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">Chưa phân công giáo viên</p>
-          )}
-        </StaffDetailCard>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-slate-500">
+                      Chưa phân công giáo viên
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </>
   );

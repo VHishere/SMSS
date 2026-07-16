@@ -1,18 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   FiChevronLeft,
   FiChevronRight,
-  FiEdit3,
   FiPlus,
   FiRefreshCw,
   FiTrash2,
 } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
-import StaffFormCard, {
-  StaffField,
-  inputClass,
-} from "../../../components/staff/StaffFormCard";
+import { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 
 const WEEK_DAYS = [
@@ -35,20 +32,12 @@ const PERIODS = [
   { periodNo: 8, session: "AFTERNOON", startTime: "16:15", endTime: "17:00" },
 ];
 
-const emptyLessonForm = {
-  timetableId: null,
-  dayOfWeek: "2",
-  periodNo: "1",
-  subjectId: "",
-  teacherId: "",
-  roomName: "",
-};
-
 function toDateInputValue(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
 }
 
 function formatDate(date) {
@@ -61,8 +50,7 @@ function formatDate(date) {
 function getMonday(value = new Date()) {
   const date = new Date(value);
   const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + diff);
+  date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
   date.setHours(0, 0, 0, 0);
   return date;
 }
@@ -73,48 +61,46 @@ function addDays(date, amount) {
   return next;
 }
 
-function buildSlotKey(dayOfWeek, periodNo) {
+function slotKey(dayOfWeek, periodNo) {
   return `${dayOfWeek}-${periodNo}`;
 }
 
 function StaffTimetablePage() {
+  const [searchParams] = useSearchParams();
   const [lookups, setLookups] = useState({
     schoolYears: [],
     grades: [],
-    subjects: [],
   });
   const [classes, setClasses] = useState([]);
   const [classInfo, setClassInfo] = useState(null);
   const [timetable, setTimetable] = useState([]);
   const [filters, setFilters] = useState({
-    schoolYearId: "",
-    gradeId: "",
-    classId: "",
+    schoolYearId: searchParams.get("schoolYearId") || "",
+    gradeId: searchParams.get("gradeId") || "",
+    classId: searchParams.get("classId") || "",
   });
-  const [lessonForm, setLessonForm] = useState(emptyLessonForm);
   const [weekStart, setWeekStart] = useState(getMonday());
-  const [savingLesson, setSavingLesson] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     staffApi
       .getLookups()
       .then((res) => {
         setLookups(res.data);
-        const activeYear =
-          res.data.schoolYears?.find((year) => year.isActive) ||
-          res.data.schoolYears?.[0];
-
-        if (activeYear) {
-          setFilters((prev) => ({
-            ...prev,
-            schoolYearId: String(activeYear.schoolYearId),
-          }));
+        if (!filters.schoolYearId) {
+          const activeYear =
+            res.data.schoolYears?.find((year) => year.isActive) ||
+            res.data.schoolYears?.[0];
+          if (activeYear) {
+            setFilters((prev) => ({
+              ...prev,
+              schoolYearId: String(activeYear.schoolYearId),
+            }));
+          }
         }
       })
       .catch((err) => setError(err.message));
-  }, []);
+  }, [filters.schoolYearId]);
 
   useEffect(() => {
     if (!filters.schoolYearId) return;
@@ -128,22 +114,51 @@ function StaffTimetablePage() {
         const items = res.data || [];
         setClasses(items);
         setFilters((prev) => {
-          const stillExists = items.some(
+          const selected = items.some(
             (item) => String(item.classId) === prev.classId,
           );
           return {
             ...prev,
-            classId: stillExists ? prev.classId : String(items[0]?.classId || ""),
+            classId: selected ? prev.classId : String(items[0]?.classId || ""),
           };
         });
       })
       .catch((err) => setError(err.message));
   }, [filters.schoolYearId, filters.gradeId]);
 
-  const selectedClass = useMemo(
-    () => classes.find((item) => String(item.classId) === filters.classId),
-    [classes, filters.classId],
-  );
+  const loadClassTimetable = useCallback(() => {
+    if (!filters.classId) {
+      setClassInfo(null);
+      setTimetable([]);
+      return;
+    }
+
+    Promise.all([
+      staffApi.getClass(filters.classId),
+      staffApi.getClassTimetable(filters.classId),
+    ])
+      .then(([classRes, timetableRes]) => {
+        setClassInfo(classRes.data);
+        setTimetable(timetableRes.data || []);
+        setError("");
+      })
+      .catch((err) => setError(err.message));
+  }, [filters.classId]);
+
+  useEffect(() => {
+    if (!filters.classId) return;
+
+    Promise.all([
+      staffApi.getClass(filters.classId),
+      staffApi.getClassTimetable(filters.classId),
+    ])
+      .then(([classRes, timetableRes]) => {
+        setClassInfo(classRes.data);
+        setTimetable(timetableRes.data || []);
+        setError("");
+      })
+      .catch((err) => setError(err.message));
+  }, [filters.classId]);
 
   const selectedYear = useMemo(
     () =>
@@ -162,133 +177,37 @@ function StaffTimetablePage() {
     [weekStart],
   );
 
-  const slotMap = useMemo(() => {
+  const lessonsBySlot = useMemo(() => {
     const map = new Map();
     timetable.forEach((lesson) => {
-      map.set(buildSlotKey(lesson.dayOfWeek, lesson.periodNo), lesson);
+      map.set(slotKey(lesson.dayOfWeek, lesson.periodNo), lesson);
     });
     return map;
   }, [timetable]);
 
-  const assignedSubjects = useMemo(() => {
-    const subjectIds = new Set(
-      (classInfo?.teachers || [])
-        .map((teacher) => teacher.subjectId)
-        .filter(Boolean)
-        .map(String),
-    );
-    const fromAssignments = lookups.subjects.filter((subject) =>
-      subjectIds.has(String(subject.subjectId)),
-    );
-    return fromAssignments.length ? fromAssignments : lookups.subjects;
-  }, [classInfo?.teachers, lookups.subjects]);
-
-  const loadClassTimetable = useCallback(() => {
-    if (!filters.classId) return;
-
-    Promise.all([
-      staffApi.getClass(filters.classId),
-      staffApi.getClassTimetable(filters.classId),
-    ])
-      .then(([classRes, timetableRes]) => {
-        setClassInfo(classRes.data);
-        setTimetable(timetableRes.data || []);
-        setLessonForm((prev) => ({
-          ...prev,
-          roomName: prev.roomName || classRes.data?.roomName || "",
-        }));
-      })
-      .catch((err) => setError(err.message));
-  }, [filters.classId]);
-
-  useEffect(() => {
-    loadClassTimetable();
-  }, [loadClassTimetable]);
-
-  const resetLessonForm = () => {
-    setLessonForm({
-      ...emptyLessonForm,
-      roomName: classInfo?.roomName || selectedClass?.roomName || "",
-    });
-  };
-
   const updateFilter = (key, value) => {
-    if (key === "schoolYearId" || key === "gradeId" || key === "classId") {
-      setClassInfo(null);
-      setTimetable([]);
-      setLessonForm(emptyLessonForm);
-    }
-
     setFilters((prev) => ({
       ...prev,
       [key]: value,
       ...(key === "schoolYearId" ? { gradeId: "", classId: "" } : {}),
       ...(key === "gradeId" ? { classId: "" } : {}),
     }));
+    setClassInfo(null);
+    setTimetable([]);
     setError("");
-    setSuccess("");
   };
 
-  const selectEmptySlot = (dayOfWeek, periodNo) => {
-    setLessonForm({
-      ...emptyLessonForm,
-      dayOfWeek: String(dayOfWeek),
-      periodNo: String(periodNo),
-      roomName: classInfo?.roomName || selectedClass?.roomName || "",
+  const buildCreateLink = (extra = {}) => {
+    const query = new URLSearchParams({
+      schoolYearId: filters.schoolYearId,
+      gradeId: filters.gradeId,
+      classId: filters.classId,
+      ...extra,
     });
-    setSuccess("");
-    setError("");
-  };
-
-  const handleEditLesson = (lesson) => {
-    setLessonForm({
-      timetableId: lesson.timetableId,
-      dayOfWeek: String(lesson.dayOfWeek),
-      periodNo: String(lesson.periodNo),
-      subjectId: String(lesson.subjectId),
-      teacherId: String(lesson.teacherId),
-      roomName: lesson.roomName || "",
+    [...query.entries()].forEach(([key, value]) => {
+      if (!value) query.delete(key);
     });
-    setSuccess("");
-    setError("");
-  };
-
-  const handleSaveLesson = (event) => {
-    event.preventDefault();
-    if (!filters.classId) return;
-
-    setSavingLesson(true);
-    setError("");
-    setSuccess("");
-
-    const payload = {
-      dayOfWeek: Number(lessonForm.dayOfWeek),
-      periodNo: Number(lessonForm.periodNo),
-      subjectId: Number(lessonForm.subjectId),
-      teacherId: Number(lessonForm.teacherId),
-      roomName: lessonForm.roomName,
-    };
-
-    const request = lessonForm.timetableId
-      ? staffApi.updateClassTimetableLesson(
-          filters.classId,
-          lessonForm.timetableId,
-          payload,
-        )
-      : staffApi.createClassTimetableLesson(filters.classId, payload);
-
-    request
-      .then((res) => {
-        setTimetable(res.data || []);
-        setSuccess(
-          lessonForm.timetableId
-            ? "Đã cập nhật tiết học"
-            : "Đã thêm tiết học vào thời khóa biểu",
-        );
-        resetLessonForm();
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setSavingLesson(false));
+    return `/staff/timetable/new?${query.toString()}`;
   };
 
   const handleDeleteLesson = (lesson) => {
@@ -298,7 +217,6 @@ function StaffTimetablePage() {
       .deleteClassTimetableLesson(filters.classId, lesson.timetableId)
       .then((res) => {
         setTimetable(res.data || []);
-        resetLessonForm();
       })
       .catch((err) => setError(err.message));
   };
@@ -308,14 +226,23 @@ function StaffTimetablePage() {
       <StaffPageHeader
         title="Thêm lịch học"
         action={
-          <button
-            type="button"
-            onClick={loadClassTimetable}
-            className="inline-flex items-center gap-2 rounded-xl border border-[#08509F] bg-white px-4 py-2.5 text-sm font-semibold text-[#08509F] transition hover:bg-blue-50"
-          >
-            <FiRefreshCw />
-            Tải lại
-          </button>
+          <div className="grid w-full grid-cols-1 gap-2 sm:w-auto sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={loadClassTimetable}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#08509F] bg-white px-4 py-2.5 text-sm font-semibold text-[#08509F] transition hover:bg-blue-50"
+            >
+              <FiRefreshCw />
+              Tải lại
+            </button>
+            <Link
+              to={buildCreateLink()}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline transition hover:bg-[#E55C0A]"
+            >
+              <FiPlus />
+              Thêm lịch học
+            </Link>
+          </div>
         }
       />
 
@@ -324,14 +251,9 @@ function StaffTimetablePage() {
           {error}
         </div>
       )}
-      {success && (
-        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {success}
-        </div>
-      )}
 
       <section className="mb-5 rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(360px,auto)]">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[repeat(4,minmax(0,1fr))]">
           <StaffField label="Năm học">
             <select
               className={inputClass}
@@ -373,7 +295,7 @@ function StaffTimetablePage() {
               ))}
             </select>
           </StaffField>
-          <div className="grid grid-cols-[auto_1fr_auto] items-end gap-2">
+          <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-2">
             <button
               type="button"
               onClick={() => setWeekStart((prev) => addDays(prev, -7))}
@@ -405,7 +327,7 @@ function StaffTimetablePage() {
             {selectedYear?.yearName || "Chưa chọn năm học"}
           </span>
           <span className="rounded-full bg-blue-50 px-3 py-1 font-semibold text-[#08509F]">
-            {classInfo?.className || selectedClass?.className || "Chưa chọn lớp"}
+            {classInfo?.className || "Chưa chọn lớp"}
           </span>
           <span className="rounded-full bg-emerald-50 px-3 py-1 font-semibold text-emerald-700">
             {timetable.length} tiết học
@@ -413,216 +335,107 @@ function StaffTimetablePage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_410px]">
-        <section className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
-          <div className="border-b border-orange-100 px-5 py-4">
-            <h2 className="mb-1 text-lg font-bold text-[#0F2747]">
-              Thời khóa biểu tuần
-            </h2>
-            <p className="mb-0 text-sm text-slate-500">
-              Bấm vào ô trống để thêm tiết học, hoặc bấm nút sửa trong ô đã có lịch.
-            </p>
-          </div>
+      <section className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
+        <div className="border-b border-orange-100 px-5 py-4">
+          <h2 className="mb-1 text-lg font-bold text-[#0F2747]">
+            Thời khóa biểu tuần
+          </h2>
+        </div>
 
-          <div className="overflow-x-auto p-4">
-            <table className="w-full min-w-[1120px] border-separate border-spacing-0 overflow-hidden rounded-2xl border border-slate-200">
-              <thead>
-                <tr className="bg-[#0F2747] text-white">
-                  <th className="sticky left-0 z-30 w-24 border-r border-white/10 bg-[#0F2747] px-4 py-4 text-center text-sm font-bold">
-                    Tiết
-                  </th>
-                  <th className="sticky left-24 z-30 w-40 border-r border-white/10 bg-[#0F2747] px-4 py-4 text-left text-sm font-bold">
-                    Thời gian
-                  </th>
-                  {weekDays.map((day) => (
-                    <th
-                      key={day.value}
-                      className="min-w-40 border-r border-white/10 px-4 py-4 text-center text-sm font-bold last:border-r-0"
-                    >
-                      <span className="block">{day.label}</span>
-                      <span className="block text-xs font-semibold text-white/70">
-                        {formatDate(day.date)}
-                      </span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {PERIODS.map((period) => (
-                  <tr
-                    key={period.periodNo}
-                    className={period.session === "MORNING" ? "bg-[#FFF7F2]/45" : "bg-blue-50/30"}
+        <div className="overflow-x-auto p-4">
+          <table className="w-full min-w-[960px] border-separate border-spacing-0 overflow-hidden rounded-2xl border border-slate-200">
+            <thead>
+              <tr className="bg-[#0F2747] text-white">
+                <th className="sticky left-0 z-30 w-24 border-r border-white/10 bg-[#0F2747] px-4 py-4 text-center text-sm font-bold">
+                  Tiết
+                </th>
+                <th className="sticky left-24 z-30 w-40 border-r border-white/10 bg-[#0F2747] px-4 py-4 text-left text-sm font-bold">
+                  Thời gian
+                </th>
+                {weekDays.map((day) => (
+                  <th
+                    key={day.value}
+                    className="min-w-40 border-r border-white/10 px-4 py-4 text-center text-sm font-bold last:border-r-0"
                   >
-                    <th className="sticky left-0 z-20 border-r border-b border-slate-200 bg-white px-4 py-3 text-center align-middle">
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-orange-50 text-sm font-bold text-[#F27123]">
-                        {period.periodNo}
-                      </span>
-                    </th>
-                    <th className="sticky left-24 z-20 border-r border-b border-slate-200 bg-white px-4 py-3 text-left align-middle">
-                      <p className="mb-0 text-sm font-semibold text-[#0F2747]">
-                        {period.startTime} - {period.endTime}
-                      </p>
-                    </th>
-                    {weekDays.map((day) => {
-                      const lesson = slotMap.get(
-                        buildSlotKey(day.value, period.periodNo),
-                      );
+                    <span className="block">{day.label}</span>
+                    <span className="block text-xs font-semibold text-white/70">
+                      {formatDate(day.date)}
+                    </span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {PERIODS.map((period) => (
+                <tr
+                  key={period.periodNo}
+                  className={period.session === "MORNING" ? "bg-[#FFF7F2]/45" : "bg-blue-50/30"}
+                >
+                  <th className="sticky left-0 z-20 border-r border-b border-slate-200 bg-white px-4 py-3 text-center align-middle">
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-orange-50 text-sm font-bold text-[#F27123]">
+                      {period.periodNo}
+                    </span>
+                  </th>
+                  <th className="sticky left-24 z-20 border-r border-b border-slate-200 bg-white px-4 py-3 text-left align-middle">
+                    <p className="mb-0 text-sm font-semibold text-[#0F2747]">
+                      {period.startTime} - {period.endTime}
+                    </p>
+                  </th>
+                  {weekDays.map((day) => {
+                    const lesson = lessonsBySlot.get(slotKey(day.value, period.periodNo));
 
-                      return (
-                        <td
-                          key={`${day.value}-${period.periodNo}`}
-                          className="border-r border-b border-slate-200 bg-white/70 p-2 align-top last:border-r-0"
-                        >
-                          {lesson ? (
-                            <article className="min-h-28 rounded-xl border border-orange-100 bg-white p-3 shadow-sm">
-                              <div className="mb-2 flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <h3 className="mb-1 truncate text-sm font-bold text-[#0F2747]">
-                                    {lesson.subjectName}
-                                  </h3>
-                                  <p className="mb-1 text-xs text-slate-600">
-                                    {lesson.teacherName || "Chưa phân công giáo viên"}
-                                  </p>
-                                  <p className="mb-0 text-xs font-semibold text-[#08509F]">
-                                    {lesson.roomName || classInfo?.roomName || "Chưa có phòng"}
-                                  </p>
-                                </div>
-                                <div className="flex shrink-0 gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditLesson(lesson)}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-[#08509F] transition hover:bg-blue-50"
-                                    title="Sửa tiết học"
-                                  >
-                                    <FiEdit3 />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteLesson(lesson)}
-                                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 transition hover:bg-red-50"
-                                    title="Xóa tiết học"
-                                  >
-                                    <FiTrash2 />
-                                  </button>
-                                </div>
+                    return (
+                      <td
+                        key={`${day.value}-${period.periodNo}`}
+                        className="border-r border-b border-slate-200 bg-white/70 p-2 align-top last:border-r-0"
+                      >
+                        {lesson ? (
+                          <article className="min-h-28 rounded-xl border border-orange-100 bg-white p-3 shadow-sm">
+                            <div className="mb-2 flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <h3 className="mb-1 truncate text-sm font-bold text-[#0F2747]">
+                                  {lesson.subjectName}
+                                </h3>
+                                <p className="mb-1 text-xs text-slate-600">
+                                  {lesson.teacherName || "Chưa phân công giáo viên"}
+                                </p>
+                                <p className="mb-0 text-xs font-semibold text-[#08509F]">
+                                  {lesson.roomName || classInfo?.roomName || "Chưa có phòng"}
+                                </p>
                               </div>
-                            </article>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => selectEmptySlot(day.value, period.periodNo)}
-                              className="flex min-h-28 w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/75 text-sm font-semibold text-slate-400 transition hover:border-[#F27123] hover:bg-[#FFF7F2] hover:text-[#F27123]"
-                            >
-                              <span className="inline-flex items-center gap-2">
-                                <FiPlus />
-                                Thêm tiết
-                              </span>
-                            </button>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <aside>
-          <StaffFormCard
-            title={lessonForm.timetableId ? "Sửa tiết học" : "Thêm tiết học"}
-            onSubmit={handleSaveLesson}
-            submitLabel={lessonForm.timetableId ? "Cập nhật" : "Thêm tiết"}
-            loading={savingLesson}
-          >
-            <StaffField label="Thứ">
-              <select
-                className={inputClass}
-                value={lessonForm.dayOfWeek}
-                onChange={(event) =>
-                  setLessonForm((prev) => ({ ...prev, dayOfWeek: event.target.value }))
-                }
-              >
-                {WEEK_DAYS.map((day) => (
-                  <option key={day.value} value={day.value}>
-                    {day.label}
-                  </option>
-                ))}
-              </select>
-            </StaffField>
-            <StaffField label="Tiết">
-              <select
-                className={inputClass}
-                value={lessonForm.periodNo}
-                onChange={(event) =>
-                  setLessonForm((prev) => ({ ...prev, periodNo: event.target.value }))
-                }
-              >
-                {PERIODS.map((period) => (
-                  <option key={period.periodNo} value={period.periodNo}>
-                    Tiết {period.periodNo} ({period.startTime}-{period.endTime})
-                  </option>
-                ))}
-              </select>
-            </StaffField>
-            <StaffField label="Môn học">
-              <select
-                className={inputClass}
-                value={lessonForm.subjectId}
-                onChange={(event) =>
-                  setLessonForm((prev) => ({ ...prev, subjectId: event.target.value }))
-                }
-                required
-              >
-                <option value="">Chọn môn</option>
-                {assignedSubjects.map((subject) => (
-                  <option key={subject.subjectId} value={subject.subjectId}>
-                    {subject.subjectName}
-                  </option>
-                ))}
-              </select>
-            </StaffField>
-            <StaffField label="Giáo viên">
-              <select
-                className={inputClass}
-                value={lessonForm.teacherId}
-                onChange={(event) =>
-                  setLessonForm((prev) => ({ ...prev, teacherId: event.target.value }))
-                }
-                required
-              >
-                <option value="">Chọn giáo viên</option>
-                {(classInfo?.teachers || []).map((teacher) => (
-                  <option key={teacher.teacherId} value={teacher.teacherId}>
-                    {teacher.fullName}
-                    {teacher.subjectName ? ` - ${teacher.subjectName}` : ""}
-                  </option>
-                ))}
-              </select>
-            </StaffField>
-            <StaffField label="Phòng" className="md:col-span-2">
-              <input
-                className={inputClass}
-                value={lessonForm.roomName}
-                onChange={(event) =>
-                  setLessonForm((prev) => ({ ...prev, roomName: event.target.value }))
-                }
-                placeholder={classInfo?.roomName || "Phòng học"}
-              />
-            </StaffField>
-            {lessonForm.timetableId && (
-              <button
-                type="button"
-                onClick={resetLessonForm}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 md:col-span-2"
-              >
-                Hủy sửa
-              </button>
-            )}
-          </StaffFormCard>
-        </aside>
-      </div>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteLesson(lesson)}
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 transition hover:bg-red-50"
+                                title="Xóa tiết học"
+                              >
+                                <FiTrash2 />
+                              </button>
+                            </div>
+                          </article>
+                        ) : (
+                          <Link
+                            to={buildCreateLink({
+                              dayOfWeek: String(day.value),
+                              periodNo: String(period.periodNo),
+                            })}
+                            className="flex min-h-28 w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/75 text-sm font-semibold text-slate-400 no-underline transition hover:border-[#F27123] hover:bg-[#FFF7F2] hover:text-[#F27123]"
+                          >
+                            <span className="inline-flex items-center gap-2">
+                              <FiPlus />
+                              Thêm tiết
+                            </span>
+                          </Link>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   );
 }

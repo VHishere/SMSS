@@ -4,35 +4,44 @@ import { FiSearch } from "react-icons/fi";
 function StaffDataTable({
   title,
   description,
+  toolbar,
   searchValue,
   onSearchChange,
   searchPlaceholder = "Tìm kiếm...",
   showSearch = true,
   getRowLink,
+  rowLinkClassName = "block max-w-[260px] break-words px-4 py-4 text-inherit no-underline hover:text-inherit sm:px-5",
   columns,
   rows,
   emptyMessage = "Không có dữ liệu",
   isLoading = false,
+  tableAlignClassName = "text-left",
 }) {
   return (
-    <section className="rounded-2xl border border-orange-100 bg-white shadow-sm">
+    <section className="max-w-full overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
       <div className="border-b border-orange-50 px-5 py-4 sm:px-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h3 className="mb-1 text-base font-bold text-[#0F2747]">
-              {title}
-            </h3>
+        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          {(title || description) && (
+            <div className="min-w-0">
+              {title && (
+                <h3 className="mb-1 break-words text-base font-bold text-[#0F2747]">
+                  {title}
+                </h3>
+              )}
 
-            {description && (
-              <p className="mb-0 text-sm text-slate-500">
-                {description}
-              </p>
-            )}
-          </div>
+              {description && (
+                <p className="mb-0 text-sm text-slate-500">
+                  {description}
+                </p>
+              )}
+            </div>
+          )}
 
-          <div className="relative min-w-[220px] flex-1 sm:max-w-xs">
+          <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:w-auto lg:justify-end">
+            {toolbar}
+
             {showSearch && (
-              <>
+              <div className="relative w-full min-w-0 sm:max-w-xs">
                 <FiSearch
                   size={16}
                   className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400"
@@ -55,20 +64,20 @@ function StaffDataTable({
                     focus:ring-[#F27123]/20
                   "
                 />
-              </>
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+      <div className="max-w-full overflow-x-auto">
+        <table className={`min-w-full text-sm ${tableAlignClassName}`}>
           <thead className="bg-[#FFF7F2] text-xs font-semibold tracking-wide text-slate-500 uppercase">
             <tr>
               {columns.map((column) => (
                 <th
                   key={column.key}
-                  className="px-5 py-3 whitespace-nowrap sm:px-6"
+                  className="px-4 py-3 whitespace-nowrap sm:px-5"
                 >
                   {column.label}
                 </th>
@@ -103,7 +112,7 @@ function StaffDataTable({
                 const cells = columns.map((column) => (
                   <td
                     key={column.key}
-                    className="px-5 py-4 align-top whitespace-nowrap text-[#0F2747] sm:px-6"
+                    className="max-w-[260px] px-4 py-4 align-top break-words text-[#0F2747] sm:px-5"
                   >
                     {column.render
                       ? column.render(row)
@@ -114,14 +123,14 @@ function StaffDataTable({
                 if (rowLink) {
                   return (
                     <tr key={row.id || index} className={rowClass}>
-                      {columns.map((column, colIndex) => (
+                      {columns.map((column) => (
                         <td
                           key={column.key}
-                          className="p-0 align-top whitespace-nowrap sm:p-0"
+                          className="p-0 align-top sm:p-0"
                         >
-                          <Link
+                        <Link
                             to={rowLink}
-                            className="block px-5 py-4 text-[#0F2747] no-underline sm:px-6"
+                            className={`${rowLinkClassName} hover:no-underline`}
                           >
                             {column.render
                               ? column.render(row)

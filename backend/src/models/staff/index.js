@@ -5,9 +5,8 @@ const teachers = require("./teachers");
 const lookups = require("./lookups");
 const schoolYears = require("./schoolYears");
 const classes = require("./classes");
-const promotion = require("./promotion");
 const curriculum = require("./curriculum");
-const yearSchedule = require("./yearSchedule");
+const fees = require("./fees");
 
 module.exports = {
   ...overview,
@@ -17,7 +16,6 @@ module.exports = {
   ...lookups,
   ...schoolYears,
   ...classes,
-  ...promotion,
   ...curriculum,
-  ...yearSchedule,
+  ...fees,
 };

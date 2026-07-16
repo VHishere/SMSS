@@ -47,10 +47,12 @@ async function request(
     .catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(
+    const error = new Error(
       data.message ||
       `Yêu cầu thất bại (${response.status})`,
     );
+    error.details = data.details;
+    throw error;
   }
 
   return data;
@@ -1425,9 +1427,13 @@ export const staffApi = {
 
   getLookups: () => request("/staff/lookups"),
 
-  getStudents: (search = "") => {
-    const query = search ? `?search=${encodeURIComponent(search)}` : "";
-    return request(`/staff/students${query}`);
+  getStudents: (params = {}) => {
+    const normalized =
+      typeof params === "string" ? { search: params } : params;
+    const query = new URLSearchParams(
+      Object.entries(normalized).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/students${query ? `?${query}` : ""}`);
   },
 
   getStudent: (id) => request(`/staff/students/${id}`),
@@ -1444,9 +1450,13 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
-  getParents: (search = "") => {
-    const query = search ? `?search=${encodeURIComponent(search)}` : "";
-    return request(`/staff/parents${query}`);
+  getParents: (params = {}) => {
+    const normalized =
+      typeof params === "string" ? { search: params } : params;
+    const query = new URLSearchParams(
+      Object.entries(normalized).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/parents${query ? `?${query}` : ""}`);
   },
 
   getParent: (id) => request(`/staff/parents/${id}`),
@@ -1463,9 +1473,13 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
-  getTeachers: (search = "") => {
-    const query = search ? `?search=${encodeURIComponent(search)}` : "";
-    return request(`/staff/teachers${query}`);
+  getTeachers: (params = {}) => {
+    const normalized =
+      typeof params === "string" ? { search: params } : params;
+    const query = new URLSearchParams(
+      Object.entries(normalized).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/teachers${query ? `?${query}` : ""}`);
   },
 
   getTeacher: (id) => request(`/staff/teachers/${id}`),
@@ -1562,34 +1576,35 @@ export const staffApi = {
       method: "DELETE",
     }),
 
-  getActivities: (params = {}) => {
-    const query = new URLSearchParams(
-      Object.entries(params).filter(([, value]) => value),
-    ).toString();
-    return request(`/staff/activities${query ? `?${query}` : ""}`);
-  },
-
-  createActivity: (payload) =>
-    request("/staff/activities", {
+  createTimetableLessons: (payload) =>
+    request("/staff/timetable", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
 
-  deleteActivity: (eventId) =>
-    request(`/staff/activities/${eventId}`, { method: "DELETE" }),
+  getFeePlans: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/fees${query ? `?${query}` : ""}`);
+  },
 
-  getPromotionCandidates: (fromSchoolYearId, fromGradeId) =>
-    request(
-      `/staff/promotion/candidates?fromSchoolYearId=${fromSchoolYearId}&fromGradeId=${fromGradeId}`,
-    ),
+  getFeePlan: (id) => request(`/staff/fees/${id}`),
 
-  getTargetClasses: (toSchoolYearId, toGradeId) =>
-    request(
-      `/staff/promotion/target-classes?toSchoolYearId=${toSchoolYearId}&toGradeId=${toGradeId}`,
-    ),
+  createFeePlan: (payload) =>
+    request("/staff/fees", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 
-  promoteStudents: (payload) =>
-    request("/staff/promotion", {
+  updateFeePlanStatus: (id, status) =>
+    request(`/staff/fees/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
+
+  recordFeePayment: (feePlanId, assignmentId, payload) =>
+    request(`/staff/fees/${feePlanId}/assignments/${assignmentId}/payments`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -1624,30 +1639,4 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
-  getYearSchedule: (params = {}) => {
-    const query = new URLSearchParams(
-      Object.entries(params).filter(([, value]) => value),
-    ).toString();
-    return request(`/staff/year-schedule${query ? `?${query}` : ""}`);
-  },
-
-  createYearScheduleEntry: (payload) =>
-    request("/staff/year-schedule", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  updateYearScheduleEntry: (id, payload) =>
-    request(`/staff/year-schedule/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload),
-    }),
-
-  deleteYearScheduleEntry: (id) =>
-    request(`/staff/year-schedule/${id}`, { method: "DELETE" }),
-
-  generateYearSchedule: (schoolYearId) =>
-    request(`/staff/school-years/${schoolYearId}/year-schedule/generate`, {
-      method: "POST",
-    }),
 };

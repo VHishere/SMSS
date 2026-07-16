@@ -46,7 +46,6 @@ function StaffTeacherDetailPage() {
     <>
       <StaffPageHeader
         title={teacher.fullName}
-        description={`Mã GV: ${teacher.teacherCode}`}
         action={
           <div className="flex gap-2">
             <button
@@ -58,7 +57,7 @@ function StaffTeacherDetailPage() {
             </button>
             <Link
               to="/staff/teachers"
-              className="rounded-xl border border-[#08509F] px-4 py-2 text-sm font-semibold text-[#08509F] no-underline"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
             >
               Quay lại
             </Link>
@@ -90,9 +89,9 @@ function StaffTeacherDetailPage() {
           </p>
           <Link
             to="/staff/classes"
-            className="text-sm font-semibold text-[#08509F] no-underline"
+            className="text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
           >
-            Phân công vào lớp →
+            Phân công vào lớp
           </Link>
         </StaffDetailCard>
       </div>
@@ -116,7 +115,7 @@ function StaffTeacherDetailPage() {
                     <td className="px-4 py-3">
                       <Link
                         to={`/staff/classes/${item.classId}`}
-                        className="font-semibold text-[#08509F] no-underline"
+                        className="font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
                       >
                         {item.className}
                       </Link>

@@ -37,7 +37,6 @@ function StaffParentDetailPage() {
     <>
       <StaffPageHeader
         title={parent.fullName}
-        description="Thông tin phụ huynh và học sinh liên kết"
         action={
           <div className="flex gap-2">
             <button
@@ -49,7 +48,7 @@ function StaffParentDetailPage() {
             </button>
             <Link
               to="/staff/parents"
-              className="rounded-xl border border-[#08509F] px-4 py-2 text-sm font-semibold text-[#08509F] no-underline"
+              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
             >
               Quay lại
             </Link>
@@ -82,7 +81,7 @@ function StaffParentDetailPage() {
                 <Link
                   key={student.studentId}
                   to={`/staff/students/${student.studentId}`}
-                  className="block rounded-xl bg-[#FFF7F2] p-3 no-underline transition hover:bg-[#FFE7D6]"
+                  className="block rounded-xl border border-slate-200 bg-white p-3 text-[#0F2747] no-underline transition hover:bg-slate-50 hover:text-[#0F2747]"
                 >
                   <p className="mb-1 font-semibold text-[#0F2747]">
                     {student.studentName}

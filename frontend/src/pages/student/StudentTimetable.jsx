@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import {
   FiBookOpen,
+  FiCalendar,
   FiGrid,
   FiUsers,
 } from "react-icons/fi";

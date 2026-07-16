@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
 import { Link } from "react-router-dom";
 
@@ -7,8 +7,6 @@ import {
   FiBookOpen,
 
   FiCalendar,
-
-  FiTrendingUp,
 
   FiUserCheck,
 
@@ -122,7 +120,7 @@ function StaffOverviewPage() {
 
         title="Staff Dashboard"
 
-        description="Quản lý năm học, lớp học, phân bổ học sinh và giáo viên"
+        description="Quáº£n lÃ½ nÄƒm há»c, lá»›p há»c, phÃ¢n bá»• há»c sinh vÃ  giÃ¡o viÃªn"
 
       />
 
@@ -144,11 +142,11 @@ function StaffOverviewPage() {
 
         <StaffStatCard
 
-          label="Năm học hiện tại"
+          label="NÄƒm há»c hiá»‡n táº¡i"
 
-          value={loading ? "..." : overview?.schoolYearName ?? "—"}
+          value={loading ? "..." : overview?.schoolYearName ?? "â€”"}
 
-          hint={`${overview?.totalSchoolYears ?? 0} năm học trong hệ thống`}
+          hint={`${overview?.totalSchoolYears ?? 0} nÄƒm há»c trong há»‡ thá»‘ng`}
 
           icon={FiCalendar}
 
@@ -158,11 +156,11 @@ function StaffOverviewPage() {
 
         <StaffStatCard
 
-          label="Lớp học"
+          label="Lá»›p há»c"
 
           value={loading ? "..." : overview?.totalClasses ?? 0}
 
-          hint="Lớp đang hoạt động"
+          hint="Lá»›p Ä‘ang hoáº¡t Ä‘á»™ng"
 
           icon={FiBookOpen}
 
@@ -172,11 +170,11 @@ function StaffOverviewPage() {
 
         <StaffStatCard
 
-          label="Tổng học sinh"
+          label="Tá»•ng há»c sinh"
 
           value={loading ? "..." : overview?.totalStudents ?? 0}
 
-          hint="Học sinh đang hoạt động"
+          hint="Há»c sinh Ä‘ang hoáº¡t Ä‘á»™ng"
 
           icon={FiUsers}
 
@@ -186,11 +184,11 @@ function StaffOverviewPage() {
 
         <StaffStatCard
 
-          label="Giáo viên"
+          label="GiÃ¡o viÃªn"
 
           value={loading ? "..." : overview?.totalTeachers ?? 0}
 
-          hint={`${overview?.totalParents ?? 0} phụ huynh liên kết`}
+          hint={`${overview?.totalParents ?? 0} phá»¥ huynh liÃªn káº¿t`}
 
           icon={FiUserCheck}
 
@@ -206,9 +204,9 @@ function StaffOverviewPage() {
 
         <StaffDataTable
 
-          title="Lớp học"
+          title="Lá»›p há»c"
 
-          description="Danh sách lớp theo năm học hiện tại"
+          description="Danh sÃ¡ch lá»›p theo nÄƒm há»c hiá»‡n táº¡i"
 
           showSearch={false}
 
@@ -222,9 +220,9 @@ function StaffOverviewPage() {
 
           columns={[
 
-            { key: "className", label: "Lớp" },
+            { key: "className", label: "Lá»›p" },
 
-            { key: "gradeName", label: "Khối" },
+            { key: "gradeName", label: "Khá»‘i" },
 
             { key: "studentCount", label: "HS" },
 
@@ -246,9 +244,9 @@ function StaffOverviewPage() {
 
         <StaffDataTable
 
-          title="Học sinh mới nhất"
+          title="Há»c sinh má»›i nháº¥t"
 
-          description="Hồ sơ học sinh trong hệ thống"
+          description="Há»“ sÆ¡ há»c sinh trong há»‡ thá»‘ng"
 
           showSearch={false}
 
@@ -260,17 +258,17 @@ function StaffOverviewPage() {
 
           columns={[
 
-            { key: "studentCode", label: "Mã HS" },
+            { key: "studentCode", label: "MÃ£ HS" },
 
-            { key: "fullName", label: "Họ tên" },
+            { key: "fullName", label: "Há» tÃªn" },
 
-            { key: "className", label: "Lớp" },
+            { key: "className", label: "Lá»›p" },
 
             {
 
               key: "status",
 
-              label: "Trạng thái",
+              label: "Tráº¡ng thÃ¡i",
 
               render: (row) => (
 
@@ -304,9 +302,9 @@ function StaffOverviewPage() {
 
       <StaffDataTable
 
-        title="Phụ huynh liên kết"
+        title="Phá»¥ huynh liÃªn káº¿t"
 
-        description="Thông tin phụ huynh và học sinh tương ứng"
+        description="ThÃ´ng tin phá»¥ huynh vÃ  há»c sinh tÆ°Æ¡ng á»©ng"
 
         showSearch={false}
 
@@ -318,11 +316,11 @@ function StaffOverviewPage() {
 
         columns={[
 
-          { key: "fullName", label: "Phụ huynh" },
+          { key: "fullName", label: "Phá»¥ huynh" },
 
-          { key: "studentName", label: "Học sinh" },
+          { key: "studentName", label: "Há»c sinh" },
 
-          { key: "phone", label: "Điện thoại" },
+          { key: "phone", label: "Äiá»‡n thoáº¡i" },
 
         ]}
 
@@ -348,7 +346,7 @@ function StaffOverviewPage() {
 
         >
 
-          Quản lý năm học
+          Quáº£n lÃ½ nÄƒm há»c
 
         </Link>
 
@@ -360,21 +358,7 @@ function StaffOverviewPage() {
 
         >
 
-          Quản lý lớp học
-
-        </Link>
-
-        <Link
-
-          to="/staff/promotion"
-
-          className="inline-flex items-center gap-2 rounded-xl border border-[#08509F] px-4 py-2.5 text-sm font-semibold text-[#08509F] transition hover:bg-blue-50"
-
-        >
-
-          <FiTrendingUp size={16} />
-
-          Lên khối
+          Quáº£n lÃ½ lá»›p há»c
 
         </Link>
 

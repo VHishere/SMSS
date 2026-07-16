@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { FiEye } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
-import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 
@@ -38,7 +38,17 @@ function StaffClassesPage() {
   };
 
   useEffect(() => {
-    loadClasses();
+    staffApi
+      .getClasses({
+        schoolYearId: filters.schoolYearId,
+        gradeId: filters.gradeId,
+      })
+      .then((res) => {
+        setClasses(res.data);
+        setError("");
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
   }, [filters.schoolYearId, filters.gradeId]);
 
   const rows = useMemo(
@@ -69,12 +79,11 @@ function StaffClassesPage() {
     <>
       <StaffPageHeader
         title="Quản lý lớp học"
-        description="Tạo lớp theo khối và năm học, phân bổ học sinh và giáo viên"
         action={
           <button
             type="button"
             onClick={() => setShowForm((prev) => !prev)}
-            className="rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white"
+            className="rounded-xl bg-[#F27123] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#E55C0A]"
           >
             + Tạo lớp học
           </button>
@@ -87,9 +96,9 @@ function StaffClassesPage() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-3">
         <select
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
           value={filters.schoolYearId}
           onChange={(e) =>
             setFilters((prev) => ({ ...prev, schoolYearId: e.target.value }))
@@ -103,7 +112,7 @@ function StaffClassesPage() {
           ))}
         </select>
         <select
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
           value={filters.gradeId}
           onChange={(e) =>
             setFilters((prev) => ({ ...prev, gradeId: e.target.value }))
@@ -185,32 +194,64 @@ function StaffClassesPage() {
         </div>
       )}
 
-      <StaffDataTable
-        title="Danh sách lớp học"
-        description={`${rows.length} lớp`}
-        showSearch={false}
-        searchValue=""
-        onSearchChange={() => {}}
-        isLoading={loading}
-        getRowLink={(row) => `/staff/classes/${row.classId}`}
-        columns={[
-          { key: "className", label: "Lớp" },
-          { key: "gradeName", label: "Khối" },
-          { key: "schoolYearName", label: "Năm học" },
-          { key: "roomName", label: "Phòng" },
-          { key: "studentCount", label: "Học sinh" },
-          { key: "teacherCount", label: "Giáo viên" },
-        ]}
-        rows={rows}
-        emptyMessage="Chưa có lớp học nào"
-      />
+      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="border-b border-slate-200 px-6 py-4">
+          <h3 className="mb-0 text-base font-bold text-[#0F2747]">
+            Danh sách lớp học - {rows.length} lớp
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-center text-sm">
+            <thead className="bg-slate-50 text-xs font-semibold tracking-wide text-slate-500 uppercase">
+              <tr>
+                <th className="px-6 py-3 whitespace-nowrap text-center">Lớp</th>
+                <th className="px-6 py-3 whitespace-nowrap text-center">Khối</th>
+                <th className="px-6 py-3 whitespace-nowrap text-center">Năm học</th>
+                <th className="px-6 py-3 whitespace-nowrap text-center">Phòng</th>
+                <th className="px-6 py-3 whitespace-nowrap text-center">Học sinh</th>
+                <th className="px-6 py-3 whitespace-nowrap text-center">Giáo viên</th>
+                <th className="px-6 py-3 whitespace-nowrap text-center">Chi tiết</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-10 text-center text-slate-500">
+                    Đang tải dữ liệu...
+                  </td>
+                </tr>
+              ) : rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-10 text-center text-slate-500">
+                    Chưa có lớp học nào
+                  </td>
+                </tr>
+              ) : (
+                rows.map((row, index) => (
+                  <tr key={row.classId || index} className="border-t border-slate-100 transition hover:bg-slate-50">
+                    <td className="px-6 py-4 align-middle font-semibold text-[#0F2747]">{row.className}</td>
+                    <td className="px-6 py-4 align-middle text-[#0F2747]">{row.gradeName}</td>
+                    <td className="px-6 py-4 align-middle text-[#0F2747]">{row.schoolYearName}</td>
+                    <td className="px-6 py-4 align-middle text-[#0F2747]">{row.roomName || "—"}</td>
+                    <td className="px-6 py-4 align-middle text-[#0F2747]">{row.studentCount || 0}</td>
+                    <td className="px-6 py-4 align-middle text-[#0F2747]">{row.teacherCount || 0}</td>
+                    <td className="px-6 py-4 align-middle">
+                      <Link
+                        to={`/staff/classes/${row.classId}`}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#08509F] transition hover:border-[#08509F] hover:bg-blue-50"
+                        title="Xem chi tiết"
+                      >
+                        <FiEye size={18} />
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-      <p className="mt-4 text-sm text-slate-500">
-        Nhấn vào một lớp để thêm học sinh và phân công giáo viên.{" "}
-        <Link to="/staff/promotion" className="font-semibold text-[#08509F]">
-          Chuyển học sinh lên khối
-        </Link>
-      </p>
     </>
   );
 }

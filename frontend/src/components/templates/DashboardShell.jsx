@@ -27,7 +27,7 @@ function DashboardShell({
         }
       />
 
-      <div className="min-h-screen lg:pl-80">
+      <div className="min-h-screen min-w-0 lg:pl-80">
         <DashboardHeader
           user={user}
           onOpenSidebar={() =>
@@ -35,7 +35,7 @@ function DashboardShell({
           }
         />
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">
+        <main className="min-w-0 max-w-full overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>
       </div>

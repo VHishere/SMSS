@@ -16,6 +16,8 @@ import AdminDashboardLayout from "./pages/dashboards/admin/AdminDashboardLayout"
 import AdminOverviewPage from "./pages/dashboards/admin/AdminOverviewPage";
 import AdminUsersPage from "./pages/dashboards/admin/AdminUsersPage";
 import AdminUserFormPage from "./pages/dashboards/admin/AdminUserFormPage";
+import ParentDashboard from "./pages/dashboards/ParentDashboard";
+import StudentDashboard from "./pages/dashboards/StudentDashboard";
 
 import StaffDashboardLayout from "./pages/dashboards/staff/StaffDashboardLayout";
 import StaffOverviewPage from "./pages/dashboards/staff/StaffOverviewPage";
@@ -25,14 +27,20 @@ import StaffReportsPage from "./pages/dashboards/staff/StaffReportsPage";
 import StaffSchoolYearsPage from "./pages/dashboards/staff/StaffSchoolYearsPage";
 import StaffClassesPage from "./pages/dashboards/staff/StaffClassesPage";
 import StaffClassDetailPage from "./pages/dashboards/staff/StaffClassDetailPage";
-import StaffPromotionPage from "./pages/dashboards/staff/StaffPromotionPage";
 import StaffStudentDetailPage from "./pages/dashboards/staff/StaffStudentDetailPage";
 import StaffStudentFormPage from "./pages/dashboards/staff/StaffStudentFormPage";
 import StaffParentDetailPage from "./pages/dashboards/staff/StaffParentDetailPage";
 import StaffParentFormPage from "./pages/dashboards/staff/StaffParentFormPage";
-
-import ParentDashboard from "./pages/dashboards/ParentDashboard";
-import StudentDashboard from "./pages/dashboards/StudentDashboard";
+import StaffTeachersPage from "./pages/dashboards/staff/StaffTeachersPage";
+import StaffTeacherDetailPage from "./pages/dashboards/staff/StaffTeacherDetailPage";
+import StaffTeacherFormPage from "./pages/dashboards/staff/StaffTeacherFormPage";
+import StaffCurriculumPage from "./pages/dashboards/staff/StaffCurriculumPage";
+import StaffCurriculumDetailPage from "./pages/dashboards/staff/StaffCurriculumDetailPage";
+import StaffTimetablePage from "./pages/dashboards/staff/StaffTimetablePage";
+import StaffTimetableCreatePage from "./pages/dashboards/staff/StaffTimetableCreatePage";
+import StaffFeesPage from "./pages/dashboards/staff/StaffFeesPage";
+import StaffFeeFormPage from "./pages/dashboards/staff/StaffFeeFormPage";
+import StaffFeeDetailPage from "./pages/dashboards/staff/StaffFeeDetailPage";
 
 import StudentProfile from "./pages/student/StudentProfile";
 import StudentTimetable from "./pages/student/StudentTimetable";
@@ -103,30 +111,6 @@ function App() {
           <Route path="/login/parent" element={<LoginPage portal="parent" />} />
 
           <Route
-            path="/staff"
-            element={
-              <ProtectedRoute allowedRoles={["STAFF", "ADMIN"]}>
-                <StaffDashboardLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<StaffOverviewPage />} />
-            <Route path="students" element={<StaffStudentsPage />} />
-            <Route path="students/new" element={<StaffStudentFormPage />} />
-            <Route path="students/:id" element={<StaffStudentDetailPage />} />
-            <Route path="students/:id/edit" element={<StaffStudentFormPage />} />
-            <Route path="parents" element={<StaffParentsPage />} />
-            <Route path="parents/new" element={<StaffParentFormPage />} />
-            <Route path="parents/:id" element={<StaffParentDetailPage />} />
-            <Route path="parents/:id/edit" element={<StaffParentFormPage />} />
-            <Route path="school-years" element={<StaffSchoolYearsPage />} />
-            <Route path="classes" element={<StaffClassesPage />} />
-            <Route path="classes/:id" element={<StaffClassDetailPage />} />
-            <Route path="promotion" element={<StaffPromotionPage />} />
-            <Route path="reports" element={<StaffReportsPage />} />
-          </Route>
-
-          <Route
             path="/student/homeworks/:homeworkId"
             element={
               <ProtectedRoute allowedRoles={["STUDENT"]}>
@@ -146,6 +130,40 @@ function App() {
             <Route index element={<AdminOverviewPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="users/new" element={<AdminUserFormPage />} />
+          </Route>
+
+          <Route
+            path="/staff"
+            element={
+              <ProtectedRoute allowedRoles={["STAFF", "ADMIN"]}>
+                <StaffDashboardLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<StaffOverviewPage />} />
+            <Route path="students" element={<StaffStudentsPage />} />
+            <Route path="students/new" element={<StaffStudentFormPage />} />
+            <Route path="students/:id" element={<StaffStudentDetailPage />} />
+            <Route path="students/:id/edit" element={<StaffStudentFormPage />} />
+            <Route path="parents" element={<StaffParentsPage />} />
+            <Route path="parents/new" element={<StaffParentFormPage />} />
+            <Route path="parents/:id" element={<StaffParentDetailPage />} />
+            <Route path="parents/:id/edit" element={<StaffParentFormPage />} />
+            <Route path="teachers" element={<StaffTeachersPage />} />
+            <Route path="teachers/new" element={<StaffTeacherFormPage />} />
+            <Route path="teachers/:id" element={<StaffTeacherDetailPage />} />
+            <Route path="teachers/:id/edit" element={<StaffTeacherFormPage />} />
+            <Route path="curriculum" element={<StaffCurriculumPage />} />
+            <Route path="curriculum/:id" element={<StaffCurriculumDetailPage />} />
+            <Route path="timetable" element={<StaffTimetablePage />} />
+            <Route path="timetable/new" element={<StaffTimetableCreatePage />} />
+            <Route path="fees" element={<StaffFeesPage />} />
+            <Route path="fees/new" element={<StaffFeeFormPage />} />
+            <Route path="fees/:id" element={<StaffFeeDetailPage />} />
+            <Route path="school-years" element={<StaffSchoolYearsPage />} />
+            <Route path="classes" element={<StaffClassesPage />} />
+            <Route path="classes/:id" element={<StaffClassDetailPage />} />
+            <Route path="reports" element={<StaffReportsPage />} />
           </Route>
 
           <Route

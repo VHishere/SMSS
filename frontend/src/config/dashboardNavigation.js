@@ -5,6 +5,7 @@ import {
   FiBookOpen,
   FiCalendar,
   FiClock,
+  FiCreditCard,
   FiEdit3,
   FiFileText,
   FiFlag,
@@ -13,7 +14,6 @@ import {
   FiMessageSquare,
   FiShield,
   FiStar,
-  FiTrendingUp,
   FiUserCheck,
   FiUsers,
 } from "react-icons/fi";
@@ -100,11 +100,6 @@ export const dashboardNavigation = {
       icon: FiBookOpen,
     },
     {
-      label: "Lên khối",
-      path: "/staff/promotion",
-      icon: FiTrendingUp,
-    },
-    {
       label: "Học sinh",
       path: "/staff/students",
       icon: FiUsers,
@@ -113,6 +108,26 @@ export const dashboardNavigation = {
       label: "Phụ huynh",
       path: "/staff/parents",
       icon: FiUserCheck,
+    },
+    {
+      label: "Giáo viên",
+      path: "/staff/teachers",
+      icon: FiAward,
+    },
+    {
+      label: "Lịch học",
+      path: "/staff/timetable",
+      icon: FiClock,
+    },
+    {
+      label: "Học phí",
+      path: "/staff/fees",
+      icon: FiCreditCard,
+    },
+    {
+      label: "Chương trình học",
+      path: "/staff/curriculum",
+      icon: FiFileText,
     },
     {
       label: "Báo cáo",

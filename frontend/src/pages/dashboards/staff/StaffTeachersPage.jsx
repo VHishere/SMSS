@@ -7,12 +7,12 @@ import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import {
-  formatGender,
-  formatStatus,
+  formatAccountStatus,
+  formatTeacherType,
 } from "../../../utils/formatters";
 
-function StaffStudentsPage() {
-  const [students, setStudents] = useState([]);
+function StaffTeachersPage() {
+  const [teachers, setTeachers] = useState([]);
   const [lookups, setLookups] = useState(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
@@ -27,28 +27,29 @@ function StaffStudentsPage() {
     const timer = setTimeout(() => {
       setLoading(true);
       staffApi
-        .getStudents({
+        .getTeachers({
           search,
           gradeId: filters.gradeId,
           classId: filters.classId,
         })
         .then((response) => {
-          setStudents(response.data);
+          setTeachers(response.data);
           setError("");
         })
         .catch((err) => setError(err.message))
         .finally(() => setLoading(false));
     }, 300);
+
     return () => clearTimeout(timer);
   }, [search, filters.gradeId, filters.classId]);
 
   const rows = useMemo(
     () =>
-      students.map((student) => ({
-        ...student,
-        id: student.studentId,
+      teachers.map((teacher) => ({
+        ...teacher,
+        id: teacher.teacherId,
       })),
-    [students],
+    [teachers],
   );
 
   const filteredClasses = useMemo(
@@ -101,13 +102,13 @@ function StaffStudentsPage() {
   return (
     <>
       <StaffPageHeader
-        title="Quản lý học sinh"
+        title="Quản lý giáo viên"
         action={
           <Link
-            to="/staff/students/new"
+            to="/staff/teachers/new"
             className="rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline"
           >
-            + Thêm học sinh
+            + Thêm giáo viên
           </Link>
         }
       />
@@ -122,11 +123,11 @@ function StaffStudentsPage() {
         toolbar={filterToolbar}
         searchValue={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Tìm theo tên, mã HS, email, lớp..."
+        searchPlaceholder="Tìm theo tên, mã GV, email, chuyên môn..."
         isLoading={loading}
         tableAlignClassName="text-center"
         columns={[
-          { key: "studentCode", label: "Mã HS" },
+          { key: "teacherCode", label: "Mã GV" },
           {
             key: "fullName",
             label: "Họ tên",
@@ -137,22 +138,26 @@ function StaffStudentsPage() {
               </div>
             ),
           },
-          { key: "className", label: "Lớp" },
-          { key: "gradeName", label: "Khối" },
+          { key: "subjectSpecialize", label: "Chuyên môn" },
           {
-            key: "gender",
-            label: "Giới tính",
-            render: (row) => formatGender(row.gender),
+            key: "isHomeroom",
+            label: "Loại GV",
+            render: (row) => (
+              <StatusBadge
+                value={formatTeacherType(row.isHomeroom)}
+                tone={row.isHomeroom ? "success" : "info"}
+              />
+            ),
           },
-          { key: "dateOfBirth", label: "Ngày sinh" },
+          { key: "classCount", label: "Số lớp" },
           { key: "phone", label: "Điện thoại" },
           {
             key: "status",
             label: "Trạng thái",
             render: (row) => (
               <StatusBadge
-                value={formatStatus(row.status)}
-                tone="success"
+                value={formatAccountStatus(row.status)}
+                tone={row.status === "ACTIVE" ? "success" : "neutral"}
               />
             ),
           },
@@ -161,7 +166,7 @@ function StaffStudentsPage() {
             label: "Chi tiết",
             render: (row) => (
               <Link
-                to={`/staff/students/${row.studentId}`}
+                to={`/staff/teachers/${row.teacherId}`}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50"
                 title="Xem chi tiết"
               >
@@ -171,10 +176,10 @@ function StaffStudentsPage() {
           },
         ]}
         rows={rows}
-        emptyMessage="Không tìm thấy học sinh phù hợp"
+        emptyMessage="Không tìm thấy giáo viên phù hợp"
       />
     </>
   );
 }
 
-export default StaffStudentsPage;
+export default StaffTeachersPage;

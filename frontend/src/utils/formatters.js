@@ -61,7 +61,7 @@ export function formatRoleLabel(roleNames = []) {
   return list.map((name) => ROLE_LABELS[name] || name).join(", ");
 }
 
-export function formatAccountStatus(status) {
+export function getAccountStatusInfo(status) {
   const map = {
     ACTIVE: { label: "Hoạt động", tone: "success" },
     LOCKED: { label: "Đã khóa", tone: "danger" },
@@ -69,4 +69,17 @@ export function formatAccountStatus(status) {
   };
 
   return map[status] || { label: status || "—", tone: "neutral" };
+}
+
+export function formatAccountStatus(value) {
+  const map = {
+    ACTIVE: "Hoạt động",
+    INACTIVE: "Ngưng hoạt động",
+  };
+
+  return map[value] || value || "—";
+}
+
+export function formatTeacherType(isHomeroom) {
+  return isHomeroom ? "Giáo viên chủ nhiệm" : "Giáo viên bộ môn";
 }

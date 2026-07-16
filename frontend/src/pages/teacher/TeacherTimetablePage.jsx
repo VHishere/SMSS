@@ -46,9 +46,12 @@ function TeacherTimetablePage() {
   const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
-    let m = true; setLoading(true); setError("");
-    timetableApi.getMyTimetable().then((res) => { if (m) setTt(res.data); }).catch((e) => { if (m) setError(e.message); }).finally(() => { if (m) setLoading(false); });
-    return () => { m = false; };
+    let mounted = true;
+    timetableApi.getMyTimetable()
+      .then((res) => { if (mounted) setTt(res.data); })
+      .catch((e) => { if (mounted) setError(e.message); })
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
@@ -102,6 +105,10 @@ function TeacherTimetablePage() {
   return (
     <DashboardShell user={headerUser} menuItems={dashboardNavigation.TEACHER} sidebarFooterLabel="Thời khóa biểu" sidebarFooterValue="Tuần này">
       <h1 className="mb-6 text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>{tab === "swap" ? "Đổi ca hỗ trợ" : "Lịch dạy"}</h1>
+      <section className="mb-6 rounded-2xl p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6", backgroundColor: "#fff" }}>
+        <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Giáo viên</p>
+        <h1 className="text-2xl font-bold sm:text-3xl" style={{ color: "#0F2747" }}>Thời khóa biểu</h1>
+      </section>
 
       <div className="mb-6 flex w-fit gap-1 rounded-full border p-1" style={{ backgroundColor: C.surfaceLow, borderColor: C.border }}>
         {TABS.map(({ key, label, ms }) => (

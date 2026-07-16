@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import {
   FiBookOpen,
+  FiCalendar,
   FiGrid,
   FiUsers,
 } from "react-icons/fi";
@@ -89,31 +90,71 @@ function StudentTimetable() {
       <section className="mb-3 flex justify-end">
         <div
           className="
-            flex flex-wrap items-center justify-end
-            gap-6 rounded-2xl border border-orange-100
-            bg-white px-5 py-3 shadow-sm
+            flex flex-wrap items-center justify-between
+            gap-6 px-6 py-6 lg:px-8
           "
         >
-          <InfoItem
-            icon={FiUsers}
-            label="Lớp"
-            value={data?.context?.className}
-            colorClass="bg-orange-50 text-[#F27123]"
-          />
+          <div className="flex items-center gap-5">
+            <div
+              className="
+                flex h-20 w-20 shrink-0
+                items-center justify-center
+                rounded-full bg-[#FFE7D6]
+                text-[#F27123]
+              "
+            >
+              <FiCalendar size={34} />
+            </div>
 
-          <InfoItem
-            icon={FiGrid}
-            label="Khối"
-            value={data?.context?.gradeName}
-            colorClass="bg-blue-50 text-[#08509F]"
-          />
+            <div>
+              <p
+                className="
+                  mb-2 text-xs font-bold
+                  uppercase tracking-[0.18em]
+                  text-[#F27123]
+                "
+              >
+                Học tập
+              </p>
 
-          <InfoItem
-            icon={FiBookOpen}
-            label="Năm học"
-            value={data?.context?.schoolYearName}
-            colorClass="bg-green-50 text-green-600"
-          />
+              <h1 className="mb-2 text-3xl font-bold text-[#0F2747]">
+                Thời khóa biểu
+              </h1>
+
+            </div>
+          </div>
+
+          <div
+            className="
+              grid w-full gap-4 rounded-2xl
+              border border-orange-100
+              bg-white px-5 py-4
+              shadow-sm
+              sm:grid-cols-3 lg:w-auto
+              lg:min-w-[560px]
+            "
+          >
+            <InfoItem
+              icon={FiUsers}
+              label="Lớp"
+              value={data?.context?.className}
+              colorClass="bg-orange-50 text-[#F27123]"
+            />
+
+            <InfoItem
+              icon={FiGrid}
+              label="Khối"
+              value={data?.context?.gradeName}
+              colorClass="bg-blue-50 text-[#08509F]"
+            />
+
+            <InfoItem
+              icon={FiBookOpen}
+              label="Năm học"
+              value={data?.context?.schoolYearName}
+              colorClass="bg-green-50 text-green-600"
+            />
+          </div>
         </div>
       </section>
 

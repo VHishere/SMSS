@@ -6,22 +6,22 @@ import StaffFormCard, { StaffField, inputClass } from "../../../components/staff
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 
 const emptyForm = {
+  teacherCode: "",
   fullName: "",
   email: "",
   phone: "",
-  relationship: "Father",
-  isPrimary: true,
-  studentId: "",
+  subjectSpecialize: "",
+  isHomeroom: false,
   status: "ACTIVE",
 };
 
-function StaffParentFormPage() {
+function StaffTeacherFormPage() {
   const { id } = useParams();
   const isEdit = Boolean(id);
   const navigate = useNavigate();
 
   const [form, setForm] = useState(emptyForm);
-  const [lookups, setLookups] = useState({ students: [] });
+  const [lookups, setLookups] = useState({ subjects: [] });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
@@ -34,18 +34,16 @@ function StaffParentFormPage() {
     if (!isEdit) return;
 
     staffApi
-      .getParent(id)
+      .getTeacher(id)
       .then((res) => {
         const data = res.data;
         setForm({
+          teacherCode: data.teacherCode || "",
           fullName: data.fullName || "",
           email: data.email || "",
           phone: data.phone || "",
-          relationship: data.relationship || "Father",
-          isPrimary: Boolean(data.isPrimary),
-          studentId: data.students?.[0]?.studentId
-            ? String(data.students[0].studentId)
-            : "",
+          subjectSpecialize: data.subjectSpecialize || "",
+          isHomeroom: Boolean(data.isHomeroom),
           status: data.status || "ACTIVE",
         });
       })
@@ -66,18 +64,13 @@ function StaffParentFormPage() {
     setSaving(true);
     setError("");
 
-    const payload = {
-      ...form,
-      studentId: form.studentId ? Number(form.studentId) : null,
-    };
-
     try {
       if (isEdit) {
-        await staffApi.updateParent(id, payload);
-        navigate(`/staff/parents/${id}`);
+        await staffApi.updateTeacher(id, form);
+        navigate(`/staff/teachers/${id}`);
       } else {
-        const res = await staffApi.createParent(payload);
-        navigate(`/staff/parents/${res.data.parentId}`);
+        const res = await staffApi.createTeacher(form);
+        navigate(`/staff/teachers/${res.data.teacherId}`);
       }
     } catch (err) {
       setError(err.message);
@@ -93,10 +86,10 @@ function StaffParentFormPage() {
   return (
     <>
       <StaffPageHeader
-        title={isEdit ? "Chỉnh sửa phụ huynh" : "Thêm phụ huynh mới"}
+        title={isEdit ? "Chỉnh sửa giáo viên" : "Thêm giáo viên mới"}
         action={
           <Link
-            to={isEdit ? `/staff/parents/${id}` : "/staff/parents"}
+            to={isEdit ? `/staff/teachers/${id}` : "/staff/teachers"}
             className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
           >
             Hủy
@@ -111,10 +104,19 @@ function StaffParentFormPage() {
       )}
 
       <StaffFormCard
-        title="Thông tin phụ huynh"
+        title="Thông tin giáo viên"
         onSubmit={handleSubmit}
         loading={saving}
       >
+        <StaffField label="Mã giáo viên">
+          <input
+            className={inputClass}
+            value={form.teacherCode}
+            onChange={handleChange("teacherCode")}
+            placeholder="VD: GV004"
+            required
+          />
+        </StaffField>
         <StaffField label="Họ và tên">
           <input
             className={inputClass}
@@ -139,38 +141,30 @@ function StaffParentFormPage() {
             onChange={handleChange("phone")}
           />
         </StaffField>
-        <StaffField label="Quan hệ">
-          <select
+        <StaffField label="Chuyên môn">
+          <input
             className={inputClass}
-            value={form.relationship}
-            onChange={handleChange("relationship")}
-          >
-            <option value="Father">Cha</option>
-            <option value="Mother">Mẹ</option>
-            <option value="Guardian">Người giám hộ</option>
-          </select>
-        </StaffField>
-        <StaffField label="Học sinh liên kết">
-          <select
-            className={inputClass}
-            value={form.studentId}
-            onChange={handleChange("studentId")}
-          >
-            <option value="">-- Chọn học sinh --</option>
-            {lookups.students.map((item) => (
-              <option key={item.studentId} value={item.studentId}>
-                {item.studentCode} · {item.fullName}
-              </option>
+            list="subject-options"
+            value={form.subjectSpecialize}
+            onChange={handleChange("subjectSpecialize")}
+            placeholder="VD: Toán, Văn, Anh..."
+          />
+          <datalist id="subject-options">
+            {lookups.subjects?.map((subject) => (
+              <option key={subject.subjectId} value={subject.subjectName} />
             ))}
-          </select>
+          </datalist>
         </StaffField>
-        <StaffField label="Liên hệ chính" className="flex-row items-center gap-2">
+        <StaffField label="Giáo viên chủ nhiệm" className="flex-row items-center gap-2">
           <input
             type="checkbox"
-            checked={form.isPrimary}
-            onChange={handleChange("isPrimary")}
+            checked={form.isHomeroom}
+            onChange={handleChange("isHomeroom")}
             className="h-4 w-4"
           />
+          <span className="text-xs font-normal text-slate-500">
+            Bật nếu GV có thể làm GVCN (tự động cấp quyền GVCN + bộ môn)
+          </span>
         </StaffField>
         {isEdit && (
           <StaffField label="Trạng thái">
@@ -185,8 +179,15 @@ function StaffParentFormPage() {
           </StaffField>
         )}
       </StaffFormCard>
+
+      {!isEdit && (
+        <p className="mt-4 text-sm text-slate-500">
+          Mật khẩu mặc định: <strong>Password@123</strong>. Phân công vào lớp tại
+          mục Lớp học → chi tiết lớp.
+        </p>
+      )}
     </>
   );
 }
 
-export default StaffParentFormPage;
+export default StaffTeacherFormPage;

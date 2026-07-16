@@ -49,7 +49,7 @@ function DashboardShell({
           }
         />
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">
+        <main className="min-w-0 max-w-full overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
           {children}
         </main>
       </div>

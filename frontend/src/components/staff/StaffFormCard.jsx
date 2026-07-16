@@ -12,7 +12,7 @@ function StaffFormCard({ title, children, onSubmit, submitLabel = "Lưu", loadin
         <button
           type="submit"
           disabled={loading}
-          className="rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+          className="rounded-full bg-[#F27123] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#E55C0A] disabled:opacity-60"
         >
           {loading ? "Đang lưu..." : submitLabel}
         </button>

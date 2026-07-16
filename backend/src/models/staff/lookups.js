@@ -6,6 +6,8 @@ async function getLookups() {
       SELECT
         sc.class_id AS classId,
         sc.class_name AS className,
+        sc.grade_id AS gradeId,
+        sc.school_year_id AS schoolYearId,
         g.grade_name AS gradeName,
         sy.year_name AS schoolYearName
       FROM school_class sc
@@ -30,11 +32,12 @@ async function getLookups() {
       SELECT
         sem.semester_id AS semesterId,
         sem.semester_name AS semesterName,
+        sem.school_year_id AS schoolYearId,
         sy.year_name AS schoolYearName
       FROM semester sem
       INNER JOIN school_year sy ON sy.school_year_id = sem.school_year_id
       WHERE sem.status = 'ACTIVE'
-      ORDER BY sy.is_active DESC, sem.start_date
+      ORDER BY sy.start_date DESC, sem.start_date
     `,
   );
 
@@ -54,7 +57,9 @@ async function getLookups() {
         sy.school_year_id AS schoolYearId,
         sy.year_name AS yearName,
         sy.is_active AS isActive,
-        sy.status
+        sy.status,
+        DATE_FORMAT(sy.start_date, '%Y-%m-%d') AS startDate,
+        DATE_FORMAT(sy.end_date, '%Y-%m-%d') AS endDate
       FROM school_year sy
       ORDER BY sy.start_date DESC
     `,

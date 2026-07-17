@@ -6,6 +6,7 @@ const attendanceController  = require("../controllers/attendance.controller");
 const leaveRequestController = require("../controllers/leaveRequest.controller");
 const homeworkController    = require("../controllers/homework.controller");
 const communicationController = require("../controllers/communication.controller");
+const paymentController     = require("../controllers/payment.controller");
 
 const {
   authenticate,
@@ -245,6 +246,41 @@ router.patch(
   authenticate,
   authorize("PARENT"),
   communicationController.archiveConversation,
+);
+
+router.get(
+  "/me/fees",
+  authenticate,
+  authorize("PARENT"),
+  paymentController.getMyFees,
+);
+
+router.get(
+  "/me/fees/:feeAssignmentId",
+  authenticate,
+  authorize("PARENT"),
+  paymentController.getMyFeeDetail,
+);
+
+router.post(
+  "/me/fees/:feeAssignmentId/vietqr",
+  authenticate,
+  authorize("PARENT"),
+  paymentController.createVietQrPayment,
+);
+
+router.post(
+  "/me/fees/:feeAssignmentId/zalopay",
+  authenticate,
+  authorize("PARENT"),
+  paymentController.createZaloPayOrder,
+);
+
+router.get(
+  "/me/fees/:feeAssignmentId/zalopay/:appTransId/status",
+  authenticate,
+  authorize("PARENT"),
+  paymentController.getZaloPayOrderStatus,
 );
 
 router.get(

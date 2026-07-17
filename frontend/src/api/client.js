@@ -1321,7 +1321,7 @@ export const parentApi = {
   },
 
   getStudentLeaveRequests: (studentId, params = {}) => {
-    const qs = new URLSearchParams(params).toString();
+    const qs = new URLSearchParams(cleanParams(params)).toString();
 
     return request(
       `/parents/me/students/${studentId}/leave-requests${qs ? `?${qs}` : ""}`,
@@ -1373,6 +1373,16 @@ export const parentApi = {
     const qs = new URLSearchParams(params).toString();
     return request(`/parents/me/students/${studentId}/goals${qs ? `?${qs}` : ""}`);
   },
+
+  getStudentEvents: (studentId, params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/parents/me/students/${studentId}/events${qs ? `?${qs}` : ""}`);
+  },
+
+  registerStudentEvent: (studentId, eventId) =>
+    request(`/parents/me/students/${studentId}/events/${eventId}/register`, {
+      method: "POST",
+    }),
 
   getMyNotifications: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
@@ -1433,6 +1443,27 @@ export const parentApi = {
       method: "PATCH",
       body: JSON.stringify({ archived }),
     }),
+
+  getStudentFees: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/parents/me/fees${qs ? `?${qs}` : ""}`);
+  },
+
+  getFeeDetail: (feeAssignmentId) =>
+    request(`/parents/me/fees/${feeAssignmentId}`),
+
+  createVietQrPayment: (feeAssignmentId) =>
+    request(`/parents/me/fees/${feeAssignmentId}/vietqr`, {
+      method: "POST",
+    }),
+
+  createZaloPayOrder: (feeAssignmentId) =>
+    request(`/parents/me/fees/${feeAssignmentId}/zalopay`, {
+      method: "POST",
+    }),
+
+  getZaloPayOrderStatus: (feeAssignmentId, appTransId) =>
+    request(`/parents/me/fees/${feeAssignmentId}/zalopay/${appTransId}/status`),
 };
 
 export const staffApi = {

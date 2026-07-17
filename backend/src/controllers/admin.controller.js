@@ -40,15 +40,6 @@ async function getUsers(req, res) {
   }
 }
 
-async function createUser(req, res) {
-  try {
-    const data = await adminModel.createUser(req.body);
-    return res.status(201).json({ success: true, data });
-  } catch (error) {
-    return handleError(res, error, "Không thể tạo tài khoản");
-  }
-}
-
 async function updateUserStatus(req, res) {
   try {
     const { status } = req.body;
@@ -69,6 +60,5 @@ async function updateUserStatus(req, res) {
 
 module.exports = {
   getUsers,
-  createUser,
   updateUserStatus,
 };

@@ -8,6 +8,7 @@
     "dev": "nodemon src/server.js",
     "students": "node src/scripts/list-students.js",
     "update-passwords": "node src/scripts/update-passwords.js",
+    "migrate:payments": "node src/scripts/migrate-payments.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

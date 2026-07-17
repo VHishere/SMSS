@@ -23,6 +23,9 @@ const staffRoutes = require(
 const adminRoutes = require(
   "./routes/admin.routes",
 );
+const paymentRoutes = require(
+  "./routes/payments.route",
+);
 
 const app = express();
 
@@ -57,6 +60,7 @@ app.use("/api/parents", parentRoutes);
 app.use("/api/teachers", teacherRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/payments", paymentRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({

@@ -70,15 +70,17 @@ export const dashboardNavigation = {
 
   ADMIN: [
     {
-      label: "Dashboard",
+      label: "Tổng quan",
       path: "/admin",
       icon: FiGrid,
+      ms: "dashboard",
       end: true,
     },
     {
       label: "Tài khoản",
       path: "/admin/users",
       icon: FiUsers,
+      ms: "manage_accounts",
     },
   ],
 
@@ -247,62 +249,80 @@ export const dashboardNavigation = {
       label: "Dashboard",
       path: "/parent",
       icon: FiGrid,
+      ms: "dashboard",
       end: true,
     },
     {
       label: "Học sinh",
       path: "/parent/student",
       icon: FiUsers,
+      ms: "group",
     },
     {
       label: "Điểm danh",
       path: "/parent/attendance",
       icon: FiCalendar,
+      ms: "how_to_reg",
     },
     {
       label: "Đơn xin nghỉ",
       path: "/parent/leave-requests",
       icon: FiBookOpen,
+      ms: "event_busy",
     },
     {
       label: "Thời khóa biểu",
       path: "/parent/timetable",
       icon: FiClock,
+      ms: "calendar_month",
     },
     {
       label: "Bảng điểm",
       path: "/parent/grades",
       icon: FiAward,
+      ms: "grade",
     },
     {
       label: "Hạnh kiểm",
       path: "/parent/behaviour",
       icon: FiShield,
+      ms: "workspace_premium",
     },
     {
       label: "Bài tập",
       path: "/parent/homework",
       icon: FiEdit3,
+      ms: "assignment",
+    },
+    {
+      label: "Học phí",
+      path: "/parent/fees",
+      icon: FiCreditCard,
+      ms: "payments",
     },
     {
       label: "Sự kiện",
       path: "/parent/events",
       icon: FiStar,
+      ms: "local_activity",
     },
     {
       label: "Họp phụ huynh",
       path: "/parent/meetings",
       icon: FiCalendar,
+      ms: "groups",
     },
     {
       label: "Tin nhắn",
       path: "/parent/messages",
       icon: FiMessageSquare,
+      ms: "chat",
     },
     {
       label: "Thông báo",
       path: "/parent/notifications",
       icon: FiBell,
+      ms: "notifications",
     },
   ],
 };

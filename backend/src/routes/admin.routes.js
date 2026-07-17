@@ -16,13 +16,6 @@ router.get(
   adminController.getUsers,
 );
 
-router.post(
-  "/users",
-  authenticate,
-  authorize("ADMIN"),
-  adminController.createUser,
-);
-
 router.put(
   "/users/:id/status",
   authenticate,

@@ -15,7 +15,6 @@ import { TeacherDashboard } from "./pages/dashboards/TeacherDashboard";
 import AdminDashboardLayout from "./pages/dashboards/admin/AdminDashboardLayout";
 import AdminOverviewPage from "./pages/dashboards/admin/AdminOverviewPage";
 import AdminUsersPage from "./pages/dashboards/admin/AdminUsersPage";
-import AdminUserFormPage from "./pages/dashboards/admin/AdminUserFormPage";
 import ParentDashboard from "./pages/dashboards/ParentDashboard";
 import StudentDashboard from "./pages/dashboards/StudentDashboard";
 
@@ -61,6 +60,7 @@ import ParentStudentLeaveRequests from "./pages/parent/StudentLeaveRequests";
 import ParentStudentGrades from "./pages/parent/StudentGrades";
 import ParentStudentBehaviour from "./pages/parent/StudentBehaviour";
 import ParentStudentHomework from "./pages/parent/StudentHomework";
+import ParentStudentFees from "./pages/parent/StudentFees";
 import ParentStudentEvents from "./pages/parent/StudentEvents";
 import ParentMeetingsPage from "./pages/parent/MeetingsPage";
 import ParentMeetingDetailPage from "./pages/parent/MeetingDetailPage";
@@ -129,7 +129,6 @@ function App() {
           >
             <Route index element={<AdminOverviewPage />} />
             <Route path="users" element={<AdminUsersPage />} />
-            <Route path="users/new" element={<AdminUserFormPage />} />
           </Route>
 
           <Route
@@ -450,6 +449,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["PARENT"]}>
                 <ParentStudentHomework />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/fees"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentStudentFees />
               </ProtectedRoute>
             }
           />

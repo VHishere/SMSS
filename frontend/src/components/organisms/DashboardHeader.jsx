@@ -19,6 +19,7 @@ import { parentApi, studentApi } from "../../api/client";
 import {
   useAuth,
 } from "../../context/useAuth";
+import { isStitchUser } from "../../config/sidebarRoles";
 
 import AppIconButton from "../atoms/AppIconButton";
 import ProfileDropdown from "../molecules/ProfileDropdown";
@@ -304,6 +305,8 @@ function DashboardHeader({
   const isParent = roleNames.includes("PARENT");
   const isTeacher = ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"]
     .some((r) => roleNames.includes(r));
+  const isAdmin = roleNames.includes("ADMIN");
+  const isStitch = isStitchUser(authUser);
 
   return (
     <header className="sticky top-0 z-30 border-b border-orange-100 bg-white/95 backdrop-blur">
@@ -356,11 +359,25 @@ function DashboardHeader({
                   help
                 </span>
               </button>
-              <div className="mx-2 h-8 w-px bg-[#DFC0B2]" />
             </>
           )}
 
-          {!isStudent && !isParent && !isTeacher && (
+          {isAdmin && (
+            <button
+              type="button"
+              aria-label="Thông báo"
+              className="relative rounded-full p-2 transition-colors hover:bg-[#E8E8E8]"
+            >
+              <span className="material-symbols-outlined text-[#1A1C1C]">
+                notifications
+              </span>
+              {showNotificationBadge && (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#F27123]" />
+              )}
+            </button>
+          )}
+
+          {!isStudent && !isParent && !isTeacher && !isAdmin && (
             <AppIconButton
               icon={FiBell}
               label="Thông báo"
@@ -368,7 +385,9 @@ function DashboardHeader({
             />
           )}
 
-          <ProfileDropdown user={user} variant={isTeacher ? "stitch" : "default"} />
+          {isStitch && <div className="mx-2 h-8 w-px bg-[#DFC0B2]" />}
+
+          <ProfileDropdown user={user} variant={isStitch ? "stitch" : "default"} />
         </div>
       </div>
     </header>

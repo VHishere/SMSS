@@ -5,15 +5,14 @@ import fptLogo from "../../assets/logoFPT.png";
 import FptBrand from "../atoms/FptBrand";
 import SidebarMenuItem from "../molecules/SidebarMenuItem";
 import { useAuth } from "../../context/useAuth";
-
-const TEACHER_ROLES = ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"];
+import { isStitchUser } from "../../config/sidebarRoles";
 
 const thinScrollbar =
   "[scrollbar-color:rgba(255,255,255,0.25)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-white/20 hover:[&::-webkit-scrollbar-thumb]:bg-white/30 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1.5";
 
-// FPT Teacher Portal (Stitch design) — deep blue sidebar, FPT logo brand,
+// FPT Stitch Portal — deep blue sidebar, FPT logo brand,
 // Material Symbols icons, logout pinned at the bottom
-function TeacherSidebarContent({ items, onNavigate }) {
+function StitchSidebarContent({ items, onNavigate }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
 
@@ -29,7 +28,7 @@ function TeacherSidebarContent({ items, onNavigate }) {
           <img
             src={fptLogo}
             alt="FPT Education Logo"
-            className="w-full max-w-[200px] rounded-md object-contain"
+            className="w-full max-w-50 rounded-md object-contain"
           />
         </div>
       </div>
@@ -57,7 +56,7 @@ function TeacherSidebarContent({ items, onNavigate }) {
           onClick={handleLogout}
           className="flex w-full items-center gap-3 rounded-full px-4 py-3 text-white transition-colors hover:bg-[#BA1A1A]/20 hover:text-[#FFDAD6]"
         >
-          <span className="material-symbols-outlined !text-[22px]">logout</span>
+          <span className="material-symbols-outlined text-[22px]!">logout</span>
           <span className="text-sm">Đăng xuất</span>
         </button>
       </div>
@@ -117,12 +116,10 @@ function DashboardSidebar({
   onCloseMobile,
 }) {
   const { user } = useAuth();
-  const isTeacher = user?.roles?.some((r) =>
-    TEACHER_ROLES.includes(r.roleName),
-  );
+  const isStitch = isStitchUser(user);
 
-  const Content = isTeacher ? TeacherSidebarContent : SidebarContent;
-  const widthClass = isTeacher ? "w-[280px]" : "w-80";
+  const Content = isStitch ? StitchSidebarContent : SidebarContent;
+  const widthClass = isStitch ? "w-[280px]" : "w-80";
 
   return (
     <>

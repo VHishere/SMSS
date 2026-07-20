@@ -53,16 +53,6 @@ async function getStudentProfile(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
 
-    const linked = await parentModel.findLinkedStudentsByUserId(req.user.userId);
-    const isLinked = linked.some((s) => s.studentId === studentId);
-
-    if (!isLinked) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem hồ sơ này",
-      });
-    }
-
     const student = await parentModel.findStudentDetailByStudentId(studentId);
 
     if (!student) {
@@ -89,16 +79,6 @@ async function getStudentProfile(req, res) {
 async function getStudentTimetable(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
-
-    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
-    const isLinked = students.some((s) => s.studentId === studentId);
-
-    if (!isLinked) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem thời khóa biểu này",
-      });
-    }
 
     const context = await timetableModel.findCurrentStudentContextByStudentId(studentId);
 
@@ -134,16 +114,6 @@ async function getStudentGrades(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
 
-    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
-    const isLinked = students.some((s) => s.studentId === studentId);
-
-    if (!isLinked) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem bảng điểm này",
-      });
-    }
-
     const result = await parentModel.findGradesByStudentId(studentId);
 
     return res.json({
@@ -162,17 +132,8 @@ async function getStudentGrades(req, res) {
 
 // ── Student behaviour (read-only for parents) ─────────────────────────────────
 
-async function checkStudentLink(userId, studentId) {
-  const linked = await parentModel.findLinkedStudentsByUserId(userId);
-  return linked.some((s) => s.studentId === studentId);
-}
-
 async function getStudentBehaviourSemesters(req, res) {
   try {
-    const studentId = parseInt(req.params.studentId, 10);
-    if (!await checkStudentLink(req.user.userId, studentId)) {
-      return res.status(403).json({ success: false, message: "Không có quyền xem thông tin học sinh này" });
-    }
     const semesters = await behaviourModel.findSemesters();
     return res.json({ success: true, data: semesters });
   } catch (error) {
@@ -184,9 +145,6 @@ async function getStudentBehaviourSemesters(req, res) {
 async function getStudentBehaviourRecords(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
-    if (!await checkStudentLink(req.user.userId, studentId)) {
-      return res.status(403).json({ success: false, message: "Không có quyền xem thông tin học sinh này" });
-    }
     const { behaviorType, startDate, endDate, page = "1", limit = "50" } = req.query;
     const parsedPage  = Math.max(1, parseInt(page, 10));
     const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
@@ -206,9 +164,6 @@ async function getStudentBehaviourRecords(req, res) {
 async function getStudentBehaviourConduct(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
-    if (!await checkStudentLink(req.user.userId, studentId)) {
-      return res.status(403).json({ success: false, message: "Không có quyền xem thông tin học sinh này" });
-    }
     const { semesterId } = req.query;
     if (!semesterId) return res.status(400).json({ success: false, message: "Thiếu học kỳ" });
     const data = await behaviourService.getConductPreview({ studentId, semesterId: parseInt(semesterId, 10) });
@@ -222,9 +177,6 @@ async function getStudentBehaviourConduct(req, res) {
 async function getStudentGoals(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
-    if (!await checkStudentLink(req.user.userId, studentId)) {
-      return res.status(403).json({ success: false, message: "Không có quyền xem thông tin học sinh này" });
-    }
     const { status, goalType } = req.query;
     const goals = await goalModel.findByStudent(studentId, { status, goalType });
     return res.json({ success: true, data: goals });
@@ -307,17 +259,7 @@ async function markAllMyNotificationsRead(req, res) {
 
 async function getStudentEvents(req, res) {
   try {
-    const studentId = parseInt(req.params.studentId, 10);
-
-    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
-    const student = students.find((s) => s.studentId === studentId);
-
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem sự kiện này",
-      });
-    }
+    const student = req.linkedStudent;
 
     const events = await parentModel.findEventsByStudentId(
       {
@@ -354,18 +296,8 @@ async function getStudentEvents(req, res) {
 
 async function registerStudentEvent(req, res) {
   try {
-    const studentId = parseInt(req.params.studentId, 10);
     const eventId = parseInt(req.params.eventId, 10);
-
-    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
-    const student = students.find((s) => s.studentId === studentId);
-
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền đăng ký sự kiện này",
-      });
-    }
+    const student = req.linkedStudent;
 
     const event = await parentModel.findEventForChild(eventId, student.classId);
 
@@ -491,7 +423,7 @@ async function startMyTeacherConversation(req, res) {
     const ok = await commModel.teacherAccessibleByParent(req.user.userId, teacherUserId);
 
     if (!ok) {
-      return res.status(403).json({
+      return res.status(404).json({
         success: false,
         message: "Bạn không thể nhắn tin với giáo viên này",
       });

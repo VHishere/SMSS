@@ -12,6 +12,7 @@ const {
   authenticate,
   authorize,
 } = require("../middleware/auth.middleware");
+const { ensureParentOwnsStudent } = require("../middleware/parentAccess.middleware");
 const { handleUpload, messageFileUpload } = require("../middleware/upload.middleware");
 const router = express.Router();
 
@@ -33,6 +34,7 @@ router.get(
   "/me/students/:studentId",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   parentController.getStudentProfile,
 );
 
@@ -40,6 +42,7 @@ router.get(
   "/me/students/:studentId/timetable",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   parentController.getStudentTimetable,
 );
 
@@ -47,6 +50,7 @@ router.get(
   "/me/students/:studentId/grades",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   parentController.getStudentGrades,
 );
 
@@ -54,6 +58,7 @@ router.get(
   "/me/students/:studentId/attendance/stats",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   attendanceController.getStudentAttendanceStats,
 );
 
@@ -61,6 +66,7 @@ router.get(
   "/me/students/:studentId/attendance/history",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   attendanceController.getStudentAttendanceHistory,
 );
 
@@ -68,6 +74,7 @@ router.get(
   "/me/students/:studentId/attendance/analytics",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   attendanceController.getStudentAttendanceAnalytics,
 );
 
@@ -75,6 +82,7 @@ router.post(
   "/me/students/:studentId/leave-requests",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   handleUpload,
   leaveRequestController.createLeaveRequest,
 );
@@ -83,6 +91,7 @@ router.get(
   "/me/students/:studentId/leave-requests",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   leaveRequestController.getStudentLeaveRequests,
 );
 
@@ -90,6 +99,7 @@ router.get(
   "/me/students/:studentId/leave-requests/:leaveRequestId",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   leaveRequestController.getParentLeaveRequestDetail,
 );
 
@@ -97,6 +107,7 @@ router.patch(
   "/me/students/:studentId/leave-requests/:leaveRequestId/cancel",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   leaveRequestController.cancelLeaveRequest,
 );
 
@@ -104,6 +115,7 @@ router.get(
   "/me/students/:studentId/behaviour/semesters",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   parentController.getStudentBehaviourSemesters,
 );
 
@@ -111,6 +123,7 @@ router.get(
   "/me/students/:studentId/behaviour/records",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   parentController.getStudentBehaviourRecords,
 );
 
@@ -118,6 +131,7 @@ router.get(
   "/me/students/:studentId/behaviour/conduct",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   parentController.getStudentBehaviourConduct,
 );
 
@@ -125,6 +139,7 @@ router.get(
   "/me/students/:studentId/goals",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   parentController.getStudentGoals,
 );
 
@@ -132,6 +147,7 @@ router.get(
   "/me/students/:studentId/homework",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   homeworkController.getParentStudentHomework,
 );
 
@@ -139,6 +155,7 @@ router.get(
   "/me/students/:studentId/homework/:homeworkId",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   homeworkController.getParentStudentHomeworkDetail,
 );
 
@@ -146,6 +163,7 @@ router.get(
   "/me/students/:studentId/events",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   parentController.getStudentEvents,
 );
 
@@ -153,6 +171,7 @@ router.post(
   "/me/students/:studentId/events/:eventId/register",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   parentController.registerStudentEvent,
 );
 

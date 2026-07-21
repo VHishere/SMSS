@@ -20,11 +20,16 @@ export function formatRelationship(value) {
 
 export function formatScoreType(value) {
   const map = {
-    MIDTERM: "Giữa kỳ",
+    TX1: "TX1",
+    TX2: "TX2",
+    TX3: "TX3",
+    MIDTERM: "1 tiết",
     FINAL: "Cuối kỳ",
+    // legacy labels (dữ liệu cũ nếu còn)
     ORAL: "Miệng",
     WRITTEN: "Viết",
     QUIZ: "Kiểm tra",
+    ASSIGNMENT: "Bài tập lớn",
   };
 
   return map[value] || value || "—";

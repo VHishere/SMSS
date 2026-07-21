@@ -25,6 +25,35 @@ router.get(
   staffController.getLookups,
 );
 
+// Khảo sát đánh giá giáo viên (HS → GV, ẩn danh) — quản lý tạo + xem tổng hợp
+router.get(
+  "/surveys",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.listTeacherSurveys,
+);
+
+router.post(
+  "/surveys",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createTeacherSurvey,
+);
+
+router.post(
+  "/surveys/:id/close",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.closeTeacherSurvey,
+);
+
+router.get(
+  "/surveys/:id/aggregate",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getTeacherSurveyAggregate,
+);
+
 router.get(
   "/fees",
   authenticate,

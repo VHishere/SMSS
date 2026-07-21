@@ -66,6 +66,11 @@ export const dashboardNavigation = {
       path: "/student/messages",
       icon: FiMessageSquare,
     },
+    {
+      label: "Khảo sát GV",
+      path: "/student/surveys",
+      icon: FiEdit3,
+    },
   ],
 
   ADMIN: [
@@ -136,6 +141,11 @@ export const dashboardNavigation = {
       path: "/staff/reports",
       icon: FiBarChart2,
     },
+    {
+      label: "Khảo sát GV",
+      path: "/staff/surveys",
+      icon: FiEdit3,
+    },
   ],
 
   TEACHER: [
@@ -157,12 +167,7 @@ export const dashboardNavigation = {
       path: "/teacher/leave-requests",
       icon: FiFileText,
       ms: "event_busy",
-    },
-    {
-      label: "Lớp học",
-      path: "/teacher/classes",
-      icon: FiBookOpen,
-      ms: "school",
+      homeroomOnly: true,
     },
     {
       label: "Học sinh",
@@ -181,12 +186,14 @@ export const dashboardNavigation = {
       path: "/teacher/behaviour",
       icon: FiShield,
       ms: "rule",
+      homeroomOnly: true,
     },
     {
       label: "Hạnh kiểm",
       path: "/teacher/conduct",
       icon: FiAward,
       ms: "workspace_premium",
+      homeroomOnly: true,
     },
     {
       label: "Điểm số",
@@ -205,6 +212,7 @@ export const dashboardNavigation = {
       path: "/teacher/meetings",
       icon: FiCalendar,
       ms: "groups",
+      homeroomOnly: true,
     },
     {
       label: "Liên lạc",
@@ -229,18 +237,21 @@ export const dashboardNavigation = {
       path: "/teacher/goals",
       icon: FiFlag,
       ms: "flag",
+      homeroomOnly: true,
     },
     {
       label: "Hỗ trợ học sinh",
       path: "/teacher/support-cases",
       icon: FiLifeBuoy,
       ms: "support_agent",
+      homeroomOnly: true,
     },
     {
       label: "Thông báo",
       path: "/teacher/announcements",
       icon: FiBell,
       ms: "campaign",
+      homeroomOnly: true,
     },
   ],
 

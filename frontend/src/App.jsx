@@ -23,6 +23,7 @@ import StaffOverviewPage from "./pages/dashboards/staff/StaffOverviewPage";
 import StaffStudentsPage from "./pages/dashboards/staff/StaffStudentsPage";
 import StaffParentsPage from "./pages/dashboards/staff/StaffParentsPage";
 import StaffReportsPage from "./pages/dashboards/staff/StaffReportsPage";
+import StaffSurveysPage from "./pages/dashboards/staff/StaffSurveysPage";
 import StaffSchoolYearsPage from "./pages/dashboards/staff/StaffSchoolYearsPage";
 import StaffClassesPage from "./pages/dashboards/staff/StaffClassesPage";
 import StaffClassDetailPage from "./pages/dashboards/staff/StaffClassDetailPage";
@@ -50,6 +51,7 @@ import StudentBehaviour from "./pages/student/StudentBehaviour";
 import StudentGoals from "./pages/student/StudentGoals";
 import StudentEvents from "./pages/student/StudentEvents";
 import StudentMessages from "./pages/student/StudentMessages";
+import StudentSurveys from "./pages/student/StudentSurveys";
 import StudentNotifications from "./pages/student/StudentNotifications";
 
 import ParentStudentTimetable from "./pages/parent/StudentTimetable";
@@ -163,6 +165,7 @@ function App() {
             <Route path="classes" element={<StaffClassesPage />} />
             <Route path="classes/:id" element={<StaffClassDetailPage />} />
             <Route path="reports" element={<StaffReportsPage />} />
+            <Route path="surveys" element={<StaffSurveysPage />} />
           </Route>
 
           <Route
@@ -186,7 +189,7 @@ function App() {
           <Route
             path="/teacher/leave-requests"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <LeaveRequestsPage />
               </ProtectedRoute>
             }
@@ -231,7 +234,7 @@ function App() {
           <Route
             path="/teacher/behaviour"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <BehaviourPage />
               </ProtectedRoute>
             }
@@ -240,7 +243,7 @@ function App() {
           <Route
             path="/teacher/behaviour/students/:studentId"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <StudentBehaviourProfilePage />
               </ProtectedRoute>
             }
@@ -249,7 +252,7 @@ function App() {
           <Route
             path="/teacher/conduct"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <ConductPage />
               </ProtectedRoute>
             }
@@ -276,7 +279,7 @@ function App() {
           <Route
             path="/teacher/goals"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <GoalManagementPage />
               </ProtectedRoute>
             }
@@ -312,7 +315,7 @@ function App() {
           <Route
             path="/teacher/announcements"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <AnnouncementsPage />
               </ProtectedRoute>
             }
@@ -321,7 +324,7 @@ function App() {
           <Route
             path="/teacher/meetings"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <MeetingsPage />
               </ProtectedRoute>
             }
@@ -330,7 +333,7 @@ function App() {
           <Route
             path="/teacher/meetings/:meetingId"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <MeetingDetailPage />
               </ProtectedRoute>
             }
@@ -366,7 +369,7 @@ function App() {
           <Route
             path="/teacher/support-cases"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <SupportCasesPage />
               </ProtectedRoute>
             }
@@ -593,6 +596,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["STUDENT"]}>
                 <StudentMessages />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/student/surveys"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <StudentSurveys />
               </ProtectedRoute>
             }
           />

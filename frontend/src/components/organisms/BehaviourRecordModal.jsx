@@ -30,6 +30,7 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
   const [category,     setCategory]     = useState(record?.category ?? "");
   const [points,       setPoints]       = useState(record?.points ?? (isMerit ? 5 : 2));
   const [severityLevel, setSeverityLevel] = useState(record?.severityLevel ?? "LOW");
+  const [affectsConduct, setAffectsConduct] = useState(record?.affectsConduct ?? false);
   const [recordDate,   setRecordDate]   = useState(toLocalDate(record?.recordDate) || new Date().toISOString().slice(0, 10));
   const [description,  setDescription]  = useState(record?.description ?? "");
   const [evidence,     setEvidence]     = useState(record?.evidenceUrl ? { fileUrl: record.evidenceUrl, fileName: "Minh chứng" } : null);
@@ -77,6 +78,7 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
         category: category || null,
         points: Number(points),
         severityLevel: isMerit ? "LOW" : severityLevel,
+        affectsConduct: isMerit ? false : affectsConduct,
         recordDate,
         description: description.trim() || null,
         evidenceUrl: evidence?.fileUrl ?? null,
@@ -158,6 +160,13 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
                 <option value="MEDIUM">Trung bình</option>
                 <option value="HIGH">Nghiêm trọng</option>
               </select>
+              <label className="mt-2.5 flex items-start gap-2 text-sm" style={{ color: "#1A1C1C" }}>
+                <input type="checkbox" checked={affectsConduct} onChange={(e) => setAffectsConduct(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#DC2626]" />
+                <span>
+                  Vi phạm này <b>ảnh hưởng xếp loại hạnh kiểm</b>
+                  <span className="mt-0.5 block text-xs text-slate-400">Chỉ tick với vi phạm nghiêm trọng (đánh nhau, hút thuốc…). Đi muộn/vi phạm nhẹ chỉ ghi nhận thống kê.</span>
+                </span>
+              </label>
             </div>
           )}
 

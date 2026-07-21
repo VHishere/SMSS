@@ -1,4 +1,5 @@
 const { pool } = require("../config/db");
+const { CONDUCT_GRADE_LABEL } = require("../config/behaviour.config");
 
 async function findProfileByUserId(userId) {
   const [rows] = await pool.query(
@@ -657,11 +658,16 @@ async function findBehaviourByUserId(userId, filters = {}) {
     conductParams,
   );
 
+  // conduct_grade lưu dạng KEY (TOT/KHA/TB/YEU/KEM) → gắn nhãn tiếng Việt cho FE.
+  const conductRow = conductRows[0]
+    ? { ...conductRows[0], conductGrade: CONDUCT_GRADE_LABEL[conductRows[0].conductGrade] ?? conductRows[0].conductGrade }
+    : null;
+
   return {
     context,
     semesters,
     summary: normalizeCountRow(summaryRows[0]),
-    conduct: conductRows[0] || null,
+    conduct: conductRow,
     records,
   };
 }

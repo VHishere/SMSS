@@ -1,5 +1,6 @@
 const announcementModel = require("../models/announcement.model");
 const commModel         = require("../models/communication.model");
+const studentProfileModel = require("../models/studentProfile.model");
 
 function httpError(message, statusCode) {
   const err = new Error(message);
@@ -36,8 +37,8 @@ async function createAnnouncement({ teacher, actorUserId, payload }) {
   if (!payload.publishNow && payload.scheduledAt && new Date(payload.scheduledAt).getTime() <= Date.now()) {
     throw httpError("Thời gian lên lịch phải ở tương lai", 400);
   }
-  const ok = await commModel.isTeacherForClass(teacher.teacherId, payload.classId);
-  if (!ok) throw httpError("Bạn không phụ trách lớp này", 403);
+  const ok = await studentProfileModel.isHomeroomOfClass(teacher.teacherId, payload.classId);
+  if (!ok) throw httpError("Chỉ giáo viên chủ nhiệm mới gửi thông báo cho lớp này", 403);
 
   // status: DRAFT (save), SCHEDULED (with scheduledAt), PUBLISHED (publish now)
   let status = "DRAFT";
@@ -73,8 +74,8 @@ async function updateAnnouncement({ teacher, announcementId, payload }) {
   if (payload.scheduledAt && new Date(payload.scheduledAt).getTime() <= Date.now()) {
     throw httpError("Thời gian lên lịch phải ở tương lai", 400);
   }
-  const ok = await commModel.isTeacherForClass(teacher.teacherId, payload.classId);
-  if (!ok) throw httpError("Bạn không phụ trách lớp này", 403);
+  const ok = await studentProfileModel.isHomeroomOfClass(teacher.teacherId, payload.classId);
+  if (!ok) throw httpError("Chỉ giáo viên chủ nhiệm mới gửi thông báo cho lớp này", 403);
 
   const status = payload.scheduledAt ? "SCHEDULED" : "DRAFT";
   const affected = await announcementModel.update(announcementId, {

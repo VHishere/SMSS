@@ -3,12 +3,21 @@ function Ms({ name, className = "", style }) { return <span className={`material
 
 import { behaviourApi } from "../../api/client";
 
-const GRADE_COLOR = { TOT: "#16A34A", KHA: "#225DAD", TB: "#F59E0B", YEU: "#DC2626", NA: "#64748B" };
+const GRADE_COLOR = { TOT: "#16A34A", KHA: "#225DAD", TB: "#F59E0B", YEU: "#DC2626", KEM: "#991B1B", NA: "#64748B" };
+// Thang 5 mức cố định — GVCN tự chốt.
+const GRADES = [
+  { key: "TOT", label: "Tốt" },
+  { key: "KHA", label: "Khá" },
+  { key: "TB",  label: "Trung bình" },
+  { key: "YEU", label: "Yếu" },
+  { key: "KEM", label: "Kém" },
+];
 
 function ConductEvaluationModal({ student, semesterId, onClose, onSaved }) {
   const [preview,    setPreview]    = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [adjustment, setAdjustment] = useState(0);
+  const [grade,      setGrade]      = useState("");
   const [comment,    setComment]    = useState("");
   const [saving,     setSaving]     = useState(false);
   const [errorMsg,   setErrorMsg]   = useState("");
@@ -25,6 +34,8 @@ function ConductEvaluationModal({ student, semesterId, onClose, onSaved }) {
           setAdjustment(res.data.existing.adjustment);
           setComment(res.data.existing.comment ?? "");
         }
+        // Mặc định = xếp loại đã lưu, hoặc mức GỢI Ý từ điểm tham khảo (GV có thể đổi).
+        setGrade(res.data.existing?.conductGrade || res.data.computed?.grade?.key || "");
       })
       .catch((err) => { if (mounted) setErrorMsg(err.message); })
       .finally(() => { if (mounted) setLoading(false); });
@@ -38,6 +49,7 @@ function ConductEvaluationModal({ student, semesterId, onClose, onSaved }) {
     : null;
 
   async function handleSave(status) {
+    if (!grade) { setErrorMsg("Vui lòng chọn xếp loại hạnh kiểm"); return; }
     if (!comment.trim()) { setErrorMsg("Đánh giá hạnh kiểm phải có nhận xét"); return; }
     setSaving(true);
     setErrorMsg("");
@@ -45,6 +57,7 @@ function ConductEvaluationModal({ student, semesterId, onClose, onSaved }) {
       await behaviourApi.evaluateConduct({
         studentId: student.studentId,
         semesterId,
+        conductGrade: grade,
         adjustment: Number(adjustment) || 0,
         comment: comment.trim(),
         status,
@@ -86,19 +99,27 @@ function ConductEvaluationModal({ student, semesterId, onClose, onSaved }) {
                   <p className="text-lg font-bold" style={{ color: "#DC2626" }}>-{preview.aggregate.demeritPoints}</p>
                 </div>
                 <div className="rounded-xl px-3 py-3 text-center" style={{ backgroundColor: "#F3F3F3" }}>
-                  <p className="text-xs text-slate-500">Hạnh kiểm</p>
+                  <p className="text-xs text-slate-500">Điểm tham khảo</p>
                   <p className="text-lg font-bold" style={{ color: GRADE_COLOR[preview.computed.grade.key] }}>{liveFinal}</p>
                 </div>
               </div>
 
-              <p className="text-center text-sm font-semibold" style={{ color: GRADE_COLOR[preview.computed.grade.key] }}>
-                Xếp loại: {preview.computed.grade.label}
+              <p className="text-center text-xs text-slate-400">
+                Gợi ý từ điểm tham khảo: <span className="font-semibold" style={{ color: GRADE_COLOR[preview.computed.grade.key] }}>{preview.computed.grade.label}</span> · chỉ dùng để cân nhắc, GVCN tự chốt bên dưới.
               </p>
 
               <div>
-                <label className="mb-1.5 block text-xs font-medium text-slate-600">Điều chỉnh thủ công (±)</label>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">Xếp loại hạnh kiểm <span className="text-red-500">*</span></label>
+                <select value={grade} onChange={(e) => setGrade(e.target.value)} className={inputCls}>
+                  <option value="">— Chọn xếp loại —</option>
+                  {GRADES.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
+                </select>
+                <p className="mt-1 text-xs text-slate-400">GVCN chốt dựa trên dữ liệu tham khảo (điểm danh + vi phạm nghiêm trọng).</p>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600">Điều chỉnh điểm tham khảo (±)</label>
                 <input type="number" step="1" value={adjustment} onChange={(e) => setAdjustment(e.target.value)} className={inputCls} />
-                <p className="mt-1 text-xs text-slate-400">Cộng/trừ thêm vào điểm hạnh kiểm tự động tính.</p>
               </div>
 
               <div>

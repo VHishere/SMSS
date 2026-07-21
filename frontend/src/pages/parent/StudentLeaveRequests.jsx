@@ -315,6 +315,12 @@ function CreateLeaveRequestModal({ studentId, onClose, onCreated }) {
       return;
     }
 
+    // Nghỉ ốm bắt buộc đính kèm minh chứng (giấy khám, lịch khám).
+    if (leaveType === "SICK_LEAVE" && !file) {
+      setError("Nghỉ vì lý do sức khỏe bắt buộc đính kèm minh chứng (giấy khám bệnh, lịch khám...).");
+      return;
+    }
+
     let startDateTime;
     let endDateTime;
 

@@ -79,6 +79,14 @@ async function createLeaveRequest(req, res) {
       });
     }
 
+    // Nghỉ vì lý do sức khỏe BẮT BUỘC đính kèm minh chứng (giấy viện, lịch khám).
+    if (leaveType === "SICK_LEAVE" && !req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Đơn nghỉ vì lý do sức khỏe bắt buộc đính kèm minh chứng (giấy khám bệnh, lịch khám...).",
+      });
+    }
+
     const parent = await parentModel.findProfileByUserId(req.user.userId);
     if (!parent) {
       await deleteUploadedFile(req.file);

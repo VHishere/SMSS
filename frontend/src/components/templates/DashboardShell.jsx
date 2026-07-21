@@ -20,6 +20,16 @@ function DashboardShell({
   const { user: authUser } = useAuth();
   const isStitch = isStitchUser(authUser);
 
+  // Chủ nhiệm hay không — global role đã được đồng bộ từ teacher_class (backfill).
+  // Các mục nav gắn homeroomOnly chỉ hiện cho giáo viên chủ nhiệm; giáo viên
+  // thuần bộ môn sẽ không thấy Nề nếp/Hạnh kiểm/Đơn nghỉ/Họp PH/Mục tiêu/Hỗ trợ/Thông báo.
+  const isHomeroom = authUser?.roles?.some(
+    (r) => r.roleName === "HOMEROOM_TEACHER",
+  );
+  const visibleItems = (menuItems ?? []).filter(
+    (item) => !item.homeroomOnly || isHomeroom,
+  );
+
   // Stitch roles (teacher + parent): FSchool Stitch design (Inter, light grey canvas, 280px sidebar)
   const rootClass = isStitch
     ? "min-h-screen bg-[#F3F3F3] text-[#1A1C1C] [font-family:'Inter',sans-serif]"
@@ -29,7 +39,7 @@ function DashboardShell({
   return (
     <div className={rootClass}>
       <DashboardSidebar
-        items={menuItems}
+        items={visibleItems}
         footerLabel={sidebarFooterLabel}
         footerValue={sidebarFooterValue}
         showMobile={showMobileSidebar}

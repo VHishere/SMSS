@@ -179,7 +179,7 @@ function HStat({ label, value, sub, icon, color }) {
     </div>
   );
 }
-const HR_TABS = [{ key: "week", label: "Tổng kết tuần" }, { key: "month", label: "Tổng kết tháng" }, { key: "semester", label: "Đánh giá học kỳ" }];
+const HR_TABS = [{ key: "week", label: "Tổng kết tuần", ms: "calendar_view_week" }, { key: "month", label: "Tổng kết tháng", ms: "calendar_month" }, { key: "semester", label: "Đánh giá học kỳ", ms: "school" }];
 
 function HomeroomReportView({ teacherName }) {
   const navigate = useNavigate();
@@ -213,7 +213,7 @@ function HomeroomReportView({ teacherName }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <nav className="mb-1 flex items-center gap-2 text-xs" style={{ color: C.muted }}><span>Quản lý học sinh</span><Ms name="chevron_right" className="!text-[14px]" /><span className="font-bold" style={{ color: C.orange }}>Báo cáo chủ nhiệm</span></nav>
-          <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.orange }}>Báo cáo chủ nhiệm{className ? ` · ${className}` : ""}</h2>
+          <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Báo cáo chủ nhiệm{className ? ` · ${className}` : ""}</h2>
         </div>
         <div className="flex gap-2">
           <button type="button" className="rounded-full border px-4 py-2 text-sm font-medium" style={{ borderColor: C.border, color: C.onSurface }}>{meta?.semesters?.[0]?.semesterName ?? "Học kỳ hiện tại"}</button>
@@ -229,10 +229,12 @@ function HomeroomReportView({ teacherName }) {
         <HStat label="Cảnh báo rủi ro" value={String(riskCount).padStart(2, "0")} sub="Học sinh cần hỗ trợ" icon="warning" color={C.error} />
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-6 border-b" style={{ borderColor: C.border }}>
+      {/* Tabs — dạng pill bo tròn, di chuyển trong thẻ (giống trang Điểm số) */}
+      <div className="flex w-fit items-center gap-1 rounded-full border p-1" style={{ backgroundColor: C.surfaceLow, borderColor: C.border }}>
         {HR_TABS.map((t) => (
-          <button key={t.key} type="button" onClick={() => setTab(t.key)} className="-mb-px pb-3 text-sm transition-colors" style={tab === t.key ? { color: C.orange, fontWeight: 700, borderBottom: `2px solid ${C.orange}` } : { color: C.muted, fontWeight: 500 }}>{t.label}</button>
+          <button key={t.key} type="button" onClick={() => setTab(t.key)} className="flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm transition-all" style={tab === t.key ? { backgroundColor: C.orange, color: "#fff", fontWeight: 700 } : { color: C.muted, fontWeight: 500 }}>
+            <Ms name={t.ms} className="!text-[18px]" /><span>{t.label}</span>
+          </button>
         ))}
       </div>
 

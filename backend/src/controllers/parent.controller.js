@@ -472,12 +472,29 @@ async function startMyTeacherConversation(req, res) {
   }
 }
 
+async function getStudentLessonFeedback(req, res) {
+  try {
+    const studentId = parseInt(req.params.studentId, 10);
+    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
+    if (!students.some((s) => s.studentId === studentId)) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy học sinh hoặc bạn không có quyền xem" });
+    }
+    const feedbackModel = require("../models/feedback.model");
+    const data = await feedbackModel.findStudentFeedback(studentId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error("getStudentLessonFeedback error:", error);
+    return res.status(500).json({ success: false, message: "Không thể lấy nhận xét theo tiết" });
+  }
+}
+
 module.exports = {
   getMyProfile,
   getMyStudents,
   getStudentProfile,
   getStudentTimetable,
   getStudentGrades,
+  getStudentLessonFeedback,
   getStudentBehaviourSemesters,
   getStudentBehaviourRecords,
   getStudentBehaviourConduct,

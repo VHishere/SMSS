@@ -367,7 +367,7 @@ function StudentBehaviour() {
       conductData
         ? {
             finalScore: conductData.computed?.finalScore,
-            conductGrade: conductData.computed?.grade?.label,
+            conductGrade: conductData.conductGradeLabel ?? conductData.computed?.grade?.label,
             baseScore: conductData.computed?.base,
             meritPoints: conductData.computed?.meritPoints,
             demeritPoints: Math.abs(conductData.computed?.demeritPoints || 0),

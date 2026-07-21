@@ -5,6 +5,7 @@ const {
   MERIT_CATEGORIES,
   VIOLATION_CATEGORIES,
   CATEGORY_LABELS,
+  CONDUCT_GRADES,
 } = require("../config/behaviour.config");
 
 async function resolveTeacher(userId) {
@@ -23,9 +24,10 @@ async function getMeta(req, res) {
     const profile = await resolveTeacher(req.user.userId);
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
-    const [classes, semesters] = await Promise.all([
+    const [classes, semesters, violationTypes] = await Promise.all([
       behaviourModel.findTeacherClasses(profile.teacherId),
       behaviourModel.findSemesters(),
+      behaviourModel.findViolationTypes(),
     ]);
 
     return res.json({
@@ -35,6 +37,8 @@ async function getMeta(req, res) {
         semesters,
         meritCategories:     MERIT_CATEGORIES.map((key) => ({ key, label: CATEGORY_LABELS[key] })),
         violationCategories: VIOLATION_CATEGORIES.map((key) => ({ key, label: CATEGORY_LABELS[key] })),
+        violationTypes,      // [{ code, name, affectsConduct }]
+        conductGrades:       CONDUCT_GRADES, // 5 mức: Tốt/Khá/Trung bình/Yếu/Kém
       },
     });
   } catch (error) {

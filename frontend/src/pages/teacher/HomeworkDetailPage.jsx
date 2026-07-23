@@ -1,0 +1,522 @@
+import { useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import {
+  FiArrowLeft,
+  FiAward,
+  FiBarChart2,
+  FiCalendar,
+  FiCheckCircle,
+  FiClock,
+  FiEdit3,
+  FiExternalLink,
+  FiFileText,
+  FiLock,
+  FiUsers,
+} from "react-icons/fi";
+
+import DashboardShell from "../../components/templates/DashboardShell";
+import GradeSubmissionModal from "../../components/organisms/GradeSubmissionModal";
+import HomeworkFormModal from "../../components/organisms/HomeworkFormModal";
+import { dashboardNavigation } from "../../config/dashboardNavigation";
+import { useAuth } from "../../context/useAuth";
+import { homeworkApi } from "../../api/client";
+import { useHomeworkAnalytics } from "../../hooks/useHomeworkAnalytics";
+import { useHomeworkDetail } from "../../hooks/useHomeworkDetail";
+import { useHomeworkSubmissions } from "../../hooks/useHomeworkSubmissions";
+import { formatDateTimeVN } from "../../utils/datetime";
+
+const TABS = [
+  { key: "info",        label: "Thông tin",  icon: FiFileText },
+  { key: "submissions", label: "Bài nộp",    icon: FiUsers },
+  { key: "analytics",   label: "Thống kê",   icon: FiBarChart2 },
+];
+
+const SUB_STATUS = {
+  GRADED:    { label: "Đã chấm",     bg: "#ECFDF5", text: "#16A34A" },
+  SUBMITTED: { label: "Chờ chấm",    bg: "#FFFBEB", text: "#F59E0B" },
+  MISSING:   { label: "Chưa nộp",    bg: "#FEF2F2", text: "#DC2626" },
+};
+
+function StatusPill({ status }) {
+  const cfg = SUB_STATUS[status] ?? SUB_STATUS.MISSING;
+  return (
+    <span className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: cfg.bg, color: cfg.text }}>
+      {cfg.label}
+    </span>
+  );
+}
+
+// ── Info Tab ──────────────────────────────────────────────────────────────────
+
+function InfoTab({ homework, onEdit, onToggleStatus }) {
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span
+            className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+            style={homework.status === "OPEN"
+              ? { backgroundColor: "#ECFDF5", color: "#16A34A" }
+              : { backgroundColor: "#F1F5F9", color: "#475569" }}
+          >
+            {homework.status === "OPEN" ? "Đang mở" : "Đã đóng"}
+          </span>
+          {homework.status === "OPEN" && homework.isOverdue && (
+            <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}>
+              Quá hạn
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onToggleStatus}
+            className="flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition"
+            style={{ borderColor: "#E2E8F0", color: "#475569" }}
+          >
+            {homework.status === "OPEN" ? <><FiLock size={14} /> Đóng bài</> : <><FiCheckCircle size={14} /> Mở lại</>}
+          </button>
+          {homework.status === "OPEN" && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold text-white transition"
+              style={{ backgroundColor: "#08509F" }}
+            >
+              <FiEdit3 size={14} /> Chỉnh sửa
+            </button>
+          )}
+        </div>
+      </div>
+
+      <h2 className="mb-1 text-xl font-bold" style={{ color: "#0F2747" }}>{homework.title}</h2>
+      <p className="mb-4 text-sm text-slate-500">{homework.className} · {homework.gradeName} · {homework.subjectName}</p>
+
+      <div className="mb-5 flex flex-wrap gap-x-10 gap-y-3 rounded-3xl border border-slate-100 px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <FiCalendar size={16} className="text-slate-400" />
+          <div>
+            <p className="text-xs text-slate-400">Ngày giao</p>
+            <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{formatDateTimeVN(homework.assignDate)}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <FiClock size={16} style={{ color: homework.status === "OPEN" && homework.isOverdue ? "#DC2626" : "#94A3B8" }} />
+          <div>
+            <p className="text-xs text-slate-400">Hạn nộp</p>
+            <p className="text-sm font-semibold" style={{ color: homework.status === "OPEN" && homework.isOverdue ? "#DC2626" : "#0F2747" }}>{formatDateTimeVN(homework.dueDate)}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <FiAward size={16} className="text-slate-400" />
+          <div>
+            <p className="text-xs text-slate-400">Điểm tối đa</p>
+            <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{homework.maxScore}</p>
+          </div>
+        </div>
+      </div>
+
+      {homework.description && (
+        <div className="mb-4">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Mô tả</p>
+          <p className="text-sm text-slate-700">{homework.description}</p>
+        </div>
+      )}
+
+      {homework.instructions && (
+        <div className="mb-4">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Hướng dẫn làm bài</p>
+          <div className="rounded-3xl px-4 py-3 text-sm text-slate-700 whitespace-pre-line" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
+            {homework.instructions}
+          </div>
+        </div>
+      )}
+
+      {homework.attachments?.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+            Tệp đính kèm ({homework.attachments.length})
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {homework.attachments.map((att) => {
+              const isPdf = /\.pdf$/i.test(att.fileName ?? "");
+              const isImg = /\.(png|jpe?g|gif|webp)$/i.test(att.fileName ?? "");
+              return (
+                <a
+                  key={att.attachmentId}
+                  href={att.fileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group flex cursor-pointer items-center gap-4 rounded-xl border bg-[#F3F3F3] p-4 transition-colors hover:bg-[#E8E8E8]"
+                  style={{ borderColor: "#E2E8F0", textDecoration: "none" }}
+                >
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-lg"
+                    style={isPdf
+                      ? { backgroundColor: "rgba(255,218,214,0.4)", color: "#BA1A1A" }
+                      : isImg
+                        ? { backgroundColor: "rgba(119,169,254,0.2)", color: "#225DAD" }
+                        : { backgroundColor: "#E8E8E8", color: "#584238" }}
+                  >
+                    <span className="material-symbols-outlined">
+                      {isPdf ? "picture_as_pdf" : isImg ? "image" : "attach_file"}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold" style={{ color: "#1E293B" }}>{att.fileName}</p>
+                    <p className="text-xs text-slate-500">Nhấn để mở</p>
+                  </div>
+                  <span className="material-symbols-outlined text-slate-500 opacity-0 transition-opacity group-hover:opacity-100">
+                    download
+                  </span>
+                </a>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Submissions Tab ───────────────────────────────────────────────────────────
+
+function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
+  const { data, loading, error } = useHomeworkSubmissions(homeworkId, refreshKey);
+  const [grading, setGrading] = useState(null);
+  const [statusF, setStatusF] = useState("");
+  const [sortBy,  setSortBy]  = useState("name");
+
+  const submissions = useMemo(() => data?.submissions ?? [], [data]);
+
+  const counts = useMemo(() => {
+    let submitted = 0, graded = 0, missing = 0;
+    for (const s of submissions) {
+      if (s.status === "MISSING") missing++;
+      else if (s.status === "GRADED") { graded++; submitted++; }
+      else submitted++;
+    }
+    return { submitted, graded, missing };
+  }, [submissions]);
+
+  const view = useMemo(() => {
+    let list = statusF ? submissions.filter((s) => s.status === statusF) : submissions;
+    list = [...list];
+    if (sortBy === "score_desc") list.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    else if (sortBy === "score_asc") list.sort((a, b) => (a.score ?? Number.POSITIVE_INFINITY) - (b.score ?? Number.POSITIVE_INFINITY));
+    else list.sort((a, b) => a.studentName.localeCompare(b.studentName));
+    return list;
+  }, [submissions, statusF, sortBy]);
+
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        {[0, 1, 2, 3].map((n) => <div key={n} className="h-14 animate-pulse rounded-xl bg-slate-100" />)}
+      </div>
+    );
+  }
+  if (error) {
+    return <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
+  }
+
+  const selectCls = "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>Đã nộp: {counts.submitted}</span>
+          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#ECFDF5", color: "#16A34A" }}>Đã chấm: {counts.graded}</span>
+          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}>Chưa nộp: {counts.missing}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className={selectCls}>
+            <option value="">Tất cả trạng thái</option>
+            <option value="GRADED">Đã chấm</option>
+            <option value="SUBMITTED">Chờ chấm</option>
+            <option value="MISSING">Chưa nộp</option>
+          </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={selectCls}>
+            <option value="name">Tên A→Z</option>
+            <option value="score_desc">Điểm cao → thấp</option>
+            <option value="score_asc">Điểm thấp → cao</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead className="text-white" style={{ backgroundColor: "#00458E" }}>
+              <tr className="text-left">
+                {["HỌC SINH", "TRẠNG THÁI", "THỜI GIAN NỘP", "ĐIỂM", ""].map((c, i) => (
+                  <th key={i} className="px-4 py-3 text-xs font-medium uppercase tracking-wider">{c}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y" style={{ borderColor: "#E2E8F0" }}>
+              {view.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">Không có bài nộp phù hợp.</td></tr>
+              ) : view.map((s) => (
+                <tr key={s.studentId} className="transition-colors hover:bg-[#F3F3F3]">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "#08509F" }}>
+                        {s.studentAvatar ? <img src={s.studentAvatar} alt={s.studentName} className="h-8 w-8 rounded-full object-cover" /> : (s.studentName?.[0]?.toUpperCase() ?? "?")}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-[#0F2747]">{s.studentName}</div>
+                        <div className="text-xs text-slate-400">{s.studentCode}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <StatusPill status={s.status} />
+                      {s.isLate && <span className="text-xs font-medium" style={{ color: "#DC2626" }}>Muộn</span>}
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">{s.submitTime ? formatDateTimeVN(s.submitTime) : "—"}</td>
+                  <td className="px-4 py-3">
+                    {s.score === null ? <span className="text-slate-400">—</span> : (
+                      <span className="font-semibold" style={{ color: "#0F2747" }}>{s.score}/{maxScore}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {s.status === "MISSING" ? (
+                      <span className="text-xs text-slate-400">Chưa có bài</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setGrading(s)}
+                        className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition"
+                        style={{ backgroundColor: s.status === "GRADED" ? "#EBF3FF" : "#ECFDF5", color: s.status === "GRADED" ? "#08509F" : "#16A34A" }}
+                      >
+                        <FiEdit3 size={11} />
+                        {s.status === "GRADED" ? "Sửa điểm" : "Chấm điểm"}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {grading && (
+        <GradeSubmissionModal
+          submission={grading}
+          maxScore={maxScore}
+          onClose={() => setGrading(null)}
+          onSaved={() => { setGrading(null); onGraded(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Analytics Tab ─────────────────────────────────────────────────────────────
+
+function DonutChart({ segments, total }) {
+  const R = 52, cx = 70, cy = 70, C = 2 * Math.PI * R;
+  const arcs = segments.map((s, i) => {
+    const before = segments.slice(0, i).reduce((sum, x) => sum + x.count, 0);
+    const len = total > 0 ? (s.count / total) * C : 0;
+    const off = total > 0 ? -(before / total) * C : 0;
+    return { color: s.color, len, off };
+  });
+  return (
+    <div className="flex flex-wrap items-center justify-center gap-6">
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
+        {arcs.map((arc, i) => arc.len > 0 && (
+          <circle key={i} cx={cx} cy={cy} r={R} fill="none" stroke={arc.color} strokeWidth="16"
+            strokeDasharray={`${arc.len} ${C}`} strokeDashoffset={arc.off} transform={`rotate(-90 ${cx} ${cy})`} />
+        ))}
+        <text x={cx} y={cy - 2} textAnchor="middle" fontSize="22" fontWeight="700" fill="#0F2747">{total}</text>
+        <text x={cx} y={cy + 16} textAnchor="middle" fontSize="10" fill="#64748B">học sinh</text>
+      </svg>
+      <div className="space-y-1.5">
+        {segments.map((s) => (
+          <div key={s.label} className="flex items-center gap-2 text-xs">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+            <span className="text-slate-600">{s.label}</span>
+            <span className="ml-auto pl-4 font-semibold text-[#0F2747]">{s.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, suffix = "", color = "#0F2747" }) {
+  return (
+    <div className="rounded-3xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+      <p className="mb-1 text-xs font-medium text-slate-500">{label}</p>
+      <p className="text-2xl font-bold leading-none" style={{ color }}>{value}{suffix}</p>
+    </div>
+  );
+}
+
+function AnalyticsTab({ homeworkId, enabled, refreshKey }) {
+  const { data, loading, error } = useHomeworkAnalytics(homeworkId, enabled, refreshKey);
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {[0, 1].map((n) => <div key={n} className="h-40 animate-pulse rounded-xl bg-slate-100" />)}
+      </div>
+    );
+  }
+  if (error) return <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
+  if (!data) return null;
+
+  const a = data.analytics;
+  const pending = Math.max(0, a.totalSubmissions - a.gradedCount);
+  const segments = [
+    { label: "Đã chấm",  color: "#16A34A", count: a.gradedCount },
+    { label: "Chờ chấm", color: "#F59E0B", count: pending },
+    { label: "Chưa nộp", color: "#DC2626", count: a.missingCount },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+        <h3 className="mb-4 text-sm font-bold" style={{ color: "#0F2747" }}>Tình hình nộp bài</h3>
+        <DonutChart segments={segments} total={a.totalStudents} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <MetricCard label="Tỷ lệ nộp"       value={a.submissionRate} suffix="%" color="#F27123" />
+        <MetricCard label="Đã chấm"         value={a.completionRate} suffix="%" color="#16A34A" />
+        <MetricCard label="Điểm trung bình" value={a.avgScore === null ? "—" : a.avgScore} color="#08509F" />
+        <MetricCard label="Nộp muộn"        value={a.lateCount} color="#F59E0B" />
+      </div>
+    </div>
+  );
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+function HomeworkDetailPage() {
+  const { homeworkId } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "info";
+
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [showEdit,   setShowEdit]   = useState(false);
+
+  const { data: homework, loading, error } = useHomeworkDetail(homeworkId, refreshKey);
+
+  const headerUser = useMemo(() => {
+    const roleEntry = user?.roles?.find((r) =>
+      ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"].includes(r.roleName),
+    );
+    return {
+      name:   user?.fullName ?? user?.username ?? "Giáo viên",
+      role:   roleEntry?.description ?? "Giáo viên",
+      avatar: user?.avatar ?? "",
+    };
+  }, [user]);
+
+  async function handleToggleStatus() {
+    if (!homework) return;
+    const next = homework.status === "OPEN" ? "CLOSED" : "OPEN";
+    try {
+      await homeworkApi.changeStatus(homework.homeworkId, next);
+      setRefreshKey((k) => k + 1);
+    } catch {
+      // surfaced on next load; keep silent here
+    }
+  }
+
+  function setTab(key) {
+    setSearchParams({ tab: key });
+  }
+
+  return (
+    <DashboardShell
+      user={headerUser}
+      menuItems={dashboardNavigation.TEACHER}
+      sidebarFooterLabel="Bài tập"
+      sidebarFooterValue={homework?.className ?? ""}
+    >
+      <button
+        type="button"
+        onClick={() => navigate("/teacher/homework")}
+        className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-[#0F2747]"
+      >
+        <FiArrowLeft size={15} /> Quay lại danh sách
+      </button>
+
+      {loading && (
+        <div className="space-y-4">
+          <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
+          <div className="h-64 animate-pulse rounded-3xl bg-slate-100" />
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+      )}
+
+      {!loading && !error && homework && (
+        <>
+          {/* Tabs (Stitch pills) */}
+          <div className="mb-6 flex w-fit items-center gap-1 rounded-full border bg-[#F3F3F3] p-1" style={{ borderColor: "#E2E8F0" }}>
+            {TABS.map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                className="flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm transition-all"
+                style={activeTab === key ? { backgroundColor: "#F27123", color: "#fff", fontWeight: 700, boxShadow: "0 1px 2px rgba(0,0,0,0.1)" } : { color: "#64748B", fontWeight: 500 }}
+              >
+                <Icon size={15} />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6" }}>
+            {activeTab === "info" && (
+              <InfoTab
+                homework={homework}
+                onEdit={() => setShowEdit(true)}
+                onToggleStatus={handleToggleStatus}
+              />
+            )}
+            {activeTab === "submissions" && (
+              <SubmissionsTab
+                homeworkId={homework.homeworkId}
+                maxScore={homework.maxScore}
+                refreshKey={refreshKey}
+                onGraded={() => setRefreshKey((k) => k + 1)}
+              />
+            )}
+            {activeTab === "analytics" && (
+              <AnalyticsTab
+                homeworkId={homework.homeworkId}
+                enabled={activeTab === "analytics"}
+                refreshKey={refreshKey}
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {showEdit && homework && (
+        <HomeworkFormModal
+          mode="edit"
+          homework={homework}
+          onClose={() => setShowEdit(false)}
+          onSaved={() => { setShowEdit(false); setRefreshKey((k) => k + 1); }}
+        />
+      )}
+    </DashboardShell>
+  );
+}
+
+export default HomeworkDetailPage;

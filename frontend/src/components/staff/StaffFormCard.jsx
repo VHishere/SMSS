@@ -1,4 +1,10 @@
-function StaffFormCard({ title, children, onSubmit, submitLabel = "Lưu", loading = false }) {
+function StaffFormCard({
+  title,
+  children,
+  onSubmit,
+  submitLabel = "Lưu",
+  loading = false,
+}) {
   return (
     <form
       onSubmit={onSubmit}
@@ -7,7 +13,9 @@ function StaffFormCard({ title, children, onSubmit, submitLabel = "Lưu", loadin
       {title && (
         <h3 className="mb-5 text-lg font-bold text-[#0F2747]">{title}</h3>
       )}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>
+
       <div className="mt-6 flex justify-end">
         <button
           type="submit"
@@ -23,11 +31,9 @@ function StaffFormCard({ title, children, onSubmit, submitLabel = "Lưu", loadin
 
 export function StaffField({ label, children, className = "" }) {
   return (
-    <label className="text-sm font-semibold text-[#0F2747]">
-      <div className={`flex flex-col gap-3 ${className}`}>
-        <span>{label}</span>
-        {children}
-      </div>
+    <label className={`flex flex-col gap-2 text-sm font-semibold text-[#0F2747] ${className}`}>
+      <span>{label}</span>
+      {children}
     </label>
   );
 }

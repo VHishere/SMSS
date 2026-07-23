@@ -17,12 +17,14 @@ function StaffDataTable({
   isLoading = false,
   tableAlignClassName = "text-left",
 }) {
+  const hasHeader = title || description || toolbar || showSearch;
+
   return (
     <section className="max-w-full overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
-      <div className="border-b border-orange-50 px-5 py-4 sm:px-6">
-        <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      {hasHeader && (
+        <div className="border-b border-orange-50 px-5 py-4 sm:px-6">
           {(title || description) && (
-            <div className="min-w-0">
+            <div className="mb-4 min-w-0">
               {title && (
                 <h3 className="mb-1 break-words text-base font-bold text-[#0F2747]">
                   {title}
@@ -37,38 +39,34 @@ function StaffDataTable({
             </div>
           )}
 
-          <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:w-auto lg:justify-end">
-            {toolbar}
+          {(toolbar || showSearch) && (
+            <div className="flex w-full min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              {showSearch && (
+                <div className="relative min-w-0 flex-1">
+                  <FiSearch
+                    size={18}
+                    className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-slate-400"
+                  />
 
-            {showSearch && (
-              <div className="relative w-full min-w-0 sm:max-w-xs">
-                <FiSearch
-                  size={16}
-                  className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-slate-400"
-                />
+                  <input
+                    type="search"
+                    value={searchValue}
+                    onChange={(event) => onSearchChange(event.target.value)}
+                    placeholder={searchPlaceholder}
+                    className="h-12 w-full rounded-2xl border border-slate-200 bg-[#FFF7F2] pr-4 pl-11 text-sm text-[#0F2747] outline-none transition placeholder:text-slate-400 focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20"
+                  />
+                </div>
+              )}
 
-                <input
-                  type="search"
-                  value={searchValue}
-                  onChange={(event) =>
-                    onSearchChange(event.target.value)
-                  }
-                  placeholder={searchPlaceholder}
-                  className="
-                    w-full rounded-xl border
-                    border-slate-200 bg-[#FFF7F2]
-                    py-2.5 pr-3 pl-9 text-sm
-                    text-[#0F2747] outline-none
-                    transition focus:border-[#F27123]
-                    focus:bg-white focus:ring-2
-                    focus:ring-[#F27123]/20
-                  "
-                />
-              </div>
-            )}
-          </div>
+              {toolbar && (
+                <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:w-auto lg:flex lg:shrink-0 lg:items-center">
+                  {toolbar}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       <div className="max-w-full overflow-x-auto">
         <table className={`min-w-full text-sm ${tableAlignClassName}`}>
@@ -109,32 +107,19 @@ function StaffDataTable({
                 const rowLink = getRowLink?.(row);
                 const rowClass = `border-t border-slate-100 transition hover:bg-[#FFE7D6]/25${rowLink ? " cursor-pointer" : ""}`;
 
-                const cells = columns.map((column) => (
-                  <td
-                    key={column.key}
-                    className="max-w-[260px] px-4 py-4 align-top break-words text-[#0F2747] sm:px-5"
-                  >
-                    {column.render
-                      ? column.render(row)
-                      : row[column.key] || "—"}
-                  </td>
-                ));
+                const renderCell = (column) =>
+                  column.render ? column.render(row) : row[column.key] || "-";
 
                 if (rowLink) {
                   return (
                     <tr key={row.id || index} className={rowClass}>
                       {columns.map((column) => (
-                        <td
-                          key={column.key}
-                          className="p-0 align-top sm:p-0"
-                        >
-                        <Link
+                        <td key={column.key} className="p-0 align-top">
+                          <Link
                             to={rowLink}
                             className={`${rowLinkClassName} hover:no-underline`}
                           >
-                            {column.render
-                              ? column.render(row)
-                              : row[column.key] || "—"}
+                            {renderCell(column)}
                           </Link>
                         </td>
                       ))}
@@ -144,7 +129,14 @@ function StaffDataTable({
 
                 return (
                   <tr key={row.id || index} className={rowClass}>
-                    {cells}
+                    {columns.map((column) => (
+                      <td
+                        key={column.key}
+                        className="max-w-[260px] px-4 py-4 align-top break-words text-[#0F2747] sm:px-5"
+                      >
+                        {renderCell(column)}
+                      </td>
+                    ))}
                   </tr>
                 );
               })

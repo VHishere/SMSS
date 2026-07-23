@@ -11,6 +11,9 @@ import {
   formatTeacherType,
 } from "../../../utils/formatters";
 
+const filterSelectClass =
+  "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-[#0F2747] outline-none transition hover:border-slate-300 focus:border-[#F27123] focus:ring-2 focus:ring-[#F27123]/20 lg:w-44";
+
 function StaffTeachersPage() {
   const [teachers, setTeachers] = useState([]);
   const [lookups, setLookups] = useState(null);
@@ -44,20 +47,14 @@ function StaffTeachersPage() {
   }, [search, filters.gradeId, filters.classId]);
 
   const rows = useMemo(
-    () =>
-      teachers.map((teacher) => ({
-        ...teacher,
-        id: teacher.teacherId,
-      })),
+    () => teachers.map((teacher) => ({ ...teacher, id: teacher.teacherId })),
     [teachers],
   );
 
   const filteredClasses = useMemo(
     () =>
       (lookups?.classes || []).filter(
-        (cls) =>
-          !filters.gradeId ||
-          String(cls.gradeId) === String(filters.gradeId),
+        (cls) => !filters.gradeId || String(cls.gradeId) === String(filters.gradeId),
       ),
     [filters.gradeId, lookups?.classes],
   );
@@ -65,7 +62,7 @@ function StaffTeachersPage() {
   const filterToolbar = (
     <>
       <select
-        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
+        className={filterSelectClass}
         value={filters.gradeId}
         onChange={(event) =>
           setFilters((prev) => ({
@@ -82,8 +79,9 @@ function StaffTeachersPage() {
           </option>
         ))}
       </select>
+
       <select
-        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
+        className={filterSelectClass}
         value={filters.classId}
         onChange={(event) =>
           setFilters((prev) => ({ ...prev, classId: event.target.value }))
@@ -106,7 +104,7 @@ function StaffTeachersPage() {
         action={
           <Link
             to="/staff/teachers/new"
-            className="rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline"
+            className="rounded-full bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline hover:bg-[#E55C0A] hover:text-white"
           >
             + Thêm giáo viên
           </Link>

@@ -8,6 +8,9 @@ import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import { formatRelationship } from "../../../utils/formatters";
 
+const filterSelectClass =
+  "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-[#0F2747] outline-none transition hover:border-slate-300 focus:border-[#F27123] focus:ring-2 focus:ring-[#F27123]/20 lg:w-44";
+
 function StaffParentsPage() {
   const [parents, setParents] = useState([]);
   const [lookups, setLookups] = useState(null);
@@ -41,20 +44,14 @@ function StaffParentsPage() {
   }, [search, filters.gradeId, filters.classId]);
 
   const rows = useMemo(
-    () =>
-      parents.map((parent) => ({
-        ...parent,
-        id: parent.parentId,
-      })),
+    () => parents.map((parent) => ({ ...parent, id: parent.parentId })),
     [parents],
   );
 
   const filteredClasses = useMemo(
     () =>
       (lookups?.classes || []).filter(
-        (cls) =>
-          !filters.gradeId ||
-          String(cls.gradeId) === String(filters.gradeId),
+        (cls) => !filters.gradeId || String(cls.gradeId) === String(filters.gradeId),
       ),
     [filters.gradeId, lookups?.classes],
   );
@@ -62,7 +59,7 @@ function StaffParentsPage() {
   const filterToolbar = (
     <>
       <select
-        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
+        className={filterSelectClass}
         value={filters.gradeId}
         onChange={(event) =>
           setFilters((prev) => ({
@@ -79,8 +76,9 @@ function StaffParentsPage() {
           </option>
         ))}
       </select>
+
       <select
-        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
+        className={filterSelectClass}
         value={filters.classId}
         onChange={(event) =>
           setFilters((prev) => ({ ...prev, classId: event.target.value }))
@@ -103,7 +101,7 @@ function StaffParentsPage() {
         action={
           <Link
             to="/staff/parents/new"
-            className="rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline"
+            className="rounded-full bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline hover:bg-[#E55C0A] hover:text-white"
           >
             + Thêm phụ huynh
           </Link>
@@ -144,9 +142,9 @@ function StaffParentsPage() {
             label: "Học sinh",
             render: (row) => (
               <div>
-                <p className="mb-0 font-semibold">{row.studentName || "—"}</p>
+                <p className="mb-0 font-semibold">{row.studentName || "-"}</p>
                 <p className="mb-0 text-xs text-slate-500">
-                  {row.studentCode || "—"}
+                  {row.studentCode || "-"}
                 </p>
               </div>
             ),

@@ -1,5 +1,6 @@
 function StaffPageHeader({
   title,
+  description,
   action,
 }) {
   return (
@@ -9,6 +10,11 @@ function StaffPageHeader({
           {title}
         </h1>
 
+        {description && (
+          <p className="mb-0 max-w-3xl text-sm text-slate-500">
+            {description}
+          </p>
+        )}
       </div>
 
       {action && <div className="flex shrink-0 flex-wrap gap-2">{action}</div>}

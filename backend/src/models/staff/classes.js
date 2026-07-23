@@ -197,18 +197,43 @@ async function removeStudent(classId, studentId) {
 }
 
 async function assignTeacher(classId, data) {
-  await pool.query(
-    `
-      INSERT INTO teacher_class (class_id, teacher_id, subject_id, role_in_class, assign_date)
-      VALUES (?, ?, ?, ?, CURDATE())
-    `,
-    [
-      classId,
-      data.teacherId,
-      data.subjectId || null,
-      data.roleInClass,
-    ],
-  );
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    await conn.query(
+      `
+        INSERT INTO teacher_class (class_id, teacher_id, subject_id, role_in_class, assign_date)
+        VALUES (?, ?, ?, ?, CURDATE())
+      `,
+      [classId, data.teacherId, data.subjectId || null, data.roleInClass],
+    );
+
+    // Đồng bộ role toàn cục (user_role) theo phân công — CHỈ THÊM, không gỡ —
+    // để nav/routing khớp teacher_class (nguồn chân lý). role_id: 3=HOMEROOM, 4=SUBJECT.
+    const [[teacher]] = await conn.query(
+      "SELECT user_id AS userId FROM teacher WHERE teacher_id = ?",
+      [data.teacherId],
+    );
+    if (teacher) {
+      const roleId = data.roleInClass === "HOMEROOM_TEACHER" ? 3 : 4;
+      await conn.query(
+        `INSERT INTO user_role (user_id, role_id)
+         SELECT ?, ? FROM DUAL
+         WHERE NOT EXISTS (
+           SELECT 1 FROM user_role WHERE user_id = ? AND role_id = ?
+         )`,
+        [teacher.userId, roleId, teacher.userId, roleId],
+      );
+    }
+
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
 
   return getClassById(classId);
 }

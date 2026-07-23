@@ -22,15 +22,34 @@ function initials(name) {
   const p = (name || "").trim().split(/\s+/);
   return p.length ? (p.length === 1 ? p[0][0] : p[0][0] + p[p.length - 1][0]).toUpperCase() : "?";
 }
-// mirrors backend academic.config SCORE_TYPE_WEIGHTS (hệ số) — for display ĐTB
-const WEIGHTS = { QUIZ: 1, PARTICIPATION: 1, HOMEWORK: 1, ASSIGNMENT: 1, MIDTERM: 2, FINAL: 3 };
+// ĐTB môn = (ĐĐGtx×1 + ĐĐGgk×2 + ĐĐGck×3)/6. TX (thường xuyên) là 1 NHÓM: lấy
+// TRUNG BÌNH các đầu điểm (miệng + 15 phút) rồi mới nhân hệ số 1. GK×2, CK×3.
+// Mẫu số = tổng hệ số các nhóm CÓ điểm (đủ 3 nhóm là /6). Phải KHỚP backend
+// gpa.service + parent/student StudentGrades để không lệch giữa các role.
+const GROUP_WEIGHT = { TX: 1, GK: 2, CK: 3 };
+function groupOf(t) {
+  if (t.group) return t.group;
+  if (t.key === "MIDTERM") return "GK";
+  if (t.key === "FINAL") return "CK";
+  if (typeof t.key === "string" && t.key.startsWith("TX")) return "TX";
+  return null;
+}
+function weightOf(t) { return GROUP_WEIGHT[groupOf(t)] ?? t.weight ?? 1; }
 function cellVal(raw) { const v = raw && typeof raw === "object" ? raw.scoreValue : raw; return v === "" || v == null ? null : Number(v); }
 function weightedAvg(scores, scoreTypes) {
-  let sw = 0, s = 0;
+  const groupVals = { TX: [], GK: [], CK: [] };
   for (const t of scoreTypes) {
+    const g = groupOf(t);
+    if (!g || !(g in groupVals)) continue;
     const n = cellVal(scores?.[t.key]);
     if (n == null || !Number.isFinite(n)) continue;
-    const w = WEIGHTS[t.key] ?? 1; s += n * w; sw += w;
+    groupVals[g].push(n);
+  }
+  let s = 0, sw = 0;
+  for (const g of Object.keys(GROUP_WEIGHT)) {
+    if (!groupVals[g].length) continue;
+    const avg = groupVals[g].reduce((a, b) => a + b, 0) / groupVals[g].length;
+    s += avg * GROUP_WEIGHT[g]; sw += GROUP_WEIGHT[g];
   }
   return sw > 0 ? Math.round((s / sw) * 100) / 100 : null;
 }
@@ -174,12 +193,26 @@ function GradebookTab({ classId, subjectId, semesterId, scoreTypes, subjectName 
   function setCell(sid, key, value) { setDraft((p) => ({ ...p, [sid]: { ...p[sid], [key]: value } })); }
 
   const summary = useMemo(() => {
-    const avgs = Object.values(draft).map((r) => weightedAvg(r, scoreTypes)).filter((v) => v != null);
+    const rows = Object.values(draft);
+    const avgs = rows.map((r) => weightedAvg(r, scoreTypes)).filter((v) => v != null);
     if (!avgs.length) return null;
     const classAvg = Math.round((avgs.reduce((a, b) => a + b, 0) / avgs.length) * 100) / 100;
     const pass = avgs.filter((v) => v >= 5).length;
     const gioi = avgs.filter((v) => v >= 8).length;
-    return { classAvg, passRate: Math.round((pass / avgs.length) * 1000) / 10, gioiRate: Math.round((gioi / avgs.length) * 1000) / 10, count: avgs.length };
+    // Đủ điều kiện ĐĐGtx: ≥1 điểm miệng + 2 điểm 15 phút (chỉ xét HS đã có điểm).
+    const oralKeys = scoreTypes.filter((t) => t.kind === "ORAL").map((t) => t.key);
+    const quizKeys = scoreTypes.filter((t) => t.kind === "QUIZ_15").map((t) => t.key);
+    const hasVal = (r, k) => r[k] !== "" && r[k] != null;
+    const incompleteTx = (oralKeys.length || quizKeys.length)
+      ? rows.filter((r) => {
+          const started = scoreTypes.some((t) => hasVal(r, t.key));
+          if (!started) return false;
+          const oral = oralKeys.filter((k) => hasVal(r, k)).length;
+          const quiz = quizKeys.filter((k) => hasVal(r, k)).length;
+          return oral < 1 || quiz < 2;
+        }).length
+      : 0;
+    return { classAvg, passRate: Math.round((pass / avgs.length) * 1000) / 10, gioiRate: Math.round((gioi / avgs.length) * 1000) / 10, count: avgs.length, incompleteTx };
   }, [draft, scoreTypes]);
 
   async function handleSave() {
@@ -242,7 +275,10 @@ function GradebookTab({ classId, subjectId, semesterId, scoreTypes, subjectName 
         </div>
       )}
 
-      <p className="flex items-center gap-1.5 text-xs" style={{ color: C.muted }}><Ms name="info" className="!text-[14px]" /> Thang điểm 10. Nhập điểm trực tiếp; cột TB môn & xếp loại tự tính theo hệ số.</p>
+      <p className="flex items-center gap-1.5 text-xs" style={{ color: C.muted }}><Ms name="info" className="!text-[14px]" /> Thang điểm 10 · ĐTB = (ĐĐGtx×1 + Giữa kỳ×2 + Cuối kỳ×3)/6; ĐĐGtx = trung bình các cột thường xuyên (miệng + 15 phút).</p>
+      {summary?.incompleteTx > 0 && (
+        <p className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "#B45309" }}><Ms name="warning" className="!text-[14px]" /> {summary.incompleteTx} học sinh chưa đủ đầu điểm thường xuyên (cần tối thiểu 1 điểm miệng + 2 điểm 15 phút).</p>
+      )}
 
       <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: `1px solid ${C.border}` }}>
         {data.students.length === 0 ? <p className="p-10 text-center text-sm text-slate-400">Lớp chưa có học sinh.</p> : (
@@ -367,7 +403,7 @@ function DetailTab({ classId, semesterId, subjectOptions, scoreTypes, onOpenStud
             <thead className={THEAD} style={THEAD_STYLE}>
               <tr className="text-left">
                 <th className={TH}>Môn học</th>
-                {scoreTypes.map((t) => <th key={t.key} className={`${TH} text-center`}>{t.label}<br /><span className="text-[9px] opacity-70">HS {WEIGHTS[t.key] ?? 1}</span></th>)}
+                {scoreTypes.map((t) => <th key={t.key} className={`${TH} text-center`}>{t.label}<br /><span className="text-[9px] opacity-70">HS {weightOf(t)}</span></th>)}
                 <th className={`${TH} text-center`}>ĐTB</th>
                 <th className={`${TH} text-center`}>Xếp loại</th>
               </tr>
@@ -394,10 +430,10 @@ function DetailTab({ classId, semesterId, subjectOptions, scoreTypes, onOpenStud
           <h4 className="mb-3 text-sm font-bold" style={{ color: C.onSurface }}>Cách tính điểm trung bình (ĐTB)</h4>
           <div className="space-y-2 text-sm">
             {scoreTypes.map((t) => (
-              <div key={t.key} className="flex items-center justify-between"><span style={{ color: C.muted }}>{t.label}</span><span className="font-bold" style={{ color: C.onSurface }}>Hệ số {WEIGHTS[t.key] ?? 1}</span></div>
+              <div key={t.key} className="flex items-center justify-between"><span style={{ color: C.muted }}>{t.label}</span><span className="font-bold" style={{ color: C.onSurface }}>Hệ số {weightOf(t)}</span></div>
             ))}
           </div>
-          <p className="mt-3 text-[11px] italic" style={{ color: C.muted }}>ĐTB = Σ(điểm × hệ số) / Σ(hệ số) trên thang 10.</p>
+          <p className="mt-3 text-[11px] italic" style={{ color: C.muted }}>ĐTB = (ĐĐGtx×1 + Giữa kỳ×2 + Cuối kỳ×3) / 6 · ĐĐGtx = trung bình các đầu điểm thường xuyên (miệng + 15 phút).</p>
         </div>
         <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
           <h4 className="mb-3 text-sm font-bold" style={{ color: C.onSurface }}>ĐTB theo môn</h4>
@@ -639,7 +675,7 @@ function AcademicPage() {
         ) : (
           <>
             <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
-              <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Quản lý Sổ điểm</h2>
+              <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Quản lý sổ điểm</h2>
               <div className="flex flex-wrap items-end gap-2">
                 <select value={classId} onChange={(e) => setClassId(e.target.value)} className={selectCls} style={selectStyle}>
                   {classOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}

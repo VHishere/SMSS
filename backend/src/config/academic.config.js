@@ -7,26 +7,41 @@
 // to match the official academic policy if it differs.
 // =========================================================
 
-// Supported score types (UC requirement) and their weight (hệ số) used when
-// computing a subject's weighted average.
+// Cơ cấu điểm chính thức của nhà trường:
+//   ĐĐGtx (hệ số 1) = tối thiểu 1 điểm miệng + 2 điểm kiểm tra 15 phút — LẤY TRUNG BÌNH
+//   ĐĐGgk (hệ số 2) = điểm kiểm tra giữa kỳ
+//   ĐĐGck (hệ số 3) = điểm kiểm tra cuối kỳ
+//   ĐTB môn = (ĐĐGtx×1 + ĐĐGgk×2 + ĐĐGck×3) / 6
+//            (mẫu số = tổng hệ số các NHÓM có điểm → khi đủ 3 nhóm là /6)
+// Các đầu điểm thường xuyên TX1/TX2/TX3 thuộc CÙNG nhóm TX và được lấy TRUNG BÌNH
+// (không cộng riêng từng cột) trước khi nhân hệ số 1.
+const SCORE_TYPES = ["TX1", "TX2", "TX3", "MIDTERM", "FINAL"];
+
+// Nhóm hệ số của mỗi đầu điểm.
+const SCORE_GROUP = { TX1: "TX", TX2: "TX", TX3: "TX", MIDTERM: "GK", FINAL: "CK" };
+// Hệ số theo NHÓM (không phải theo từng cột TX).
+const GROUP_WEIGHT = { TX: 1, GK: 2, CK: 3 };
+const GROUP_LABEL  = { TX: "Thường xuyên", GK: "Giữa kỳ", CK: "Cuối kỳ" };
+
+// Loại đầu điểm thường xuyên — để kiểm tra tối thiểu 1 miệng + 2 bài 15 phút.
+const SCORE_TYPE_KIND = { TX1: "ORAL", TX2: "QUIZ_15", TX3: "QUIZ_15", MIDTERM: "MIDTERM", FINAL: "FINAL" };
+const REQUIRED_TX = { ORAL: 1, QUIZ_15: 2 };
+
+// Hệ số hiển thị cho từng đầu điểm = hệ số của nhóm nó thuộc về.
 const SCORE_TYPE_WEIGHTS = {
-  QUIZ:          1,
-  PARTICIPATION: 1,
-  HOMEWORK:      1,
-  ASSIGNMENT:    1,
-  MIDTERM:       2,
-  FINAL:         3,
+  TX1:     GROUP_WEIGHT.TX,
+  TX2:     GROUP_WEIGHT.TX,
+  TX3:     GROUP_WEIGHT.TX,
+  MIDTERM: GROUP_WEIGHT.GK,
+  FINAL:   GROUP_WEIGHT.CK,
 };
 
-const SCORE_TYPES = Object.keys(SCORE_TYPE_WEIGHTS);
-
 const SCORE_TYPE_LABELS = {
-  QUIZ:          "Kiểm tra ngắn",
-  PARTICIPATION: "Điểm chuyên cần",
-  HOMEWORK:      "Bài tập về nhà",
-  ASSIGNMENT:    "Bài tập lớn",
-  MIDTERM:       "Giữa kỳ",
-  FINAL:         "Cuối kỳ",
+  TX1:     "Miệng",
+  TX2:     "15 phút",
+  TX3:     "15 phút",
+  MIDTERM: "Giữa kỳ",
+  FINAL:   "Cuối kỳ",
 };
 
 // Pass threshold for a single subject (10-scale).
@@ -70,6 +85,11 @@ module.exports = {
   SCORE_TYPE_WEIGHTS,
   SCORE_TYPES,
   SCORE_TYPE_LABELS,
+  SCORE_GROUP,
+  GROUP_WEIGHT,
+  GROUP_LABEL,
+  SCORE_TYPE_KIND,
+  REQUIRED_TX,
   SUBJECT_PASS_THRESHOLD,
   STANDING_BANDS,
   WARNING_RULES,

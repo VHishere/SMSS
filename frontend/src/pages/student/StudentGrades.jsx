@@ -6,9 +6,11 @@ import {
 } from "react";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import LessonFeedbackCard from "../../components/organisms/LessonFeedbackCard";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useStudentGrades } from "../../hooks/useStudentGrades";
+import { studentApi } from "../../api/client";
 
 const EXTRA_SUBJECTS = [
   {
@@ -34,10 +36,10 @@ const EXTRA_SUBJECTS = [
 ];
 
 const SCORE_SLOTS = [
-  { key: "tx1", label: "TX1", weight: 1 },
-  { key: "tx2", label: "TX2", weight: 1 },
-  { key: "tx3", label: "TX3", weight: 1 },
-  { key: "onePeriod", label: "1 tiết", weight: 2 },
+  { key: "tx1", label: "Miệng", weight: 1 },
+  { key: "tx2", label: "15 phút", weight: 1 },
+  { key: "tx3", label: "15 phút", weight: 1 },
+  { key: "onePeriod", label: "Giữa kỳ", weight: 2 },
   { key: "final", label: "Cuối kỳ", weight: 3 },
 ];
 
@@ -282,25 +284,32 @@ function putGradeIntoSubjectRow(row, grade) {
 }
 
 function calculateSubjectAverage(scores) {
+  // ĐTB = (ĐĐGtx×1 + Giữa kỳ×2 + Cuối kỳ×3)/6. ĐĐGtx = TRUNG BÌNH các đầu điểm
+  // thường xuyên (miệng + 15 phút); mẫu số = tổng hệ số nhóm CÓ điểm.
+  const val = (key) => {
+    const grade = scores[key];
+    if (!grade || grade.scoreValue === null || grade.scoreValue === undefined) {
+      return null;
+    }
+    const scoreValue = Number(grade.scoreValue);
+    return Number.isNaN(scoreValue) ? null : scoreValue;
+  };
+
+  const groups = [
+    { vals: ["tx1", "tx2", "tx3"].map(val).filter((v) => v !== null), weight: 1 },
+    { vals: [val("onePeriod")].filter((v) => v !== null), weight: 2 },
+    { vals: [val("final")].filter((v) => v !== null), weight: 3 },
+  ];
+
   let total = 0;
   let totalWeight = 0;
 
-  SCORE_SLOTS.forEach((slot) => {
-    const grade = scores[slot.key];
-
-    if (!grade || grade.scoreValue === null || grade.scoreValue === undefined) {
-      return;
-    }
-
-    const scoreValue = Number(grade.scoreValue);
-
-    if (Number.isNaN(scoreValue)) {
-      return;
-    }
-
-    total += scoreValue * slot.weight;
-    totalWeight += slot.weight;
-  });
+  for (const grp of groups) {
+    if (!grp.vals.length) continue;
+    const avg = grp.vals.reduce((a, b) => a + b, 0) / grp.vals.length;
+    total += avg * grp.weight;
+    totalWeight += grp.weight;
+  }
 
   if (totalWeight === 0) {
     return null;
@@ -450,7 +459,7 @@ function FilterSelect({
   options,
 }) {
   return (
-    <label className="flex items-center gap-2">
+    <label className="flex w-full flex-col gap-1.5 sm:w-auto sm:flex-row sm:items-center sm:gap-2">
       <span className="whitespace-nowrap text-sm font-semibold text-slate-500">
         {label}
       </span>
@@ -459,7 +468,7 @@ function FilterSelect({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="
-          h-10 min-w-36 rounded-xl
+          h-10 w-full rounded-xl sm:min-w-36
           border border-orange-100 bg-white
           px-3 text-sm font-semibold
           text-[#0F2747] shadow-sm
@@ -478,6 +487,65 @@ function FilterSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+function GradeSubjectMobileCard({ semester, subject }) {
+  const average = calculateSubjectAverage(subject.scores);
+  const comment =
+    subject.comments.length > 0
+      ? subject.comments[0]
+      : "Chưa có nhận xét";
+
+  return (
+    <article className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <SubjectBadge isExtra={subject.isExtra} />
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+              {subject.subjectCode || "Chưa có mã môn"}
+            </span>
+          </div>
+
+          <h4 className="mb-0 break-words text-base font-bold text-[#0F2747]">
+            {subject.subjectName}
+          </h4>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            TB môn
+          </p>
+          <span
+            className={`inline-flex min-w-16 items-center justify-center rounded-full px-3 py-1.5 text-sm font-bold ${
+              average ? scoreColor(average) : "bg-slate-100 text-slate-400"
+            }`}
+          >
+            {average || "--"}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {SCORE_SLOTS.map((slot) => (
+          <div
+            key={`${semester.key}-${subject.subjectKey}-${slot.key}`}
+            className="rounded-2xl bg-slate-50 px-3 py-3"
+          >
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">
+              {slot.label} · Hệ số {slot.weight}
+            </p>
+            <ScoreCell grade={subject.scores[slot.key]} />
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 rounded-2xl bg-[#FFF7F2] px-4 py-3 text-sm leading-6 text-slate-600">
+        <span className="font-bold text-[#0F2747]">Nhận xét: </span>
+        {comment}
+      </div>
+    </article>
   );
 }
 
@@ -505,7 +573,7 @@ function GradeSemesterTable({ semester }) {
 
   return (
     <div className="overflow-hidden rounded-2xl border border-orange-100 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-orange-100 px-5 py-4">
+      <div className="flex flex-col items-start justify-between gap-3 border-b border-orange-100 px-4 py-4 sm:flex-row sm:items-center sm:px-5">
         <div>
           <h3 className="mb-1 text-base font-bold text-[#0F2747]">
             {semester.label}
@@ -517,7 +585,29 @@ function GradeSemesterTable({ semester }) {
         </span>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="space-y-4 bg-slate-50/40 p-3 md:hidden">
+        {sections.map((section) => {
+          if (section.subjects.length === 0) return null;
+
+          return (
+            <div key={`${semester.key}-${section.key}`} className="space-y-3">
+              <div className="rounded-full bg-[#FFF7F2] px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#F27123]">
+                {section.title}
+              </div>
+
+              {section.subjects.map((subject) => (
+                <GradeSubjectMobileCard
+                  key={`${semester.key}-${subject.subjectKey}`}
+                  semester={semester}
+                  subject={subject}
+                />
+              ))}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1080px]">
           <thead className="bg-[#0F2747] text-white">
             <tr>
@@ -750,7 +840,7 @@ function StudentGrades() {
 
       {!loading && !error && data && (
         <>
-          <section className="mb-5 flex flex-wrap items-center justify-end gap-3">
+          <section className="mb-5 grid gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
             <FilterSelect
               label="Năm học"
               value={activeYearKey}
@@ -767,6 +857,10 @@ function StudentGrades() {
               options={semesterOptions}
               onChange={setSelectedSemesterKey}
             />
+          </section>
+
+          <section className="mb-5">
+            <LessonFeedbackCard fetcher={studentApi.getMyLessonFeedback} />
           </section>
 
           <section className="space-y-5">

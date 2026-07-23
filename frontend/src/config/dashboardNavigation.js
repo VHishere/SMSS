@@ -66,19 +66,26 @@ export const dashboardNavigation = {
       path: "/student/messages",
       icon: FiMessageSquare,
     },
+    {
+      label: "Khảo sát GV",
+      path: "/student/surveys",
+      icon: FiEdit3,
+    },
   ],
 
   ADMIN: [
     {
-      label: "Dashboard",
+      label: "Tổng quan",
       path: "/admin",
       icon: FiGrid,
+      ms: "dashboard",
       end: true,
     },
     {
       label: "Tài khoản",
       path: "/admin/users",
       icon: FiUsers,
+      ms: "manage_accounts",
     },
   ],
 
@@ -134,6 +141,11 @@ export const dashboardNavigation = {
       path: "/staff/reports",
       icon: FiBarChart2,
     },
+    {
+      label: "Khảo sát GV",
+      path: "/staff/surveys",
+      icon: FiEdit3,
+    },
   ],
 
   TEACHER: [
@@ -155,12 +167,7 @@ export const dashboardNavigation = {
       path: "/teacher/leave-requests",
       icon: FiFileText,
       ms: "event_busy",
-    },
-    {
-      label: "Lớp học",
-      path: "/teacher/classes",
-      icon: FiBookOpen,
-      ms: "school",
+      homeroomOnly: true,
     },
     {
       label: "Học sinh",
@@ -179,12 +186,14 @@ export const dashboardNavigation = {
       path: "/teacher/behaviour",
       icon: FiShield,
       ms: "rule",
+      homeroomOnly: true,
     },
     {
       label: "Hạnh kiểm",
       path: "/teacher/conduct",
       icon: FiAward,
       ms: "workspace_premium",
+      homeroomOnly: true,
     },
     {
       label: "Điểm số",
@@ -203,6 +212,7 @@ export const dashboardNavigation = {
       path: "/teacher/meetings",
       icon: FiCalendar,
       ms: "groups",
+      homeroomOnly: true,
     },
     {
       label: "Liên lạc",
@@ -227,18 +237,21 @@ export const dashboardNavigation = {
       path: "/teacher/goals",
       icon: FiFlag,
       ms: "flag",
+      homeroomOnly: true,
     },
     {
       label: "Hỗ trợ học sinh",
       path: "/teacher/support-cases",
       icon: FiLifeBuoy,
       ms: "support_agent",
+      homeroomOnly: true,
     },
     {
       label: "Thông báo",
       path: "/teacher/announcements",
       icon: FiBell,
       ms: "campaign",
+      homeroomOnly: true,
     },
   ],
 
@@ -247,62 +260,80 @@ export const dashboardNavigation = {
       label: "Dashboard",
       path: "/parent",
       icon: FiGrid,
+      ms: "dashboard",
       end: true,
     },
     {
       label: "Học sinh",
       path: "/parent/student",
       icon: FiUsers,
+      ms: "group",
     },
     {
       label: "Điểm danh",
       path: "/parent/attendance",
       icon: FiCalendar,
+      ms: "how_to_reg",
     },
     {
       label: "Đơn xin nghỉ",
       path: "/parent/leave-requests",
       icon: FiBookOpen,
+      ms: "event_busy",
     },
     {
       label: "Thời khóa biểu",
       path: "/parent/timetable",
       icon: FiClock,
+      ms: "calendar_month",
     },
     {
       label: "Bảng điểm",
       path: "/parent/grades",
       icon: FiAward,
+      ms: "grade",
     },
     {
       label: "Hạnh kiểm",
       path: "/parent/behaviour",
       icon: FiShield,
+      ms: "workspace_premium",
     },
     {
       label: "Bài tập",
       path: "/parent/homework",
       icon: FiEdit3,
+      ms: "assignment",
+    },
+    {
+      label: "Học phí",
+      path: "/parent/fees",
+      icon: FiCreditCard,
+      ms: "payments",
     },
     {
       label: "Sự kiện",
       path: "/parent/events",
       icon: FiStar,
+      ms: "local_activity",
     },
     {
       label: "Họp phụ huynh",
       path: "/parent/meetings",
       icon: FiCalendar,
+      ms: "groups",
     },
     {
       label: "Tin nhắn",
       path: "/parent/messages",
       icon: FiMessageSquare,
+      ms: "chat",
     },
     {
       label: "Thông báo",
       path: "/parent/notifications",
       icon: FiBell,
+      ms: "notifications",
     },
   ],
 };

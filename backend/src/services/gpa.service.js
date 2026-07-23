@@ -1,5 +1,6 @@
 const {
-  SCORE_TYPE_WEIGHTS,
+  SCORE_GROUP,
+  GROUP_WEIGHT,
   SUBJECT_PASS_THRESHOLD,
   getStanding,
 } = require("../config/academic.config");
@@ -22,13 +23,25 @@ function normalize(scoreValue, maxScore) {
 function subjectAverage(rows) {
   if (!rows || rows.length === 0) return null;
 
+  // Gom theo nhóm hệ số. Nhóm TX (thường xuyên) lấy TRUNG BÌNH các đầu điểm rồi
+  // mới nhân hệ số 1; GK hệ số 2; CK hệ số 3. Mẫu số = tổng hệ số các nhóm CÓ điểm
+  // → đủ 3 nhóm là /6. (ĐTB = (ĐĐGtx×1 + ĐĐGgk×2 + ĐĐGck×3)/6)
+  const groupVals = { TX: [], GK: [], CK: [] };
+  for (const r of rows) {
+    const g = SCORE_GROUP[r.scoreType];
+    if (!g || !(g in groupVals)) continue;
+    const v = normalize(r.scoreValue, r.maxScore);
+    if (Number.isFinite(v)) groupVals[g].push(v);
+  }
+
   let weightedSum = 0;
   let weightTotal = 0;
-
-  for (const r of rows) {
-    const weight = SCORE_TYPE_WEIGHTS[r.scoreType] ?? 1;
-    weightedSum += normalize(r.scoreValue, r.maxScore) * weight;
-    weightTotal += weight;
+  for (const g of Object.keys(GROUP_WEIGHT)) {
+    const vals = groupVals[g];
+    if (!vals.length) continue;
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    weightedSum += avg * GROUP_WEIGHT[g];
+    weightTotal += GROUP_WEIGHT[g];
   }
 
   if (weightTotal === 0) return null;

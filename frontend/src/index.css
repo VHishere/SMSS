@@ -74,3 +74,13 @@ a {
 .no-underline {
     text-decoration: none;
 }
+
+/* Ẩn thanh cuộn (scrollbar) nhưng VẪN cuộn được bằng chuột/cảm ứng/bàn phím */
+.no-scrollbar {
+    scrollbar-width: none;      /* Firefox */
+    -ms-overflow-style: none;   /* IE / Edge cũ */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;              /* Chrome / Safari / Edge mới */
+}

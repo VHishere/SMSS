@@ -1,4 +1,5 @@
 ﻿const staffModel = require("../models/staff");
+const feedbackModel = require("../models/feedback.model");
 
 function handleError(res, error, fallbackMessage) {
   console.error(fallbackMessage, error);
@@ -490,9 +491,50 @@ async function recordFeePayment(req, res) {
   }
 }
 
+// ── Khảo sát đánh giá giáo viên (HS → GV, ẩn danh) ────────────────────────────
+
+async function listTeacherSurveys(req, res) {
+  try {
+    const data = await feedbackModel.findSurveysForStaff();
+    return res.json({ success: true, data });
+  } catch (error) { return handleError(res, error, "Không thể lấy danh sách khảo sát"); }
+}
+
+async function createTeacherSurvey(req, res) {
+  try {
+    const { semesterId, teacherId, subjectId, classId, title } = req.body;
+    if (!semesterId || !teacherId) {
+      return res.status(400).json({ success: false, message: "Thiếu học kỳ hoặc giáo viên" });
+    }
+    const surveyId = await feedbackModel.createSurvey({
+      semesterId, teacherId, subjectId: subjectId || null, classId: classId || null,
+      title: title || null, createdBy: req.user.userId,
+    });
+    return res.status(201).json({ success: true, message: "Đã tạo khảo sát", data: { surveyId } });
+  } catch (error) { return handleError(res, error, "Không thể tạo khảo sát"); }
+}
+
+async function closeTeacherSurvey(req, res) {
+  try {
+    await feedbackModel.setSurveyStatus(parseInt(req.params.id, 10), "CLOSED");
+    return res.json({ success: true, message: "Đã đóng khảo sát" });
+  } catch (error) { return handleError(res, error, "Không thể đóng khảo sát"); }
+}
+
+async function getTeacherSurveyAggregate(req, res) {
+  try {
+    const data = await feedbackModel.findSurveyAggregate(parseInt(req.params.id, 10));
+    return res.json({ success: true, data });
+  } catch (error) { return handleError(res, error, "Không thể lấy tổng hợp khảo sát"); }
+}
+
 module.exports = {
   getOverview,
   getLookups,
+  listTeacherSurveys,
+  createTeacherSurvey,
+  closeTeacherSurvey,
+  getTeacherSurveyAggregate,
   getStudents,
   getStudentById,
   createStudent,

@@ -22,13 +22,40 @@ async function isTeacherForStudent(teacherId, studentId) {
   return Boolean(row);
 }
 
+// Homeroom-only variants (cho Mục tiêu, Hỗ trợ HS...): chỉ GVCN của lớp/hs.
+async function isHomeroomOfClass(teacherId, classId) {
+  const [[row]] = await pool.query(
+    `SELECT 1 AS ok FROM teacher_class
+     WHERE teacher_id = ? AND class_id = ? AND role_in_class = 'HOMEROOM_TEACHER' LIMIT 1`,
+    [teacherId, classId],
+  );
+  return Boolean(row);
+}
+
+async function isHomeroomOfStudent(teacherId, studentId) {
+  const [[row]] = await pool.query(
+    `SELECT 1 AS ok
+     FROM teacher_class tc
+     INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     WHERE tc.teacher_id = ? AND ce.student_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
+     LIMIT 1`,
+    [teacherId, studentId],
+  );
+  return Boolean(row);
+}
+
+// "Học sinh" dùng chung cho cả GVBM (xem lớp dạy) lẫn GVCN → trả MỌI lớp dạy,
+// kèm roleInClass để trang chỉ-GVCN (Mục tiêu, Hỗ trợ) tự lọc lớp chủ nhiệm.
 async function findTeacherClasses(teacherId) {
   const [rows] = await pool.query(
-    `SELECT DISTINCT sc.class_id AS classId, sc.class_name AS className, g.grade_name AS gradeName
+    `SELECT sc.class_id AS classId, sc.class_name AS className, g.grade_name AS gradeName,
+       CASE WHEN MAX(tc.role_in_class = 'HOMEROOM_TEACHER') = 1
+            THEN 'HOMEROOM_TEACHER' ELSE 'SUBJECT_TEACHER' END AS roleInClass
      FROM teacher_class tc
      INNER JOIN school_class sc ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
      INNER JOIN grade g ON g.grade_id = sc.grade_id
      WHERE tc.teacher_id = ?
+     GROUP BY sc.class_id, sc.class_name, g.grade_name
      ORDER BY sc.class_name ASC`,
     [teacherId],
   );
@@ -267,6 +294,8 @@ async function findClassRiskOverview(classId, semesterId, startDate, endDate) {
 module.exports = {
   isTeacherForClass,
   isTeacherForStudent,
+  isHomeroomOfClass,
+  isHomeroomOfStudent,
   findTeacherClasses,
   findSemesters,
   findSemesterById,

@@ -3,8 +3,7 @@ import { useState } from "react";
 import DashboardHeader from "../organisms/DashboardHeader";
 import DashboardSidebar from "../organisms/DashboardSidebar";
 import { useAuth } from "../../context/useAuth";
-
-const TEACHER_ROLES = ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"];
+import { isStitchUser } from "../../config/sidebarRoles";
 
 function DashboardShell({
   user,
@@ -19,37 +18,49 @@ function DashboardShell({
   ] = useState(false);
 
   const { user: authUser } = useAuth();
-  const isTeacher = authUser?.roles?.some((r) =>
-    TEACHER_ROLES.includes(r.roleName),
+  const isStitch = isStitchUser(authUser);
+
+  const isHomeroom = authUser?.roles?.some(
+    (role) => role.roleName === "HOMEROOM_TEACHER",
   );
 
-  // Teacher: FSchool Stitch design (Inter, light grey canvas, 280px sidebar)
-  const rootClass = isTeacher
+  const visibleItems = (menuItems ?? []).filter(
+    (item) => !item.homeroomOnly || isHomeroom,
+  );
+
+  const rootClass = isStitch
     ? "min-h-screen bg-[#F3F3F3] text-[#1A1C1C] [font-family:'Inter',sans-serif]"
     : "min-h-screen bg-[#FFF7F2] text-[#0F2747]";
-  const contentPad = isTeacher ? "lg:pl-[280px]" : "lg:pl-80";
+
+  const contentPad = isStitch
+    ? "lg:pl-[280px]"
+    : "lg:pl-80";
 
   return (
     <div className={rootClass}>
       <DashboardSidebar
-        items={menuItems}
+        items={visibleItems}
         footerLabel={sidebarFooterLabel}
         footerValue={sidebarFooterValue}
         showMobile={showMobileSidebar}
-        onCloseMobile={() =>
-          setShowMobileSidebar(false)
-        }
+        onCloseMobile={() => setShowMobileSidebar(false)}
       />
 
       <div className={`min-h-screen ${contentPad}`}>
         <DashboardHeader
           user={user}
-          onOpenSidebar={() =>
-            setShowMobileSidebar(true)
-          }
+          onOpenSidebar={() => setShowMobileSidebar(true)}
         />
 
-        <main className="min-w-0 max-w-full overflow-x-hidden px-4 py-6 sm:px-6 lg:px-8">
+        <main
+          className="
+            mx-auto min-w-0 w-full max-w-[1600px]
+            overflow-x-hidden
+            px-3 py-4
+            sm:px-5 sm:py-6
+            lg:px-8
+          "
+        >
           {children}
         </main>
       </div>

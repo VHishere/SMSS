@@ -5,6 +5,8 @@ const {
   VIOLATION_CATEGORIES,
   BASE_CONDUCT_SCORE,
   CONDUCT_BUCKETS,
+  CONDUCT_GRADE_KEYS,
+  CONDUCT_GRADE_LABEL,
   WARNING_RULES,
   getConductGrade,
 } = require("../config/behaviour.config");
@@ -41,7 +43,7 @@ function buildRecipientNotifications(recipients, title, content) {
 // ── Create merit / demerit ────────────────────────────────────────────────────
 
 async function createRecord({ teacherId, actorUserId, payload }) {
-  const { studentId, behaviorType, title, category, description, severityLevel, points, recordDate, evidenceUrl } = payload;
+  const { studentId, behaviorType, title, category, description, severityLevel, affectsConduct, points, recordDate, evidenceUrl } = payload;
 
   if (!["POSITIVE", "VIOLATION"].includes(behaviorType)) throw httpError("Loại hành vi không hợp lệ", 400);
   if (!studentId) throw httpError("Thiếu học sinh", 400);
@@ -56,8 +58,9 @@ async function createRecord({ teacherId, actorUserId, payload }) {
   }
   if (!validCategory(behaviorType, category)) throw httpError("Danh mục không hợp lệ", 400);
 
-  const allowed = await behaviourModel.isTeacherForStudent(teacherId, parseInt(studentId, 10));
-  if (!allowed) throw httpError("Bạn không phụ trách học sinh này", 403);
+  // Nề nếp/hạnh kiểm là nghiệp vụ GVCN.
+  const allowed = await behaviourModel.isHomeroomOfStudent(teacherId, parseInt(studentId, 10));
+  if (!allowed) throw httpError("Chỉ giáo viên chủ nhiệm mới ghi nhận nề nếp cho học sinh này", 403);
 
   const semesterId = await resolveSemesterId(recordDate);
 
@@ -74,6 +77,7 @@ async function createRecord({ teacherId, actorUserId, payload }) {
     category: category ?? null,
     description: description ?? null,
     severityLevel: severityLevel ?? "LOW",
+    affectsConduct: behaviorType === "VIOLATION" ? Boolean(affectsConduct) : false,
     points: pts,
     recordDate,
     semesterId,
@@ -91,8 +95,8 @@ async function updateRecord({ teacherId, actorUserId, behaviorId, payload }) {
   if (!existing) throw httpError("Không tìm thấy bản ghi", 404);
   if (existing.status !== "ACTIVE") throw httpError("Bản ghi đã lưu trữ, không thể sửa", 409);
 
-  const allowed = await behaviourModel.isTeacherForStudent(teacherId, existing.studentId);
-  if (!allowed) throw httpError("Bạn không phụ trách học sinh này", 403);
+  const allowed = await behaviourModel.isHomeroomOfStudent(teacherId, existing.studentId);
+  if (!allowed) throw httpError("Chỉ giáo viên chủ nhiệm mới sửa nề nếp học sinh này", 403);
 
   const pts = Number(payload.points);
   if (!Number.isInteger(pts) || pts <= 0) throw httpError("Điểm phải là số dương", 400);
@@ -113,6 +117,7 @@ async function updateRecord({ teacherId, actorUserId, behaviorId, payload }) {
       category: payload.category ?? null,
       description: payload.description ?? null,
       severityLevel: payload.severityLevel ?? "LOW",
+      affectsConduct: existing.behaviorType === "VIOLATION" ? Boolean(payload.affectsConduct) : false,
       points: pts,
       recordDate: payload.recordDate,
       evidenceUrl: payload.evidenceUrl ?? null,
@@ -126,8 +131,8 @@ async function archiveRecord({ teacherId, actorUserId, behaviorId, reason }) {
   const existing = await behaviourModel.findRecordById(behaviorId);
   if (!existing) throw httpError("Không tìm thấy bản ghi", 404);
 
-  const allowed = await behaviourModel.isTeacherForStudent(teacherId, existing.studentId);
-  if (!allowed) throw httpError("Bạn không phụ trách học sinh này", 403);
+  const allowed = await behaviourModel.isHomeroomOfStudent(teacherId, existing.studentId);
+  if (!allowed) throw httpError("Chỉ giáo viên chủ nhiệm mới lưu trữ nề nếp học sinh này", 403);
   if (!reason || !reason.trim()) throw httpError("Vui lòng nhập lý do lưu trữ", 400);
   if (existing.status === "ARCHIVED") throw httpError("Bản ghi đã được lưu trữ", 409);
 
@@ -155,17 +160,31 @@ async function getConductPreview({ studentId, semesterId }) {
     base: existing ? existing.baseScore : BASE_CONDUCT_SCORE,
   });
 
-  return { aggregate: agg, computed, existing };
+  // Ưu tiên mức GVCN đã CHỐT (manual); nếu chưa có thì dùng mức gợi ý từ điểm.
+  const manualKey = existing?.conductGrade || null;
+  const gradeKey = manualKey || computed.grade.key;
+  return {
+    aggregate: agg,
+    computed,
+    existing,
+    conductGradeKey: gradeKey,
+    conductGradeLabel: CONDUCT_GRADE_LABEL[gradeKey] ?? computed.grade.label,
+    isManual: Boolean(manualKey),
+  };
 }
 
 async function evaluateConduct({ teacherId, actorUserId, payload }) {
-  const { studentId, semesterId, adjustment = 0, comment, status = "DRAFT" } = payload;
+  const { studentId, semesterId, adjustment = 0, comment, status = "DRAFT", conductGrade } = payload;
 
   if (!studentId || !semesterId) throw httpError("Thiếu học sinh hoặc học kỳ", 400);
   if (!comment || !comment.trim()) throw httpError("Đánh giá hạnh kiểm phải có nhận xét", 400);
+  // GVCN CHỐT xếp loại hạnh kiểm (5 mức cố định) — hệ thống KHÔNG tự suy ra.
+  if (!conductGrade || !CONDUCT_GRADE_KEYS.includes(conductGrade)) {
+    throw httpError("Vui lòng chọn xếp loại hạnh kiểm: Tốt / Khá / Trung bình / Yếu / Kém", 400);
+  }
 
-  const allowed = await behaviourModel.isTeacherForStudent(teacherId, parseInt(studentId, 10));
-  if (!allowed) throw httpError("Bạn không phụ trách học sinh này", 403);
+  const allowed = await behaviourModel.isHomeroomOfStudent(teacherId, parseInt(studentId, 10));
+  if (!allowed) throw httpError("Chỉ giáo viên chủ nhiệm mới đánh giá hạnh kiểm học sinh này", 403);
 
   const existingEval = await behaviourModel.findConductEvaluation(parseInt(studentId, 10), parseInt(semesterId, 10));
   if (existingEval && existingEval.status === "APPROVED") {
@@ -175,8 +194,10 @@ async function evaluateConduct({ teacherId, actorUserId, payload }) {
   const semester = await behaviourModel.findSemesterById(semesterId);
   if (!semester) throw httpError("Không tìm thấy học kỳ", 404);
 
+  // Điểm merit/demerit chỉ là DỮ LIỆU THAM KHẢO (demerit chỉ tính vi phạm ảnh hưởng
+  // hạnh kiểm) — lưu lại để hiển thị, KHÔNG quyết định xếp loại.
   const agg = await behaviourModel.aggregateConduct(parseInt(studentId, 10), semester.startDate, semester.endDate);
-  const computed = computeConduct({
+  const reference = computeConduct({
     meritPoints: agg.meritPoints,
     demeritPoints: agg.demeritPoints,
     adjustment: Number(adjustment) || 0,
@@ -190,12 +211,15 @@ async function evaluateConduct({ teacherId, actorUserId, payload }) {
     demeritPoints: agg.demeritPoints,
     baseScore: BASE_CONDUCT_SCORE,
     adjustment: Number(adjustment) || 0,
-    finalScore: computed.finalScore,
-    conductGrade: computed.grade.label,
+    finalScore: reference.finalScore, // điểm tham khảo
+    conductGrade,                     // KEY 5 mức do GVCN chốt
+    isManual: true,
     comment: comment.trim(),
     status: status === "APPROVED" ? "APPROVED" : "DRAFT",
     evaluatedBy: actorUserId,
   });
+
+  const gradeLabel = CONDUCT_GRADE_LABEL[conductGrade] ?? conductGrade;
 
   // Notify on approval
   if (status === "APPROVED") {
@@ -205,7 +229,7 @@ async function evaluateConduct({ teacherId, actorUserId, payload }) {
         recipients.map((receiverId) => ({
           receiverId,
           title: "Kết quả hạnh kiểm",
-          content: `Hạnh kiểm học kỳ đã được đánh giá: ${computed.finalScore}/100 (${computed.grade.label}).`,
+          content: `Hạnh kiểm học kỳ đã được xếp loại: ${gradeLabel}.`,
           relatedId: parseInt(studentId, 10),
         })),
       );
@@ -214,7 +238,7 @@ async function evaluateConduct({ teacherId, actorUserId, payload }) {
     }
   }
 
-  return { studentId, semesterId, finalScore: computed.finalScore, grade: computed.grade };
+  return { studentId, semesterId, conductGrade, grade: { key: conductGrade, label: gradeLabel }, referenceScore: reference.finalScore };
 }
 
 // ── Student behaviour profile ─────────────────────────────────────────────────
@@ -230,14 +254,26 @@ async function getStudentBehaviour({ studentId, semesterId }) {
   const merits = records.filter((r) => r.behaviorType === "POSITIVE");
   const demerits = records.filter((r) => r.behaviorType === "VIOLATION");
 
-  const conductHistory = await behaviourModel.findStudentConductHistory(studentId);
+  // conduct_grade lưu dạng KEY (TOT/KHA/TB/YEU/KEM) → gắn nhãn tiếng Việt để FE hiển thị.
+  const rawHistory = await behaviourModel.findStudentConductHistory(studentId);
+  const conductHistory = rawHistory.map((h) => ({
+    ...h,
+    conductGradeKey: h.conductGrade,
+    conductGradeLabel: CONDUCT_GRADE_LABEL[h.conductGrade] ?? h.conductGrade,
+  }));
 
   let currentConduct = null;
   if (targetSemesterId) {
     const preview = await getConductPreview({ studentId, semesterId: targetSemesterId });
+    // Ưu tiên mức GVCN đã CHỐT (manual); nếu chưa có thì dùng mức gợi ý từ điểm.
+    const manualKey = preview.existing?.conductGrade || null;
+    const gradeKey = manualKey || preview.computed.grade.key;
     currentConduct = {
       ...preview.computed,
       evaluation: preview.existing,
+      conductGradeKey: gradeKey,
+      conductGradeLabel: CONDUCT_GRADE_LABEL[gradeKey] ?? preview.computed.grade.label,
+      isManual: Boolean(manualKey),
       violationCount: preview.aggregate.violationCount,
       meritCount: preview.aggregate.meritCount,
     };
@@ -257,11 +293,15 @@ async function getClassAnalytics({ classId, semesterId }) {
   const semester = await behaviourModel.findSemesterById(semesterId);
   if (!semester) throw httpError("Không tìm thấy học kỳ", 404);
 
-  const rows = await behaviourModel.aggregateClassConduct(parseInt(classId, 10), semester.startDate, semester.endDate);
+  const rows = await behaviourModel.aggregateClassConduct(parseInt(classId, 10), semester.startDate, semester.endDate, parseInt(semesterId, 10));
 
   const withConduct = rows.map((r) => {
     const computed = computeConduct({ meritPoints: r.meritPoints, demeritPoints: r.demeritPoints, adjustment: 0 });
-    return { ...r, finalScore: computed.finalScore, grade: computed.grade };
+    // Ưu tiên xếp loại GVCN đã CHỐT; nếu chưa đánh giá thì hiện mức gợi ý từ điểm.
+    const grade = r.manualGrade
+      ? { key: r.manualGrade, label: CONDUCT_GRADE_LABEL[r.manualGrade] ?? r.manualGrade }
+      : computed.grade;
+    return { ...r, finalScore: computed.finalScore, grade, evaluated: Boolean(r.manualGrade) };
   });
 
   const totalStudents = withConduct.length;
@@ -304,7 +344,7 @@ async function generateWarnings({ teacherId, actorUserId, classId, semesterId })
   const semester = await behaviourModel.findSemesterById(semesterId);
   if (!semester) throw httpError("Không tìm thấy học kỳ", 404);
 
-  const rows = await behaviourModel.aggregateClassConduct(parseInt(classId, 10), semester.startDate, semester.endDate);
+  const rows = await behaviourModel.aggregateClassConduct(parseInt(classId, 10), semester.startDate, semester.endDate, parseInt(semesterId, 10));
 
   let generated = 0;
   const notifications = [];

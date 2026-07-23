@@ -35,7 +35,8 @@ function GoalManagementPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const classes   = meta?.classes ?? [];
+  // Mục tiêu là nghiệp vụ GVCN → chỉ chọn lớp chủ nhiệm.
+  const classes   = (meta?.classes ?? []).filter((c) => c.roleInClass === "HOMEROOM_TEACHER");
   const effClassId = classId || (classes[0]?.classId ? String(classes[0].classId) : "");
 
   useEffect(() => {

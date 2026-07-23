@@ -47,8 +47,8 @@ const TABS = [
   { key: "warnings",  label: "Cảnh báo",       ms: "warning" },
 ];
 
-const GRADE_COLOR = { TOT: "#15803D", KHA: "#00458E", TB: "#B45309", YEU: "#BA1A1A", NA: "#64748B" };
-const BUCKET_COLOR = { "0-50": "#BA1A1A", "50-65": "#B45309", "65-80": "#00458E", "80-100": "#15803D" };
+const GRADE_COLOR = { TOT: "#15803D", KHA: "#00458E", TB: "#B45309", YEU: "#BA1A1A", KEM: "#7F1D1D", NA: "#64748B" };
+const BUCKET_COLOR = { "0-35": "#7F1D1D", "35-50": "#BA1A1A", "50-65": "#B45309", "65-80": "#00458E", "80-100": "#15803D" };
 const WARNING_LABEL = {
   LOW_CONDUCT:         { label: "Hạnh kiểm thấp", color: "#BA1A1A" },
   EXCESSIVE_VIOLATION: { label: "Vi phạm nhiều",  color: "#B45309" },
@@ -256,7 +256,7 @@ function ConductTab({ analytics, loading, error, semesterId, onChanged }) {
   return (
     <div>
       <p className="mb-3 flex items-center gap-1.5 text-xs" style={{ color: C.muted }}>
-        <Ms name="info" className="!text-[14px]" /> Xếp loại tính tự động từ điểm khen thưởng / kỷ luật (Tốt ≥ 80, Khá ≥ 65, Đạt ≥ 50, còn lại Chưa đạt).
+        <Ms name="info" className="!text-[14px]" /> Xếp loại hạnh kiểm do GVCN chốt (Tốt / Khá / Trung bình / Yếu / Kém); điểm rèn luyện chỉ để tham khảo, chỉ vi phạm nghiêm trọng mới trừ.
       </p>
       <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: `1px solid ${C.border}` }}>
         <div className="overflow-x-auto">

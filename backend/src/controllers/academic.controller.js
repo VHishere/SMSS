@@ -4,7 +4,21 @@ const academicService = require("../services/academic.service");
 const {
   SCORE_TYPES,
   SCORE_TYPE_LABELS,
+  SCORE_TYPE_WEIGHTS,
+  SCORE_GROUP,
+  SCORE_TYPE_KIND,
 } = require("../config/academic.config");
+
+// Score types enriched with label + weight (hệ số) + group (TX/GK/CK) + kind —
+// single source of truth the frontend gradebook/average uses so teacher matches
+// parent/student exactly. TX là 1 NHÓM (hệ số 1, lấy trung bình), GK×2, CK×3.
+const SCORE_TYPE_LIST = SCORE_TYPES.map((key) => ({
+  key,
+  label:  SCORE_TYPE_LABELS[key],
+  weight: SCORE_TYPE_WEIGHTS[key],
+  group:  SCORE_GROUP[key],
+  kind:   SCORE_TYPE_KIND[key],
+}));
 
 async function resolveTeacher(userId) {
   return teacherModel.findProfileByUserId(userId);
@@ -32,7 +46,7 @@ async function getMeta(req, res) {
       data: {
         assignments,
         semesters,
-        scoreTypes: SCORE_TYPES.map((key) => ({ key, label: SCORE_TYPE_LABELS[key] })),
+        scoreTypes: SCORE_TYPE_LIST,
       },
     });
   } catch (error) {
@@ -85,7 +99,7 @@ async function getGradebook(req, res) {
     );
     return res.json({
       success: true,
-      data: { students, scoreTypes: SCORE_TYPES.map((key) => ({ key, label: SCORE_TYPE_LABELS[key] })) },
+      data: { students, scoreTypes: SCORE_TYPE_LIST },
     });
   } catch (error) {
     return handleError(res, error, "Không thể lấy bảng điểm");

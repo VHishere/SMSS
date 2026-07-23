@@ -87,12 +87,17 @@ function StudentTimetable() {
         "Chưa cập nhật"
       }
     >
-      <section className="mb-3 flex justify-end">
+      <section className="mb-4 flex justify-stretch sm:justify-end">
         <div
           className="
-            flex flex-wrap items-center justify-between
-            gap-6 px-6 py-6 lg:px-8
-          "
+    flex w-full flex-col gap-4
+    rounded-2xl border border-orange-100
+    bg-white px-4 py-4 shadow-sm
+    sm:px-5
+    lg:flex-row lg:flex-wrap
+    lg:items-center lg:justify-between
+    lg:gap-6 lg:px-6
+  "
         >
           <div className="flex items-center gap-5">
             <div

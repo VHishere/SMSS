@@ -9,11 +9,6 @@ const cloudinary = require("../config/cloudinary");
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-async function getLinkedStudentOrNull(userId, studentId) {
-  const students = await parentModel.findLinkedStudentsByUserId(userId);
-  return students.find((s) => s.studentId === studentId) || null;
-}
-
 async function deleteUploadedFile(file) {
   if (file?.cloudinaryPublicId) {
     try {
@@ -48,15 +43,7 @@ async function resolveTeacher(userId) {
 async function createLeaveRequest(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
-
-    const student = await getLinkedStudentOrNull(req.user.userId, studentId);
-    if (!student) {
-      await deleteUploadedFile(req.file);
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền tạo đơn xin nghỉ cho học sinh này",
-      });
-    }
+    const student = req.linkedStudent;
 
     const { leaveType, startDate, endDate, reason } = req.body;
 
@@ -89,6 +76,14 @@ async function createLeaveRequest(req, res) {
       return res.status(400).json({
         success: false,
         message: "Vui lòng nhập lý do xin nghỉ",
+      });
+    }
+
+    // Nghỉ vì lý do sức khỏe BẮT BUỘC đính kèm minh chứng (giấy viện, lịch khám).
+    if (leaveType === "SICK_LEAVE" && !req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Đơn nghỉ vì lý do sức khỏe bắt buộc đính kèm minh chứng (giấy khám bệnh, lịch khám...).",
       });
     }
 
@@ -154,15 +149,6 @@ async function createLeaveRequest(req, res) {
 async function getStudentLeaveRequests(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
-
-    const student = await getLinkedStudentOrNull(req.user.userId, studentId);
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem thông tin này",
-      });
-    }
-
     const { status, page = "1", limit = "20" } = req.query;
 
     const parsedPage = Math.max(1, parseInt(page, 10));
@@ -200,14 +186,6 @@ async function getParentLeaveRequestDetail(req, res) {
     const studentId = parseInt(req.params.studentId, 10);
     const leaveRequestId = parseInt(req.params.leaveRequestId, 10);
 
-    const student = await getLinkedStudentOrNull(req.user.userId, studentId);
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem thông tin này",
-      });
-    }
-
     const leaveRequest = await leaveRequestModel.findById(leaveRequestId);
     if (!leaveRequest || leaveRequest.studentId !== studentId) {
       return res.status(404).json({
@@ -233,14 +211,6 @@ async function cancelLeaveRequest(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
     const leaveRequestId = parseInt(req.params.leaveRequestId, 10);
-
-    const student = await getLinkedStudentOrNull(req.user.userId, studentId);
-    if (!student) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền thực hiện hành động này",
-      });
-    }
 
     const leaveRequest = await leaveRequestModel.findById(leaveRequestId);
     if (!leaveRequest || leaveRequest.studentId !== studentId) {

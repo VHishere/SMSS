@@ -124,6 +124,19 @@ export const studentApi = {
   getMyDashboard: () =>
     request("/students/me/dashboard"),
 
+  // Nhận xét theo tiết + khảo sát GV (ẩn danh)
+  getMyLessonFeedback: () =>
+    request("/students/me/feedback"),
+
+  getMySurveys: () =>
+    request("/students/me/surveys"),
+
+  submitMySurvey: (surveyId, body) =>
+    request(`/students/me/surveys/${surveyId}/submit`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   getMyTimetable: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
 
@@ -299,13 +312,38 @@ export const teacherApi = {
   getDashboardSummary: () =>
     request("/teachers/me/dashboard"),
 
-  getAttendanceSheet: (classId, date) =>
-    request(`/teachers/classes/${classId}/attendance?date=${date}`),
+  // Trung tâm thông báo GVCN (thông báo lớp + cảnh báo HS + việc cần xử lý)
+  getNotifications: () =>
+    request("/teachers/notifications"),
 
-  submitAttendance: (classId, body) =>
-    request(`/teachers/classes/${classId}/attendance`, {
+  // Điểm danh theo tiết (per-period)
+  getMyPeriods: (date) =>
+    request(`/teachers/attendance/periods?date=${date}`),
+
+  getPeriodSheet: (timetableId, date) =>
+    request(`/teachers/attendance/periods/${timetableId}?date=${date}`),
+
+  submitPeriodAttendance: (timetableId, body) =>
+    request(`/teachers/attendance/periods/${timetableId}`, {
       method: "POST",
       body: JSON.stringify(body),
+    }),
+
+  // GVBM: nhận xét theo tiết
+  submitPeriodFeedback: (timetableId, body) =>
+    request(`/teachers/attendance/periods/${timetableId}/feedback`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // GVCN: tổng hợp điểm danh lớp chủ nhiệm + ngưỡng nghỉ
+  getClassAttendanceOverview: (classId) =>
+    request(`/teachers/attendance/overview?classId=${classId}`),
+
+  generateAbsenceWarnings: (classId) =>
+    request(`/teachers/attendance/warnings/generate`, {
+      method: "POST",
+      body: JSON.stringify({ classId }),
     }),
 
   updateAttendanceRecord: (attendanceId, body) =>
@@ -1298,6 +1336,9 @@ export const parentApi = {
   getStudentProfile: (studentId) =>
     request(`/parents/me/students/${studentId}`),
 
+  getStudentLessonFeedback: (studentId) =>
+    request(`/parents/me/students/${studentId}/feedback`),
+
   getStudentTimetable: (studentId) =>
     request(`/parents/me/students/${studentId}/timetable`),
 
@@ -1321,7 +1362,7 @@ export const parentApi = {
   },
 
   getStudentLeaveRequests: (studentId, params = {}) => {
-    const qs = new URLSearchParams(params).toString();
+    const qs = new URLSearchParams(cleanParams(params)).toString();
 
     return request(
       `/parents/me/students/${studentId}/leave-requests${qs ? `?${qs}` : ""}`,
@@ -1373,6 +1414,16 @@ export const parentApi = {
     const qs = new URLSearchParams(params).toString();
     return request(`/parents/me/students/${studentId}/goals${qs ? `?${qs}` : ""}`);
   },
+
+  getStudentEvents: (studentId, params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/parents/me/students/${studentId}/events${qs ? `?${qs}` : ""}`);
+  },
+
+  registerStudentEvent: (studentId, eventId) =>
+    request(`/parents/me/students/${studentId}/events/${eventId}/register`, {
+      method: "POST",
+    }),
 
   getMyNotifications: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
@@ -1433,12 +1484,42 @@ export const parentApi = {
       method: "PATCH",
       body: JSON.stringify({ archived }),
     }),
+
+  getStudentFees: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/parents/me/fees${qs ? `?${qs}` : ""}`);
+  },
+
+  getFeeDetail: (feeAssignmentId) =>
+    request(`/parents/me/fees/${feeAssignmentId}`),
+
+  createVietQrPayment: (feeAssignmentId) =>
+    request(`/parents/me/fees/${feeAssignmentId}/vietqr`, {
+      method: "POST",
+    }),
+
+  createZaloPayOrder: (feeAssignmentId) =>
+    request(`/parents/me/fees/${feeAssignmentId}/zalopay`, {
+      method: "POST",
+    }),
+
+  getZaloPayOrderStatus: (feeAssignmentId, appTransId) =>
+    request(`/parents/me/fees/${feeAssignmentId}/zalopay/${appTransId}/status`),
 };
 
 export const staffApi = {
   getOverview: () => request("/staff/overview"),
 
   getLookups: () => request("/staff/lookups"),
+
+  // Khảo sát đánh giá giáo viên (ẩn danh)
+  listTeacherSurveys: () => request("/staff/surveys"),
+  createTeacherSurvey: (body) =>
+    request("/staff/surveys", { method: "POST", body: JSON.stringify(body) }),
+  closeTeacherSurvey: (id) =>
+    request(`/staff/surveys/${id}/close`, { method: "POST" }),
+  getTeacherSurveyAggregate: (id) =>
+    request(`/staff/surveys/${id}/aggregate`),
 
   getStudents: (params = {}) => {
     const normalized =

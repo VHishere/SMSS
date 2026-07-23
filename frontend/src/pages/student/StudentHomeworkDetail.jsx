@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Col, Row } from "react-bootstrap";
 import {
     FiArrowLeft,
     FiCalendar,
@@ -130,136 +129,124 @@ function StudentHomeworkDetail() {
                         </div>
                     )}
 
-                    <section className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
-                        <Row className="mb-3 align-items-start g-3">
-                            <Col xs={12} md>
-                                <h2 className="mb-2 text-2xl font-black text-[#0F2747]">
-                                    {homework.title}
-                                </h2>
-                            </Col>
+                    <section className="rounded-3xl border border-orange-100 bg-white p-4 shadow-sm sm:p-6">
+                        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+                            <h2 className="mb-0 break-words text-xl font-black text-[#0F2747] sm:text-2xl">
+                                {homework.title}
+                            </h2>
 
-                            <Col xs={12} md="auto">
-                                <div className="flex flex-wrap items-center justify-start justify-md-end gap-2 pt-1">
-                                    <StatusPill tone="blue">
-                                        {homework.subjectName}
-                                    </StatusPill>
+                            <div className="flex flex-wrap items-center justify-start gap-2 pt-1 md:justify-end">
+                                <StatusPill tone="blue">
+                                    {homework.subjectName}
+                                </StatusPill>
 
-                                    <StatusPill tone={status.tone}>
-                                        {status.label}
-                                    </StatusPill>
-                                </div>
-                            </Col>
-                        </Row>
+                                <StatusPill tone={status.tone}>
+                                    {status.label}
+                                </StatusPill>
+                            </div>
+                        </div>
 
-                        <Row className="g-2 align-items-start">
-                            <Col xs={12} md={6}>
-                                <div className="space-y-2">
-                                    <p className="mb-0 text-sm text-slate-500">
-                                        Lớp{" "}
-                                        <span className="font-bold text-[#0F2747]">
-                                            {homework.className}
-                                        </span>
-                                    </p>
+                        <div className="grid gap-3 md:grid-cols-2 md:items-start">
+                            <div className="space-y-2 rounded-2xl bg-slate-50 px-4 py-3">
+                                <p className="mb-0 text-sm text-slate-500">
+                                    Lớp{" "}
+                                    <span className="font-bold text-[#0F2747]">
+                                        {homework.className}
+                                    </span>
+                                </p>
 
-                                    <p className="mb-0 text-sm text-slate-500">
-                                        Giáo viên:{" "}
-                                        <span className="font-bold text-[#0F2747]">
-                                            {homework.teacherName}
-                                        </span>
-                                    </p>
-                                </div>
-                            </Col>
+                                <p className="mb-0 text-sm text-slate-500">
+                                    Giáo viên:{" "}
+                                    <span className="font-bold text-[#0F2747]">
+                                        {homework.teacherName}
+                                    </span>
+                                </p>
+                            </div>
 
-                            <Col xs={12} md={6}>
-                                <div className="space-y-2 text-start md:text-end">
-                                    <p className="mb-0 flex items-center gap-2 text-sm text-slate-500 md:justify-end">
-                                        <FiCalendar className="text-[#F27123]" size={15} />
-                                        Ngày giao:{" "}
-                                        <span className="font-bold text-[#0F2747]">
-                                            {formatDateTime(homework.assignDate)}
-                                        </span>
-                                    </p>
+                            <div className="space-y-2 rounded-2xl bg-[#FFF7F2] px-4 py-3 text-start md:text-end">
+                                <p className="mb-0 flex flex-wrap items-center gap-2 text-sm text-slate-500 md:justify-end">
+                                    <FiCalendar className="shrink-0 text-[#F27123]" size={15} />
+                                    Ngày giao:{" "}
+                                    <span className="font-bold text-[#0F2747]">
+                                        {formatDateTime(homework.assignDate)}
+                                    </span>
+                                </p>
 
-                                    <p className="mb-0 flex items-center gap-2 text-sm text-slate-500 md:justify-end">
-                                        <FiClock className="text-[#F27123]" size={15} />
-                                        Hạn nộp:{" "}
-                                        <span className="font-bold text-[#0F2747]">
-                                            {formatDateTime(homework.dueDate)}
-                                        </span>
-                                    </p>
-                                </div>
-                            </Col>
-                        </Row>
+                                <p className="mb-0 flex flex-wrap items-center gap-2 text-sm text-slate-500 md:justify-end">
+                                    <FiClock className="shrink-0 text-[#F27123]" size={15} />
+                                    Hạn nộp:{" "}
+                                    <span className="font-bold text-[#0F2747]">
+                                        {formatDateTime(homework.dueDate)}
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
                     </section>
 
-                    <Row className="g-5">
+                    <div className={`grid gap-5 ${hasContentBlock ? "xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]" : "xl:grid-cols-1"}`}>
                         {hasContentBlock && (
-                            <Col xs={12} xl={7}>
-                                <div className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
-                                    <h4 className="text-2xl font-black text-[#0F2747]">
-                                        Nội dung
-                                    </h4>
+                            <div className="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm sm:p-6">
+                                <h4 className="text-xl font-black text-[#0F2747] sm:text-2xl">
+                                    Nội dung
+                                </h4>
 
-                                    <div className="space-y-6">
-                                        {hasDescription && (
-                                            <div>
-                                                <p className="mb-0 whitespace-pre-wrap text-sm leading-7 text-slate-600">
-                                                    {homework.description}
-                                                </p>
-                                            </div>
-                                        )}
+                                <div className="space-y-6">
+                                    {hasDescription && (
+                                        <div>
+                                            <p className="mb-0 whitespace-pre-wrap break-words text-sm leading-7 text-slate-600">
+                                                {homework.description}
+                                            </p>
+                                        </div>
+                                    )}
 
-                                        {hasInstructions && (
-                                            <div
-                                                className={
-                                                    hasDescription
-                                                        ? "pt-3"
-                                                        : ""
-                                                }
-                                            >
-                                                <h5 className="text-base font-bold text-[#0F2747]">
-                                                    Hướng dẫn
-                                                </h5>
+                                    {hasInstructions && (
+                                        <div
+                                            className={
+                                                hasDescription
+                                                    ? "pt-3"
+                                                    : ""
+                                            }
+                                        >
+                                            <h5 className="text-base font-bold text-[#0F2747]">
+                                                Hướng dẫn
+                                            </h5>
 
-                                                <p className="mb-0 whitespace-pre-wrap text-sm leading-7 text-slate-600">
-                                                    {homework.instructions}
-                                                </p>
-                                            </div>
-                                        )}
+                                            <p className="mb-0 whitespace-pre-wrap break-words text-sm leading-7 text-slate-600">
+                                                {homework.instructions}
+                                            </p>
+                                        </div>
+                                    )}
 
-                                        {hasAttachments && (
-                                            <div
-                                                className={
-                                                    hasDescription || hasInstructions
-                                                        ? "border-t border-slate-100 pt-5"
-                                                        : ""
-                                                }
-                                            >
-                                                <h4 className="mb-3 text-base font-bold text-[#0F2747]">
-                                                    Tệp đính kèm của giáo viên
-                                                </h4>
+                                    {hasAttachments && (
+                                        <div
+                                            className={
+                                                hasDescription || hasInstructions
+                                                    ? "border-t border-slate-100 pt-5"
+                                                    : ""
+                                            }
+                                        >
+                                            <h4 className="mb-3 text-base font-bold text-[#0F2747]">
+                                                Tệp đính kèm của giáo viên
+                                            </h4>
 
-                                                <HomeworkAttachmentList
-                                                    attachments={homework.attachments}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
+                                            <HomeworkAttachmentList
+                                                attachments={homework.attachments}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
-                            </Col>
+                            </div>
                         )}
 
-                        <Col xs={12} xl={hasContentBlock ? 5 : 12}>
-                            <div className="space-y-5">
-                                <StudentHomeworkSubmitPanel
-                                    disabled={submitDisabled}
-                                    defaultContent={homework.submissionContent || ""}
-                                    onSubmit={handleSubmit}
-                                />
-                                <StudentSubmissionSummary homework={homework} />
-                            </div>
-                        </Col>
-                    </Row>
+                        <div className="space-y-5">
+                            <StudentHomeworkSubmitPanel
+                                disabled={submitDisabled}
+                                defaultContent={homework.submissionContent || ""}
+                                onSubmit={handleSubmit}
+                            />
+                            <StudentSubmissionSummary homework={homework} />
+                        </div>
+                    </div>
                 </div>
             )}
         </StudentDashboardShell>

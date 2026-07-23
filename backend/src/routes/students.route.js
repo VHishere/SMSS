@@ -77,6 +77,26 @@ router.get(
   studentController.getMyBehaviour,
 );
 
+// Nhận xét theo tiết (GVBM → HS)
+router.get(
+  "/me/feedback",
+  ...studentOnly,
+  studentController.getMyLessonFeedback,
+);
+
+// Khảo sát đánh giá giáo viên (ẩn danh)
+router.get(
+  "/me/surveys",
+  ...studentOnly,
+  studentController.getMySurveys,
+);
+
+router.post(
+  "/me/surveys/:surveyId/submit",
+  ...studentOnly,
+  studentController.submitMySurvey,
+);
+
 router.get(
   "/me/goals/types",
   ...studentOnly,

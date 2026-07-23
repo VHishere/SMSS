@@ -2,21 +2,24 @@ const { pool } = require("../config/db");
 
 // ── Permission & pickers ──────────────────────────────────────────────────────
 
+// Họp phụ huynh do GVCN tổ chức → chỉ GVCN của lớp mới được thao tác.
 async function isTeacherForClass(teacherId, classId) {
   const [[row]] = await pool.query(
-    `SELECT 1 AS ok FROM teacher_class WHERE teacher_id = ? AND class_id = ? LIMIT 1`,
+    `SELECT 1 AS ok FROM teacher_class
+     WHERE teacher_id = ? AND class_id = ? AND role_in_class = 'HOMEROOM_TEACHER' LIMIT 1`,
     [teacherId, classId],
   );
   return Boolean(row);
 }
 
+// Chỉ liệt kê lớp chủ nhiệm cho bộ chọn lớp.
 async function findTeacherClasses(teacherId) {
   const [rows] = await pool.query(
     `SELECT DISTINCT sc.class_id AS classId, sc.class_name AS className, g.grade_name AS gradeName
      FROM teacher_class tc
      INNER JOIN school_class sc ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
      INNER JOIN grade g ON g.grade_id = sc.grade_id
-     WHERE tc.teacher_id = ?
+     WHERE tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
      ORDER BY sc.class_name`,
     [teacherId],
   );

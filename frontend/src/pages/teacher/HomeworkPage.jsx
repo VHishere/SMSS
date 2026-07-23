@@ -221,7 +221,7 @@ function HomeworkPage() {
         {/* ── Action Area (Stitch header) ── */}
         <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <h2 className="text-3xl font-extrabold tracking-tight" style={{ color: "#0F172A" }}>
-            Quản lý Bài tập
+            Quản lý bài tập
           </h2>
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex rounded-3xl border bg-white p-1 shadow-sm" style={{ borderColor: C.border }}>

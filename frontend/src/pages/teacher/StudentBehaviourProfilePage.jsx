@@ -12,7 +12,7 @@ function Ms({ name, className = "", style }) {
   return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>;
 }
 
-const GRADE_COLOR = { TOT: "#16A34A", KHA: "#225DAD", TB: "#F59E0B", YEU: "#DC2626", NA: "#64748B" };
+const GRADE_COLOR = { TOT: "#16A34A", KHA: "#225DAD", TB: "#F59E0B", YEU: "#DC2626", KEM: "#7F1D1D", NA: "#64748B" };
 
 function StatBox({ label, value, color = C.onSurface }) {
   return (
@@ -136,10 +136,8 @@ function StudentBehaviourProfilePage() {
                   <div key={h.semesterId} className="rounded-3xl px-4 py-3" style={{ border: `1px solid ${C.border}` }}>
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium" style={{ color: C.onSurface }}>{h.semesterName} · {h.schoolYearName}</span>
-                      <span className="text-sm font-bold" style={{ color: GRADE_COLOR[
-                        h.finalScore >= 80 ? "TOT" : h.finalScore >= 65 ? "KHA" : h.finalScore >= 50 ? "TB" : "YEU"
-                      ] }}>
-                        {h.conductGrade} · {h.finalScore}/100
+                      <span className="text-sm font-bold" style={{ color: GRADE_COLOR[h.conductGradeKey] ?? GRADE_COLOR.NA }}>
+                        {h.conductGradeLabel ?? h.conductGrade} · {h.finalScore}/100 (tham khảo)
                         {h.status === "APPROVED" ? "" : " (nháp)"}
                       </span>
                     </div>

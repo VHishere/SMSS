@@ -26,8 +26,8 @@ async function listCases(req, res) {
 
     const { status, classId, page = "1", limit = "20" } = req.query;
     if (classId) {
-      const ok = await studentProfileModel.isTeacherForClass(teacher.teacherId, parseInt(classId, 10));
-      if (!ok) return res.status(403).json({ success: false, message: "Bạn không phụ trách lớp này" });
+      const ok = await studentProfileModel.isHomeroomOfClass(teacher.teacherId, parseInt(classId, 10));
+      if (!ok) return res.status(403).json({ success: false, message: "Chỉ giáo viên chủ nhiệm mới xem ca hỗ trợ của lớp này" });
     }
     const parsedPage = Math.max(1, parseInt(page, 10));
     const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
@@ -57,8 +57,8 @@ async function createCase(req, res) {
     if (category && !CATEGORIES.includes(category)) return res.status(400).json({ success: false, message: "Danh mục không hợp lệ" });
     if (severity && !SEVERITIES.includes(severity)) return res.status(400).json({ success: false, message: "Mức độ không hợp lệ" });
 
-    const ok = await studentProfileModel.isTeacherForStudent(teacher.teacherId, parseInt(studentId, 10));
-    if (!ok) return res.status(403).json({ success: false, message: "Bạn không phụ trách học sinh này" });
+    const ok = await studentProfileModel.isHomeroomOfStudent(teacher.teacherId, parseInt(studentId, 10));
+    if (!ok) return res.status(403).json({ success: false, message: "Chỉ giáo viên chủ nhiệm mới mở ca hỗ trợ cho học sinh này" });
 
     const caseId = await supportCaseModel.createCase({
       studentId: parseInt(studentId, 10),
@@ -83,7 +83,7 @@ async function getUpdates(req, res) {
 
     const sc = await supportCaseModel.findCaseById(caseId);
     if (!sc) return res.status(404).json({ success: false, message: "Không tìm thấy ca hỗ trợ" });
-    const ok = await studentProfileModel.isTeacherForStudent(teacher.teacherId, sc.studentId);
+    const ok = await studentProfileModel.isHomeroomOfStudent(teacher.teacherId, sc.studentId);
     if (!ok) return res.status(403).json({ success: false, message: "Bạn không có quyền xem ca này" });
 
     const updates = await supportCaseModel.findUpdates(caseId);
@@ -106,7 +106,7 @@ async function addUpdate(req, res) {
 
     const sc = await supportCaseModel.findCaseById(caseId);
     if (!sc) return res.status(404).json({ success: false, message: "Không tìm thấy ca hỗ trợ" });
-    const ok = await studentProfileModel.isTeacherForStudent(teacher.teacherId, sc.studentId);
+    const ok = await studentProfileModel.isHomeroomOfStudent(teacher.teacherId, sc.studentId);
     if (!ok) return res.status(403).json({ success: false, message: "Bạn không có quyền cập nhật ca này" });
 
     await supportCaseModel.addUpdate({ caseId, note: note.trim(), newStatus: newStatus ?? null, authorId: teacher.userId });

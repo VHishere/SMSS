@@ -42,20 +42,57 @@ router.get(
   teacherController.getDashboardSummary,
 );
 
-// ── Attendance: Roll Call ─────────────────────────────────────────────────────
-
 router.get(
-  "/classes/:classId/attendance",
+  "/notifications",
   authenticate,
   authorize(...TEACHER_ROLES),
-  teacherAttendanceController.getAttendanceSheet,
+  teacherController.getNotifications,
+);
+
+// ── Attendance: điểm danh theo tiết (per-period) ──────────────────────────────
+
+router.get(
+  "/attendance/periods",
+  authenticate,
+  authorize(...TEACHER_ROLES),
+  teacherAttendanceController.getMyPeriods,
+);
+
+router.get(
+  "/attendance/periods/:timetableId",
+  authenticate,
+  authorize(...TEACHER_ROLES),
+  teacherAttendanceController.getPeriodSheet,
 );
 
 router.post(
-  "/classes/:classId/attendance",
+  "/attendance/periods/:timetableId",
   authenticate,
   authorize(...TEACHER_ROLES),
-  teacherAttendanceController.submitAttendance,
+  teacherAttendanceController.submitPeriodAttendance,
+);
+
+// GVBM: nhận xét theo tiết (bắt buộc, phụ huynh xem được)
+router.post(
+  "/attendance/periods/:timetableId/feedback",
+  authenticate,
+  authorize(...TEACHER_ROLES),
+  teacherAttendanceController.submitPeriodFeedback,
+);
+
+// GVCN: tổng hợp điểm danh lớp chủ nhiệm + cảnh báo ngưỡng nghỉ
+router.get(
+  "/attendance/overview",
+  authenticate,
+  authorize(...TEACHER_ROLES),
+  teacherAttendanceController.getClassOverview,
+);
+
+router.post(
+  "/attendance/warnings/generate",
+  authenticate,
+  authorize(...TEACHER_ROLES),
+  teacherAttendanceController.generateAbsenceWarnings,
 );
 
 router.put(

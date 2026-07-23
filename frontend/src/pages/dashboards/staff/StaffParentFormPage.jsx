@@ -94,11 +94,10 @@ function StaffParentFormPage() {
     <>
       <StaffPageHeader
         title={isEdit ? "Chỉnh sửa phụ huynh" : "Thêm phụ huynh mới"}
-        description="Nhập thông tin phụ huynh và liên kết học sinh"
         action={
           <Link
             to={isEdit ? `/staff/parents/${id}` : "/staff/parents"}
-            className="rounded-xl border border-[#08509F] px-4 py-2 text-sm font-semibold text-[#08509F] no-underline"
+            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
           >
             Hủy
           </Link>

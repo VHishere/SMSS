@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FiX } from "react-icons/fi";
+function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { goalApi } from "../../api/client";
 
@@ -57,14 +57,14 @@ function GoalFormModal({ mode, studentId, goal = null, goalTypes = [], onClose, 
   }
 
   const inputCls =
-    "w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+    "w-full rounded-xl border border-[#DFC0B2] px-3 py-2.5 text-sm text-[#1A1C1C] outline-none focus:border-[#225DAD] focus:ring-1 focus:ring-[#225DAD]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-xl" style={{ border: "1px solid #FFE7D6" }}>
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #FFE7D6" }}>
-          <h3 className="text-base font-bold" style={{ color: "#0F2747" }}>{isEdit ? "Chỉnh sửa mục tiêu" : "Tạo mục tiêu mới"}</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><FiX size={20} /></button>
+      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-3xl bg-white shadow-xl" style={{ border: "1px solid #DFC0B2" }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #DFC0B2" }}>
+          <h3 className="text-base font-bold" style={{ color: "#1A1C1C" }}>{isEdit ? "Chỉnh sửa mục tiêu" : "Tạo mục tiêu mới"}</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><Ms name="close" className="!text-[20px]" /></button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
@@ -91,14 +91,14 @@ function GoalFormModal({ mode, studentId, goal = null, goalTypes = [], onClose, 
             <textarea value={teacherRemark} onChange={(e) => setTeacherRemark(e.target.value)} rows={2} placeholder="Định hướng / lời khuyên..." className={`${inputCls} resize-none`} />
           </div>
 
-          {errorMsg && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>}
+          {errorMsg && <p className="rounded-3xl bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>}
         </div>
 
-        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #FFE7D6" }}>
+        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #DFC0B2" }}>
           <button type="button" onClick={onClose} disabled={saving}
-            className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">Hủy</button>
+            className="flex-1 rounded-full border border-[#DFC0B2] py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">Hủy</button>
           <button type="button" onClick={handleSubmit} disabled={saving}
-            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
+            className="flex-1 rounded-full py-2.5 text-sm font-semibold text-white transition disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
             {saving ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Tạo mục tiêu"}
           </button>
         </div>

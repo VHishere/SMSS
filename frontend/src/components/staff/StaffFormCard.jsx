@@ -12,7 +12,7 @@ function StaffFormCard({ title, children, onSubmit, submitLabel = "Lưu", loadin
         <button
           type="submit"
           disabled={loading}
-          className="rounded-xl bg-[#F27123] px-5 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-60"
+          className="rounded-full bg-[#F27123] px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-[#E55C0A] disabled:opacity-60"
         >
           {loading ? "Đang lưu..." : submitLabel}
         </button>
@@ -23,9 +23,11 @@ function StaffFormCard({ title, children, onSubmit, submitLabel = "Lưu", loadin
 
 export function StaffField({ label, children, className = "" }) {
   return (
-    <label className={`flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747] ${className}`}>
-      {label}
-      {children}
+    <label className="text-sm font-semibold text-[#0F2747]">
+      <div className={`flex flex-col gap-3 ${className}`}>
+        <span>{label}</span>
+        {children}
+      </div>
     </label>
   );
 }

@@ -1,12 +1,27 @@
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
 import { studentApi } from "../api/client";
 
-export function useStudentMessages(refreshKey = 0) {
-  const [contacts, setContacts] = useState(null);
-  const [conversations, setConversations] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+export function useStudentMessages(
+  refreshKey = 0,
+) {
+  const [contacts, setContacts] =
+    useState(null);
+
+  const [
+    conversations,
+    setConversations,
+  ] = useState(null);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -18,15 +33,27 @@ export function useStudentMessages(refreshKey = 0) {
       studentApi.getMessageContacts(),
       studentApi.listConversations(),
     ])
-      .then(([contactsResponse, conversationsResponse]) => {
-        if (isMounted) {
-          setContacts(contactsResponse.data);
-          setConversations(conversationsResponse.data);
-        }
-      })
+      .then(
+        ([
+          contactsResponse,
+          conversationsResponse,
+        ]) => {
+          if (!isMounted) return;
+
+          setContacts(
+            contactsResponse.data,
+          );
+
+          setConversations(
+            conversationsResponse.data,
+          );
+        },
+      )
       .catch((requestError) => {
         if (isMounted) {
-          setError(requestError.message);
+          setError(
+            requestError.message,
+          );
         }
       })
       .finally(() => {
@@ -48,15 +75,35 @@ export function useStudentMessages(refreshKey = 0) {
   };
 }
 
-export function useStudentThread(conversationId, refreshKey = 0) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(Boolean(conversationId));
-  const [error, setError] = useState("");
+export function useStudentThread(
+  conversationId,
+) {
+  const [data, setData] =
+    useState(null);
+
+  const [loading, setLoading] =
+    useState(Boolean(conversationId));
+
+  const [error, setError] =
+    useState("");
+
+  const [
+    reloadKey,
+    setReloadKey,
+  ] = useState(0);
+
+  const reload = useCallback(() => {
+    setReloadKey(
+      (current) => current + 1,
+    );
+  }, []);
 
   useEffect(() => {
     if (!conversationId) {
       setData(null);
       setLoading(false);
+      setError("");
+
       return undefined;
     }
 
@@ -66,7 +113,12 @@ export function useStudentThread(conversationId, refreshKey = 0) {
     setError("");
 
     studentApi
-      .getThread(conversationId)
+      .getThread(
+        conversationId,
+        {
+          limit: 100,
+        },
+      )
       .then((response) => {
         if (isMounted) {
           setData(response.data);
@@ -74,7 +126,9 @@ export function useStudentThread(conversationId, refreshKey = 0) {
       })
       .catch((requestError) => {
         if (isMounted) {
-          setError(requestError.message);
+          setError(
+            requestError.message,
+          );
         }
       })
       .finally(() => {
@@ -86,11 +140,16 @@ export function useStudentThread(conversationId, refreshKey = 0) {
     return () => {
       isMounted = false;
     };
-  }, [conversationId, refreshKey]);
+  }, [
+    conversationId,
+    reloadKey,
+  ]);
 
   return {
     data,
+    setData,
     loading,
     error,
+    reload,
   };
 }

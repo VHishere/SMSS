@@ -5,6 +5,7 @@ const goalService = require("../services/goal.service");
 const { GOAL_TYPES } = require("../services/goal.service");
 const studentModel = require("../models/students");
 const homeworkModel = require("../models/homework.model");
+const feedbackModel = require("../models/feedback.model");
 
 function handleError(res, error, fallback) {
   if (error.statusCode) {
@@ -922,9 +923,67 @@ async function searchMyMessages(req, res) {
   }
 }
 
+// ── Nhận xét theo tiết (GVBM → HS) + khảo sát GV (ẩn danh) ────────────────────
+
+async function getMyLessonFeedback(req, res) {
+  try {
+    const context = await resolveStudentContext(req.user.userId);
+    if (!context) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ học sinh" });
+    const data = await feedbackModel.findStudentFeedback(context.studentId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy nhận xét theo tiết");
+  }
+}
+
+async function getMySurveys(req, res) {
+  try {
+    const context = await resolveStudentContext(req.user.userId);
+    if (!context) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ học sinh" });
+    const data = await feedbackModel.findOpenSurveysForStudent(context.studentId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy danh sách khảo sát");
+  }
+}
+
+async function submitMySurvey(req, res) {
+  try {
+    const surveyId = parseInt(req.params.surveyId, 10);
+    const { score, comment } = req.body;
+    const numScore = score == null || score === "" ? null : Number(score);
+    if (numScore !== null && (!Number.isInteger(numScore) || numScore < 1 || numScore > 5)) {
+      return res.status(400).json({ success: false, message: "Điểm đánh giá phải từ 1 đến 5" });
+    }
+    const context = await resolveStudentContext(req.user.userId);
+    if (!context) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ học sinh" });
+
+    const survey = await feedbackModel.findSurveyById(surveyId);
+    if (!survey || survey.status !== "OPEN") {
+      return res.status(404).json({ success: false, message: "Khảo sát không tồn tại hoặc đã đóng" });
+    }
+    try {
+      await feedbackModel.submitSurveyResponse({
+        surveyId, studentId: context.studentId, score: numScore, comment: (comment || "").trim() || null,
+      });
+    } catch (e) {
+      if (e.code === "ER_DUP_ENTRY") {
+        return res.status(409).json({ success: false, message: "Bạn đã gửi đánh giá cho khảo sát này rồi" });
+      }
+      throw e;
+    }
+    return res.json({ success: true, message: "Đã gửi đánh giá (ẩn danh). Cảm ơn bạn!" });
+  } catch (error) {
+    return handleError(res, error, "Không thể gửi đánh giá");
+  }
+}
+
 module.exports = {
   getMyProfile,
   getMyDashboard,
+  getMyLessonFeedback,
+  getMySurveys,
+  submitMySurvey,
   getMyHomeworks,
   getMyGrades,
   getMyAttendanceHistory,

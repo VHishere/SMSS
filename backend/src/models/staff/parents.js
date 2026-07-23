@@ -3,8 +3,32 @@ const { hashPassword } = require("../../utils/password");
 
 const PARENT_ROLE_ID = 6;
 
-async function listParents(search = "") {
+async function listParents(filters = "") {
+  const normalized =
+    typeof filters === "string" ? { search: filters } : filters || {};
+  const search = normalized.search || "";
   const keyword = `%${search.trim()}%`;
+  const conditions = [
+    `(
+      ? = ''
+      OR ua.full_name LIKE ?
+      OR ua.email LIKE ?
+      OR ua.phone LIKE ?
+      OR su.full_name LIKE ?
+      OR s.student_code LIKE ?
+    )`,
+  ];
+  const params = [search.trim(), keyword, keyword, keyword, keyword, keyword];
+
+  if (normalized.gradeId) {
+    conditions.push("sc.grade_id = ?");
+    params.push(normalized.gradeId);
+  }
+
+  if (normalized.classId) {
+    conditions.push("sc.class_id = ?");
+    params.push(normalized.classId);
+  }
 
   const [rows] = await pool.query(
     `
@@ -29,17 +53,10 @@ async function listParents(search = "") {
       LEFT JOIN class_enrollment ce
         ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
       LEFT JOIN school_class sc ON sc.class_id = ce.class_id
-      WHERE (
-        ? = ''
-        OR ua.full_name LIKE ?
-        OR ua.email LIKE ?
-        OR ua.phone LIKE ?
-        OR su.full_name LIKE ?
-        OR s.student_code LIKE ?
-      )
+      WHERE ${conditions.join(" AND ")}
       ORDER BY pp.parent_id
     `,
-    [search.trim(), keyword, keyword, keyword, keyword, keyword],
+    params,
   );
 
   return rows;
@@ -118,7 +135,7 @@ async function createParent(data) {
         INSERT INTO parent_profile (user_id, relationship, is_primary)
         VALUES (?, ?, ?)
       `,
-      [data.relationship || "Guardian", Boolean(data.isPrimary)],
+      [userId, data.relationship || "Guardian", Boolean(data.isPrimary)],
     );
 
     const parentId = parentResult.insertId;

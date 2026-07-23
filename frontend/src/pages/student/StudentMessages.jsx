@@ -1,9 +1,12 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+
+import { Col, Row } from "react-bootstrap";
 
 import {
   FiFile,
@@ -26,6 +29,11 @@ import EmptyState from "../../components/molecules/EmptyState";
 import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
 import { useAuth } from "../../context/useAuth";
 import { useStudentThread } from "../../hooks/useStudentMessages";
+
+import {
+  emitSocketWithAck,
+  getChatSocket,
+} from "../../socket/chatSocket";
 
 function getInitials(name) {
   if (!name) return "?";
@@ -94,18 +102,34 @@ function parseMessageDate(value) {
   if (!value) return null;
 
   const date = new Date(String(value).replace(" ", "T"));
-
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function formatMessageTime(value) {
   const date = parseMessageDate(value);
-
   if (!date) return "";
 
   return new Intl.DateTimeFormat("vi-VN", {
     hour: "2-digit",
     minute: "2-digit",
+  }).format(date);
+}
+
+function getMessageDateKey(value) {
+  const date = parseMessageDate(value);
+  if (!date) return "";
+
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+function formatMessageDate(value) {
+  const date = parseMessageDate(value);
+  if (!date) return "";
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
   }).format(date);
 }
 
@@ -118,6 +142,24 @@ function hasConversationHistory(conversation) {
       conversation.lastMessageId ||
       conversation.unreadCount > 0,
   );
+}
+
+function appendUniqueMessage(messages = [], message) {
+  if (!message?.messageId) return messages;
+
+  const exists = messages.some(
+    (item) => Number(item.messageId) === Number(message.messageId),
+  );
+
+  if (exists) {
+    return messages.map((item) =>
+      Number(item.messageId) === Number(message.messageId)
+        ? { ...item, ...message }
+        : item,
+    );
+  }
+
+  return [...messages, message];
 }
 
 function MessageAttachment({ message, isMine }) {
@@ -156,17 +198,33 @@ function MessageAttachment({ message, isMine }) {
   );
 }
 
-function MessageBubble({
-  message,
-  isMine,
-  isGroup,
-}) {
+function MessageDateSeparator({ sentAt }) {
+  const dateLabel = formatMessageDate(sentAt);
+  if (!dateLabel) return null;
+
+  return (
+    <div
+      className="flex items-center gap-3 py-1"
+      aria-label={`Ngày ${dateLabel}`}
+    >
+      <span className="h-px flex-1 bg-slate-200" />
+      <span className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm">
+        {dateLabel}
+      </span>
+      <span className="h-px flex-1 bg-slate-200" />
+    </div>
+  );
+}
+
+function MessageBubble({ message, isMine, isGroup, onRecall }) {
   const hasText = Boolean(message.content);
 
   return (
-    <div className={`flex w-full ${isMine ? "justify-end" : "justify-start"}`}>
+    <div
+      className={`flex w-full ${isMine ? "justify-end" : "justify-start"}`}
+    >
       <div
-        className={`flex max-w-[86%] flex-col sm:max-w-[72%] ${
+        className={`group flex max-w-[86%] flex-col sm:max-w-[72%] ${
           isMine ? "items-end" : "items-start"
         }`}
       >
@@ -190,7 +248,7 @@ function MessageBubble({
           ) : (
             <>
               {hasText && (
-                <p className="mb-0 whitespace-pre-wrap leading-6">
+                <p className="mb-0 whitespace-pre-wrap break-words leading-6">
                   {message.content}
                 </p>
               )}
@@ -202,17 +260,42 @@ function MessageBubble({
                 </p>
               )}
 
-              <MessageAttachment
-                message={message}
-                isMine={isMine}
-              />
+              <MessageAttachment message={message} isMine={isMine} />
             </>
           )}
         </div>
 
-        <p className="mt-1 mb-0 text-[11px] text-slate-400">
-          {formatMessageTime(message.sentAt)}
-        </p>
+        <div
+          className={`mt-1 flex items-center gap-2 text-[11px] text-slate-400 ${
+            isMine ? "justify-end" : "justify-start"
+          }`}
+        >
+          <span>{formatMessageTime(message.sentAt)}</span>
+
+          {isMine && !message.isDeleted && (
+            <span
+              className={
+                message.receipt === "READ"
+                  ? "font-semibold text-[#F27123]"
+                  : "text-slate-400"
+              }
+            >
+              {message.receipt === "READ" ? "Đã đọc" : "Đã gửi"}
+            </span>
+          )}
+
+          {isMine && !message.isDeleted && (
+            <button
+              type="button"
+              onClick={() => onRecall(message.messageId)}
+              className="hidden text-slate-300 transition hover:text-red-500 group-hover:inline-flex"
+              title="Thu hồi tin nhắn"
+              aria-label="Thu hồi tin nhắn"
+            >
+              <FiTrash2 size={12} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -230,9 +313,7 @@ function SelectedFilePreview({ file, onClear }) {
           <FiFile className="shrink-0 text-[#F27123]" />
         )}
 
-        <span className="min-w-0 truncate font-semibold">
-          {file.name}
-        </span>
+        <span className="min-w-0 truncate font-semibold">{file.name}</span>
       </div>
 
       <button
@@ -250,27 +331,31 @@ function SelectedFilePreview({ file, onClear }) {
 function ThreadPanel({
   conversationId,
   selectedConversation,
-  onSent,
+  onConversationChanged,
 }) {
   const { user } = useAuth();
-  const fileInputRef = useRef(null);
 
-  const [refreshKey, setRefreshKey] = useState(0);
+  const fileInputRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+
   const [content, setContent] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [typingUserIds, setTypingUserIds] = useState([]);
 
-  const {
-    data,
-    loading,
-    error,
-  } = useStudentThread(conversationId, refreshKey);
+  const { data, setData, loading, error, reload } =
+    useStudentThread(conversationId);
 
   const messages = data?.messages || [];
-  const participants = data?.participants || [];
-  const meta = data?.meta;
+  const participants = useMemo(
+    () => data?.participants || [],
+    [data?.participants],
+  );
 
+  const meta = data?.meta;
   const isGroup =
     meta?.conversationType === "GROUP" ||
     selectedConversation?.conversationType === "GROUP";
@@ -286,14 +371,228 @@ function ThreadPanel({
     otherParticipant?.fullName ||
     "Cuộc trò chuyện";
 
-  const chatSubtitle = isGroup
-    ? "Nhóm trò chuyện"
-    : "Tin nhắn trực tiếp";
+  const chatSubtitle = isGroup ? "Nhóm trò chuyện" : "Tin nhắn trực tiếp";
+
+  const typingNames = useMemo(
+    () =>
+      participants
+        .filter((participant) =>
+          typingUserIds.includes(Number(participant.userId)),
+        )
+        .map((participant) => participant.fullName)
+        .filter(Boolean),
+    [participants, typingUserIds],
+  );
+
+  const markConversationRead = useCallback(() => {
+    if (!conversationId) return;
+
+    emitSocketWithAck("conversation:read", { conversationId }).catch(
+      () => {},
+    );
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!conversationId) return undefined;
+
+    const socket = getChatSocket();
+
+    const handleConnect = () => {
+      setSocketConnected(true);
+      socket.emit("conversation:join", { conversationId }, () => {});
+    };
+
+    const handleDisconnect = () => setSocketConnected(false);
+    const handleConnectError = () => setSocketConnected(false);
+
+    const handleNewMessage = (message) => {
+      if (Number(message.conversationId) !== Number(conversationId)) return;
+
+      setData((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          messages: appendUniqueMessage(current.messages, message),
+        };
+      });
+
+      if (Number(message.senderId) !== Number(user?.userId)) {
+        markConversationRead();
+      }
+
+      onConversationChanged?.();
+    };
+
+    const handleReadReceipt = ({
+      conversationId: receiptConversationId,
+      userId: readerId,
+      readAt,
+    }) => {
+      if (
+        Number(receiptConversationId) !== Number(conversationId) ||
+        Number(readerId) === Number(user?.userId)
+      ) {
+        return;
+      }
+
+      const readTime = parseMessageDate(readAt)?.getTime();
+      if (!readTime) return;
+
+      setData((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          messages: current.messages.map((message) => {
+            if (Number(message.senderId) !== Number(user?.userId)) {
+              return message;
+            }
+
+            const sentTime = parseMessageDate(message.sentAt)?.getTime();
+            if (!sentTime || sentTime > readTime) return message;
+
+            return { ...message, receipt: "READ" };
+          }),
+        };
+      });
+    };
+
+    const handleDeletedMessage = ({
+      conversationId: deletedConversationId,
+      messageId,
+    }) => {
+      if (Number(deletedConversationId) !== Number(conversationId)) return;
+
+      setData((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          messages: current.messages.map((message) =>
+            Number(message.messageId) === Number(messageId)
+              ? {
+                  ...message,
+                  isDeleted: true,
+                  content: null,
+                  fileUrl: null,
+                }
+              : message,
+          ),
+        };
+      });
+
+      onConversationChanged?.();
+    };
+
+    const handleTypingStart = ({
+      conversationId: typingConversationId,
+      userId: typingUserId,
+    }) => {
+      if (
+        Number(typingConversationId) !== Number(conversationId) ||
+        Number(typingUserId) === Number(user?.userId)
+      ) {
+        return;
+      }
+
+      setTypingUserIds((current) =>
+        current.includes(Number(typingUserId))
+          ? current
+          : [...current, Number(typingUserId)],
+      );
+    };
+
+    const handleTypingStop = ({
+      conversationId: typingConversationId,
+      userId: typingUserId,
+    }) => {
+      if (Number(typingConversationId) !== Number(conversationId)) return;
+
+      setTypingUserIds((current) =>
+        current.filter((currentId) => currentId !== Number(typingUserId)),
+      );
+    };
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("connect_error", handleConnectError);
+    socket.on("message:new", handleNewMessage);
+    socket.on("message:read", handleReadReceipt);
+    socket.on("message:deleted", handleDeletedMessage);
+    socket.on("typing:start", handleTypingStart);
+    socket.on("typing:stop", handleTypingStop);
+
+    if (socket.connected) handleConnect();
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+      }
+
+      socket.emit("typing:stop", { conversationId });
+      socket.emit("conversation:leave", { conversationId });
+
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("connect_error", handleConnectError);
+      socket.off("message:new", handleNewMessage);
+      socket.off("message:read", handleReadReceipt);
+      socket.off("message:deleted", handleDeletedMessage);
+      socket.off("typing:start", handleTypingStart);
+      socket.off("typing:stop", handleTypingStop);
+    };
+  }, [
+    conversationId,
+    markConversationRead,
+    onConversationChanged,
+    setData,
+    user?.userId,
+  ]);
+
+  useEffect(() => {
+    if (!scrollContainerRef.current) return;
+
+    scrollContainerRef.current.scrollTop =
+      scrollContainerRef.current.scrollHeight;
+  }, [messages.length, conversationId]);
+
+  useEffect(() => {
+    if (!conversationId || loading || error) return;
+    markConversationRead();
+  }, [conversationId, error, loading, markConversationRead]);
+
+  function handleContentChange(event) {
+    const nextContent = event.target.value;
+    setContent(nextContent);
+
+    if (!conversationId) return;
+
+    const socket = getChatSocket();
+
+    if (nextContent.trim()) {
+      socket.emit("typing:start", { conversationId });
+
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = window.setTimeout(() => {
+        socket.emit("typing:stop", { conversationId });
+      }, 1200);
+    } else {
+      socket.emit("typing:stop", { conversationId });
+    }
+  }
 
   async function sendMessage(event) {
     event.preventDefault();
 
-    if (!conversationId || (!content.trim() && !selectedFile)) {
+    if (
+      !conversationId ||
+      !socketConnected ||
+      (!content.trim() && !selectedFile)
+    ) {
       return;
     }
 
@@ -301,52 +600,92 @@ function ThreadPanel({
     setSendError("");
 
     try {
+      let payload = {
+        conversationId,
+        messageType: "TEXT",
+        content: content.trim(),
+        fileUrl: null,
+      };
+
       if (selectedFile) {
-        const uploadResponse = await studentApi.uploadMessageFile(selectedFile);
+        const uploadResponse =
+          await studentApi.uploadMessageFile(selectedFile);
         const uploaded = uploadResponse.data;
 
-        await studentApi.sendMessage(conversationId, {
+        payload = {
+          conversationId,
           messageType: uploaded.messageType,
           content: content.trim() || uploaded.fileName,
           fileUrl: uploaded.fileUrl,
-        });
-      } else {
-        await studentApi.sendMessage(conversationId, {
-          messageType: "TEXT",
-          content: content.trim(),
-        });
+        };
       }
+
+      const sentMessage = await emitSocketWithAck("message:send", payload);
+
+      setData((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          messages: appendUniqueMessage(current.messages, sentMessage),
+        };
+      });
 
       setContent("");
       setSelectedFile(null);
+
+      const socket = getChatSocket();
+      socket.emit("typing:stop", { conversationId });
+
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+      }
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
 
-      setRefreshKey((key) => key + 1);
-      onSent();
+      onConversationChanged?.();
     } catch (requestError) {
-      setSendError(requestError.message);
+      setSendError(requestError.message || "Không gửi được tin nhắn");
     } finally {
       setSubmitting(false);
     }
   }
 
+  async function recallMessage(messageId) {
+    const confirmed = window.confirm(
+      "Bạn có chắc muốn thu hồi tin nhắn này?",
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await emitSocketWithAck("message:delete", { messageId });
+    } catch (requestError) {
+      setSendError(requestError.message || "Không thu hồi được tin nhắn");
+      reload();
+    }
+  }
+
   if (!conversationId) {
     return (
-      <div className="flex min-h-[320px] items-center justify-center rounded-3xl border border-orange-100 bg-white p-6 text-center shadow-sm sm:min-h-[520px] xl:min-h-[680px]">
+      <div className="flex min-h-[320px] w-full items-center justify-center rounded-3xl border border-orange-100 bg-white p-6 text-center shadow-sm sm:min-h-[520px] xl:h-[calc(100vh-180px)] xl:min-h-[680px] xl:max-h-[820px]">
         <div>
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#FFF7F2] text-[#F27123]">
             <FiMessageSquare size={28} />
           </div>
+
+          <p className="mb-0 text-sm text-slate-500">
+            Chọn một cuộc trò chuyện để bắt đầu nhắn tin.
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-[460px] flex-col overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm sm:min-h-[620px] xl:min-h-[680px]">
+    <div className="flex min-h-[460px] w-full flex-col overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm sm:min-h-[620px] xl:h-[calc(100vh-180px)] xl:min-h-[680px] xl:max-h-[820px]">
       <div className="flex items-center justify-between border-b border-orange-100 bg-white px-4 py-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <ConversationAvatar
@@ -360,13 +699,22 @@ function ThreadPanel({
             </h3>
 
             <p className="mb-0 text-xs text-slate-500">
-              {chatSubtitle}
+              {typingNames.length > 0
+                ? `${typingNames.join(", ")} đang nhập...`
+                : `${chatSubtitle} · ${
+                    socketConnected
+                      ? "Đang kết nối realtime"
+                      : "Đang kết nối lại"
+                  }`}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto bg-[#F8FAFC] px-3 py-4 sm:px-6 sm:py-5">
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 space-y-4 overflow-y-auto bg-[#F8FAFC] px-3 py-4 sm:px-6 sm:py-5"
+      >
         {loading && <LoadingState label="Đang tải tin nhắn..." />}
 
         {!loading && error && <ErrorAlert error={error} />}
@@ -380,17 +728,32 @@ function ThreadPanel({
           </div>
         )}
 
-        {!loading && !error &&
-          messages.map((message) => {
-            const isMine = Number(message.senderId) === Number(user?.userId);
+        {!loading &&
+          !error &&
+          messages.map((message, index) => {
+            const isMine =
+              Number(message.senderId) === Number(user?.userId);
+            const previousMessage = messages[index - 1];
+            const currentDateKey = getMessageDateKey(message.sentAt);
+            const previousDateKey = getMessageDateKey(
+              previousMessage?.sentAt,
+            );
+            const showDateSeparator =
+              Boolean(currentDateKey) && currentDateKey !== previousDateKey;
 
             return (
-              <MessageBubble
-                key={message.messageId}
-                message={message}
-                isMine={isMine}
-                isGroup={isGroup}
-              />
+              <div key={message.messageId} className="space-y-4">
+                {showDateSeparator && (
+                  <MessageDateSeparator sentAt={message.sentAt} />
+                )}
+
+                <MessageBubble
+                  message={message}
+                  isMine={isMine}
+                  isGroup={isGroup}
+                  onRecall={recallMessage}
+                />
+              </div>
             );
           })}
       </div>
@@ -400,9 +763,7 @@ function ThreadPanel({
         className="border-t border-orange-100 bg-white px-3 py-3 sm:px-5 sm:py-4"
       >
         {sendError && (
-          <p className="mb-3 text-sm text-red-600">
-            {sendError}
-          </p>
+          <p className="mb-3 text-sm text-red-600">{sendError}</p>
         )}
 
         <SelectedFilePreview
@@ -438,7 +799,7 @@ function ThreadPanel({
 
           <input
             value={content}
-            onChange={(event) => setContent(event.target.value)}
+            onChange={handleContentChange}
             placeholder={
               selectedFile
                 ? "Ghi chú cho file đính kèm..."
@@ -449,11 +810,17 @@ function ThreadPanel({
 
           <button
             type="submit"
-            disabled={submitting || (!content.trim() && !selectedFile)}
+            disabled={
+              submitting ||
+              !socketConnected ||
+              (!content.trim() && !selectedFile)
+            }
             className="inline-flex h-12 w-12 shrink-0 items-center justify-center gap-2 !rounded-full bg-[#F27123] px-0 text-sm font-bold text-white shadow-lg shadow-orange-200/70 transition hover:-translate-y-0.5 hover:bg-[#d95f17] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-5"
           >
             <FiSend size={16} />
-            <span className="hidden sm:inline">{submitting ? "Đang gửi..." : "Gửi"}</span>
+            <span className="hidden sm:inline">
+              {submitting ? "Đang gửi..." : "Gửi"}
+            </span>
           </button>
         </div>
       </form>
@@ -466,87 +833,100 @@ function NewConversationModal({
   onClose,
   groups,
   teachers,
-  teacherSearch,
-  setTeacherSearch,
+  searchValue,
+  setSearchValue,
   onOpenGroup,
   onStartTeacher,
 }) {
   if (!open) return null;
 
+  const hasSearchKeyword = Boolean(searchValue.trim());
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4 py-6">
       <div className="max-h-[88vh] w-full max-w-2xl overflow-hidden !rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-center justify-end px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
+          <div className="relative min-w-0 flex-1">
+            <FiSearch
+              size={16}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+
+            <input
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
+              placeholder="Tìm nhóm hoặc giáo viên..."
+              className="h-11 w-full rounded-full border border-slate-200 bg-slate-50 pl-11 pr-10 text-sm text-[#0F2747] outline-none transition focus:border-[#F27123] focus:bg-white focus:ring-4 focus:ring-orange-100"
+            />
+
+            {searchValue && (
+              <button
+                type="button"
+                onClick={() => setSearchValue("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-[#F27123]"
+                aria-label="Xóa từ khóa tìm kiếm"
+              >
+                <FiX size={16} />
+              </button>
+            )}
+          </div>
+
           <button
             type="button"
-            onClick={onClose}
-            className="rounded-full p-2 text-slate-400 transition hover:bg-slate-50 hover:text-red-600"
+            onClick={() => {
+              setSearchValue("");
+              onClose();
+            }}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-red-600"
+            aria-label="Đóng"
           >
-            <FiX size={20} />
+            <FiX size={21} />
           </button>
         </div>
 
-        <div className="max-h-[70vh] overflow-y-auto px-4 py-3 sm:px-6">
-          <div className="mb-6">
-            <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">
+        <div className="max-h-[72vh] overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+          <div className="mb-7">
+            <p className="mb-4 text-xs font-black uppercase tracking-wide text-slate-400">
               Nhóm
             </p>
 
             {groups.length > 0 ? (
               <div className="grid gap-3 md:grid-cols-2">
                 {groups.map((group) => (
-                  <div key={group.conversationId}>
-                    <button
-                      type="button"
-                      onClick={() => onOpenGroup(group)}
-                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
-                    >
-                      <ConversationAvatar
-                        name={group.title}
-                        tone="green"
-                      />
+                  <button
+                    key={group.conversationId}
+                    type="button"
+                    onClick={() => onOpenGroup(group)}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
+                  >
+                    <ConversationAvatar name={group.title} tone="green" />
 
-                      <div className="min-w-0">
-                        <p className="mb-1 truncate text-sm font-bold text-[#0F2747]">
-                          {group.title}
-                        </p>
+                    <div className="min-w-0">
+                      <p className="mb-1 truncate text-sm font-bold text-[#0F2747]">
+                        {group.title}
+                      </p>
 
-                        <p className="mb-0 truncate text-xs text-slate-500">
-                          <FiUsers className="mr-1 inline" />
-                          {group.memberCount} thành viên
-                        </p>
-                      </div>
-                    </button>
-                  </div>
+                      <p className="mb-0 truncate text-xs text-slate-500">
+                        <FiUsers className="mr-1 inline" />
+                        {group.memberCount || 0} thành viên
+                      </p>
+                    </div>
+                  </button>
                 ))}
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
-                Chưa có nhóm lớp hoặc nhóm nội trú.
+                {hasSearchKeyword
+                  ? "Không tìm thấy nhóm phù hợp."
+                  : "Chưa có nhóm lớp hoặc nhóm nội trú."}
               </div>
             )}
           </div>
 
           <div>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <p className="mb-0 text-xs font-black uppercase tracking-wide text-slate-400">
-                Giáo viên
-              </p>
-
-              <div className="relative w-full md:w-72">
-                <FiSearch
-                  size={15}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-
-                <input
-                  value={teacherSearch}
-                  onChange={(event) => setTeacherSearch(event.target.value)}
-                  placeholder="Tìm giáo viên..."
-                  className="h-10 w-full rounded-full border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-[#0F2747] outline-none transition focus:border-[#F27123] focus:bg-white focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
-            </div>
+            <p className="mb-4 text-xs font-black uppercase tracking-wide text-slate-400">
+              Giáo viên
+            </p>
 
             {teachers.length > 0 ? (
               <div className="grid gap-3 md:grid-cols-2">
@@ -554,45 +934,57 @@ function NewConversationModal({
                   const roleLabel = teacher.isHomeroom
                     ? "Giáo viên chủ nhiệm"
                     : "Giáo viên bộ môn";
-
                   const subjectLabel =
-                    teacher.subjects.length > 0
+                    teacher.subjects?.length > 0
                       ? ` · ${teacher.subjects.join(", ")}`
                       : "";
 
                   return (
-                    <div key={teacher.teacherUserId || teacher.teacherName}>
-                      <button
-                        type="button"
-                        onClick={() => onStartTeacher(teacher)}
-                        className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
-                      >
-                        <ConversationAvatar
-                          name={teacher.teacherName}
-                          tone="blue"
-                        />
+                    <button
+                      key={
+                        teacher.teacherUserId ||
+                        teacher.teacherId ||
+                        teacher.teacherName
+                      }
+                      type="button"
+                      onClick={() => onStartTeacher(teacher)}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
+                    >
+                      <ConversationAvatar
+                        name={teacher.teacherName}
+                        tone="blue"
+                      />
 
-                        <div className="min-w-0">
-                          <p className="mb-1 truncate text-sm font-bold text-[#0F2747]">
-                            {teacher.teacherName}
-                          </p>
+                      <div className="min-w-0">
+                        <p className="mb-1 truncate text-sm font-bold text-[#0F2747]">
+                          {teacher.teacherName}
+                        </p>
 
-                          <p className="mb-0 truncate text-xs text-slate-500">
-                            {roleLabel}
-                            {subjectLabel}
-                          </p>
-                        </div>
-                      </button>
-                    </div>
+                        <p className="mb-0 truncate text-xs text-slate-500">
+                          {roleLabel}
+                          {subjectLabel}
+                        </p>
+                      </div>
+                    </button>
                   );
                 })}
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
-                Không tìm thấy giáo viên phù hợp.
+                {hasSearchKeyword
+                  ? "Không tìm thấy giáo viên phù hợp."
+                  : "Chưa có giáo viên để trò chuyện."}
               </div>
             )}
           </div>
+
+          {hasSearchKeyword &&
+            groups.length === 0 &&
+            teachers.length === 0 && (
+              <div className="mt-5 rounded-2xl bg-[#FFF7F2] px-4 py-3 text-center text-sm text-[#F27123]">
+                Không có nhóm hoặc giáo viên nào khớp với “{searchValue}”.
+              </div>
+            )}
         </div>
       </div>
     </div>
@@ -603,68 +995,112 @@ function StudentMessages() {
   const [contacts, setContacts] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [context, setContext] = useState(null);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [selectedConversation, setSelectedConversation] = useState(null);
-
-  const [teacherSearch, setTeacherSearch] = useState("");
+  const [contactSearch, setContactSearch] = useState("");
   const [conversationSearch, setConversationSearch] = useState("");
   const [showNewConversation, setShowNewConversation] = useState(false);
 
-  async function loadData() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const [contactsResponse, conversationsResponse] = await Promise.all([
-        studentApi.getMessageContacts(),
-        studentApi.listConversations({
-          archived: false,
-          search: conversationSearch,
-        }),
-      ]);
-
-      setContacts(contactsResponse.data);
-      setContext(contactsResponse.data.context);
-      setConversations(conversationsResponse.data.items || []);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const refreshConversations = useCallback(() => {
+    setRefreshKey((key) => key + 1);
+  }, []);
 
   useEffect(() => {
-    loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    refreshKey,
-    conversationSearch,
-  ]);
+    const socket = getChatSocket();
+    const handleConversationUpdated = () => refreshConversations();
+
+    socket.on("conversation:updated", handleConversationUpdated);
+
+    return () => {
+      socket.off("conversation:updated", handleConversationUpdated);
+    };
+  }, [refreshConversations]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    setLoading(true);
+
+    Promise.all([
+      studentApi.getMessageContacts(),
+      studentApi.listConversations({
+        archived: false,
+        search: conversationSearch,
+      }),
+    ])
+      .then(([contactsResponse, conversationsResponse]) => {
+        if (!isMounted) return;
+
+        setError("");
+        setContacts(contactsResponse.data);
+        setContext(contactsResponse.data.context);
+        setConversations(conversationsResponse.data.items || []);
+      })
+      .catch((requestError) => {
+        if (isMounted) {
+          setError(requestError.message || "Không tải được tin nhắn");
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshKey, conversationSearch]);
 
   const teachers = useMemo(
     () => getUniqueTeachers(contacts?.teachers || []),
     [contacts],
   );
 
-  const filteredTeachers = useMemo(() => {
-    const keyword = teacherSearch.trim().toLowerCase();
+  const groups = useMemo(() => contacts?.groups || [], [contacts]);
 
+  const filteredGroups = useMemo(() => {
+    const keyword = contactSearch.trim().toLowerCase();
+    if (!keyword) return groups;
+
+    return groups.filter((group) => {
+      const searchableText = [
+        group.title,
+        group.groupName,
+        group.className,
+        group.areaName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(keyword);
+    });
+  }, [groups, contactSearch]);
+
+  const filteredTeachers = useMemo(() => {
+    const keyword = contactSearch.trim().toLowerCase();
     if (!keyword) return teachers;
 
     return teachers.filter((teacher) => {
-      const name = teacher.teacherName || "";
-      const subjects = teacher.subjects?.join(" ") || "";
+      const roleLabel = teacher.isHomeroom
+        ? "giáo viên chủ nhiệm"
+        : "giáo viên bộ môn";
 
-      return `${name} ${subjects}`.toLowerCase().includes(keyword);
+      const searchableText = [
+        teacher.teacherName,
+        teacher.teacherCode,
+        roleLabel,
+        ...(teacher.subjects || []),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(keyword);
     });
-  }, [teachers, teacherSearch]);
-
-  const groups = contacts?.groups || [];
+  }, [teachers, contactSearch]);
 
   const visibleConversations = useMemo(
     () => conversations.filter(hasConversationHistory),
@@ -687,9 +1123,10 @@ function StudentMessages() {
       setActiveConversationId(response.data.conversationId);
       setSelectedConversation(conversation);
       setShowNewConversation(false);
-      setRefreshKey((key) => key + 1);
+      setContactSearch("");
+      refreshConversations();
     } catch (requestError) {
-      setError(requestError.message);
+      setError(requestError.message || "Không tạo được cuộc trò chuyện");
     }
   }
 
@@ -707,10 +1144,7 @@ function StudentMessages() {
     });
 
     setShowNewConversation(false);
-  }
-
-  function refresh() {
-    setRefreshKey((key) => key + 1);
+    setContactSearch("");
   }
 
   return (
@@ -723,8 +1157,9 @@ function StudentMessages() {
 
       {!loading && !error && (
         <>
-          <div className="grid gap-3 xl:grid-cols-[minmax(300px,0.46fr)_minmax(0,1fr)] 2xl:grid-cols-[minmax(320px,0.38fr)_minmax(0,1fr)]">
-            <aside className="overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm xl:min-h-[680px]">
+          <Row className="g-3 items-stretch">
+            <Col xs={12} xl={5} xxl={4} className="flex">
+              <aside className="flex min-h-[420px] w-full flex-col overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm xl:h-[calc(100vh-180px)] xl:min-h-[680px] xl:max-h-[820px]">
                 <div className="px-4 py-4 sm:px-5 sm:py-5">
                   <div className="flex items-center gap-2 sm:gap-3">
                     <div className="relative min-w-0 flex-1">
@@ -755,7 +1190,7 @@ function StudentMessages() {
                   </div>
                 </div>
 
-                <div className="max-h-[360px] overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 xl:h-[575px] xl:max-h-none">
+                <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4">
                   {visibleConversations.length > 0 ? (
                     <div className="space-y-2">
                       {visibleConversations.map((conversation) => (
@@ -764,7 +1199,8 @@ function StudentMessages() {
                           type="button"
                           onClick={() => openConversation(conversation)}
                           className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
-                            activeConversationId === conversation.conversationId
+                            activeConversationId ===
+                            conversation.conversationId
                               ? "bg-[#FFF7F2]"
                               : "hover:bg-slate-50"
                           }`}
@@ -796,7 +1232,8 @@ function StudentMessages() {
                                 ? "Ảnh đính kèm"
                                 : conversation.lastType === "FILE"
                                   ? "Tệp đính kèm"
-                                  : conversation.lastContent || "Chưa có tin nhắn"}
+                                  : conversation.lastContent ||
+                                    "Chưa có tin nhắn"}
                             </p>
                           </div>
                         </button>
@@ -822,21 +1259,27 @@ function StudentMessages() {
                   )}
                 </div>
               </aside>
+            </Col>
 
-            <ThreadPanel
-              conversationId={activeConversationId}
-              selectedConversation={selectedConversation}
-              onSent={refresh}
-            />
-          </div>
+            <Col xs={12} xl={7} xxl={8} className="flex">
+              <ThreadPanel
+                conversationId={activeConversationId}
+                selectedConversation={selectedConversation}
+                onConversationChanged={refreshConversations}
+              />
+            </Col>
+          </Row>
 
           <NewConversationModal
             open={showNewConversation}
-            onClose={() => setShowNewConversation(false)}
-            groups={groups}
+            onClose={() => {
+              setShowNewConversation(false);
+              setContactSearch("");
+            }}
+            groups={filteredGroups}
             teachers={filteredTeachers}
-            teacherSearch={teacherSearch}
-            setTeacherSearch={setTeacherSearch}
+            searchValue={contactSearch}
+            setSearchValue={setContactSearch}
             onOpenGroup={openGroupConversation}
             onStartTeacher={startTeacherConversation}
           />

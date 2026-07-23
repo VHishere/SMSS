@@ -12,12 +12,14 @@ import {
   FiBell,
   FiInbox,
   FiMenu,
+  FiSearch,
 } from "react-icons/fi";
 
 import { parentApi, studentApi } from "../../api/client";
 import {
   useAuth,
 } from "../../context/useAuth";
+import { isStitchUser } from "../../config/sidebarRoles";
 
 import AppIconButton from "../atoms/AppIconButton";
 import ProfileDropdown from "../molecules/ProfileDropdown";
@@ -263,6 +265,30 @@ function NotificationDropdown({ api, allNotificationsPath }) {
   );
 }
 
+function TeacherSearchBox() {
+  const navigate = useNavigate();
+  const [q, setQ] = useState("");
+
+  return (
+    <div className="relative hidden w-full max-w-md md:block">
+      <FiSearch
+        size={16}
+        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+      />
+      <input
+        type="text"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") navigate("/teacher/students");
+        }}
+        placeholder="Tìm học sinh, lớp học, hoặc điểm số..."
+        className="w-full rounded-full border-none bg-[#E2E2E2] py-2 pl-10 pr-4 text-sm text-[#1A1C1C] outline-none transition focus:ring-2 focus:ring-[#9F4200]/20"
+      />
+    </div>
+  );
+}
+
 function DashboardHeader({
   user,
   onOpenSidebar,
@@ -277,10 +303,14 @@ function DashboardHeader({
 
   const isStudent = roleNames.includes("STUDENT");
   const isParent = roleNames.includes("PARENT");
+  const isTeacher = ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"]
+    .some((r) => roleNames.includes(r));
+  const isAdmin = roleNames.includes("ADMIN");
+  const isStitch = isStitchUser(authUser);
 
   return (
     <header className="sticky top-0 z-30 border-b border-orange-100 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center px-3 sm:px-5 lg:px-8">
+      <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-5 lg:px-8">
         <AppIconButton
           icon={FiMenu}
           label="Mở menu"
@@ -288,7 +318,12 @@ function DashboardHeader({
           className="lg:hidden"
         />
 
-        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-3">
+        {/* FSchool teacher portal: global search (Stitch design) */}
+        {isTeacher && (
+          <TeacherSearchBox />
+        )}
+
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           {isStudent && (
             <NotificationDropdown
               api={studentApi}
@@ -303,7 +338,46 @@ function DashboardHeader({
             />
           )}
 
-          {!isStudent && !isParent && (
+          {isTeacher && (
+            <>
+              <button
+                type="button"
+                aria-label="Thông báo"
+                className="relative rounded-full p-2 transition-colors hover:bg-[#E8E8E8]"
+              >
+                <span className="material-symbols-outlined text-[#1A1C1C]">
+                  notifications
+                </span>
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#F27123]" />
+              </button>
+              <button
+                type="button"
+                aria-label="Trợ giúp"
+                className="rounded-full p-2 transition-colors hover:bg-[#E8E8E8]"
+              >
+                <span className="material-symbols-outlined text-[#1A1C1C]">
+                  help
+                </span>
+              </button>
+            </>
+          )}
+
+          {isAdmin && (
+            <button
+              type="button"
+              aria-label="Thông báo"
+              className="relative rounded-full p-2 transition-colors hover:bg-[#E8E8E8]"
+            >
+              <span className="material-symbols-outlined text-[#1A1C1C]">
+                notifications
+              </span>
+              {showNotificationBadge && (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#F27123]" />
+              )}
+            </button>
+          )}
+
+          {!isStudent && !isParent && !isTeacher && !isAdmin && (
             <AppIconButton
               icon={FiBell}
               label="Thông báo"
@@ -311,7 +385,9 @@ function DashboardHeader({
             />
           )}
 
-          <ProfileDropdown user={user} />
+          {isStitch && <div className="mx-2 h-8 w-px bg-[#DFC0B2]" />}
+
+          <ProfileDropdown user={user} variant={isStitch ? "stitch" : "default"} />
         </div>
       </div>
     </header>

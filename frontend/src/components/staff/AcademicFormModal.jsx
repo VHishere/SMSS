@@ -159,10 +159,11 @@ function AcademicFormModal({ show, onHide, editId, onSaved }) {
               value={form.scoreType}
               onChange={handleChange("scoreType")}
             >
-              <option value="MIDTERM">Giữa kỳ</option>
-              <option value="FINAL">Cuối kỳ</option>
-              <option value="ORAL">Miệng</option>
-              <option value="QUIZ">Kiểm tra</option>
+              <option value="TX1">TX1 (thường xuyên · hệ số 1)</option>
+              <option value="TX2">TX2 (thường xuyên · hệ số 1)</option>
+              <option value="TX3">TX3 (thường xuyên · hệ số 1)</option>
+              <option value="MIDTERM">1 tiết (định kỳ · hệ số 2)</option>
+              <option value="FINAL">Cuối kỳ (hệ số 3)</option>
             </select>
           </StaffField>
 

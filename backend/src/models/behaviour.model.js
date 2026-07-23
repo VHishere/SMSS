@@ -2,6 +2,7 @@ const { pool } = require("../config/db");
 
 // ── Pickers & permission ──────────────────────────────────────────────────────
 
+// Nề nếp & Hạnh kiểm là nghiệp vụ của GVCN → chỉ liệt kê lớp chủ nhiệm.
 async function findTeacherClasses(teacherId) {
   const [rows] = await pool.query(
     `SELECT DISTINCT
@@ -11,16 +12,18 @@ async function findTeacherClasses(teacherId) {
      FROM teacher_class tc
      INNER JOIN school_class sc ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
      INNER JOIN grade g ON g.grade_id = sc.grade_id
-     WHERE tc.teacher_id = ?
+     WHERE tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
      ORDER BY sc.class_name ASC`,
     [teacherId],
   );
   return rows;
 }
 
+// Chỉ GVCN của lớp mới được thao tác nề nếp/hạnh kiểm của lớp đó.
 async function isTeacherForClass(teacherId, classId) {
   const [[row]] = await pool.query(
-    `SELECT 1 AS ok FROM teacher_class WHERE teacher_id = ? AND class_id = ? LIMIT 1`,
+    `SELECT 1 AS ok FROM teacher_class
+     WHERE teacher_id = ? AND class_id = ? AND role_in_class = 'HOMEROOM_TEACHER' LIMIT 1`,
     [teacherId, classId],
   );
   return Boolean(row);
@@ -36,6 +39,28 @@ async function isTeacherForStudent(teacherId, studentId) {
     [teacherId, studentId],
   );
   return Boolean(row);
+}
+
+// Nề nếp/hạnh kiểm chỉ GVCN của học sinh (lớp chủ nhiệm của HS đó) mới thao tác.
+async function isHomeroomOfStudent(teacherId, studentId) {
+  const [[row]] = await pool.query(
+    `SELECT 1 AS ok
+     FROM teacher_class tc
+     INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     WHERE tc.teacher_id = ? AND ce.student_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
+     LIMIT 1`,
+    [teacherId, studentId],
+  );
+  return Boolean(row);
+}
+
+// Danh mục loại vi phạm chuẩn (kèm cờ có ảnh hưởng hạnh kiểm) cho bộ chọn khi ghi vi phạm.
+async function findViolationTypes() {
+  const [rows] = await pool.query(
+    `SELECT code, name, affects_conduct AS affectsConduct
+     FROM violation_type WHERE is_active = 1 ORDER BY affects_conduct DESC, name ASC`,
+  );
+  return rows.map((r) => ({ ...r, affectsConduct: Boolean(r.affectsConduct) }));
 }
 
 async function findSemesters() {
@@ -115,6 +140,7 @@ async function findRecords(filters = {}) {
        br.title,
        br.description,
        br.severity_level AS severityLevel,
+       br.affects_conduct AS affectsConduct,
        br.points,
        DATE_FORMAT(br.record_date, '%Y-%m-%d') AS recordDate,
        br.evidence_url  AS evidenceUrl,
@@ -164,11 +190,11 @@ async function createRecord(rec) {
     const [result] = await conn.query(
       `INSERT INTO behavior_record
          (student_id, supervisor_id, behavior_type, title, category, description,
-          severity_level, points, record_date, semester_id, evidence_url, created_by, status)
-       VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
+          severity_level, affects_conduct, points, record_date, semester_id, evidence_url, created_by, status)
+       VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')`,
       [
         rec.studentId, rec.behaviorType, rec.title, rec.category ?? null, rec.description ?? null,
-        rec.severityLevel ?? "LOW", rec.points, rec.recordDate, rec.semesterId ?? null,
+        rec.severityLevel ?? "LOW", rec.affectsConduct ? 1 : 0, rec.points, rec.recordDate, rec.semesterId ?? null,
         rec.evidenceUrl ?? null, rec.createdBy,
       ],
     );
@@ -206,12 +232,12 @@ async function updateRecord({ behaviorId, fields, oldPoints, reason, changedBy }
 
     await conn.query(
       `UPDATE behavior_record
-       SET title = ?, category = ?, description = ?, severity_level = ?, points = ?,
+       SET title = ?, category = ?, description = ?, severity_level = ?, affects_conduct = ?, points = ?,
            record_date = ?, evidence_url = ?
        WHERE behavior_id = ? AND status = 'ACTIVE'`,
       [
         fields.title, fields.category ?? null, fields.description ?? null,
-        fields.severityLevel ?? "LOW", fields.points, fields.recordDate,
+        fields.severityLevel ?? "LOW", fields.affectsConduct ? 1 : 0, fields.points, fields.recordDate,
         fields.evidenceUrl ?? null, behaviorId,
       ],
     );
@@ -278,8 +304,10 @@ async function aggregateConduct(studentId, startDate, endDate) {
   const [[row]] = await pool.query(
     `SELECT
        COALESCE(SUM(CASE WHEN behavior_type = 'POSITIVE'  THEN points ELSE 0 END), 0) AS meritPoints,
-       COALESCE(SUM(CASE WHEN behavior_type = 'VIOLATION' THEN ABS(points) ELSE 0 END), 0) AS demeritPoints,
+       -- Chỉ vi phạm 'ảnh hưởng hạnh kiểm' mới trừ điểm tham khảo (đi muộn/nhẹ chỉ thống kê)
+       COALESCE(SUM(CASE WHEN behavior_type = 'VIOLATION' AND affects_conduct = 1 THEN ABS(points) ELSE 0 END), 0) AS demeritPoints,
        SUM(CASE WHEN behavior_type = 'VIOLATION' THEN 1 ELSE 0 END) AS violationCount,
+       SUM(CASE WHEN behavior_type = 'VIOLATION' AND affects_conduct = 1 THEN 1 ELSE 0 END) AS seriousViolationCount,
        SUM(CASE WHEN behavior_type = 'POSITIVE'  THEN 1 ELSE 0 END) AS meritCount
      FROM behavior_record
      WHERE student_id = ? AND status = 'ACTIVE'
@@ -290,12 +318,14 @@ async function aggregateConduct(studentId, startDate, endDate) {
     meritPoints:    Number(row.meritPoints),
     demeritPoints:  Number(row.demeritPoints),
     violationCount: Number(row.violationCount),
+    seriousViolationCount: Number(row.seriousViolationCount),
     meritCount:     Number(row.meritCount),
   };
 }
 
-// Per-student merit/demerit aggregates for a whole class within a date range.
-async function aggregateClassConduct(classId, startDate, endDate) {
+// Per-student merit/demerit aggregates for a whole class within a date range,
+// kèm xếp loại hạnh kiểm GVCN đã CHỐT (nếu có) trong học kỳ.
+async function aggregateClassConduct(classId, startDate, endDate, semesterId) {
   const [rows] = await pool.query(
     `SELECT
        s.student_id   AS studentId,
@@ -303,19 +333,23 @@ async function aggregateClassConduct(classId, startDate, endDate) {
        ua.full_name   AS studentName,
        ua.avatar      AS studentAvatar,
        COALESCE(SUM(CASE WHEN br.behavior_type = 'POSITIVE'  THEN br.points ELSE 0 END), 0) AS meritPoints,
-       COALESCE(SUM(CASE WHEN br.behavior_type = 'VIOLATION' THEN ABS(br.points) ELSE 0 END), 0) AS demeritPoints,
+       COALESCE(SUM(CASE WHEN br.behavior_type = 'VIOLATION' AND br.affects_conduct = 1 THEN ABS(br.points) ELSE 0 END), 0) AS demeritPoints,
        SUM(CASE WHEN br.behavior_type = 'VIOLATION' THEN 1 ELSE 0 END) AS violationCount,
-       SUM(CASE WHEN br.behavior_type = 'POSITIVE'  THEN 1 ELSE 0 END) AS meritCount
+       SUM(CASE WHEN br.behavior_type = 'POSITIVE'  THEN 1 ELSE 0 END) AS meritCount,
+       ce2.conduct_grade AS manualGrade,
+       ce2.status        AS evalStatus
      FROM class_enrollment ce
      INNER JOIN student s ON s.student_id = ce.student_id AND s.status = 'ACTIVE'
      INNER JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
      LEFT JOIN behavior_record br
        ON br.student_id = s.student_id AND br.status = 'ACTIVE'
        AND br.record_date BETWEEN ? AND ?
+     LEFT JOIN conduct_evaluation ce2
+       ON ce2.student_id = s.student_id AND ce2.semester_id = ?
      WHERE ce.class_id = ? AND ce.status = 'ACTIVE'
-     GROUP BY s.student_id, s.student_code, ua.full_name, ua.avatar
+     GROUP BY s.student_id, s.student_code, ua.full_name, ua.avatar, ce2.conduct_grade, ce2.status
      ORDER BY ua.full_name ASC`,
-    [startDate, endDate, classId],
+    [startDate, endDate, semesterId ?? null, classId],
   );
   return rows.map((r) => ({
     studentId:      r.studentId,
@@ -326,6 +360,8 @@ async function aggregateClassConduct(classId, startDate, endDate) {
     demeritPoints:  Number(r.demeritPoints),
     violationCount: Number(r.violationCount),
     meritCount:     Number(r.meritCount),
+    manualGrade:    r.manualGrade || null,
+    evalStatus:     r.evalStatus || null,
   }));
 }
 
@@ -353,8 +389,8 @@ async function upsertConductEvaluation(ev) {
   await pool.query(
     `INSERT INTO conduct_evaluation
        (student_id, semester_id, merit_points, demerit_points, base_score, adjustment,
-        final_score, conduct_grade, comment, status, evaluated_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        final_score, conduct_grade, is_manual, comment, status, evaluated_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON DUPLICATE KEY UPDATE
        merit_points = VALUES(merit_points),
        demerit_points = VALUES(demerit_points),
@@ -362,12 +398,13 @@ async function upsertConductEvaluation(ev) {
        adjustment = VALUES(adjustment),
        final_score = VALUES(final_score),
        conduct_grade = VALUES(conduct_grade),
+       is_manual = VALUES(is_manual),
        comment = VALUES(comment),
        status = VALUES(status),
        evaluated_by = VALUES(evaluated_by)`,
     [
       ev.studentId, ev.semesterId, ev.meritPoints, ev.demeritPoints, ev.baseScore,
-      ev.adjustment, ev.finalScore, ev.conductGrade, ev.comment, ev.status, ev.evaluatedBy,
+      ev.adjustment, ev.finalScore, ev.conductGrade, ev.isManual ? 1 : 0, ev.comment, ev.status, ev.evaluatedBy,
     ],
   );
 }
@@ -377,7 +414,7 @@ async function findConductEvaluation(studentId, semesterId) {
     `SELECT
        evaluation_id AS evaluationId, student_id AS studentId, semester_id AS semesterId,
        merit_points AS meritPoints, demerit_points AS demeritPoints, base_score AS baseScore,
-       adjustment, final_score AS finalScore, conduct_grade AS conductGrade,
+       adjustment, final_score AS finalScore, conduct_grade AS conductGrade, is_manual AS isManual,
        comment, status,
        DATE_FORMAT(updated_at, '%Y-%m-%d %H:%i') AS updatedAt
      FROM conduct_evaluation
@@ -415,7 +452,7 @@ async function findStudentRecords(studentId, limit = 50) {
   const [rows] = await pool.query(
     `SELECT
        br.behavior_id AS behaviorId, br.behavior_type AS behaviorType, br.category,
-       br.title, br.description, br.severity_level AS severityLevel, br.points,
+       br.title, br.description, br.severity_level AS severityLevel, br.affects_conduct AS affectsConduct, br.points,
        DATE_FORMAT(br.record_date, '%Y-%m-%d') AS recordDate, br.evidence_url AS evidenceUrl,
        br.status, creator.full_name AS createdByName
      FROM behavior_record br
@@ -542,6 +579,8 @@ module.exports = {
   findTeacherClasses,
   isTeacherForClass,
   isTeacherForStudent,
+  isHomeroomOfStudent,
+  findViolationTypes,
   findSemesters,
   findSemesterById,
   findStudentProfile,

@@ -1,19 +1,8 @@
-const parentModel = require("../models/parents");
 const attendanceModel = require("../models/attendance.model");
 
 async function getStudentAttendanceStats(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
-
-    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
-    const isLinked = students.some((s) => s.studentId === studentId);
-
-    if (!isLinked) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem thông tin này",
-      });
-    }
 
     const { startDate, endDate, context } = req.query;
 
@@ -53,16 +42,6 @@ async function getStudentAttendanceStats(req, res) {
 async function getStudentAttendanceHistory(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
-
-    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
-    const isLinked = students.some((s) => s.studentId === studentId);
-
-    if (!isLinked) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem thông tin này",
-      });
-    }
 
     const {
       startDate,
@@ -109,16 +88,6 @@ async function getStudentAttendanceHistory(req, res) {
 async function getStudentAttendanceAnalytics(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
-
-    const students = await parentModel.findLinkedStudentsByUserId(req.user.userId);
-    const isLinked = students.some((s) => s.studentId === studentId);
-
-    if (!isLinked) {
-      return res.status(404).json({
-        success: false,
-        message: "Không tìm thấy học sinh hoặc bạn không có quyền xem thông tin này",
-      });
-    }
 
     const now          = new Date();
     const defaultEnd   = now.toISOString().split("T")[0];

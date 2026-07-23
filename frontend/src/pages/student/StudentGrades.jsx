@@ -6,9 +6,11 @@ import {
 } from "react";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import LessonFeedbackCard from "../../components/organisms/LessonFeedbackCard";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useStudentGrades } from "../../hooks/useStudentGrades";
+import { studentApi } from "../../api/client";
 
 const EXTRA_SUBJECTS = [
   {
@@ -34,10 +36,10 @@ const EXTRA_SUBJECTS = [
 ];
 
 const SCORE_SLOTS = [
-  { key: "tx1", label: "TX1", weight: 1 },
-  { key: "tx2", label: "TX2", weight: 1 },
-  { key: "tx3", label: "TX3", weight: 1 },
-  { key: "onePeriod", label: "1 tiết", weight: 2 },
+  { key: "tx1", label: "Miệng", weight: 1 },
+  { key: "tx2", label: "15 phút", weight: 1 },
+  { key: "tx3", label: "15 phút", weight: 1 },
+  { key: "onePeriod", label: "Giữa kỳ", weight: 2 },
   { key: "final", label: "Cuối kỳ", weight: 3 },
 ];
 
@@ -282,25 +284,32 @@ function putGradeIntoSubjectRow(row, grade) {
 }
 
 function calculateSubjectAverage(scores) {
+  // ĐTB = (ĐĐGtx×1 + Giữa kỳ×2 + Cuối kỳ×3)/6. ĐĐGtx = TRUNG BÌNH các đầu điểm
+  // thường xuyên (miệng + 15 phút); mẫu số = tổng hệ số nhóm CÓ điểm.
+  const val = (key) => {
+    const grade = scores[key];
+    if (!grade || grade.scoreValue === null || grade.scoreValue === undefined) {
+      return null;
+    }
+    const scoreValue = Number(grade.scoreValue);
+    return Number.isNaN(scoreValue) ? null : scoreValue;
+  };
+
+  const groups = [
+    { vals: ["tx1", "tx2", "tx3"].map(val).filter((v) => v !== null), weight: 1 },
+    { vals: [val("onePeriod")].filter((v) => v !== null), weight: 2 },
+    { vals: [val("final")].filter((v) => v !== null), weight: 3 },
+  ];
+
   let total = 0;
   let totalWeight = 0;
 
-  SCORE_SLOTS.forEach((slot) => {
-    const grade = scores[slot.key];
-
-    if (!grade || grade.scoreValue === null || grade.scoreValue === undefined) {
-      return;
-    }
-
-    const scoreValue = Number(grade.scoreValue);
-
-    if (Number.isNaN(scoreValue)) {
-      return;
-    }
-
-    total += scoreValue * slot.weight;
-    totalWeight += slot.weight;
-  });
+  for (const grp of groups) {
+    if (!grp.vals.length) continue;
+    const avg = grp.vals.reduce((a, b) => a + b, 0) / grp.vals.length;
+    total += avg * grp.weight;
+    totalWeight += grp.weight;
+  }
 
   if (totalWeight === 0) {
     return null;
@@ -848,6 +857,10 @@ function StudentGrades() {
               options={semesterOptions}
               onChange={setSelectedSemesterKey}
             />
+          </section>
+
+          <section className="mb-5">
+            <LessonFeedbackCard fetcher={studentApi.getMyLessonFeedback} />
           </section>
 
           <section className="space-y-5">

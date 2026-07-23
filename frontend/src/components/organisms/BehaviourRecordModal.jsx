@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { FiPaperclip, FiX } from "react-icons/fi";
+function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { behaviourApi, homeworkApi } from "../../api/client";
 
@@ -30,6 +30,7 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
   const [category,     setCategory]     = useState(record?.category ?? "");
   const [points,       setPoints]       = useState(record?.points ?? (isMerit ? 5 : 2));
   const [severityLevel, setSeverityLevel] = useState(record?.severityLevel ?? "LOW");
+  const [affectsConduct, setAffectsConduct] = useState(record?.affectsConduct ?? false);
   const [recordDate,   setRecordDate]   = useState(toLocalDate(record?.recordDate) || new Date().toISOString().slice(0, 10));
   const [description,  setDescription]  = useState(record?.description ?? "");
   const [evidence,     setEvidence]     = useState(record?.evidenceUrl ? { fileUrl: record.evidenceUrl, fileName: "Minh chứng" } : null);
@@ -77,6 +78,7 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
         category: category || null,
         points: Number(points),
         severityLevel: isMerit ? "LOW" : severityLevel,
+        affectsConduct: isMerit ? false : affectsConduct,
         recordDate,
         description: description.trim() || null,
         evidenceUrl: evidence?.fileUrl ?? null,
@@ -96,16 +98,16 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
 
   const accent = isMerit ? "#16A34A" : "#DC2626";
   const inputCls =
-    "w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+    "w-full rounded-xl border border-[#DFC0B2] px-3 py-2.5 text-sm text-[#1A1C1C] outline-none focus:border-[#225DAD] focus:ring-1 focus:ring-[#225DAD]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-xl" style={{ border: "1px solid #FFE7D6" }}>
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #FFE7D6" }}>
+      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-3xl bg-white shadow-xl" style={{ border: "1px solid #DFC0B2" }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #DFC0B2" }}>
           <h3 className="text-base font-bold" style={{ color: accent }}>
             {isEdit ? "Chỉnh sửa" : isMerit ? "Thêm khen thưởng" : "Ghi nhận vi phạm"}
           </h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><FiX size={20} /></button>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><Ms name="close" className="!text-[20px]" /></button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
@@ -118,7 +120,7 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
               </select>
             </div>
           ) : (
-            <div className="rounded-xl px-3 py-2 text-sm" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6", color: "#0F2747" }}>
+            <div className="rounded-3xl px-3 py-2 text-sm" style={{ backgroundColor: "#F3F3F3", border: "1px solid #DFC0B2", color: "#1A1C1C" }}>
               {record.studentName} · {record.studentCode}
             </div>
           )}
@@ -158,6 +160,13 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
                 <option value="MEDIUM">Trung bình</option>
                 <option value="HIGH">Nghiêm trọng</option>
               </select>
+              <label className="mt-2.5 flex items-start gap-2 text-sm" style={{ color: "#1A1C1C" }}>
+                <input type="checkbox" checked={affectsConduct} onChange={(e) => setAffectsConduct(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#DC2626]" />
+                <span>
+                  Vi phạm này <b>ảnh hưởng xếp loại hạnh kiểm</b>
+                  <span className="mt-0.5 block text-xs text-slate-400">Chỉ tick với vi phạm nghiêm trọng (đánh nhau, hút thuốc…). Đi muộn/vi phạm nhẹ chỉ ghi nhận thống kê.</span>
+                </span>
+              </label>
             </div>
           )}
 
@@ -171,33 +180,33 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Minh chứng (tùy chọn)</label>
             {evidence ? (
-              <div className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm" style={{ border: "1px solid #FFE7D6" }}>
-                <FiPaperclip size={14} style={{ color: "#08509F" }} />
-                <a href={evidence.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium" style={{ color: "#08509F" }}>
+              <div className="flex items-center gap-2 rounded-3xl px-3 py-2 text-sm" style={{ border: "1px solid #DFC0B2" }}>
+                <Ms name="attach_file" className="!text-[14px]" style={{ color: "#225DAD" }} />
+                <a href={evidence.fileUrl} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate font-medium" style={{ color: "#225DAD" }}>
                   {evidence.fileName}
                 </a>
                 <button type="button" onClick={() => setEvidence(null)} className="text-xs text-slate-400 hover:text-red-600">Xóa</button>
               </div>
             ) : (
               <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
-                className="w-full rounded-xl border-2 border-dashed py-2.5 text-xs disabled:opacity-50"
-                style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>
+                className="w-full rounded-3xl border-2 border-dashed py-2.5 text-xs disabled:opacity-50"
+                style={{ borderColor: "#DFC0B2", backgroundColor: "#F3F3F3", color: "#1A1C1C" }}>
                 {uploading ? "Đang tải lên..." : "Nhấn để tải minh chứng"}
               </button>
             )}
             <input ref={fileRef} type="file" className="hidden" onChange={(e) => handleUpload(e.target.files?.[0])} />
           </div>
 
-          {errorMsg && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>}
+          {errorMsg && <p className="rounded-3xl bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>}
         </div>
 
-        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #FFE7D6" }}>
+        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #DFC0B2" }}>
           <button type="button" onClick={onClose} disabled={saving}
-            className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
+            className="flex-1 rounded-full border border-[#DFC0B2] py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50">
             Hủy
           </button>
           <button type="button" onClick={handleSubmit} disabled={saving}
-            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-50" style={{ backgroundColor: accent }}>
+            className="flex-1 rounded-full py-2.5 text-sm font-semibold text-white transition disabled:opacity-50" style={{ backgroundColor: accent }}>
             {saving ? "Đang lưu..." : "Lưu"}
           </button>
         </div>

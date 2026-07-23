@@ -10,25 +10,37 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 
-import { AdminDashboard } from "./pages/dashboards/AdminDashboard";
 import { TeacherDashboard } from "./pages/dashboards/TeacherDashboard";
+
+import AdminDashboardLayout from "./pages/dashboards/admin/AdminDashboardLayout";
+import AdminOverviewPage from "./pages/dashboards/admin/AdminOverviewPage";
+import AdminUsersPage from "./pages/dashboards/admin/AdminUsersPage";
+import ParentDashboard from "./pages/dashboards/ParentDashboard";
+import StudentDashboard from "./pages/dashboards/StudentDashboard";
 
 import StaffDashboardLayout from "./pages/dashboards/staff/StaffDashboardLayout";
 import StaffOverviewPage from "./pages/dashboards/staff/StaffOverviewPage";
 import StaffStudentsPage from "./pages/dashboards/staff/StaffStudentsPage";
 import StaffParentsPage from "./pages/dashboards/staff/StaffParentsPage";
 import StaffReportsPage from "./pages/dashboards/staff/StaffReportsPage";
+import StaffSurveysPage from "./pages/dashboards/staff/StaffSurveysPage";
 import StaffSchoolYearsPage from "./pages/dashboards/staff/StaffSchoolYearsPage";
 import StaffClassesPage from "./pages/dashboards/staff/StaffClassesPage";
 import StaffClassDetailPage from "./pages/dashboards/staff/StaffClassDetailPage";
-import StaffPromotionPage from "./pages/dashboards/staff/StaffPromotionPage";
 import StaffStudentDetailPage from "./pages/dashboards/staff/StaffStudentDetailPage";
 import StaffStudentFormPage from "./pages/dashboards/staff/StaffStudentFormPage";
 import StaffParentDetailPage from "./pages/dashboards/staff/StaffParentDetailPage";
 import StaffParentFormPage from "./pages/dashboards/staff/StaffParentFormPage";
-
-import ParentDashboard from "./pages/dashboards/ParentDashboard";
-import StudentDashboard from "./pages/dashboards/StudentDashboard";
+import StaffTeachersPage from "./pages/dashboards/staff/StaffTeachersPage";
+import StaffTeacherDetailPage from "./pages/dashboards/staff/StaffTeacherDetailPage";
+import StaffTeacherFormPage from "./pages/dashboards/staff/StaffTeacherFormPage";
+import StaffCurriculumPage from "./pages/dashboards/staff/StaffCurriculumPage";
+import StaffCurriculumDetailPage from "./pages/dashboards/staff/StaffCurriculumDetailPage";
+import StaffTimetablePage from "./pages/dashboards/staff/StaffTimetablePage";
+import StaffTimetableCreatePage from "./pages/dashboards/staff/StaffTimetableCreatePage";
+import StaffFeesPage from "./pages/dashboards/staff/StaffFeesPage";
+import StaffFeeFormPage from "./pages/dashboards/staff/StaffFeeFormPage";
+import StaffFeeDetailPage from "./pages/dashboards/staff/StaffFeeDetailPage";
 
 import StudentProfile from "./pages/student/StudentProfile";
 import StudentTimetable from "./pages/student/StudentTimetable";
@@ -39,6 +51,7 @@ import StudentBehaviour from "./pages/student/StudentBehaviour";
 import StudentGoals from "./pages/student/StudentGoals";
 import StudentEvents from "./pages/student/StudentEvents";
 import StudentMessages from "./pages/student/StudentMessages";
+import StudentSurveys from "./pages/student/StudentSurveys";
 import StudentNotifications from "./pages/student/StudentNotifications";
 
 import ParentStudentTimetable from "./pages/parent/StudentTimetable";
@@ -49,6 +62,8 @@ import ParentStudentLeaveRequests from "./pages/parent/StudentLeaveRequests";
 import ParentStudentGrades from "./pages/parent/StudentGrades";
 import ParentStudentBehaviour from "./pages/parent/StudentBehaviour";
 import ParentStudentHomework from "./pages/parent/StudentHomework";
+import ParentStudentFees from "./pages/parent/StudentFees";
+import ParentStudentEvents from "./pages/parent/StudentEvents";
 import ParentMeetingsPage from "./pages/parent/MeetingsPage";
 import ParentMeetingDetailPage from "./pages/parent/MeetingDetailPage";
 import ParentMessages from "./pages/parent/ParentMessages";
@@ -61,6 +76,7 @@ import HomeworkDetailPage from "./pages/teacher/HomeworkDetailPage";
 import AcademicPage from "./pages/teacher/AcademicPage";
 import StudentAcademicProfilePage from "./pages/teacher/StudentAcademicProfilePage";
 import BehaviourPage from "./pages/teacher/BehaviourPage";
+import ConductPage from "./pages/teacher/ConductPage";
 import StudentBehaviourProfilePage from "./pages/teacher/StudentBehaviourProfilePage";
 import StudentsOverviewPage from "./pages/teacher/StudentsOverviewPage";
 import StudentProfilePage from "./pages/teacher/StudentProfilePage";
@@ -97,6 +113,27 @@ function App() {
           <Route path="/login/parent" element={<LoginPage portal="parent" />} />
 
           <Route
+            path="/student/homeworks/:homeworkId"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <StudentHomeworkDetail />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute allowedRoles={["ADMIN"]}>
+                <AdminDashboardLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<AdminOverviewPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+          </Route>
+
+          <Route
             path="/staff"
             element={
               <ProtectedRoute allowedRoles={["STAFF", "ADMIN"]}>
@@ -113,30 +150,23 @@ function App() {
             <Route path="parents/new" element={<StaffParentFormPage />} />
             <Route path="parents/:id" element={<StaffParentDetailPage />} />
             <Route path="parents/:id/edit" element={<StaffParentFormPage />} />
+            <Route path="teachers" element={<StaffTeachersPage />} />
+            <Route path="teachers/new" element={<StaffTeacherFormPage />} />
+            <Route path="teachers/:id" element={<StaffTeacherDetailPage />} />
+            <Route path="teachers/:id/edit" element={<StaffTeacherFormPage />} />
+            <Route path="curriculum" element={<StaffCurriculumPage />} />
+            <Route path="curriculum/:id" element={<StaffCurriculumDetailPage />} />
+            <Route path="timetable" element={<StaffTimetablePage />} />
+            <Route path="timetable/new" element={<StaffTimetableCreatePage />} />
+            <Route path="fees" element={<StaffFeesPage />} />
+            <Route path="fees/new" element={<StaffFeeFormPage />} />
+            <Route path="fees/:id" element={<StaffFeeDetailPage />} />
             <Route path="school-years" element={<StaffSchoolYearsPage />} />
             <Route path="classes" element={<StaffClassesPage />} />
             <Route path="classes/:id" element={<StaffClassDetailPage />} />
-            <Route path="promotion" element={<StaffPromotionPage />} />
             <Route path="reports" element={<StaffReportsPage />} />
+            <Route path="surveys" element={<StaffSurveysPage />} />
           </Route>
-
-          <Route
-            path="/student/homeworks/:homeworkId"
-            element={
-              <ProtectedRoute allowedRoles={["STUDENT"]}>
-                <StudentHomeworkDetail />
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute allowedRoles={["ADMIN"]}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
 
           <Route
             path="/teacher"
@@ -159,7 +189,7 @@ function App() {
           <Route
             path="/teacher/leave-requests"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <LeaveRequestsPage />
               </ProtectedRoute>
             }
@@ -204,7 +234,7 @@ function App() {
           <Route
             path="/teacher/behaviour"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <BehaviourPage />
               </ProtectedRoute>
             }
@@ -213,8 +243,17 @@ function App() {
           <Route
             path="/teacher/behaviour/students/:studentId"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <StudentBehaviourProfilePage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/teacher/conduct"
+            element={
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
+                <ConductPage />
               </ProtectedRoute>
             }
           />
@@ -240,7 +279,7 @@ function App() {
           <Route
             path="/teacher/goals"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <GoalManagementPage />
               </ProtectedRoute>
             }
@@ -276,7 +315,7 @@ function App() {
           <Route
             path="/teacher/announcements"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <AnnouncementsPage />
               </ProtectedRoute>
             }
@@ -285,7 +324,7 @@ function App() {
           <Route
             path="/teacher/meetings"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <MeetingsPage />
               </ProtectedRoute>
             }
@@ -294,7 +333,7 @@ function App() {
           <Route
             path="/teacher/meetings/:meetingId"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <MeetingDetailPage />
               </ProtectedRoute>
             }
@@ -330,7 +369,7 @@ function App() {
           <Route
             path="/teacher/support-cases"
             element={
-              <ProtectedRoute allowedRoles={TEACHER_ROLES}>
+              <ProtectedRoute allowedRoles={TEACHER_ROLES} requireHomeroom>
                 <SupportCasesPage />
               </ProtectedRoute>
             }
@@ -413,6 +452,24 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["PARENT"]}>
                 <ParentStudentHomework />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/fees"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentStudentFees />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/parent/events"
+            element={
+              <ProtectedRoute allowedRoles={["PARENT"]}>
+                <ParentStudentEvents />
               </ProtectedRoute>
             }
           />
@@ -539,6 +596,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["STUDENT"]}>
                 <StudentMessages />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/student/surveys"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <StudentSurveys />
               </ProtectedRoute>
             }
           />

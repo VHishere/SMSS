@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiX } from "react-icons/fi";
+function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { homeworkApi } from "../../api/client";
 import FileUploadField from "../molecules/FileUploadField";
@@ -128,21 +128,21 @@ function HomeworkFormModal({ mode, assignments = [], homework = null, onClose, o
   }
 
   const inputCls =
-    "w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+    "w-full rounded-xl border border-[#DFC0B2] px-3 py-2.5 text-sm text-[#1A1C1C] outline-none focus:border-[#225DAD] focus:ring-1 focus:ring-[#225DAD]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div
-        className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-xl"
-        style={{ border: "1px solid #FFE7D6" }}
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl bg-white shadow-xl"
+        style={{ border: "1px solid #DFC0B2" }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #FFE7D6" }}>
-          <h3 className="text-base font-bold" style={{ color: "#0F2747" }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #DFC0B2" }}>
+          <h3 className="text-base font-bold" style={{ color: "#1A1C1C" }}>
             {isEdit ? "Chỉnh sửa bài tập" : "Tạo bài tập mới"}
           </h3>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <FiX size={20} />
+            <Ms name="close" className="!text-[20px]" />
           </button>
         </div>
 
@@ -155,14 +155,14 @@ function HomeworkFormModal({ mode, assignments = [], homework = null, onClose, o
                 Giao cho lớp / môn <span className="text-red-500">*</span>
               </label>
               {groupedByClass.length === 0 ? (
-                <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-400">
+                <p className="rounded-3xl bg-slate-50 px-3 py-2 text-xs text-slate-400">
                   Bạn chưa được phân công dạy lớp/môn nào.
                 </p>
               ) : (
                 <div className="space-y-2">
                   {groupedByClass.map((cls) => (
-                    <div key={cls.classId} className="rounded-xl p-3" style={{ border: "1px solid #FFE7D6" }}>
-                      <p className="mb-2 text-sm font-semibold" style={{ color: "#0F2747" }}>
+                    <div key={cls.classId} className="rounded-3xl p-3" style={{ border: "1px solid #DFC0B2" }}>
+                      <p className="mb-2 text-sm font-semibold" style={{ color: "#1A1C1C" }}>
                         {cls.className}
                         <span className="ml-1 text-xs font-normal text-slate-400">· {cls.gradeName}</span>
                       </p>
@@ -174,10 +174,10 @@ function HomeworkFormModal({ mode, assignments = [], homework = null, onClose, o
                               key={assignmentKey(a)}
                               type="button"
                               onClick={() => toggleAssignment(a)}
-                              className="rounded-lg px-3 py-1.5 text-xs font-medium transition"
+                              className="rounded-full px-3 py-1.5 text-xs font-medium transition"
                               style={
                                 active
-                                  ? { backgroundColor: "#08509F", color: "#fff" }
+                                  ? { backgroundColor: "#225DAD", color: "#fff" }
                                   : { backgroundColor: "#F8FAFC", color: "#475569", border: "1px solid #E2E8F0" }
                               }
                             >
@@ -194,8 +194,8 @@ function HomeworkFormModal({ mode, assignments = [], homework = null, onClose, o
           )}
 
           {isEdit && (
-            <div className="rounded-xl px-3 py-2 text-sm" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
-              <span className="font-medium text-[#0F2747]">{homework.className}</span>
+            <div className="rounded-3xl px-3 py-2 text-sm" style={{ backgroundColor: "#F3F3F3", border: "1px solid #DFC0B2" }}>
+              <span className="font-medium text-[#1A1C1C]">{homework.className}</span>
               <span className="ml-2 text-slate-500">· {homework.subjectName}</span>
             </div>
           )}
@@ -293,17 +293,17 @@ function HomeworkFormModal({ mode, assignments = [], homework = null, onClose, o
           </div>
 
           {errorMsg && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>
+            <p className="rounded-3xl bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #FFE7D6" }}>
+        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #DFC0B2" }}>
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            className="flex-1 rounded-full border border-[#DFC0B2] py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
           >
             Hủy
           </button>
@@ -311,7 +311,7 @@ function HomeworkFormModal({ mode, assignments = [], homework = null, onClose, o
             type="button"
             onClick={handleSubmit}
             disabled={saving}
-            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-50"
+            className="flex-1 rounded-full py-2.5 text-sm font-semibold text-white transition disabled:opacity-50"
             style={{ backgroundColor: "#F27123" }}
           >
             {saving ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Tạo bài tập"}

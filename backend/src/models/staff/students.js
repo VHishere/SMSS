@@ -30,23 +30,40 @@ const studentSelect = `
   LEFT JOIN school_year sy ON sy.school_year_id = sc.school_year_id
 `;
 
-async function listStudents(search = "") {
+async function listStudents(filters = "") {
+  const normalized =
+    typeof filters === "string" ? { search: filters } : filters || {};
+  const search = normalized.search || "";
   const keyword = `%${search.trim()}%`;
+  const conditions = [
+    "s.status = 'ACTIVE'",
+    `(
+      ? = ''
+      OR ua.full_name LIKE ?
+      OR s.student_code LIKE ?
+      OR ua.email LIKE ?
+      OR sc.class_name LIKE ?
+    )`,
+  ];
+  const params = [search.trim(), keyword, keyword, keyword, keyword];
+
+  if (normalized.gradeId) {
+    conditions.push("sc.grade_id = ?");
+    params.push(normalized.gradeId);
+  }
+
+  if (normalized.classId) {
+    conditions.push("sc.class_id = ?");
+    params.push(normalized.classId);
+  }
 
   const [rows] = await pool.query(
     `
       ${studentSelect}
-      WHERE s.status = 'ACTIVE'
-        AND (
-          ? = ''
-          OR ua.full_name LIKE ?
-          OR s.student_code LIKE ?
-          OR ua.email LIKE ?
-          OR sc.class_name LIKE ?
-        )
+      WHERE ${conditions.join(" AND ")}
       ORDER BY s.student_id
     `,
-    [search.trim(), keyword, keyword, keyword, keyword],
+    params,
   );
 
   return rows;

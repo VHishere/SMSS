@@ -144,7 +144,7 @@ async function findClassMemberUserIds(classId, audience) {
 async function findConversations(userId, filters = {}) {
   const { search, archived = false, page = 1, limit = 20 } = filters;
   const offset = (page - 1) * limit;
-  const params = [userId, userId, userId, archived ? 1 : 0];
+  const params = [userId, userId, userId, userId, archived ? 1 : 0];
   let having = "";
   if (search) {
     having = "HAVING (otherName LIKE ? OR c.title LIKE ? OR studentName LIKE ?)";
@@ -160,6 +160,8 @@ async function findConversations(userId, filters = {}) {
        (SELECT ua.full_name FROM conversation_participant cp2
          INNER JOIN user_account ua ON ua.user_id = cp2.user_id
          WHERE cp2.conversation_id = c.conversation_id AND cp2.user_id <> ? LIMIT 1) AS otherName,
+       (SELECT cp3.role_in_conversation FROM conversation_participant cp3
+         WHERE cp3.conversation_id = c.conversation_id AND cp3.user_id <> ? LIMIT 1) AS otherRole,
        (SELECT sua.full_name FROM student s INNER JOIN user_account sua ON sua.user_id = s.user_id
          WHERE s.student_id = c.student_id) AS studentName,
        (SELECT m.content FROM conversation_message m
@@ -191,6 +193,7 @@ async function findConversations(userId, filters = {}) {
     title: r.title,
     studentId: r.studentId,
     otherName: r.otherName,
+    otherRole: r.otherRole,
     studentName: r.studentName,
     lastContent: r.lastContent,
     lastType: r.lastType,

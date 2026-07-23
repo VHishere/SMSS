@@ -457,6 +457,116 @@ async function findTeacherContactsByUserId(userId) {
   };
 }
 
+async function findEventsByStudentId({ studentUserId, studentId, classId }, filters = {}) {
+  const { status, search } = filters;
+  const params = [studentUserId, studentId, classId];
+  let where = "WHERE (e.class_id IS NULL OR e.class_id = ?)";
+
+  if (status) {
+    where += " AND e.status = ?";
+    params.push(status);
+  } else {
+    where += " AND e.status IN ('ACTIVE', 'PUBLISHED', 'SCHEDULED', 'COMPLETED', 'CANCELLED')";
+  }
+
+  if (search) {
+    where += " AND (e.title LIKE ? OR e.description LIKE ? OR e.location LIKE ?)";
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+
+  const [events] = await pool.query(
+    `
+      SELECT
+        e.event_id AS eventId,
+        e.title,
+        e.event_type AS eventType,
+        e.category,
+        e.description,
+        DATE_FORMAT(e.start_date, '%Y-%m-%d %H:%i') AS startDate,
+        DATE_FORMAT(e.end_date, '%Y-%m-%d %H:%i') AS endDate,
+        e.location,
+        e.organizer,
+        e.capacity,
+        e.outcome,
+        e.status,
+        sc.class_name AS className,
+        er.registration_id AS registrationId,
+        er.attend_status AS attendStatus,
+        DATE_FORMAT(er.register_date, '%Y-%m-%d %H:%i') AS registeredAt,
+        (
+          SELECT COUNT(*)
+          FROM event_registration er2
+          WHERE er2.event_id = e.event_id
+        ) AS registeredCount
+      FROM event e
+      LEFT JOIN school_class sc
+        ON sc.class_id = e.class_id
+      LEFT JOIN event_registration er
+        ON er.event_id = e.event_id
+        AND (er.user_id = ? OR er.student_id = ?)
+      ${where}
+      ORDER BY
+        CASE WHEN e.start_date >= NOW() THEN 0 ELSE 1 END,
+        e.start_date ASC,
+        e.event_id DESC
+    `,
+    params,
+  );
+
+  return events.map((event) => ({
+    ...event,
+    registeredCount: Number(event.registeredCount || 0),
+    isRegistered: Boolean(event.registrationId),
+  }));
+}
+
+async function findEventForChild(eventId, classId) {
+  const [[event]] = await pool.query(
+    `
+      SELECT
+        e.event_id AS eventId,
+        e.title,
+        e.capacity,
+        e.status,
+        e.class_id AS classId,
+        (
+          SELECT COUNT(*)
+          FROM event_registration er
+          WHERE er.event_id = e.event_id
+        ) AS registeredCount
+      FROM event e
+      WHERE e.event_id = ?
+        AND (e.class_id IS NULL OR e.class_id = ?)
+      LIMIT 1
+    `,
+    [eventId, classId],
+  );
+
+  if (!event) {
+    return null;
+  }
+
+  return {
+    ...event,
+    registeredCount: Number(event.registeredCount || 0),
+  };
+}
+
+async function registerEventForChild({ studentUserId, studentId, eventId, registeredBy }) {
+  const [result] = await pool.query(
+    `
+      INSERT INTO event_registration
+        (event_id, user_id, participant_type, student_id, registered_by, attend_status)
+      VALUES (?, ?, 'STUDENT', ?, ?, 'REGISTERED')
+      ON DUPLICATE KEY UPDATE
+        attend_status = 'REGISTERED'
+    `,
+    [eventId, studentUserId, studentId, registeredBy],
+  );
+
+  return result.insertId;
+}
+
 module.exports = {
   findProfileByUserId,
   findLinkedStudentsByUserId,
@@ -466,4 +576,7 @@ module.exports = {
   markNotificationRead,
   markAllNotificationsRead,
   findTeacherContactsByUserId,
+  findEventsByStudentId,
+  findEventForChild,
+  registerEventForChild,
 };

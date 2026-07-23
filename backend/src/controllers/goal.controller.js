@@ -14,11 +14,12 @@ function handleError(res, error, fallback) {
   return res.status(500).json({ success: false, message: fallback });
 }
 
-// Ensure the teacher owns the goal's student
+// Ensure the teacher is the HOMEROOM teacher of the goal's student
+// (quản lý mục tiêu là nghiệp vụ GVCN).
 async function assertGoalAccess(teacherId, goalId) {
   const goal = await goalModel.findById(goalId);
   if (!goal) return { goal: null, ok: false };
-  const ok = await studentProfileModel.isTeacherForStudent(teacherId, goal.studentId);
+  const ok = await studentProfileModel.isHomeroomOfStudent(teacherId, goal.studentId);
   return { goal, ok };
 }
 
@@ -55,8 +56,8 @@ async function listClassGoals(req, res) {
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
     if (!classId) return res.status(400).json({ success: false, message: "Thiếu lớp" });
 
-    const ok = await studentProfileModel.isTeacherForClass(profile.teacherId, parseInt(classId, 10));
-    if (!ok) return res.status(403).json({ success: false, message: "Bạn không phụ trách lớp này" });
+    const ok = await studentProfileModel.isHomeroomOfClass(profile.teacherId, parseInt(classId, 10));
+    if (!ok) return res.status(403).json({ success: false, message: "Chỉ giáo viên chủ nhiệm mới quản lý mục tiêu lớp này" });
 
     const parsedPage  = Math.max(1, parseInt(page, 10));
     const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
@@ -84,8 +85,8 @@ async function createGoal(req, res) {
     const profile = await resolveTeacher(req.user.userId);
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
-    const ok = await studentProfileModel.isTeacherForStudent(profile.teacherId, studentId);
-    if (!ok) return res.status(403).json({ success: false, message: "Bạn không phụ trách học sinh này" });
+    const ok = await studentProfileModel.isHomeroomOfStudent(profile.teacherId, studentId);
+    if (!ok) return res.status(403).json({ success: false, message: "Chỉ giáo viên chủ nhiệm mới tạo mục tiêu cho học sinh này" });
 
     const result = await goalService.createGoal({ actorUserId: req.user.userId, studentId, payload: req.body });
     return res.status(201).json({ success: true, message: "Đã tạo mục tiêu", data: result });

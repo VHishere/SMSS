@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FiCheckCircle, FiX, FiXCircle } from "react-icons/fi";
+function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { teacherApi } from "../../api/client";
 
@@ -20,7 +20,7 @@ function LeaveDecisionModal({ request, decision, onClose, onDone }) {
         label:       "Ghi chú duyệt đơn",
         placeholder: "Nhập ghi chú khi duyệt đơn (bắt buộc)...",
         color:       "#16A34A",
-        icon:        FiCheckCircle,
+        icon:        "check_circle",
         button:      "Xác nhận duyệt",
       }
     : {
@@ -28,7 +28,7 @@ function LeaveDecisionModal({ request, decision, onClose, onDone }) {
         label:       "Lý do từ chối",
         placeholder: "Nhập lý do từ chối đơn (bắt buộc)...",
         color:       "#DC2626",
-        icon:        FiXCircle,
+        icon:        "cancel",
         button:      "Xác nhận từ chối",
       };
 
@@ -56,13 +56,11 @@ function LeaveDecisionModal({ request, decision, onClose, onDone }) {
     }
   }
 
-  const Icon = config.icon;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div
-        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
-        style={{ border: "1px solid #FFE7D6" }}
+        className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl"
+        style={{ border: "1px solid #DFC0B2" }}
       >
         <div className="mb-4 flex items-start justify-between">
           <div className="flex items-center gap-3">
@@ -70,10 +68,10 @@ function LeaveDecisionModal({ request, decision, onClose, onDone }) {
               className="flex h-10 w-10 items-center justify-center rounded-xl"
               style={{ backgroundColor: isApprove ? "#ECFDF5" : "#FEF2F2" }}
             >
-              <Icon size={20} style={{ color: config.color }} />
+              <Ms name={config.icon} className="!text-[20px]" style={{ color: config.color }} />
             </div>
             <div>
-              <h3 className="text-base font-bold" style={{ color: "#0F2747" }}>
+              <h3 className="text-base font-bold" style={{ color: "#1A1C1C" }}>
                 {config.title}
               </h3>
               <p className="text-xs text-slate-500">
@@ -82,7 +80,7 @@ function LeaveDecisionModal({ request, decision, onClose, onDone }) {
             </div>
           </div>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <FiX size={20} />
+            <Ms name="close" className="!text-[20px]" />
           </button>
         </div>
 
@@ -95,12 +93,12 @@ function LeaveDecisionModal({ request, decision, onClose, onDone }) {
             onChange={(e) => setComment(e.target.value)}
             placeholder={config.placeholder}
             rows={4}
-            className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]"
+            className="w-full resize-none rounded-xl border border-[#DFC0B2] px-3 py-2.5 text-sm text-[#1A1C1C] outline-none focus:border-[#225DAD] focus:ring-1 focus:ring-[#225DAD]"
           />
         </div>
 
         {errorMsg && (
-          <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+          <p className="mb-3 rounded-3xl bg-red-50 px-3 py-2 text-xs text-red-600">
             {errorMsg}
           </p>
         )}
@@ -110,7 +108,7 @@ function LeaveDecisionModal({ request, decision, onClose, onDone }) {
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="flex-1 rounded-full border border-slate-200 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
+            className="flex-1 rounded-full border border-[#DFC0B2] py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
           >
             Hủy
           </button>

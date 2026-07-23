@@ -10,7 +10,7 @@ function StaffDataTable({
   searchPlaceholder = "Tìm kiếm...",
   showSearch = true,
   getRowLink,
-  rowLinkClassName = "block max-w-[260px] break-words px-4 py-4 text-inherit no-underline hover:text-inherit sm:px-5",
+  rowLinkClassName = "block max-w-[280px] break-words px-4 py-4 text-inherit no-underline hover:text-inherit sm:px-5",
   columns,
   rows,
   emptyMessage = "Không có dữ liệu",
@@ -20,13 +20,13 @@ function StaffDataTable({
   const hasHeader = title || description || toolbar || showSearch;
 
   return (
-    <section className="max-w-full overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
+    <section className="max-w-full overflow-hidden rounded-3xl border border-[#DFC0B2] bg-white shadow-sm">
       {hasHeader && (
-        <div className="border-b border-orange-50 px-5 py-4 sm:px-6">
+        <div className="border-b border-[#F1DED4] px-4 py-4 sm:px-6">
           {(title || description) && (
             <div className="mb-4 min-w-0">
               {title && (
-                <h3 className="mb-1 break-words text-base font-bold text-[#0F2747]">
+                <h3 className="mb-1 break-words text-base font-bold text-[#1A1C1C]">
                   {title}
                 </h3>
               )}
@@ -53,7 +53,7 @@ function StaffDataTable({
                     value={searchValue}
                     onChange={(event) => onSearchChange(event.target.value)}
                     placeholder={searchPlaceholder}
-                    className="h-12 w-full rounded-2xl border border-slate-200 bg-[#FFF7F2] pr-4 pl-11 text-sm text-[#0F2747] outline-none transition placeholder:text-slate-400 focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20"
+                    className="h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] pr-4 pl-11 text-sm text-[#1A1C1C] outline-none transition placeholder:text-slate-400 focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20"
                   />
                 </div>
               )}
@@ -70,7 +70,7 @@ function StaffDataTable({
 
       <div className="max-w-full overflow-x-auto">
         <table className={`min-w-full text-sm ${tableAlignClassName}`}>
-          <thead className="bg-[#FFF7F2] text-xs font-semibold tracking-wide text-slate-500 uppercase">
+          <thead className="bg-[#F9F9F9] text-xs font-semibold tracking-wide text-[#584238] uppercase">
             <tr>
               {columns.map((column) => (
                 <th
@@ -105,7 +105,7 @@ function StaffDataTable({
             ) : (
               rows.map((row, index) => {
                 const rowLink = getRowLink?.(row);
-                const rowClass = `border-t border-slate-100 transition hover:bg-[#FFE7D6]/25${rowLink ? " cursor-pointer" : ""}`;
+                const rowClass = `border-t border-[#F1DED4] transition hover:bg-[#FFF7F2]${rowLink ? " cursor-pointer" : ""}`;
 
                 const renderCell = (column) =>
                   column.render ? column.render(row) : row[column.key] || "-";
@@ -132,7 +132,7 @@ function StaffDataTable({
                     {columns.map((column) => (
                       <td
                         key={column.key}
-                        className="max-w-[260px] px-4 py-4 align-top break-words text-[#0F2747] sm:px-5"
+                        className="max-w-[280px] px-4 py-4 align-top break-words text-[#1A1C1C] sm:px-5"
                       >
                         {renderCell(column)}
                       </td>

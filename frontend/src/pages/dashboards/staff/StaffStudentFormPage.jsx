@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { staffApi } from "../../../api/client";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  cancelLinkClass,
+  inputClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 
 const emptyForm = {
@@ -95,7 +99,7 @@ function StaffStudentFormPage() {
         action={
           <Link
             to={isEdit ? `/staff/students/${id}` : "/staff/students"}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
+            className={cancelLinkClass}
           >
             Hủy
           </Link>
@@ -112,6 +116,7 @@ function StaffStudentFormPage() {
         title="Thông tin học sinh"
         onSubmit={handleSubmit}
         loading={saving}
+        footer={isEdit ? "Cập nhật hồ sơ học sinh." : "Sau khi tạo, hệ thống sẽ mở trang chi tiết học sinh."}
       >
         <StaffField label="Mã học sinh">
           <input

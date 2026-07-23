@@ -3,7 +3,11 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  cancelLinkClass,
+  inputClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 
 const initialForm = {
@@ -125,7 +129,7 @@ function StaffFeeFormPage() {
         action={
           <Link
             to="/staff/fees"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0F2747] no-underline hover:border-[#F27123] hover:text-[#F27123] hover:no-underline sm:w-auto"
+            className={cancelLinkClass}
           >
             <FiArrowLeft size={16} />
             Quay lại
@@ -144,6 +148,7 @@ function StaffFeeFormPage() {
         onSubmit={handleSubmit}
         submitLabel="Tạo khoản phí"
         loading={loading}
+        footer="Khoản phí sau khi công bố sẽ hiển thị cho phụ huynh và học sinh theo phạm vi đã chọn."
       >
         <StaffField label="Tên khoản phí">
           <input

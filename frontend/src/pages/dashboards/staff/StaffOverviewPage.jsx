@@ -53,7 +53,7 @@ function StaffOverviewPage() {
 
   return (
     <>
-      <StaffPageHeader title="Staff Dashboard" />
+      <StaffPageHeader title="Tổng quan Staff" />
 
       {error && (
         <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
@@ -151,13 +151,13 @@ function StaffOverviewPage() {
       <div className="mt-6 flex flex-wrap gap-3">
         <Link
           to="/staff/school-years"
-          className="rounded-full bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline transition hover:bg-[#E55C0A] hover:text-white"
+          className="inline-flex items-center justify-center rounded-full bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline transition hover:bg-[#E55C0A] hover:text-white"
         >
           Quản lý năm học
         </Link>
         <Link
           to="/staff/classes"
-          className="rounded-full border border-[#08509F] px-4 py-2.5 text-sm font-semibold text-[#08509F] no-underline transition hover:bg-blue-50 hover:text-[#08509F]"
+          className="inline-flex items-center justify-center rounded-full border border-[#DFC0B2] bg-white px-4 py-2.5 text-sm font-semibold text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50 hover:text-[#08509F]"
         >
           Quản lý lớp học
         </Link>

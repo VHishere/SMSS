@@ -4,11 +4,15 @@ import { FiEye } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  inputClass,
+  primaryActionClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 
 const filterSelectClass =
-  "h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-[#0F2747] outline-none transition hover:border-slate-300 focus:border-[#F27123] focus:ring-2 focus:ring-[#F27123]/20 lg:w-48";
+  "h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] px-4 text-sm font-medium text-[#1A1C1C] outline-none transition hover:border-[#F27123] focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20 lg:w-48";
 
 function StaffClassesPage() {
   const [classes, setClasses] = useState([]);
@@ -121,7 +125,7 @@ function StaffClassesPage() {
           <button
             type="button"
             onClick={() => setShowForm((prev) => !prev)}
-            className="rounded-full bg-[#F27123] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#E55C0A]"
+            className={primaryActionClass}
           >
             + Tạo lớp học
           </button>
@@ -141,6 +145,7 @@ function StaffClassesPage() {
             onSubmit={handleCreate}
             submitLabel="Tạo lớp"
             loading={saving}
+            footer="Lớp học sẽ được gắn với đúng năm học đã chọn."
           >
             <StaffField label="Tên lớp">
               <input
@@ -234,7 +239,7 @@ function StaffClassesPage() {
             render: (row) => (
               <Link
                 to={`/staff/classes/${row.classId}`}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#DFC0B2] bg-white text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50 hover:text-[#08509F]"
                 title="Xem chi tiết"
               >
                 <FiEye size={18} />

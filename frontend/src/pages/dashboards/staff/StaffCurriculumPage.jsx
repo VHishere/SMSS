@@ -3,7 +3,12 @@ import { Link } from "react-router-dom";
 
 import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  cancelLinkClass,
+  inputClass,
+  primaryActionClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 
 function StaffCurriculumPage() {
@@ -112,17 +117,17 @@ function StaffCurriculumPage() {
           <div className="flex flex-wrap gap-2">
             <Link
               to="/staff/timetable"
-              className="rounded-xl border border-[#08509F] px-4 py-2.5 text-sm font-semibold text-[#08509F] no-underline"
+              className={cancelLinkClass}
             >
               Thêm lịch học
             </Link>
             <button
-            type="button"
-            onClick={() => setShowForm((prev) => !prev)}
-            className="rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white"
-          >
-            + Thêm môn học
-          </button>
+              type="button"
+              onClick={() => setShowForm((prev) => !prev)}
+              className={primaryActionClass}
+            >
+              + Thêm môn học
+            </button>
           </div>
         }
       />
@@ -135,7 +140,7 @@ function StaffCurriculumPage() {
 
       <div className="mb-4 flex flex-wrap gap-3">
         <select
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          className={`${inputClass} sm:max-w-64`}
           value={filters.schoolYearId}
           onChange={(e) =>
             setFilters({ schoolYearId: e.target.value, semesterId: "" })
@@ -149,7 +154,7 @@ function StaffCurriculumPage() {
           ))}
         </select>
         <select
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+          className={`${inputClass} sm:max-w-64`}
           value={filters.semesterId}
           onChange={(e) =>
             setFilters((prev) => ({ ...prev, semesterId: e.target.value }))
@@ -171,6 +176,7 @@ function StaffCurriculumPage() {
             onSubmit={handleCreate}
             submitLabel="Thêm môn"
             loading={saving}
+            footer="Môn học được lưu theo năm học, học kỳ và khối đã chọn."
           >
             <StaffField label="Năm học">
               <select

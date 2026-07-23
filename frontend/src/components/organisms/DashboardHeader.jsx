@@ -1,0 +1,397 @@
+import {
+  forwardRef,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import Dropdown from "react-bootstrap/Dropdown";
+import { useNavigate } from "react-router-dom";
+
+import {
+  FiBell,
+  FiInbox,
+  FiMenu,
+  FiSearch,
+} from "react-icons/fi";
+
+import { parentApi, studentApi } from "../../api/client";
+import {
+  useAuth,
+} from "../../context/useAuth";
+import { isStitchUser } from "../../config/sidebarRoles";
+
+import AppIconButton from "../atoms/AppIconButton";
+import ProfileDropdown from "../molecules/ProfileDropdown";
+
+function getNotificationTypeLabel(type) {
+  const map = {
+    HOMEWORK: "Bài tập",
+    ATTENDANCE: "Điểm danh",
+    GRADE: "Bảng điểm",
+    BEHAVIOUR: "Hạnh kiểm",
+    EVENT: "Sự kiện",
+    MESSAGE: "Tin nhắn",
+    SYSTEM: "Hệ thống",
+  };
+
+  return map[type] || type || "Thông báo";
+}
+
+const NotificationToggle = forwardRef(
+  function NotificationToggle(
+    {
+      onClick,
+      unreadCount,
+    },
+    ref,
+  ) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        aria-label="Thông báo"
+        onClick={(event) => {
+          event.preventDefault();
+          onClick?.(event);
+        }}
+        className="
+          relative flex h-10 w-10
+          items-center justify-center
+          rounded-xl text-[#0F2747]
+          transition hover:bg-[#FFE7D6]
+        "
+      >
+        <FiBell size={21} />
+
+        {unreadCount > 0 && (
+          <span
+            className="
+              absolute -right-1 -top-1
+              flex h-5 min-w-5 items-center
+              justify-center rounded-full
+              border-2 border-white
+              bg-[#F27123] px-1
+              text-[10px] font-bold text-white
+            "
+          >
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
+      </button>
+    );
+  },
+);
+
+function NotificationDropdown({ api, allNotificationsPath }) {
+  const navigate = useNavigate();
+
+  const [data, setData] = useState({ items: [], summary: {} });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [activeTab, setActiveTab] = useState("all");
+
+  const unreadCount = useMemo(() => {
+    const summaryUnread = data?.summary?.unreadNotifications;
+    if (summaryUnread !== undefined && summaryUnread !== null) {
+      return Number(summaryUnread);
+    }
+    return data.items.filter((item) => !item.isRead).length;
+  }, [data]);
+
+  const displayItems = useMemo(() => {
+    const base = activeTab === "unread"
+      ? data.items.filter((item) => !item.isRead)
+      : data.items;
+    return base.slice(0, 6);
+  }, [data.items, activeTab]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    setLoading(true);
+    setError("");
+
+    api
+      .getMyNotifications({ limit: 30 })
+      .then((response) => {
+        if (!mounted) return;
+        setData({
+          items: response?.data?.items || [],
+          summary: response?.data?.summary || {},
+        });
+      })
+      .catch((requestError) => {
+        if (!mounted) return;
+        setError(requestError.message || "Không tải được thông báo");
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => { mounted = false; };
+  }, [refreshKey, api]);
+
+  async function markRead(notificationId) {
+    if (!notificationId) return;
+    try {
+      await api.markNotificationRead(notificationId);
+      setRefreshKey((key) => key + 1);
+    } catch {
+      // silent
+    }
+  }
+
+  return (
+    <Dropdown align="end">
+      <Dropdown.Toggle as={NotificationToggle} unreadCount={unreadCount} />
+
+      <Dropdown.Menu
+        className="
+          mt-2 w-[min(22rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)]
+          rounded-2xl border-orange-100
+          p-0 shadow-xl
+        "
+      >
+        {/* Header + Tabs */}
+        <div className="border-b border-orange-100 px-3 pt-3 pb-2">
+          <p className="mb-2 px-1 text-sm font-bold text-[#0F2747]">Thông báo</p>
+
+          <div className="flex gap-1 rounded-xl bg-orange-50 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("all")}
+              className="flex-1 rounded-lg py-1.5 text-xs font-semibold transition"
+              style={
+                activeTab === "all"
+                  ? { backgroundColor: "#F27123", color: "#fff" }
+                  : { color: "#64748B" }
+              }
+            >
+              Tất cả
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("unread")}
+              className="flex-1 rounded-lg py-1.5 text-xs font-semibold transition"
+              style={
+                activeTab === "unread"
+                  ? { backgroundColor: "#F27123", color: "#fff" }
+                  : { color: "#64748B" }
+              }
+            >
+              Chưa đọc{unreadCount > 0 ? ` (${unreadCount})` : ""}
+            </button>
+          </div>
+        </div>
+
+        {/* Items */}
+        <div className="max-h-100 overflow-y-auto p-2">
+          {loading && (
+            <div className="space-y-2 p-2">
+              {[0, 1, 2].map((n) => (
+                <div key={n} className="h-16 animate-pulse rounded-xl bg-slate-100" />
+              ))}
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="px-4 py-6 text-center text-sm text-red-600">{error}</div>
+          )}
+
+          {!loading && !error && displayItems.length === 0 && (
+            <div className="px-4 py-8 text-center">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                <FiInbox size={20} />
+              </div>
+              <p className="mb-0 text-sm font-semibold text-slate-500">
+                {activeTab === "unread" ? "Không có thông báo chưa đọc" : "Chưa có thông báo"}
+              </p>
+            </div>
+          )}
+
+          {!loading && !error && displayItems.map((item) => (
+            <button
+              key={item.notificationId}
+              type="button"
+              onClick={() => { if (!item.isRead) markRead(item.notificationId); }}
+              className="mb-1.5 w-full rounded-xl px-3 py-3 text-left transition hover:brightness-95"
+              style={{
+                backgroundColor: item.isRead ? "#F8FAFC" : "#FFF7F2",
+                border: item.isRead ? "1px solid #F1F5F9" : "1px solid rgba(242,113,35,0.25)",
+              }}
+            >
+              <div className="mb-1.5 flex items-start justify-between gap-2">
+                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-bold text-[#F27123]">
+                  {getNotificationTypeLabel(item.type)}
+                </span>
+                {!item.isRead && (
+                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#F27123]" />
+                )}
+              </div>
+
+              <p className="mb-1 line-clamp-1 text-sm font-bold text-[#0F2747]">
+                {item.title}
+              </p>
+
+              <p className="mb-1.5 line-clamp-2 text-xs leading-5 text-slate-500">
+                {item.content || "Không có nội dung chi tiết."}
+              </p>
+
+              <p className="mb-0 text-[11px] text-slate-400">{item.createdAt || ""}</p>
+            </button>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-orange-100 px-3 py-2.5">
+          <button
+            type="button"
+            onClick={() => navigate(allNotificationsPath)}
+            className="
+              inline-flex w-full items-center justify-center gap-2
+              rounded-xl bg-[#F27123] px-4 py-2.5
+              text-sm font-bold text-white transition hover:bg-[#d95f17]
+            "
+          >
+            <FiInbox size={16} />
+            Xem tất cả thông báo
+          </button>
+        </div>
+      </Dropdown.Menu>
+    </Dropdown>
+  );
+}
+
+function TeacherSearchBox() {
+  const navigate = useNavigate();
+  const [q, setQ] = useState("");
+
+  return (
+    <div className="relative hidden w-full max-w-md md:block">
+      <FiSearch
+        size={16}
+        className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+      />
+      <input
+        type="text"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") navigate("/teacher/students");
+        }}
+        placeholder="Tìm học sinh, lớp học, hoặc điểm số..."
+        className="w-full rounded-full border-none bg-[#E2E2E2] py-2 pl-10 pr-4 text-sm text-[#1A1C1C] outline-none transition focus:ring-2 focus:ring-[#9F4200]/20"
+      />
+    </div>
+  );
+}
+
+function DashboardHeader({
+  user,
+  onOpenSidebar,
+  showNotificationBadge = true,
+}) {
+  const {
+    user: authUser,
+  } = useAuth();
+
+  const roleNames =
+    authUser?.roles?.map((role) => role.roleName) || [];
+
+  const isStudent = roleNames.includes("STUDENT");
+  const isParent = roleNames.includes("PARENT");
+  const isTeacher = ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"]
+    .some((r) => roleNames.includes(r));
+  const isAdmin = roleNames.includes("ADMIN");
+  const isStitch = isStitchUser(authUser);
+
+  return (
+    <header className="sticky top-0 z-30 border-b border-orange-100 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-5 lg:px-8">
+        <AppIconButton
+          icon={FiMenu}
+          label="Mở menu"
+          onClick={onOpenSidebar}
+          className="lg:hidden"
+        />
+
+        {/* FSchool teacher portal: global search (Stitch design) */}
+        {isTeacher && (
+          <TeacherSearchBox />
+        )}
+
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+          {isStudent && (
+            <NotificationDropdown
+              api={studentApi}
+              allNotificationsPath="/student/notifications"
+            />
+          )}
+
+          {isParent && (
+            <NotificationDropdown
+              api={parentApi}
+              allNotificationsPath="/parent/notifications"
+            />
+          )}
+
+          {isTeacher && (
+            <>
+              <button
+                type="button"
+                aria-label="Thông báo"
+                className="relative rounded-full p-2 transition-colors hover:bg-[#E8E8E8]"
+              >
+                <span className="material-symbols-outlined text-[#1A1C1C]">
+                  notifications
+                </span>
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#F27123]" />
+              </button>
+              <button
+                type="button"
+                aria-label="Trợ giúp"
+                className="rounded-full p-2 transition-colors hover:bg-[#E8E8E8]"
+              >
+                <span className="material-symbols-outlined text-[#1A1C1C]">
+                  help
+                </span>
+              </button>
+            </>
+          )}
+
+          {isAdmin && (
+            <button
+              type="button"
+              aria-label="Thông báo"
+              className="relative rounded-full p-2 transition-colors hover:bg-[#E8E8E8]"
+            >
+              <span className="material-symbols-outlined text-[#1A1C1C]">
+                notifications
+              </span>
+              {showNotificationBadge && (
+                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#F27123]" />
+              )}
+            </button>
+          )}
+
+          {!isStudent && !isParent && !isTeacher && !isAdmin && (
+            <AppIconButton
+              icon={FiBell}
+              label="Thông báo"
+              badge={showNotificationBadge}
+            />
+          )}
+
+          {isStitch && <div className="mx-2 h-8 w-px bg-[#DFC0B2]" />}
+
+          <ProfileDropdown user={user} variant={isStitch ? "stitch" : "default"} />
+        </div>
+      </div>
+    </header>
+  );
+}
+
+export default DashboardHeader;

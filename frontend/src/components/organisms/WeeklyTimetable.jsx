@@ -33,6 +33,14 @@ function getRowClass(slot) {
   return "bg-blue-50/30";
 }
 
+function EmptyMobileLesson() {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center text-sm font-semibold text-slate-400">
+      Chưa có tiết học
+    </div>
+  );
+}
+
 function WeeklyTimetable({
   weekDays = [],
   slots = [],
@@ -58,7 +66,63 @@ function WeeklyTimetable({
         bg-white shadow-sm
       "
     >
-      <div className="overflow-x-auto p-4">
+      <div className="space-y-4 p-3 sm:p-4 lg:hidden">
+        {weekDays.map((day) => (
+          <article
+            key={day.value}
+            className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm"
+          >
+            <div className="bg-[#0F2747] px-4 py-3 text-white">
+              <h3 className="mb-0 text-base font-bold">
+                {day.label}
+              </h3>
+            </div>
+
+            <div className="space-y-3 p-3">
+              {slots.map((slot) => {
+                const lesson = lessonMap.get(
+                  buildLessonKey(day.value, slot.periodNo),
+                );
+
+                return (
+                  <div
+                    key={`${day.value}-${slot.periodNo}`}
+                    className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold ${getPeriodTheme(
+                            slot.periodNo,
+                          )}`}
+                        >
+                          {slot.periodNo}
+                        </span>
+
+                        <span className="text-sm font-semibold text-[#0F2747]">
+                          Tiết {slot.periodNo}
+                        </span>
+                      </div>
+
+                      <span className="shrink-0 text-xs font-semibold text-slate-500">
+                        {slot.startTime} – {slot.endTime}
+                      </span>
+                    </div>
+
+                    {lesson ? (
+                      <TimetableLessonCard lesson={lesson} compact />
+                    ) : (
+                      <EmptyMobileLesson />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto p-4 lg:block">
         <table
           className="
             table-fixed

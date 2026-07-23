@@ -52,18 +52,20 @@ function getStatusStyle(status) {
 
 function TimetableLessonCard({
   lesson,
+  compact = false,
 }) {
   if (!lesson) {
     return (
       <div
-        className="
-          flex h-32 min-h-32 w-full
+        className={`
+          flex w-full
           items-center justify-center
+          ${compact ? "min-h-20" : "h-32 min-h-32"}
           rounded-xl border border-dashed
           border-slate-200 bg-white/70
           px-3 py-4 text-sm
           font-semibold text-slate-400
-        "
+        `}
       >
         -
       </div>
@@ -80,15 +82,16 @@ function TimetableLessonCard({
 
   return (
     <article
-      className="
-        relative flex h-32 min-h-32 w-full
+      className={`
+        relative flex w-full
         flex-col overflow-hidden rounded-xl
+        ${compact ? "min-h-28" : "h-32 min-h-32"}
         border border-slate-200
         bg-white p-3 pl-4 shadow-sm
         transition duration-200
         hover:-translate-y-0.5
         hover:shadow-md
-      "
+      `}
     >
       <span
         className={`
@@ -100,10 +103,11 @@ function TimetableLessonCard({
 
       <div>
         <h4
-          className="
-            mb-2 truncate text-lg font-bold
+          className={`
+            mb-2 truncate font-bold
             leading-6 text-[#0F2747]
-          "
+            ${compact ? "text-base" : "text-lg"}
+          `}
           title={lesson.subjectName}
         >
           {lesson.subjectName}

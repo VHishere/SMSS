@@ -147,7 +147,7 @@ function NotificationDropdown({ api, allNotificationsPath }) {
 
       <Dropdown.Menu
         className="
-          mt-2 w-90 max-w-[calc(100vw-32px)]
+          mt-2 w-[min(22rem,calc(100vw-1rem))] max-w-[calc(100vw-1rem)]
           rounded-2xl border-orange-100
           p-0 shadow-xl
         "
@@ -280,7 +280,7 @@ function DashboardHeader({
 
   return (
     <header className="sticky top-0 z-30 border-b border-orange-100 bg-white/95 backdrop-blur">
-      <div className="flex min-h-16 items-center px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center px-3 sm:px-5 lg:px-8">
         <AppIconButton
           icon={FiMenu}
           label="Mở menu"

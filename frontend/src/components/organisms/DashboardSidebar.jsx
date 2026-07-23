@@ -68,7 +68,7 @@ function DashboardSidebar({
         show={showMobile}
         onHide={onCloseMobile}
         placement="start"
-        className="w-72 border-0"
+        className="!w-[min(88vw,18rem)] border-0"
       >
         <Offcanvas.Body className="p-0">
           <SidebarContent

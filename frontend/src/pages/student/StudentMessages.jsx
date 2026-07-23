@@ -5,8 +5,6 @@ import {
   useState,
 } from "react";
 
-import { Col, Row } from "react-bootstrap";
-
 import {
   FiFile,
   FiImage,
@@ -168,7 +166,7 @@ function MessageBubble({
   return (
     <div className={`flex w-full ${isMine ? "justify-end" : "justify-start"}`}>
       <div
-        className={`flex max-w-[72%] flex-col ${
+        className={`flex max-w-[86%] flex-col sm:max-w-[72%] ${
           isMine ? "items-end" : "items-start"
         }`}
       >
@@ -337,7 +335,7 @@ function ThreadPanel({
 
   if (!conversationId) {
     return (
-      <div className="flex min-h-[680px] items-center justify-center rounded-3xl border border-orange-100 bg-white p-8 text-center shadow-sm">
+      <div className="flex min-h-[320px] items-center justify-center rounded-3xl border border-orange-100 bg-white p-6 text-center shadow-sm sm:min-h-[520px] xl:min-h-[680px]">
         <div>
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#FFF7F2] text-[#F27123]">
             <FiMessageSquare size={28} />
@@ -348,8 +346,8 @@ function ThreadPanel({
   }
 
   return (
-    <div className="flex min-h-[680px] flex-col overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-orange-100 bg-white px-6 py-4">
+    <div className="flex min-h-[460px] flex-col overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm sm:min-h-[620px] xl:min-h-[680px]">
+      <div className="flex items-center justify-between border-b border-orange-100 bg-white px-4 py-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <ConversationAvatar
             name={chatName}
@@ -357,7 +355,7 @@ function ThreadPanel({
           />
 
           <div className="min-w-0">
-            <h3 className="mb-1 truncate text-xl font-bold text-[#0F2747]">
+            <h3 className="mb-1 truncate text-base font-bold text-[#0F2747] sm:text-xl">
               {chatName}
             </h3>
 
@@ -368,7 +366,7 @@ function ThreadPanel({
         </div>
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto bg-[#F8FAFC] px-6 py-5">
+      <div className="flex-1 space-y-4 overflow-y-auto bg-[#F8FAFC] px-3 py-4 sm:px-6 sm:py-5">
         {loading && <LoadingState label="Đang tải tin nhắn..." />}
 
         {!loading && error && <ErrorAlert error={error} />}
@@ -399,7 +397,7 @@ function ThreadPanel({
 
       <form
         onSubmit={sendMessage}
-        className="border-t border-orange-100 bg-white px-5 py-4"
+        className="border-t border-orange-100 bg-white px-3 py-3 sm:px-5 sm:py-4"
       >
         {sendError && (
           <p className="mb-3 text-sm text-red-600">
@@ -427,7 +425,7 @@ function ThreadPanel({
           }
         />
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
@@ -452,10 +450,10 @@ function ThreadPanel({
           <button
             type="submit"
             disabled={submitting || (!content.trim() && !selectedFile)}
-            className="inline-flex h-12 items-center justify-center gap-2 !rounded-full bg-[#F27123] px-5 text-sm font-bold text-white shadow-lg shadow-orange-200/70 transition hover:-translate-y-0.5 hover:bg-[#d95f17] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-12 w-12 shrink-0 items-center justify-center gap-2 !rounded-full bg-[#F27123] px-0 text-sm font-bold text-white shadow-lg shadow-orange-200/70 transition hover:-translate-y-0.5 hover:bg-[#d95f17] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:px-5"
           >
             <FiSend size={16} />
-            {submitting ? "Đang gửi..." : "Gửi"}
+            <span className="hidden sm:inline">{submitting ? "Đang gửi..." : "Gửi"}</span>
           </button>
         </div>
       </form>
@@ -478,7 +476,7 @@ function NewConversationModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4 py-6">
       <div className="max-h-[88vh] w-full max-w-2xl overflow-hidden !rounded-3xl bg-white shadow-2xl">
-        <div className="flex items-center justify-end px-6 py-3">
+        <div className="flex items-center justify-end px-4 py-3 sm:px-6">
           <button
             type="button"
             onClick={onClose}
@@ -488,20 +486,16 @@ function NewConversationModal({
           </button>
         </div>
 
-        <div className="max-h-[70vh] overflow-y-auto px-6 py-3">
+        <div className="max-h-[70vh] overflow-y-auto px-4 py-3 sm:px-6">
           <div className="mb-6">
             <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">
               Nhóm
             </p>
 
             {groups.length > 0 ? (
-              <Row className="g-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 {groups.map((group) => (
-                  <Col
-                    key={group.conversationId}
-                    xs={12}
-                    md={6}
-                  >
+                  <div key={group.conversationId}>
                     <button
                       type="button"
                       onClick={() => onOpenGroup(group)}
@@ -523,9 +517,9 @@ function NewConversationModal({
                         </p>
                       </div>
                     </button>
-                  </Col>
+                  </div>
                 ))}
-              </Row>
+              </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
                 Chưa có nhóm lớp hoặc nhóm nội trú.
@@ -555,7 +549,7 @@ function NewConversationModal({
             </div>
 
             {teachers.length > 0 ? (
-              <Row className="g-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 {teachers.map((teacher) => {
                   const roleLabel = teacher.isHomeroom
                     ? "Giáo viên chủ nhiệm"
@@ -567,11 +561,7 @@ function NewConversationModal({
                       : "";
 
                   return (
-                    <Col
-                      key={teacher.teacherUserId || teacher.teacherName}
-                      xs={12}
-                      md={6}
-                    >
+                    <div key={teacher.teacherUserId || teacher.teacherName}>
                       <button
                         type="button"
                         onClick={() => onStartTeacher(teacher)}
@@ -593,10 +583,10 @@ function NewConversationModal({
                           </p>
                         </div>
                       </button>
-                    </Col>
+                    </div>
                   );
                 })}
-              </Row>
+              </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
                 Không tìm thấy giáo viên phù hợp.
@@ -733,11 +723,10 @@ function StudentMessages() {
 
       {!loading && !error && (
         <>
-          <Row className="g-3">
-            <Col xs={12} xl={5} xxl={4}>
-              <aside className="min-h-[680px] overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-                <div className="px-5 py-5">
-                  <div className="flex items-center gap-3">
+          <div className="grid gap-3 xl:grid-cols-[minmax(300px,0.46fr)_minmax(0,1fr)] 2xl:grid-cols-[minmax(320px,0.38fr)_minmax(0,1fr)]">
+            <aside className="overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm xl:min-h-[680px]">
+                <div className="px-4 py-4 sm:px-5 sm:py-5">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     <div className="relative min-w-0 flex-1">
                       <FiSearch
                         size={16}
@@ -766,7 +755,7 @@ function StudentMessages() {
                   </div>
                 </div>
 
-                <div className="h-[575px] overflow-y-auto px-4 py-4">
+                <div className="max-h-[360px] overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 xl:h-[575px] xl:max-h-none">
                   {visibleConversations.length > 0 ? (
                     <div className="space-y-2">
                       {visibleConversations.map((conversation) => (
@@ -833,16 +822,13 @@ function StudentMessages() {
                   )}
                 </div>
               </aside>
-            </Col>
 
-            <Col xs={12} xl={7} xxl={8}>
-              <ThreadPanel
-                conversationId={activeConversationId}
-                selectedConversation={selectedConversation}
-                onSent={refresh}
-              />
-            </Col>
-          </Row>
+            <ThreadPanel
+              conversationId={activeConversationId}
+              selectedConversation={selectedConversation}
+              onSent={refresh}
+            />
+          </div>
 
           <NewConversationModal
             open={showNewConversation}

@@ -600,6 +600,42 @@ async function getMyEvents(req, res) {
   }
 }
 
+async function getMyEventDetail(req, res) {
+  try {
+    const eventId = parseInt(req.params.eventId, 10);
+
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Mã sự kiện không hợp lệ",
+      });
+    }
+
+    const result = await studentModel.findEventDetailByUserId(
+      req.user.userId,
+      eventId,
+    );
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy sự kiện hoặc bạn không có quyền xem",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return handleError(
+      res,
+      error,
+      "Không thể tải chi tiết sự kiện",
+    );
+  }
+}
+
 async function registerMyEvent(req, res) {
   try {
     const eventId = parseInt(req.params.eventId, 10);
@@ -995,6 +1031,7 @@ module.exports = {
   updateMyGoalProgress,
   getMyGoalLog,
   getMyEvents,
+  getMyEventDetail,
   registerMyEvent,
   getMyNotifications,
   markMyNotificationRead,

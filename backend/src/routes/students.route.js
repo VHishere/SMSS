@@ -133,6 +133,12 @@ router.get(
   studentController.getMyEvents,
 );
 
+router.get(
+  "/me/events/:eventId",
+  ...studentOnly,
+  studentController.getMyEventDetail,
+);
+
 router.post(
   "/me/events/:eventId/register",
   ...studentOnly,

@@ -532,7 +532,8 @@ async function findDashboardByUserId(userId) {
     recentNotifications,
     upcomingEvents: upcomingEvents.map((event) => ({
       ...event,
-      isRegistered: Boolean(event.registrationId),
+      isRegistered:
+        Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
     })),
   };
 }
@@ -683,11 +684,13 @@ async function findEventsByUserId(userId, filters = {}) {
   const params = [userId, context.studentId, context.classId];
   let where = "WHERE (e.class_id IS NULL OR e.class_id = ?)";
 
-  if (status) {
+  if (status === "COMPLETED") {
+    where += " AND e.status IN ('COMPLETED', 'DONE')";
+  } else if (status) {
     where += " AND e.status = ?";
     params.push(status);
   } else {
-    where += " AND e.status IN ('ACTIVE', 'PUBLISHED', 'SCHEDULED', 'COMPLETED', 'CANCELLED')";
+    where += " AND e.status IN ('ACTIVE', 'PUBLISHED', 'SCHEDULED', 'COMPLETED', 'DONE', 'CANCELLED')";
   }
 
   if (search) {
@@ -718,6 +721,7 @@ async function findEventsByUserId(userId, filters = {}) {
           SELECT COUNT(*)
           FROM event_registration er2
           WHERE er2.event_id = e.event_id
+            AND COALESCE(er2.attend_status, 'REGISTERED') <> 'CANCELLED'
         ) AS registeredCount
       FROM event e
       LEFT JOIN school_class sc
@@ -739,7 +743,8 @@ async function findEventsByUserId(userId, filters = {}) {
     events: events.map((event) => ({
       ...event,
       registeredCount: Number(event.registeredCount || 0),
-      isRegistered: Boolean(event.registrationId),
+      isRegistered:
+        Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
     })),
   };
 }
@@ -763,6 +768,7 @@ async function findEventForStudent(userId, eventId) {
           SELECT COUNT(*)
           FROM event_registration er
           WHERE er.event_id = e.event_id
+            AND COALESCE(er.attend_status, 'REGISTERED') <> 'CANCELLED'
         ) AS registeredCount
       FROM event e
       WHERE e.event_id = ?
@@ -782,6 +788,100 @@ async function findEventForStudent(userId, eventId) {
       ...event,
       registeredCount: Number(event.registeredCount || 0),
     },
+  };
+}
+
+async function findEventDetailByUserId(userId, eventId) {
+  const context = await findStudentContextByUserId(userId);
+
+  if (!context) {
+    return null;
+  }
+
+  const [[event]] = await pool.query(
+    `
+      SELECT
+        e.event_id AS eventId,
+        e.title,
+        e.event_type AS eventType,
+        e.category,
+        e.description,
+        DATE_FORMAT(e.start_date, '%Y-%m-%d %H:%i') AS startDate,
+        DATE_FORMAT(e.end_date, '%Y-%m-%d %H:%i') AS endDate,
+        e.location,
+        e.organizer,
+        e.capacity,
+        e.outcome,
+        e.status,
+        e.class_id AS classId,
+        sc.class_name AS className,
+        er.registration_id AS registrationId,
+        er.attend_status AS attendStatus,
+        DATE_FORMAT(er.register_date, '%Y-%m-%d %H:%i') AS registeredAt,
+        (
+          SELECT COUNT(*)
+          FROM event_registration er2
+          WHERE er2.event_id = e.event_id
+            AND COALESCE(er2.attend_status, 'REGISTERED') <> 'CANCELLED'
+        ) AS registeredCount
+      FROM event e
+      LEFT JOIN school_class sc
+        ON sc.class_id = e.class_id
+      LEFT JOIN event_registration er
+        ON er.event_id = e.event_id
+        AND (er.user_id = ? OR er.student_id = ?)
+      WHERE e.event_id = ?
+        AND (e.class_id IS NULL OR e.class_id = ?)
+        AND e.status IN (
+          'ACTIVE',
+          'PUBLISHED',
+          'SCHEDULED',
+          'COMPLETED',
+          'DONE',
+          'CANCELLED'
+        )
+      LIMIT 1
+    `,
+    [userId, context.studentId, eventId, context.classId],
+  );
+
+  if (!event) {
+    return null;
+  }
+
+  const [relatedEvents] = await pool.query(
+    `
+      SELECT
+        e.event_id AS eventId,
+        e.title,
+        e.event_type AS eventType,
+        e.category,
+        DATE_FORMAT(e.start_date, '%Y-%m-%d %H:%i') AS startDate,
+        DATE_FORMAT(e.end_date, '%Y-%m-%d %H:%i') AS endDate,
+        e.location,
+        e.status
+      FROM event e
+      WHERE e.event_id <> ?
+        AND (e.class_id IS NULL OR e.class_id = ?)
+        AND e.status IN ('ACTIVE', 'PUBLISHED', 'SCHEDULED', 'COMPLETED', 'DONE')
+      ORDER BY
+        CASE WHEN e.start_date >= NOW() THEN 0 ELSE 1 END,
+        ABS(TIMESTAMPDIFF(SECOND, e.start_date, ?)) ASC,
+        e.event_id DESC
+      LIMIT 4
+    `,
+    [eventId, context.classId, event.startDate],
+  );
+
+  return {
+    context,
+    event: {
+      ...event,
+      registeredCount: Number(event.registeredCount || 0),
+      isRegistered:
+        Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
+    },
+    relatedEvents,
   };
 }
 
@@ -960,6 +1060,7 @@ module.exports = {
   findBehaviourByUserId,
   findEventsByUserId,
   findEventForStudent,
+  findEventDetailByUserId,
   registerEvent,
   findNotificationsByUserId,
   markNotificationRead,

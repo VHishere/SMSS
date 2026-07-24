@@ -50,6 +50,7 @@ import StudentAttendance from "./pages/student/StudentAttendance";
 import StudentBehaviour from "./pages/student/StudentBehaviour";
 import StudentGoals from "./pages/student/StudentGoals";
 import StudentEvents from "./pages/student/StudentEvents";
+import StudentEventDetail from "./pages/student/StudentEventDetail";
 import StudentMessages from "./pages/student/StudentMessages";
 import StudentSurveys from "./pages/student/StudentSurveys";
 import StudentNotifications from "./pages/student/StudentNotifications";
@@ -587,6 +588,15 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={["STUDENT"]}>
                 <StudentEvents />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/student/events/:eventId"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <StudentEventDetail />
               </ProtectedRoute>
             }
           />

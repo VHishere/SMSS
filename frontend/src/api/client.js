@@ -238,6 +238,9 @@ export const studentApi = {
     return request(`/students/me/events${qs ? `?${qs}` : ""}`);
   },
 
+  getMyEventDetail: (eventId) =>
+    request(`/students/me/events/${eventId}`),
+
   registerMyEvent: (eventId) =>
     request(`/students/me/events/${eventId}/register`, {
       method: "POST",

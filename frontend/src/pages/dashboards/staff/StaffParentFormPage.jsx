@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { staffApi } from "../../../api/client";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  cancelLinkClass,
+  checkboxClass,
+  inputClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 
 const emptyForm = {
@@ -97,7 +102,7 @@ function StaffParentFormPage() {
         action={
           <Link
             to={isEdit ? `/staff/parents/${id}` : "/staff/parents"}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
+            className={cancelLinkClass}
           >
             Hủy
           </Link>
@@ -114,6 +119,7 @@ function StaffParentFormPage() {
         title="Thông tin phụ huynh"
         onSubmit={handleSubmit}
         loading={saving}
+        footer="Thông tin này dùng để phụ huynh đăng nhập và theo dõi học sinh."
       >
         <StaffField label="Họ và tên">
           <input
@@ -164,12 +170,12 @@ function StaffParentFormPage() {
             ))}
           </select>
         </StaffField>
-        <StaffField label="Liên hệ chính" className="flex-row items-center gap-2">
+        <StaffField label="Liên hệ chính" className="rounded-2xl border border-[#DFC0B2] bg-[#F9F9F9] p-4 md:self-end">
           <input
             type="checkbox"
             checked={form.isPrimary}
             onChange={handleChange("isPrimary")}
-            className="h-4 w-4"
+            className={checkboxClass}
           />
         </StaffField>
         {isEdit && (

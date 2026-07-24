@@ -91,60 +91,71 @@ export const dashboardNavigation = {
 
   STAFF: [
     {
-      label: "Dashboard",
+      label: "Tổng quan",
       path: "/staff",
       icon: FiGrid,
+      ms: "dashboard",
       end: true,
     },
     {
       label: "Năm học",
       path: "/staff/school-years",
       icon: FiCalendar,
+      ms: "calendar_month",
     },
     {
       label: "Lớp học",
       path: "/staff/classes",
       icon: FiBookOpen,
+      ms: "class",
     },
     {
       label: "Học sinh",
       path: "/staff/students",
       icon: FiUsers,
+      ms: "group",
     },
     {
       label: "Phụ huynh",
       path: "/staff/parents",
       icon: FiUserCheck,
+      ms: "family_restroom",
     },
     {
       label: "Giáo viên",
       path: "/staff/teachers",
       icon: FiAward,
+      ms: "school",
     },
     {
       label: "Lịch học",
       path: "/staff/timetable",
       icon: FiClock,
+      ms: "schedule",
     },
     {
       label: "Học phí",
       path: "/staff/fees",
       icon: FiCreditCard,
+      ms: "payments",
     },
     {
       label: "Chương trình học",
       path: "/staff/curriculum",
       icon: FiFileText,
+      ms: "menu_book",
     },
     {
       label: "Báo cáo",
       path: "/staff/reports",
       icon: FiBarChart2,
+      ms: "assessment",
     },
     {
       label: "Khảo sát GV",
       path: "/staff/surveys",
       icon: FiEdit3,
+      ms: "rate_review",
     },
   ],
 

@@ -3,7 +3,11 @@ import { Link, useParams } from "react-router-dom";
 
 import { staffApi } from "../../../api/client";
 import StaffDetailCard, { StaffDetailItem } from "../../../components/staff/StaffDetailCard";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  cancelLinkClass,
+  inputClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 
 const WEEK_DAYS = [
@@ -125,7 +129,7 @@ function StaffCurriculumDetailPage() {
         action={
           <Link
             to="/staff/curriculum"
-            className="rounded-xl border border-[#08509F] px-4 py-2 text-sm font-semibold text-[#08509F] no-underline"
+            className={cancelLinkClass}
           >
             Quay lại
           </Link>
@@ -161,6 +165,7 @@ function StaffCurriculumDetailPage() {
           onSubmit={handleUpdateCurriculum}
           submitLabel="Lưu chương trình"
           loading={saving}
+          footer="Thay đổi này áp dụng cho chương trình học hiện tại."
         >
           <StaffField label="Số buổi/tuần">
             <input
@@ -248,6 +253,7 @@ function StaffCurriculumDetailPage() {
             onSubmit={handleSaveSession}
             submitLabel="Lưu buổi học"
             loading={saving}
+            footer="Cập nhật buổi học để đồng bộ với lịch học thực tế."
           >
             <StaffField label="Tên buổi học" className="md:col-span-2">
               <input
@@ -343,7 +349,7 @@ function StaffCurriculumDetailPage() {
               <button
                 type="button"
                 onClick={() => setEditingSession(null)}
-                className="mr-3 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+                className={cancelLinkClass}
               >
                 Hủy
               </button>

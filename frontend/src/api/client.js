@@ -115,6 +115,22 @@ export const adminApi = {
       method: "PUT",
       body: JSON.stringify({ status }),
     }),
+
+  getRoles: () => request("/admin/roles"),
+
+  getUserDetail: (userId) => request(`/admin/users/${userId}`),
+
+  updateUserRoles: (userId, roleIds) =>
+    request(`/admin/users/${userId}/roles`, {
+      method: "PUT",
+      body: JSON.stringify({ roleIds }),
+    }),
+
+  updateUserChildren: (userId, children) =>
+    request(`/admin/users/${userId}/children`, {
+      method: "PUT",
+      body: JSON.stringify({ children }),
+    }),
 };
 
 export const studentApi = {

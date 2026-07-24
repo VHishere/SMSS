@@ -267,10 +267,13 @@
 //   getProfile,
 // };
 
+const crypto = require("crypto");
+
 const { pool } = require("../config/db");
 
 const {
   verifyPassword,
+  hashPassword,
 } = require("../utils/password");
 
 const {
@@ -329,21 +332,42 @@ async function getUserRoles(userId) {
   return rows;
 }
 
+function getPortalDomainError(portal, email) {
+  const schoolEmail = isSchoolEmail(email);
+
+  if (portal === "school" && !schoolEmail) {
+    return (
+      "Cổng trường chỉ dành cho email " +
+      "@edu.fpt.vn hoặc @fptschool.edu.vn"
+    );
+  }
+
+  if (portal === "parent" && schoolEmail) {
+    return (
+      "Phụ huynh vui lòng đăng nhập bằng " +
+      "email cá nhân được cấp"
+    );
+  }
+
+  if (portal !== "school" && portal !== "parent") {
+    return "Cổng đăng nhập không hợp lệ";
+  }
+
+  return null;
+}
+
 function validatePortalAccess(
   portal,
   email,
   roleNames,
 ) {
-  const schoolEmail = isSchoolEmail(email);
+  const domainError = getPortalDomainError(portal, email);
+
+  if (domainError) {
+    return domainError;
+  }
 
   if (portal === "school") {
-    if (!schoolEmail) {
-      return (
-        "Cổng trường chỉ dành cho email " +
-        "@edu.fpt.vn hoặc @fptschool.edu.vn"
-      );
-    }
-
     const canAccessSchool =
       roleNames.some((role) =>
         SCHOOL_ROLES.includes(role),
@@ -360,13 +384,6 @@ function validatePortalAccess(
   }
 
   if (portal === "parent") {
-    if (schoolEmail) {
-      return (
-        "Phụ huynh vui lòng đăng nhập bằng " +
-        "email cá nhân được cấp"
-      );
-    }
-
     if (!roleNames.includes("PARENT")) {
       return (
         "Tài khoản này không có quyền " +
@@ -378,6 +395,62 @@ function validatePortalAccess(
   }
 
   return "Cổng đăng nhập không hợp lệ";
+}
+
+async function generateUniqueUsername(baseUsername) {
+  let candidate = baseUsername;
+  let suffix = 0;
+
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const [rows] = await pool.query(
+      "SELECT 1 FROM user_account WHERE username = ? LIMIT 1",
+      [candidate],
+    );
+
+    if (!rows[0]) {
+      return candidate;
+    }
+
+    suffix += 1;
+    candidate = `${baseUsername}${suffix}`;
+  }
+}
+
+async function createPendingUserFromGoogle(googleUser) {
+  const baseUsername =
+    googleUser.email
+      .split("@")[0]
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]/g, "") || "user";
+
+  const username = await generateUniqueUsername(baseUsername);
+  const placeholderHash = hashPassword(crypto.randomUUID());
+
+  try {
+    await pool.query(
+      `
+        INSERT INTO user_account
+          (username, password_hash, email, full_name, avatar, status)
+        VALUES (?, ?, ?, ?, ?, 'ACTIVE')
+      `,
+      [
+        username,
+        placeholderHash,
+        googleUser.email,
+        googleUser.fullName || username,
+        googleUser.avatar || null,
+      ],
+    );
+  } catch (error) {
+    if (error.code !== "ER_DUP_ENTRY") {
+      throw error;
+    }
+    // Another concurrent request already created this account — fall through
+    // and let the caller re-fetch it by email.
+  }
+
+  return findUserByEmail(googleUser.email);
 }
 
 function buildAuthResponse({
@@ -500,6 +573,9 @@ async function login({
   });
 }
 
+const PENDING_APPROVAL_MESSAGE =
+  "Tài khoản đang chờ quản trị viên cấp quyền truy cập.";
+
 async function loginWithGoogle({
   credential,
   portal,
@@ -507,16 +583,29 @@ async function loginWithGoogle({
   const googleUser =
     await verifyGoogleCredential(credential);
 
+  const domainError = getPortalDomainError(
+    portal,
+    googleUser.email,
+  );
+
+  if (domainError) {
+    const error = new Error(domainError);
+
+    error.statusCode = 403;
+    throw error;
+  }
+
   const user =
     await findUserByEmail(googleUser.email);
 
   if (!user) {
-    const error = new Error(
-      "Email Google này chưa được cấp quyền vào hệ thống",
-    );
+    await createPendingUserFromGoogle(googleUser);
 
-    error.statusCode = 401;
-    throw error;
+    return {
+      pending: true,
+      message:
+        "Tài khoản của bạn đã được tạo. Vui lòng chờ quản trị viên cấp quyền truy cập.",
+    };
   }
 
   if (user.status !== "ACTIVE") {
@@ -533,12 +622,10 @@ async function loginWithGoogle({
   );
 
   if (roles.length === 0) {
-    const error = new Error(
-      "Tài khoản chưa được phân quyền",
-    );
-
-    error.statusCode = 403;
-    throw error;
+    return {
+      pending: true,
+      message: PENDING_APPROVAL_MESSAGE,
+    };
   }
 
   const roleNames = roles.map(

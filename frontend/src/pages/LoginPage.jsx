@@ -47,6 +47,9 @@ export function LoginPage({
   const [error, setError] =
     useState("");
 
+  const [pendingMessage, setPendingMessage] =
+    useState("");
+
   const [submitting, setSubmitting] =
     useState(false);
 
@@ -78,6 +81,7 @@ export function LoginPage({
     event.preventDefault();
 
     setError("");
+    setPendingMessage("");
     setSubmitting(true);
 
     try {
@@ -103,6 +107,7 @@ export function LoginPage({
     credentialResponse,
   ) => {
     setError("");
+    setPendingMessage("");
     setGoogleSubmitting(true);
 
     try {
@@ -118,6 +123,14 @@ export function LoginPage({
       const response = isSchool
         ? await authApi.loginGoogleSchool(credential)
         : await authApi.loginGoogleParent(credential);
+
+      if (response.data.pending) {
+        setPendingMessage(
+          response.data.message ||
+            "Tài khoản đang chờ quản trị viên cấp quyền truy cập.",
+        );
+        return;
+      }
 
       const {
         token,
@@ -205,6 +218,23 @@ export function LoginPage({
           {error && (
             <p className="form-error">
               {error}
+            </p>
+          )}
+
+          {pendingMessage && (
+            <p
+              className="form-info"
+              style={{
+                color: "#1D4ED8",
+                background: "#EFF6FF",
+                border: "1px solid #BFDBFE",
+                borderRadius: "10px",
+                padding: "10px 14px",
+                fontSize: "13px",
+                fontWeight: 600,
+              }}
+            >
+              {pendingMessage}
             </p>
           )}
 

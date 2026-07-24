@@ -58,7 +58,61 @@ async function updateUserStatus(req, res) {
   }
 }
 
+async function getRoles(_req, res) {
+  try {
+    const data = await adminModel.listRoles();
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể tải danh sách vai trò");
+  }
+}
+
+async function getUserDetail(req, res) {
+  try {
+    const data = await adminModel.getUserDetail(req.params.id);
+
+    if (!data) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy tài khoản",
+      });
+    }
+
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể tải chi tiết tài khoản");
+  }
+}
+
+async function updateUserRoles(req, res) {
+  try {
+    const { roleIds } = req.body;
+    const data = await adminModel.updateUserRoles(
+      req.params.id,
+      roleIds,
+      req.user.userId,
+    );
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể cập nhật vai trò tài khoản");
+  }
+}
+
+async function updateUserChildren(req, res) {
+  try {
+    const { children } = req.body;
+    const data = await adminModel.updateUserChildren(req.params.id, children);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể cập nhật danh sách con của phụ huynh");
+  }
+}
+
 module.exports = {
   getUsers,
   updateUserStatus,
+  getRoles,
+  getUserDetail,
+  updateUserRoles,
+  updateUserChildren,
 };

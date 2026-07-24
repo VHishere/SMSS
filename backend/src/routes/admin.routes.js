@@ -23,4 +23,32 @@ router.put(
   adminController.updateUserStatus,
 );
 
+router.get(
+  "/roles",
+  authenticate,
+  authorize("ADMIN"),
+  adminController.getRoles,
+);
+
+router.get(
+  "/users/:id",
+  authenticate,
+  authorize("ADMIN"),
+  adminController.getUserDetail,
+);
+
+router.put(
+  "/users/:id/roles",
+  authenticate,
+  authorize("ADMIN"),
+  adminController.updateUserRoles,
+);
+
+router.put(
+  "/users/:id/children",
+  authenticate,
+  authorize("ADMIN"),
+  adminController.updateUserChildren,
+);
+
 module.exports = router;

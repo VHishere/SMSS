@@ -5,6 +5,7 @@ import { FiArrowLeft } from "react-icons/fi";
 import { staffApi } from "../../../api/client";
 import StaffFormCard, {
   StaffField,
+  cancelLinkClass,
   inputClass,
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
@@ -174,9 +175,9 @@ function StaffTimetableCreatePage() {
         action={
           <Link
             to="/staff/timetable"
-            className="inline-flex items-center gap-2 rounded-xl border border-[#08509F] bg-white px-4 py-2.5 text-sm font-semibold text-[#08509F] no-underline transition hover:bg-blue-50"
+            className={cancelLinkClass}
           >
-            <FiArrowLeft />
+            <FiArrowLeft size={16} />
             Quay lại thời khóa biểu
           </Link>
         }
@@ -189,15 +190,15 @@ function StaffTimetableCreatePage() {
       )}
 
       {conflicts.length > 0 && (
-        <section className="mb-5 rounded-2xl border border-red-200 bg-red-50 p-4">
+        <section className="mb-5 rounded-3xl border border-red-200 bg-red-50 p-4 shadow-sm sm:p-5">
           <h2 className="mb-3 text-base font-bold text-red-700">
             Các lớp chưa thể thêm lịch
           </h2>
-          <div className="grid gap-2 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {conflicts.map((item) => (
               <div
                 key={`${item.classId}-${item.reason}`}
-                className="rounded-xl bg-white px-4 py-3 text-sm text-red-700"
+                className="rounded-2xl bg-white px-4 py-3 text-sm text-red-700 shadow-sm"
               >
                 <p className="mb-1 font-semibold">{item.className}</p>
                 <p className="mb-0">{item.reason}</p>
@@ -212,6 +213,7 @@ function StaffTimetableCreatePage() {
         onSubmit={handleSubmit}
         submitLabel="Kiểm tra và thêm lịch"
         loading={saving}
+        footer={`Phạm vi áp dụng: ${targetSummary}`}
       >
         <StaffField label="Phạm vi">
           <select
@@ -361,7 +363,7 @@ function StaffTimetableCreatePage() {
           />
         </StaffField>
 
-        <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-[#08509F] md:col-span-2">
+        <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-[#08509F] md:col-span-2">
           Phạm vi áp dụng: {targetSummary}
         </div>
       </StaffFormCard>

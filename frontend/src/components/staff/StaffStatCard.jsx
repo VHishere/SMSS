@@ -13,20 +13,20 @@ function StaffStatCard({
   };
 
   return (
-    <div className="rounded-2xl border border-orange-100 bg-white p-5 shadow-sm">
+    <div className="rounded-3xl border border-[#DFC0B2] bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <p className="mb-1 text-sm font-medium text-slate-500">
             {label}
           </p>
-          <p className="mb-0 text-3xl font-bold text-[#0F2747]">
+          <p className="mb-0 text-3xl font-bold text-[#1A1C1C]">
             {value}
           </p>
         </div>
 
         {Icon && (
           <div
-            className={`flex h-11 w-11 items-center justify-center rounded-xl ${accentClasses[accent]}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${accentClasses[accent]}`}
           >
             <Icon size={22} />
           </div>

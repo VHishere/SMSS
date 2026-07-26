@@ -62,7 +62,7 @@ export const dashboardNavigation = {
       icon: FiStar,
     },
     {
-      label: "Tin nhắn",
+      label: "Liên lạc",
       path: "/student/messages",
       icon: FiMessageSquare,
     },

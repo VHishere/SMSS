@@ -714,6 +714,15 @@ async function findEventsByUserId(userId, filters = {}) {
         e.outcome,
         e.status,
         sc.class_name AS className,
+        (
+          SELECT a.file_url
+          FROM attachment a
+          WHERE a.related_type = 'EVENT'
+            AND a.related_id = e.event_id
+            AND a.file_type LIKE 'image/%'
+          ORDER BY a.attachment_id ASC
+          LIMIT 1
+        ) AS imageUrl,
         er.registration_id AS registrationId,
         er.attend_status AS attendStatus,
         DATE_FORMAT(er.register_date, '%Y-%m-%d %H:%i') AS registeredAt,
@@ -815,6 +824,15 @@ async function findEventDetailByUserId(userId, eventId) {
         e.status,
         e.class_id AS classId,
         sc.class_name AS className,
+        (
+          SELECT a.file_url
+          FROM attachment a
+          WHERE a.related_type = 'EVENT'
+            AND a.related_id = e.event_id
+            AND a.file_type LIKE 'image/%'
+          ORDER BY a.attachment_id ASC
+          LIMIT 1
+        ) AS imageUrl,
         er.registration_id AS registrationId,
         er.attend_status AS attendStatus,
         DATE_FORMAT(er.register_date, '%Y-%m-%d %H:%i') AS registeredAt,
@@ -859,7 +877,16 @@ async function findEventDetailByUserId(userId, eventId) {
         DATE_FORMAT(e.start_date, '%Y-%m-%d %H:%i') AS startDate,
         DATE_FORMAT(e.end_date, '%Y-%m-%d %H:%i') AS endDate,
         e.location,
-        e.status
+        e.status,
+        (
+          SELECT a.file_url
+          FROM attachment a
+          WHERE a.related_type = 'EVENT'
+            AND a.related_id = e.event_id
+            AND a.file_type LIKE 'image/%'
+          ORDER BY a.attachment_id ASC
+          LIMIT 1
+        ) AS imageUrl
       FROM event e
       WHERE e.event_id <> ?
         AND (e.class_id IS NULL OR e.class_id = ?)
@@ -873,6 +900,23 @@ async function findEventDetailByUserId(userId, eventId) {
     [eventId, context.classId, event.startDate],
   );
 
+  const [gallery] = await pool.query(
+    `
+      SELECT
+        attachment_id AS attachmentId,
+        file_name AS fileName,
+        file_url AS fileUrl,
+        file_type AS fileType,
+        DATE_FORMAT(uploaded_at, '%Y-%m-%d %H:%i') AS uploadedAt
+      FROM attachment
+      WHERE related_type = 'EVENT'
+        AND related_id = ?
+        AND file_type LIKE 'image/%'
+      ORDER BY attachment_id ASC
+    `,
+    [eventId],
+  );
+
   return {
     context,
     event: {
@@ -881,6 +925,7 @@ async function findEventDetailByUserId(userId, eventId) {
       isRegistered:
         Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
     },
+    gallery,
     relatedEvents,
   };
 }

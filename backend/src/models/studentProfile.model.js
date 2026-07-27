@@ -62,12 +62,29 @@ async function findTeacherClasses(teacherId) {
   return rows;
 }
 
+// School-wide class list for admin (no teacher_class ownership filter) —
+// admin manages every class, not just ones they're assigned to.
+async function findAllClasses() {
+  const [rows] = await pool.query(
+    `SELECT sc.class_id AS classId, sc.class_name AS className,
+       sc.grade_id AS gradeId, g.grade_name AS gradeName,
+       sc.school_year_id AS schoolYearId, sy.year_name AS schoolYearName
+     FROM school_class sc
+     INNER JOIN grade g ON g.grade_id = sc.grade_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+     WHERE sc.status = 'ACTIVE'
+     ORDER BY sy.is_active DESC, g.grade_id ASC, sc.class_name ASC`,
+  );
+  return rows;
+}
+
 async function findSemesters() {
   const [rows] = await pool.query(
     `SELECT
        sem.semester_id AS semesterId, sem.semester_name AS semesterName,
        DATE_FORMAT(sem.start_date, '%Y-%m-%d') AS startDate,
        DATE_FORMAT(sem.end_date, '%Y-%m-%d')   AS endDate,
+       sy.school_year_id AS schoolYearId,
        sy.year_name AS schoolYearName, sy.is_active AS isActiveYear
      FROM semester sem
      INNER JOIN school_year sy ON sy.school_year_id = sem.school_year_id
@@ -78,10 +95,13 @@ async function findSemesters() {
 
 async function findSemesterById(semesterId) {
   const [[row]] = await pool.query(
-    `SELECT semester_id AS semesterId,
-       DATE_FORMAT(start_date, '%Y-%m-%d') AS startDate,
-       DATE_FORMAT(end_date, '%Y-%m-%d')   AS endDate
-     FROM semester WHERE semester_id = ?`,
+    `SELECT sem.semester_id AS semesterId, sem.semester_name AS semesterName,
+       DATE_FORMAT(sem.start_date, '%Y-%m-%d') AS startDate,
+       DATE_FORMAT(sem.end_date, '%Y-%m-%d')   AS endDate,
+       sy.school_year_id AS schoolYearId, sy.year_name AS schoolYearName
+     FROM semester sem
+     INNER JOIN school_year sy ON sy.school_year_id = sem.school_year_id
+     WHERE sem.semester_id = ?`,
     [semesterId],
   );
   return row || null;
@@ -297,6 +317,7 @@ module.exports = {
   isHomeroomOfClass,
   isHomeroomOfStudent,
   findTeacherClasses,
+  findAllClasses,
   findSemesters,
   findSemesterById,
   find360,

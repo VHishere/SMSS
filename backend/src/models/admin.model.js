@@ -383,6 +383,78 @@ async function setUserStatus(userId, status) {
   return rows[0];
 }
 
+// ── UC-106: School-wide operations dashboard ────────────────────────────────
+
+async function getOperationsSummary() {
+  const [[schoolYearRow]] = await pool.query(
+    `SELECT school_year_id AS schoolYearId, year_name AS yearName,
+       DATE_FORMAT(start_date, '%Y-%m-%d') AS startDate,
+       DATE_FORMAT(end_date, '%Y-%m-%d')   AS endDate
+     FROM school_year WHERE is_active = 1 LIMIT 1`,
+  );
+
+  const [[counts]] = await pool.query(
+    `SELECT
+       (SELECT COUNT(*) FROM student WHERE status = 'ACTIVE') AS totalStudents,
+       (SELECT COUNT(*) FROM school_class WHERE status = 'ACTIVE') AS totalClasses,
+       (SELECT COUNT(DISTINCT t.teacher_id) FROM teacher t
+          INNER JOIN user_account ua ON ua.user_id = t.user_id WHERE ua.status = 'ACTIVE') AS totalTeachers,
+       (SELECT COUNT(*) FROM academic_warning WHERE status = 'OPEN') AS openAcademicWarnings,
+       (SELECT COUNT(*) FROM behavior_warning WHERE status = 'OPEN') AS openBehaviourWarnings,
+       (SELECT COUNT(*) FROM attendance_warning WHERE status = 'OPEN') AS openAttendanceWarnings`,
+  );
+
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const monthEnd = today.toISOString().slice(0, 10);
+
+  const [[attendance]] = await pool.query(
+    `SELECT
+       SUM(CASE WHEN at.type_name IN ('PRESENT', 'LATE') THEN 1 ELSE 0 END) AS attended,
+       COUNT(a.attendance_id) AS total
+     FROM attendance a
+     INNER JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
+     WHERE a.attendance_context = 'CLASS' AND a.attendance_date BETWEEN ? AND ?`,
+    [monthStart, monthEnd],
+  );
+
+  const attendanceRate = Number(attendance.total) > 0
+    ? Math.round((Number(attendance.attended) / Number(attendance.total)) * 1000) / 10
+    : null;
+
+  const [gradeBreakdown] = await pool.query(
+    `SELECT g.grade_id AS gradeId, g.grade_name AS gradeName, COUNT(DISTINCT ce.student_id) AS studentCount
+     FROM school_class sc
+     INNER JOIN grade g ON g.grade_id = sc.grade_id
+     INNER JOIN class_enrollment ce ON ce.class_id = sc.class_id AND ce.status = 'ACTIVE'
+     WHERE sc.status = 'ACTIVE'
+     GROUP BY g.grade_id, g.grade_name
+     ORDER BY g.grade_id ASC`,
+  );
+
+  return {
+    schoolYear: schoolYearRow
+      ? { schoolYearId: schoolYearRow.schoolYearId, yearName: schoolYearRow.yearName, startDate: schoolYearRow.startDate, endDate: schoolYearRow.endDate }
+      : null,
+    totals: {
+      students: Number(counts.totalStudents),
+      classes: Number(counts.totalClasses),
+      teachers: Number(counts.totalTeachers),
+    },
+    attendance: {
+      rate: attendanceRate,
+      period: { startDate: monthStart, endDate: monthEnd },
+    },
+    warnings: {
+      academic: Number(counts.openAcademicWarnings),
+      behaviour: Number(counts.openBehaviourWarnings),
+      attendance: Number(counts.openAttendanceWarnings),
+      total: Number(counts.openAcademicWarnings) + Number(counts.openBehaviourWarnings) + Number(counts.openAttendanceWarnings),
+    },
+    gradeBreakdown: gradeBreakdown.map((g) => ({ gradeId: g.gradeId, gradeName: g.gradeName, studentCount: Number(g.studentCount) })),
+  };
+}
+
 module.exports = {
   listUsers,
   listRoles,
@@ -390,4 +462,5 @@ module.exports = {
   updateUserRoles,
   updateUserChildren,
   setUserStatus,
+  getOperationsSummary,
 };

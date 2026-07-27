@@ -15,7 +15,7 @@ import {
   FiSearch,
 } from "react-icons/fi";
 
-import { parentApi, studentApi } from "../../api/client";
+import { adminApi, parentApi, studentApi } from "../../api/client";
 import {
   useAuth,
 } from "../../context/useAuth";
@@ -363,18 +363,10 @@ function DashboardHeader({
           )}
 
           {isAdmin && (
-            <button
-              type="button"
-              aria-label="Thông báo"
-              className="relative rounded-full p-2 transition-colors hover:bg-[#E8E8E8]"
-            >
-              <span className="material-symbols-outlined text-[#1A1C1C]">
-                notifications
-              </span>
-              {showNotificationBadge && (
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-[#F27123]" />
-              )}
-            </button>
+            <NotificationDropdown
+              api={adminApi}
+              allNotificationsPath="/admin/notifications"
+            />
           )}
 
           {!isStudent && !isParent && !isTeacher && !isAdmin && (

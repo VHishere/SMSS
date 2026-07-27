@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { adminApi, staffApi } from "../../../api/client";
-import { formatRoleLabel, ROLE_LABELS } from "../../../utils/formatters";
-import Modal from "../../../components/atoms/Modal";
+import { adminApi, staffApi } from "../../api/client";
+import { formatRoleLabel, ROLE_LABELS } from "../../utils/formatters";
+import Modal from "../../components/atoms/Modal";
 
 // FSchool Admin Portal — Stitch design tokens (matches the parent/teacher portal)
 const C = {

@@ -10,6 +10,7 @@ function DashboardShell({
   menuItems,
   sidebarFooterLabel,
   sidebarFooterValue,
+  sidebarVariant = "auto",
   children,
 }) {
   const [
@@ -19,6 +20,10 @@ function DashboardShell({
 
   const { user: authUser } = useAuth();
   const isStitch = isStitchUser(authUser);
+
+  const useStitchSidebar =
+    sidebarVariant === "stitch" ||
+    (sidebarVariant === "auto" && isStitch);
 
   const isHomeroom = authUser?.roles?.some(
     (role) => role.roleName === "HOMEROOM_TEACHER",
@@ -32,7 +37,7 @@ function DashboardShell({
     ? "min-h-screen bg-[#F3F3F3] text-[#1A1C1C] [font-family:'Inter',sans-serif]"
     : "min-h-screen bg-[#FFF7F2] text-[#0F2747]";
 
-  const contentPad = isStitch
+  const contentPad = useStitchSidebar
     ? "lg:pl-[280px]"
     : "lg:pl-80";
 
@@ -40,6 +45,7 @@ function DashboardShell({
     <div className={rootClass}>
       <DashboardSidebar
         items={visibleItems}
+        variant={sidebarVariant}
         footerLabel={sidebarFooterLabel}
         footerValue={sidebarFooterValue}
         showMobile={showMobileSidebar}

@@ -69,10 +69,14 @@ function useNavScrollMemory(storageKey) {
 
 // FPT Stitch Portal — deep blue sidebar, FPT logo brand,
 // Material Symbols icons, logout pinned at the bottom
-function StitchSidebarContent({ items, onNavigate }) {
+function StitchSidebarContent({
+  items,
+  onNavigate,
+  scrollStorageKey = "nav_scroll_stitch",
+}) {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const navRef = useNavScrollMemory("nav_scroll_teacher");
+  const navRef = useNavScrollMemory(scrollStorageKey);
 
   function handleLogout() {
     logout();
@@ -176,11 +180,24 @@ function DashboardSidebar({
   footerValue,
   showMobile = false,
   onCloseMobile,
+  variant = "auto",
 }) {
   const { user } = useAuth();
-  const isStitch = isStitchUser(user);
+
+  const roleNames =
+    user?.roles?.map((role) =>
+      typeof role === "string" ? role : role.roleName
+    ) || [];
+
+  const isStudent = roleNames.includes("STUDENT");
+  const isStitch =
+    variant === "stitch" ||
+    (variant === "auto" && isStitchUser(user));
 
   const Content = isStitch ? StitchSidebarContent : SidebarContent;
+  const scrollStorageKey = isStudent
+    ? "nav_scroll_student"
+    : "nav_scroll_stitch";
 
   const desktopWidthClass = isStitch
     ? "w-[280px]"
@@ -200,6 +217,7 @@ function DashboardSidebar({
           items={items}
           footerLabel={footerLabel}
           footerValue={footerValue}
+          scrollStorageKey={scrollStorageKey}
         />
       </aside>
 
@@ -216,6 +234,7 @@ function DashboardSidebar({
             footerLabel={footerLabel}
             footerValue={footerValue}
             onNavigate={onCloseMobile}
+            scrollStorageKey={scrollStorageKey}
           />
         </Offcanvas.Body>
       </Offcanvas>

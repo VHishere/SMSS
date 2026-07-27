@@ -379,6 +379,60 @@ async function markAllNotificationsRead(userId) {
   return result.affectedRows;
 }
 
+// Feed "Thông báo nhà trường" cho Trung tâm thông báo của phụ huynh — chỉ thông
+// báo toàn trường (không gắn lớp) hoặc gắn đúng lớp của con, và audience có phụ huynh.
+async function findAnnouncementFeedForClass(classId) {
+  const [rows] = await pool.query(
+    `SELECT a.announcement_id AS announcementId, a.title, a.content, a.audience,
+            a.is_pinned AS isPinned, a.published_at AS ts,
+            COALESCE(sc.class_name, 'Toàn trường') AS className,
+            ua.full_name AS createdByName
+     FROM announcement a
+     LEFT JOIN school_class sc ON sc.class_id = a.class_id
+     INNER JOIN user_account ua ON ua.user_id = a.created_by
+     WHERE a.status = 'PUBLISHED'
+       AND a.audience IN ('CLASS_ALL', 'CLASS_PARENTS')
+       AND (a.class_id IS NULL OR a.class_id = ?)
+     ORDER BY a.is_pinned DESC, a.published_at DESC
+     LIMIT 30`,
+    [classId],
+  );
+  return rows.map((r) => ({ ...r, createdAt: r.ts }));
+}
+
+// Feed "Cảnh báo học sinh" cho Trung tâm thông báo của phụ huynh — gộp 3 loại
+// cảnh báo (học lực / hạnh kiểm / chuyên cần) của một học sinh (con của phụ huynh).
+async function findWarningAlertsForStudent(studentId) {
+  const [academic] = await pool.query(
+    `SELECT warning_id AS warningId, 'ACADEMIC' AS source, warning_type AS warningType,
+            note, status, created_at AS ts
+     FROM academic_warning
+     WHERE student_id = ?
+     ORDER BY created_at DESC LIMIT 30`,
+    [studentId],
+  );
+  const [behaviour] = await pool.query(
+    `SELECT warning_id AS warningId, 'BEHAVIOUR' AS source, warning_type AS warningType,
+            note, status, created_at AS ts
+     FROM behavior_warning
+     WHERE student_id = ?
+     ORDER BY created_at DESC LIMIT 30`,
+    [studentId],
+  );
+  const [attendance] = await pool.query(
+    `SELECT warning_id AS warningId, 'ATTENDANCE' AS source, 'ABSENCE_RISK' AS warningType,
+            note, status, created_at AS ts
+     FROM attendance_warning
+     WHERE student_id = ?
+     ORDER BY created_at DESC LIMIT 30`,
+    [studentId],
+  );
+
+  return [...academic, ...behaviour, ...attendance]
+    .map((r) => ({ ...r, createdAt: r.ts }))
+    .sort((a, b) => new Date(b.ts) - new Date(a.ts));
+}
+
 async function findTeacherContactsByUserId(userId) {
   const [teachers] = await pool.query(
     `
@@ -575,6 +629,8 @@ module.exports = {
   findNotificationsByUserId,
   markNotificationRead,
   markAllNotificationsRead,
+  findAnnouncementFeedForClass,
+  findWarningAlertsForStudent,
   findTeacherContactsByUserId,
   findEventsByStudentId,
   findEventForChild,

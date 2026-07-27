@@ -411,12 +411,214 @@ function normalizeCountRow(row = {}) {
   );
 }
 
+
+async function findDashboardSemesterAnalytics(studentId) {
+  const [semesterRows] = await pool.query(
+    `
+      SELECT DISTINCT
+        sm.semester_id AS semesterId,
+        sm.semester_name AS semesterName,
+        DATE_FORMAT(sm.start_date, '%Y-%m-%d') AS startDate,
+        DATE_FORMAT(sm.end_date, '%Y-%m-%d') AS endDate,
+
+        sy.school_year_id AS schoolYearId,
+        sy.year_name AS schoolYearName,
+
+        CASE
+          WHEN CURDATE() BETWEEN sm.start_date AND sm.end_date
+          THEN 1
+          ELSE 0
+        END AS isCurrent
+      FROM class_enrollment ce
+      INNER JOIN school_class sc
+        ON sc.class_id = ce.class_id
+      INNER JOIN school_year sy
+        ON sy.school_year_id = sc.school_year_id
+      INNER JOIN semester sm
+        ON sm.school_year_id = sy.school_year_id
+      WHERE ce.student_id = ?
+        AND sm.status = 'ACTIVE'
+      ORDER BY
+        startDate ASC,
+        semesterId ASC
+    `,
+    [studentId],
+  );
+
+  const [regularScoreRows] = await pool.query(
+    `
+      SELECT
+        ar.semester_id AS semesterId,
+        ROUND(AVG(ar.score_value), 2) AS regularScore
+      FROM academic_result ar
+      WHERE ar.student_id = ?
+        AND ar.score_type IN (
+          'TX',
+          'TX1',
+          'TX2',
+          'TX3',
+          'REGULAR',
+          'FREQUENT'
+        )
+        AND ar.score_value IS NOT NULL
+      GROUP BY ar.semester_id
+    `,
+    [studentId],
+  );
+
+  const [attendanceScoreRows] = await pool.query(
+    `
+      SELECT
+        sm.semester_id AS semesterId,
+
+        ROUND(
+          AVG(
+            CASE at.type_name
+              WHEN 'PRESENT' THEN 10
+              WHEN 'LATE' THEN 8
+              WHEN 'EARLY_LEAVE' THEN 7
+              WHEN 'ABSENT_EXCUSED' THEN 5
+              WHEN 'ABSENT_UNEXCUSED' THEN 0
+              ELSE NULL
+            END
+          ),
+          2
+        ) AS attendanceScore,
+
+        COUNT(a.attendance_id) AS attendanceRecords
+      FROM attendance a
+      INNER JOIN attendance_type at
+        ON at.attendance_type_id = a.attendance_type_id
+      INNER JOIN semester sm
+        ON a.attendance_date BETWEEN sm.start_date AND sm.end_date
+      WHERE a.student_id = ?
+        AND a.attendance_context = 'CLASS'
+      GROUP BY sm.semester_id
+    `,
+    [studentId],
+  );
+
+  const [homeworkRows] = await pool.query(
+    `
+      SELECT
+        sm.semester_id AS semesterId,
+
+        COUNT(
+          DISTINCT CASE
+            WHEN hws.submission_id IS NOT NULL
+              AND (
+                hw.due_date IS NULL
+                OR hws.submit_time <= hw.due_date
+              )
+            THEN hw.homework_id
+          END
+        ) AS onTimeHomework,
+
+        COUNT(
+          DISTINCT CASE
+            WHEN hw.due_date IS NOT NULL
+              AND hw.due_date < NOW()
+              AND (
+                hws.submission_id IS NULL
+                OR hws.submit_time > hw.due_date
+              )
+            THEN hw.homework_id
+          END
+        ) AS overdueHomework
+      FROM class_enrollment ce
+      INNER JOIN school_class sc
+        ON sc.class_id = ce.class_id
+      INNER JOIN semester sm
+        ON sm.school_year_id = sc.school_year_id
+      INNER JOIN homework hw
+        ON hw.class_id = sc.class_id
+        AND DATE(hw.assign_date)
+          BETWEEN sm.start_date AND sm.end_date
+      LEFT JOIN homework_submission hws
+        ON hws.homework_id = hw.homework_id
+        AND hws.student_id = ?
+      WHERE ce.student_id = ?
+        AND hw.status IN ('OPEN', 'PUBLISHED', 'ACTIVE')
+      GROUP BY sm.semester_id
+    `,
+    [studentId, studentId],
+  );
+
+  const regularScoreMap = new Map(
+    regularScoreRows.map((row) => [
+      Number(row.semesterId),
+      row.regularScore == null
+        ? null
+        : Number(row.regularScore),
+    ]),
+  );
+
+  const attendanceScoreMap = new Map(
+    attendanceScoreRows.map((row) => [
+      Number(row.semesterId),
+      {
+        attendanceScore:
+          row.attendanceScore == null
+            ? null
+            : Number(row.attendanceScore),
+        attendanceRecords: Number(row.attendanceRecords || 0),
+      },
+    ]),
+  );
+
+  const homeworkMap = new Map(
+    homeworkRows.map((row) => [
+      Number(row.semesterId),
+      {
+        onTimeHomework: Number(row.onTimeHomework || 0),
+        overdueHomework: Number(row.overdueHomework || 0),
+      },
+    ]),
+  );
+
+  return semesterRows
+    .map((semester) => {
+      const semesterId = Number(semester.semesterId);
+      const attendance = attendanceScoreMap.get(semesterId);
+      const homework = homeworkMap.get(semesterId);
+
+      return {
+        semesterId,
+        semesterName: semester.semesterName,
+        schoolYearId: Number(semester.schoolYearId),
+        schoolYearName: semester.schoolYearName,
+        startDate: semester.startDate,
+        endDate: semester.endDate,
+        isCurrent: Boolean(semester.isCurrent),
+
+        regularScore:
+          regularScoreMap.get(semesterId) ?? null,
+
+        attendanceScore:
+          attendance?.attendanceScore ?? null,
+
+        attendanceRecords:
+          attendance?.attendanceRecords ?? 0,
+
+        onTimeHomework:
+          homework?.onTimeHomework ?? 0,
+
+        overdueHomework:
+          homework?.overdueHomework ?? 0,
+      };
+    })
+    .slice(-6);
+}
+
 async function findDashboardByUserId(userId) {
   const context = await findStudentContextByUserId(userId);
 
   if (!context) {
     return null;
   }
+
+  const semesterAnalytics =
+    await findDashboardSemesterAnalytics(context.studentId);
 
   const [homeworkRows] = await pool.query(
     `
@@ -525,6 +727,7 @@ async function findDashboardByUserId(userId) {
 
   return {
     context,
+    semesterAnalytics,
     homework: normalizeCountRow(homeworkRows[0]),
     grades: normalizeCountRow(gradeRows[0]),
     attendance: normalizeCountRow(attendanceRows[0]),
@@ -714,15 +917,6 @@ async function findEventsByUserId(userId, filters = {}) {
         e.outcome,
         e.status,
         sc.class_name AS className,
-        (
-          SELECT a.file_url
-          FROM attachment a
-          WHERE a.related_type = 'EVENT'
-            AND a.related_id = e.event_id
-            AND a.file_type LIKE 'image/%'
-          ORDER BY a.attachment_id ASC
-          LIMIT 1
-        ) AS imageUrl,
         er.registration_id AS registrationId,
         er.attend_status AS attendStatus,
         DATE_FORMAT(er.register_date, '%Y-%m-%d %H:%i') AS registeredAt,
@@ -824,15 +1018,6 @@ async function findEventDetailByUserId(userId, eventId) {
         e.status,
         e.class_id AS classId,
         sc.class_name AS className,
-        (
-          SELECT a.file_url
-          FROM attachment a
-          WHERE a.related_type = 'EVENT'
-            AND a.related_id = e.event_id
-            AND a.file_type LIKE 'image/%'
-          ORDER BY a.attachment_id ASC
-          LIMIT 1
-        ) AS imageUrl,
         er.registration_id AS registrationId,
         er.attend_status AS attendStatus,
         DATE_FORMAT(er.register_date, '%Y-%m-%d %H:%i') AS registeredAt,
@@ -877,16 +1062,7 @@ async function findEventDetailByUserId(userId, eventId) {
         DATE_FORMAT(e.start_date, '%Y-%m-%d %H:%i') AS startDate,
         DATE_FORMAT(e.end_date, '%Y-%m-%d %H:%i') AS endDate,
         e.location,
-        e.status,
-        (
-          SELECT a.file_url
-          FROM attachment a
-          WHERE a.related_type = 'EVENT'
-            AND a.related_id = e.event_id
-            AND a.file_type LIKE 'image/%'
-          ORDER BY a.attachment_id ASC
-          LIMIT 1
-        ) AS imageUrl
+        e.status
       FROM event e
       WHERE e.event_id <> ?
         AND (e.class_id IS NULL OR e.class_id = ?)
@@ -900,23 +1076,6 @@ async function findEventDetailByUserId(userId, eventId) {
     [eventId, context.classId, event.startDate],
   );
 
-  const [gallery] = await pool.query(
-    `
-      SELECT
-        attachment_id AS attachmentId,
-        file_name AS fileName,
-        file_url AS fileUrl,
-        file_type AS fileType,
-        DATE_FORMAT(uploaded_at, '%Y-%m-%d %H:%i') AS uploadedAt
-      FROM attachment
-      WHERE related_type = 'EVENT'
-        AND related_id = ?
-        AND file_type LIKE 'image/%'
-      ORDER BY attachment_id ASC
-    `,
-    [eventId],
-  );
-
   return {
     context,
     event: {
@@ -925,7 +1084,6 @@ async function findEventDetailByUserId(userId, eventId) {
       isRegistered:
         Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
     },
-    gallery,
     relatedEvents,
   };
 }

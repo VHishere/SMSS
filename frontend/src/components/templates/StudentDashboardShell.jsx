@@ -39,6 +39,7 @@ function StudentDashboardShell({ context, children }) {
     <DashboardShell
       user={headerUser}
       menuItems={dashboardNavigation.STUDENT}
+      sidebarVariant="stitch"
       sidebarFooterLabel="Năm học hiện tại"
       sidebarFooterValue={context?.schoolYearName || "Chưa cập nhật"}
     >

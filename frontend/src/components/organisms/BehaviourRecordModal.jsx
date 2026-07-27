@@ -20,7 +20,7 @@ function todayLocal() {
  * students: [{ studentId, studentName, studentCode }]  (create mode)
  * record: existing record (edit mode)
  */
-function BehaviourRecordModal({ mode, behaviorType, students = [], record = null, categories = [], onClose, onSaved }) {
+function BehaviourRecordModal({ mode, behaviorType, students = [], record = null, categories = [], api = behaviourApi, onClose, onSaved }) {
   const isEdit = mode === "edit";
   const type = isEdit ? record.behaviorType : behaviorType;
   const isMerit = type === "POSITIVE";
@@ -84,9 +84,9 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
         evidenceUrl: evidence?.fileUrl ?? null,
       };
       if (isEdit) {
-        await behaviourApi.updateRecord(record.behaviorId, body);
+        await api.updateRecord(record.behaviorId, body);
       } else {
-        await behaviourApi.createRecord({ ...body, studentId: Number(studentId), behaviorType: type });
+        await api.createRecord({ ...body, studentId: Number(studentId), behaviorType: type });
       }
       onSaved();
     } catch (err) {
@@ -133,9 +133,14 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Danh mục <span className="text-red-500">*</span></label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
+            <select value={category} onChange={(e) => {
+              const nextCategory = e.target.value;
+              setCategory(nextCategory);
+              const match = categories.find((c) => c.key === nextCategory);
+              if (match?.points) setPoints(match.points);
+            }} className={inputCls}>
               <option value="">— Chọn danh mục —</option>
-              {categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+              {categories.map((c) => <option key={c.key} value={c.key}>{c.label} ({isMerit ? "+" : "-"}{c.points})</option>)}
             </select>
           </div>
 

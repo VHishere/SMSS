@@ -63,6 +63,71 @@ async function findViolationTypes() {
   return rows.map((r) => ({ ...r, affectsConduct: Boolean(r.affectsConduct) }));
 }
 
+// ── Merit/violation category catalog (mức độ cộng/trừ) ─────────────────────────
+// Shared by teacher (picker in the record composer) and admin (manages the
+// catalog itself — code/label/points/affects-conduct-default).
+
+function mapCategoryRow(r) {
+  return { ...r, points: Number(r.points), affectsConductDefault: Boolean(r.affectsConductDefault) };
+}
+
+async function findCategories({ behaviorType, status } = {}) {
+  const params = [];
+  let where = "1=1";
+  if (behaviorType) { where += " AND behavior_type = ?"; params.push(behaviorType); }
+  if (status) { where += " AND status = ?"; params.push(status); }
+
+  const [rows] = await pool.query(
+    `SELECT
+       category_id AS categoryId, code, behavior_type AS behaviorType, label, points,
+       affects_conduct_default AS affectsConductDefault, status
+     FROM behaviour_category
+     WHERE ${where}
+     ORDER BY behavior_type ASC, label ASC`,
+    params,
+  );
+  return rows.map(mapCategoryRow);
+}
+
+async function findCategoryByCode(behaviorType, code) {
+  const [[row]] = await pool.query(
+    `SELECT category_id AS categoryId, code, behavior_type AS behaviorType, label, points,
+            affects_conduct_default AS affectsConductDefault, status
+     FROM behaviour_category
+     WHERE behavior_type = ? AND code = ? AND status = 'ACTIVE'
+     LIMIT 1`,
+    [behaviorType, code],
+  );
+  return row ? mapCategoryRow(row) : null;
+}
+
+async function createCategory({ code, behaviorType, label, points, affectsConductDefault, createdBy }) {
+  const [result] = await pool.query(
+    `INSERT INTO behaviour_category (code, behavior_type, label, points, affects_conduct_default, created_by)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [code, behaviorType, label, points, affectsConductDefault ? 1 : 0, createdBy ?? null],
+  );
+  return result.insertId;
+}
+
+async function updateCategory(categoryId, { label, points, affectsConductDefault }) {
+  const [result] = await pool.query(
+    `UPDATE behaviour_category
+     SET label = ?, points = ?, affects_conduct_default = ?
+     WHERE category_id = ?`,
+    [label, points, affectsConductDefault ? 1 : 0, categoryId],
+  );
+  return result.affectedRows;
+}
+
+async function setCategoryStatus(categoryId, status) {
+  const [result] = await pool.query(
+    `UPDATE behaviour_category SET status = ? WHERE category_id = ?`,
+    [status, categoryId],
+  );
+  return result.affectedRows;
+}
+
 async function findSemesters() {
   const [rows] = await pool.query(
     `SELECT
@@ -581,6 +646,11 @@ module.exports = {
   isTeacherForStudent,
   isHomeroomOfStudent,
   findViolationTypes,
+  findCategories,
+  findCategoryByCode,
+  createCategory,
+  updateCategory,
+  setCategoryStatus,
   findSemesters,
   findSemesterById,
   findStudentProfile,

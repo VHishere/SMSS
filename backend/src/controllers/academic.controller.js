@@ -1,6 +1,7 @@
 const teacherModel  = require("../models/teacher.model");
 const academicModel = require("../models/academic.model");
 const academicService = require("../services/academic.service");
+const studentProfileModel = require("../models/studentProfile.model");
 const {
   SCORE_TYPES,
   SCORE_TYPE_LABELS,
@@ -304,6 +305,88 @@ async function updateWarning(req, res) {
   }
 }
 
+// ── Admin (school-wide, read-only) ──────────────────────────────────────────
+
+// GET /admin/academic/meta — every class school-wide + semesters + score types
+async function getMetaAdmin(_req, res) {
+  try {
+    const [classes, semesters] = await Promise.all([
+      studentProfileModel.findAllClasses(),
+      academicModel.findSemesters(),
+    ]);
+
+    return res.json({
+      success: true,
+      data: { classes, semesters, scoreTypes: SCORE_TYPE_LIST },
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy dữ liệu khởi tạo");
+  }
+}
+
+// GET /admin/academic/gradebook — read-only view of the score matrix
+async function getGradebookAdmin(req, res) {
+  try {
+    const { classId, subjectId, semesterId } = req.query;
+    if (!classId || !subjectId || !semesterId) {
+      return res.status(400).json({ success: false, message: "Thiếu tham số lớp/môn/học kỳ" });
+    }
+
+    const students = await academicModel.findGradebook(
+      parseInt(classId, 10), parseInt(subjectId, 10), parseInt(semesterId, 10),
+    );
+
+    return res.json({ success: true, data: { students, scoreTypes: SCORE_TYPE_LIST } });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy bảng điểm");
+  }
+}
+
+// GET /admin/academic/analytics
+async function getAnalyticsAdmin(req, res) {
+  try {
+    const { classId, semesterId } = req.query;
+    const data = await academicService.getClassAnalytics({ teacherId: null, classId, semesterId });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy thống kê học tập");
+  }
+}
+
+// GET /admin/academic/analytics/trend
+async function getTrendAdmin(req, res) {
+  try {
+    const { classId } = req.query;
+    const data = await academicService.getClassTrend({ classId: parseInt(classId, 10) });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy phân tích xu hướng");
+  }
+}
+
+// GET /admin/academic/warnings
+async function getWarningsAdmin(req, res) {
+  try {
+    const { classId, semesterId, status, page = "1", limit = "20" } = req.query;
+    const parsedPage = Math.max(1, parseInt(page, 10));
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
+
+    const { total, rows } = await academicModel.findWarnings({
+      classId, semesterId, status, page: parsedPage, limit: parsedLimit,
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        items: rows,
+        pagination: { total, page: parsedPage, limit: parsedLimit, totalPages: Math.ceil(total / parsedLimit) },
+      },
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy danh sách cảnh báo");
+  }
+}
+
 module.exports = {
   getMeta,
   getScoreSheet,
@@ -318,4 +401,9 @@ module.exports = {
   getWarnings,
   generateWarnings,
   updateWarning,
+  getMetaAdmin,
+  getGradebookAdmin,
+  getAnalyticsAdmin,
+  getTrendAdmin,
+  getWarningsAdmin,
 };

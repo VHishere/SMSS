@@ -36,7 +36,7 @@ function SidebarMenuItem({
         `}
       >
         {msIcon ? (
-          <span className="material-symbols-outlined shrink-0 !text-[22px]">
+          <span className="material-symbols-outlined shrink-0 text-[22px]!">
             {msIcon}
           </span>
         ) : (

@@ -1872,6 +1872,9 @@ export const parentApi = {
       method: "PATCH",
     }),
 
+  getStudentNotificationFeed: (studentId) =>
+    request(`/parents/me/students/${studentId}/notifications/feed`),
+
   getMessageContacts: () =>
     request("/parents/me/communication/contacts"),
 

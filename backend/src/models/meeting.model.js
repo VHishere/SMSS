@@ -96,11 +96,22 @@ async function findMeetingById(meetingId) {
        pm.status,
        pm.created_by   AS createdBy,
        sc.class_name   AS className,
-       sua.full_name   AS studentName
+       sua.full_name   AS studentName,
+       COALESCE(hrua.full_name, tua.full_name) AS teacherName,
+       COALESCE(hrua.phone, tua.phone)         AS teacherPhone
      FROM parent_meeting pm
      LEFT JOIN school_class sc ON sc.class_id = pm.class_id
      LEFT JOIN student s ON s.student_id = pm.student_id
      LEFT JOIN user_account sua ON sua.user_id = s.user_id
+     LEFT JOIN teacher t ON t.teacher_id = pm.teacher_id
+     LEFT JOIN user_account tua ON tua.user_id = t.user_id
+     LEFT JOIN (
+       SELECT tc.class_id, tc.teacher_id
+       FROM teacher_class tc
+       WHERE tc.role_in_class = 'HOMEROOM_TEACHER' AND tc.end_date IS NULL
+     ) hrtc ON hrtc.class_id = pm.class_id
+     LEFT JOIN teacher hrt ON hrt.teacher_id = hrtc.teacher_id
+     LEFT JOIN user_account hrua ON hrua.user_id = hrt.user_id
      WHERE pm.meeting_id = ?`,
     [meetingId],
   );
@@ -344,7 +355,7 @@ async function findMeetingsByParent(userId, filters = {}) {
        sc.class_name AS className,
        sua.full_name AS studentName,
        mi.status     AS invitationStatus,
-       tua.full_name AS teacherName
+       COALESCE(hrua.full_name, tua.full_name) AS teacherName
      FROM meeting_invitation mi
      INNER JOIN parent_meeting pm ON pm.meeting_id = mi.meeting_id
      LEFT JOIN school_class sc ON sc.class_id = pm.class_id
@@ -352,6 +363,13 @@ async function findMeetingsByParent(userId, filters = {}) {
      LEFT JOIN user_account sua ON sua.user_id = s.user_id
      LEFT JOIN teacher t ON t.teacher_id = pm.teacher_id
      LEFT JOIN user_account tua ON tua.user_id = t.user_id
+     LEFT JOIN (
+       SELECT tc.class_id, tc.teacher_id
+       FROM teacher_class tc
+       WHERE tc.role_in_class = 'HOMEROOM_TEACHER' AND tc.end_date IS NULL
+     ) hrtc ON hrtc.class_id = pm.class_id
+     LEFT JOIN teacher hrt ON hrt.teacher_id = hrtc.teacher_id
+     LEFT JOIN user_account hrua ON hrua.user_id = hrt.user_id
      WHERE ${where}
      ORDER BY pm.meeting_date DESC
      LIMIT ? OFFSET ?`,

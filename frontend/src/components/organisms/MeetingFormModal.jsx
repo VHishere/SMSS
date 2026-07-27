@@ -98,7 +98,7 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
       <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl bg-white shadow-xl" style={{ border: "1px solid #DFC0B2" }}>
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #DFC0B2" }}>
           <h3 className="text-base font-bold" style={{ color: "#1A1C1C" }}>{isEdit ? "Sửa cuộc họp" : "Tạo cuộc họp"}</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><Ms name="close" className="!text-[20px]" /></button>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><Ms name="close" className="text-[20px]!" /></button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">

@@ -1,8 +1,6 @@
 const behaviourModel = require("../models/behaviour.model");
 const { computeConduct } = require("./conduct.service");
 const {
-  MERIT_CATEGORIES,
-  VIOLATION_CATEGORIES,
   BASE_CONDUCT_SCORE,
   CONDUCT_BUCKETS,
   CONDUCT_GRADE_KEYS,
@@ -17,11 +15,12 @@ function httpError(message, statusCode) {
   return err;
 }
 
-function validCategory(behaviorType, category) {
+// Categories (and their point value) are admin-managed in the
+// behaviour_category table — see migrate-behaviour-categories.js.
+async function validCategory(behaviorType, category) {
   if (!category) return false; // category bắt buộc
-  return behaviorType === "POSITIVE"
-    ? MERIT_CATEGORIES.includes(category)
-    : VIOLATION_CATEGORIES.includes(category);
+  const found = await behaviourModel.findCategoryByCode(behaviorType, category);
+  return Boolean(found);
 }
 
 function todayStr() {
@@ -56,7 +55,7 @@ async function createRecord({ teacherId, actorUserId, payload }) {
   if (!Number.isInteger(pts) || pts <= 0) {
     throw httpError(behaviorType === "POSITIVE" ? "Điểm khen thưởng phải là số dương" : "Điểm trừ phải là số dương", 400);
   }
-  if (!validCategory(behaviorType, category)) throw httpError("Danh mục không hợp lệ", 400);
+  if (!(await validCategory(behaviorType, category))) throw httpError("Danh mục không hợp lệ", 400);
 
   // Nề nếp/hạnh kiểm là nghiệp vụ GVCN.
   const allowed = await behaviourModel.isHomeroomOfStudent(teacherId, parseInt(studentId, 10));
@@ -104,7 +103,7 @@ async function updateRecord({ teacherId, actorUserId, behaviorId, payload }) {
   if (!payload.recordDate) throw httpError("Ngày ghi nhận là bắt buộc", 400);
   if (payload.recordDate > todayStr()) throw httpError("Ngày ghi nhận không được ở tương lai", 400);
   if (!payload.category) throw httpError("Vui lòng chọn danh mục", 400);
-  if (!validCategory(existing.behaviorType, payload.category)) throw httpError("Danh mục không hợp lệ", 400);
+  if (!(await validCategory(existing.behaviorType, payload.category))) throw httpError("Danh mục không hợp lệ", 400);
 
   await behaviourModel.updateRecord({
     behaviorId,
@@ -133,6 +132,103 @@ async function archiveRecord({ teacherId, actorUserId, behaviorId, reason }) {
 
   const allowed = await behaviourModel.isHomeroomOfStudent(teacherId, existing.studentId);
   if (!allowed) throw httpError("Chỉ giáo viên chủ nhiệm mới lưu trữ nề nếp học sinh này", 403);
+  if (!reason || !reason.trim()) throw httpError("Vui lòng nhập lý do lưu trữ", 400);
+  if (existing.status === "ARCHIVED") throw httpError("Bản ghi đã được lưu trữ", 409);
+
+  await behaviourModel.archiveRecord({
+    behaviorId, studentId: existing.studentId, oldPoints: existing.points,
+    reason: reason.trim(), changedBy: actorUserId,
+  });
+  return { behaviorId };
+}
+
+// ── Admin variants: same as above, minus the "must be homeroom teacher of
+// this student" ownership check (admin manages every student school-wide).
+// Conduct evaluation deliberately has NO admin equivalent — that stays a
+// homeroom-teacher-only action.
+
+async function createRecordAdmin({ actorUserId, payload }) {
+  const { studentId, behaviorType, title, category, description, severityLevel, affectsConduct, points, recordDate, evidenceUrl } = payload;
+
+  if (!["POSITIVE", "VIOLATION"].includes(behaviorType)) throw httpError("Loại hành vi không hợp lệ", 400);
+  if (!studentId) throw httpError("Thiếu học sinh", 400);
+  if (!title || !title.trim()) throw httpError("Tiêu đề là bắt buộc", 400);
+  if (!recordDate) throw httpError("Ngày ghi nhận là bắt buộc", 400);
+  if (recordDate > todayStr()) throw httpError("Ngày ghi nhận không được ở tương lai", 400);
+  if (!category) throw httpError("Vui lòng chọn danh mục", 400);
+
+  const pts = Number(points);
+  if (!Number.isInteger(pts) || pts <= 0) {
+    throw httpError(behaviorType === "POSITIVE" ? "Điểm khen thưởng phải là số dương" : "Điểm trừ phải là số dương", 400);
+  }
+  if (!(await validCategory(behaviorType, category))) throw httpError("Danh mục không hợp lệ", 400);
+
+  const semesterId = await resolveSemesterId(recordDate);
+
+  const recipients = await behaviourModel.findStudentRecipients(parseInt(studentId, 10));
+  const notifTitle = behaviorType === "POSITIVE" ? "Được khen thưởng" : "Bị ghi nhận vi phạm";
+  const notifContent = behaviorType === "POSITIVE"
+    ? `Học sinh được cộng ${pts} điểm khen thưởng: "${title.trim()}".`
+    : `Học sinh bị ghi nhận vi phạm (-${pts} điểm): "${title.trim()}".`;
+
+  const behaviorId = await behaviourModel.createRecord({
+    studentId: parseInt(studentId, 10),
+    behaviorType,
+    title: title.trim(),
+    category: category ?? null,
+    description: description ?? null,
+    severityLevel: severityLevel ?? "LOW",
+    affectsConduct: behaviorType === "VIOLATION" ? Boolean(affectsConduct) : false,
+    points: pts,
+    recordDate,
+    semesterId,
+    evidenceUrl: evidenceUrl ?? null,
+    createdBy: actorUserId,
+    reason: payload.reason ?? null,
+    notifications: buildRecipientNotifications(recipients, notifTitle, notifContent),
+  });
+
+  return { behaviorId };
+}
+
+async function updateRecordAdmin({ actorUserId, behaviorId, payload }) {
+  const existing = await behaviourModel.findRecordById(behaviorId);
+  if (!existing) throw httpError("Không tìm thấy bản ghi", 404);
+  if (existing.status !== "ACTIVE") throw httpError("Bản ghi đã lưu trữ, không thể sửa", 409);
+
+  const pts = Number(payload.points);
+  if (!Number.isInteger(pts) || pts <= 0) throw httpError("Điểm phải là số dương", 400);
+  if (!payload.title || !payload.title.trim()) throw httpError("Tiêu đề là bắt buộc", 400);
+  if (!payload.recordDate) throw httpError("Ngày ghi nhận là bắt buộc", 400);
+  if (payload.recordDate > todayStr()) throw httpError("Ngày ghi nhận không được ở tương lai", 400);
+  if (!payload.category) throw httpError("Vui lòng chọn danh mục", 400);
+  if (!(await validCategory(existing.behaviorType, payload.category))) throw httpError("Danh mục không hợp lệ", 400);
+
+  await behaviourModel.updateRecord({
+    behaviorId,
+    oldPoints: existing.points,
+    reason: payload.reason ?? null,
+    changedBy: actorUserId,
+    fields: {
+      studentId: existing.studentId,
+      title: payload.title.trim(),
+      category: payload.category ?? null,
+      description: payload.description ?? null,
+      severityLevel: payload.severityLevel ?? "LOW",
+      affectsConduct: existing.behaviorType === "VIOLATION" ? Boolean(payload.affectsConduct) : false,
+      points: pts,
+      recordDate: payload.recordDate,
+      evidenceUrl: payload.evidenceUrl ?? null,
+    },
+  });
+
+  return { behaviorId };
+}
+
+async function archiveRecordAdmin({ actorUserId, behaviorId, reason }) {
+  const existing = await behaviourModel.findRecordById(behaviorId);
+  if (!existing) throw httpError("Không tìm thấy bản ghi", 404);
+
   if (!reason || !reason.trim()) throw httpError("Vui lòng nhập lý do lưu trữ", 400);
   if (existing.status === "ARCHIVED") throw httpError("Bản ghi đã được lưu trữ", 409);
 
@@ -403,6 +499,9 @@ module.exports = {
   createRecord,
   updateRecord,
   archiveRecord,
+  createRecordAdmin,
+  updateRecordAdmin,
+  archiveRecordAdmin,
   getConductPreview,
   evaluateConduct,
   getStudentBehaviour,

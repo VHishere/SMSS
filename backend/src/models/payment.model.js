@@ -212,6 +212,39 @@ async function findPaymentTransactionByAppTransId(appTransId) {
   return { ...rows[0], amount: toNumber(rows[0].amount) };
 }
 
+// Full online-payment attempt log for a fee plan — every VietQR/ZaloPay
+// transaction (PENDING/SUCCESS/FAILED/CANCELLED) across all students
+// assigned to that plan, not just the ones that became a confirmed
+// fee_payment row. Used by the admin fee monitoring screen (UC-14).
+async function listTransactionsForFeePlan(feePlanId) {
+  const [rows] = await pool.query(
+    `
+      SELECT
+        pt.transaction_id AS transactionId,
+        pt.fee_assignment_id AS feeAssignmentId,
+        pt.provider,
+        pt.app_trans_id AS appTransId,
+        pt.amount,
+        pt.status,
+        pt.zp_trans_id AS zpTransId,
+        pt.created_at AS createdAt,
+        pt.updated_at AS updatedAt,
+        s.student_id AS studentId,
+        s.student_code AS studentCode,
+        student_user.full_name AS studentName
+      FROM payment_transaction pt
+      INNER JOIN fee_assignment fa ON fa.fee_assignment_id = pt.fee_assignment_id
+      INNER JOIN student s ON s.student_id = fa.student_id
+      INNER JOIN user_account student_user ON student_user.user_id = s.user_id
+      WHERE fa.fee_plan_id = ?
+      ORDER BY pt.created_at DESC
+    `,
+    [feePlanId],
+  );
+
+  return rows.map((row) => ({ ...row, amount: toNumber(row.amount) }));
+}
+
 async function markPaymentTransactionStatus(appTransId, { status, zpTransId, rawResponse }) {
   await pool.query(
     `
@@ -236,5 +269,6 @@ module.exports = {
   listPaymentsForAssignment,
   createPaymentTransaction,
   findPaymentTransactionByAppTransId,
+  listTransactionsForFeePlan,
   markPaymentTransactionStatus,
 };

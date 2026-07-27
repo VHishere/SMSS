@@ -63,7 +63,43 @@ async function isTeacherForClass(teacherId, classId) {
   return Boolean(row);
 }
 
+const TEACHER_ROLE_NAMES = ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"];
+
+// Admin can message any active STAFF or TEACHER-role user — no class/student scoping.
+async function isStaffOrTeacher(userId) {
+  const [[row]] = await pool.query(
+    `SELECT 1 AS ok
+     FROM user_role ur
+     INNER JOIN role r ON r.role_id = ur.role_id
+     INNER JOIN user_account ua ON ua.user_id = ur.user_id AND ua.status = 'ACTIVE'
+     WHERE ur.user_id = ? AND r.role_name IN ('STAFF', ?, ?, ?)
+     LIMIT 1`,
+    [userId, ...TEACHER_ROLE_NAMES],
+  );
+  return Boolean(row);
+}
+
 // ── Contacts for composing ────────────────────────────────────────────────────
+
+// Admin's contacts picker — every active STAFF/TEACHER user school-wide.
+async function findStaffTeacherContacts() {
+  const [rows] = await pool.query(
+    `SELECT
+       ua.user_id AS userId,
+       ua.full_name AS fullName,
+       ua.email,
+       ua.avatar,
+       GROUP_CONCAT(DISTINCT r.role_name ORDER BY r.role_name) AS roleNames
+     FROM user_account ua
+     INNER JOIN user_role ur ON ur.user_id = ua.user_id
+     INNER JOIN role r ON r.role_id = ur.role_id
+     WHERE ua.status = 'ACTIVE' AND r.role_name IN ('STAFF', ?, ?, ?)
+     GROUP BY ua.user_id, ua.full_name, ua.email, ua.avatar
+     ORDER BY ua.full_name ASC`,
+    TEACHER_ROLE_NAMES,
+  );
+  return rows.map((r) => ({ ...r, roleNames: r.roleNames ? r.roleNames.split(",") : [] }));
+}
 
 async function findStudentContacts(teacherId) {
   const [rows] = await pool.query(
@@ -133,6 +169,43 @@ async function findClassMemberUserIds(classId, audience) {
        INNER JOIN user_account ua ON ua.user_id = pp.user_id AND ua.status = 'ACTIVE'
        WHERE ce.class_id = ? AND ce.status = 'ACTIVE'`,
       [classId],
+    );
+    parents.forEach((r) => ids.add(r.userId));
+  }
+  return [...ids];
+}
+
+// Broader recipient resolution for admin announcements: one class, a whole
+// grade (all its active classes), or the whole school (no filter at all).
+async function findScopedMemberUserIds({ classId, gradeId, audience }) {
+  const ids = new Set();
+  const scopeWhere = classId ? "ce.class_id = ?" : gradeId ? "sc.grade_id = ?" : "1=1";
+  const scopeParam = classId || gradeId || null;
+
+  if (audience === "STUDENTS" || audience === "ALL") {
+    const params = scopeParam ? [scopeParam] : [];
+    const [students] = await pool.query(
+      `SELECT s.user_id AS userId
+       FROM class_enrollment ce
+       INNER JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+       INNER JOIN student s ON s.student_id = ce.student_id AND s.status = 'ACTIVE'
+       INNER JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
+       WHERE ce.status = 'ACTIVE' AND ${scopeWhere}`,
+      params,
+    );
+    students.forEach((r) => ids.add(r.userId));
+  }
+  if (audience === "PARENTS" || audience === "ALL") {
+    const params = scopeParam ? [scopeParam] : [];
+    const [parents] = await pool.query(
+      `SELECT pp.user_id AS userId
+       FROM class_enrollment ce
+       INNER JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+       INNER JOIN student_parent sp ON sp.student_id = ce.student_id
+       INNER JOIN parent_profile pp ON pp.parent_id = sp.parent_id
+       INNER JOIN user_account ua ON ua.user_id = pp.user_id AND ua.status = 'ACTIVE'
+       WHERE ce.status = 'ACTIVE' AND ${scopeWhere}`,
+      params,
     );
     parents.forEach((r) => ids.add(r.userId));
   }
@@ -857,6 +930,9 @@ module.exports = {
   findStudentContacts,
   findParentContacts,
   findClassMemberUserIds,
+  findScopedMemberUserIds,
+  isStaffOrTeacher,
+  findStaffTeacherContacts,
   findConversations,
   findConversationMeta,
   findParticipants,

@@ -58,6 +58,7 @@ function EventsPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
+  const [detailError, setDetailError] = useState("");
   const [featuredId, setFeaturedId] = useState(null);
   const [cursor, setCursor] = useState(null);
   const [attFilter, setAttFilter] = useState("");
@@ -98,11 +99,16 @@ function EventsPage() {
   }, [events, featuredId]);
 
   useEffect(() => {
-    if (!featured) { setDetail(null); return; }
     let m = true;
-    setDetail(null);
-    eventApi.getDetail(featured.eventId).then((res) => { if (m) setDetail(res.data); }).catch(() => {});
-    return () => { m = false; };
+    const timer = setTimeout(() => {
+      if (!featured) { setDetail(null); setDetailError(""); return; }
+      setDetail(null);
+      setDetailError("");
+      eventApi.getDetail(featured.eventId)
+        .then((res) => { if (m) setDetail(res.data); })
+        .catch((err) => { if (m) setDetailError(err.message); });
+    }, 0);
+    return () => { m = false; clearTimeout(timer); };
   }, [featured?.eventId]);
 
   const headerUser = useMemo(() => {
@@ -301,7 +307,9 @@ function EventsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y" style={{ borderColor: C.border }}>
-                    {!detail ? (
+                    {detailError ? (
+                      <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-red-500">Không thể tải danh sách: {detailError}</td></tr>
+                    ) : !detail ? (
                       <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-400">Đang tải danh sách...</td></tr>
                     ) : shownParticipants.length === 0 ? (
                       <tr><td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-400">Chưa có người đăng ký.</td></tr>
@@ -315,7 +323,7 @@ function EventsPage() {
                               <span style={{ color: C.onSurface }}>{p.name}</span>
                             </div>
                           </td>
-                          <td className="px-6 py-3" style={{ color: C.muted }}>{PTYPE[p.participantType] ?? "—"}{p.studentName ? ` · ${p.studentName}` : ""}</td>
+                          <td className="px-6 py-3" style={{ color: C.muted }}>{PTYPE[p.participantType] ?? "—"}</td>
                           <td className="px-6 py-3"><span className="rounded px-2 py-1 text-[10px] font-bold uppercase tracking-tight" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td>
                           <td className="px-6 py-3" style={{ color: C.muted }}>{CHECK[p.attendStatus] ?? "—"}</td>
                           <td className="px-6 py-3 text-right">

@@ -9,7 +9,7 @@ const STATUS_OPTIONS = [
   { value: "RESOLVED",    label: "Đã xử lý" },
 ];
 
-function BehaviourWarningModal({ warning, onClose, onSaved }) {
+function BehaviourWarningModal({ warning, api = behaviourApi, onClose, onSaved }) {
   const [note,         setNote]         = useState(warning.note ?? "");
   const [intervention, setIntervention] = useState(warning.intervention ?? "");
   const [status,       setStatus]       = useState(warning.status ?? "OPEN");
@@ -21,7 +21,7 @@ function BehaviourWarningModal({ warning, onClose, onSaved }) {
     setSaving(true);
     setErrorMsg("");
     try {
-      await behaviourApi.updateWarning(warning.warningId, {
+      await api.updateWarning(warning.warningId, {
         note: note.trim() || null, intervention: intervention.trim(), status,
       });
       onSaved();

@@ -183,6 +183,14 @@ router.post(
 );
 
 router.get(
+  "/me/students/:studentId/notifications/feed",
+  authenticate,
+  authorize("PARENT"),
+  ensureParentOwnsStudent,
+  parentController.getStudentNotificationFeed,
+);
+
+router.get(
   "/me/meetings/dashboard",
   authenticate,
   authorize("PARENT"),

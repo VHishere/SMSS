@@ -96,7 +96,7 @@ function FeedItem({ item, unread }) {
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
         style={{ backgroundColor: item.iconBg, color: item.accent }}
       >
-        <Ms name={item.icon} className="!text-[22px]" />
+        <Ms name={item.icon} className="text-[22px]!" />
       </div>
 
       <div className="min-w-0 flex-1">
@@ -390,7 +390,7 @@ function AnnouncementsPage() {
               </select>
               <button type="button" onClick={markAllRead} disabled={unreadCount === 0}
                 className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-40" style={{ backgroundColor: C.orange }}>
-                <Ms name="done_all" className="!text-[18px]" /> Đánh dấu đã đọc tất cả
+                <Ms name="done_all" className="text-[18px]!" /> Đánh dấu đã đọc tất cả
               </button>
             </div>
           </div>
@@ -410,7 +410,7 @@ function AnnouncementsPage() {
             </div>
             <button type="button" onClick={() => { setCategory("alerts"); setFeedFilter("all"); }}
               className="flex items-center gap-1.5 rounded-full bg-white/15 px-5 py-2.5 text-sm font-bold backdrop-blur transition-all hover:bg-white/25 active:scale-95">
-              Xem tất cả <Ms name="arrow_forward" className="!text-[18px]" />
+              Xem tất cả <Ms name="arrow_forward" className="text-[18px]!" />
             </button>
           </div>
 

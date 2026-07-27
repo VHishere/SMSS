@@ -255,6 +255,43 @@ async function markAllMyNotificationsRead(req, res) {
   }
 }
 
+// GET /parents/me/students/:studentId/notifications/feed
+async function getStudentNotificationFeed(req, res) {
+  try {
+    const student = req.linkedStudent;
+
+    const [school, rawAlerts] = await Promise.all([
+      parentModel.findAnnouncementFeedForClass(student.classId),
+      parentModel.findWarningAlertsForStudent(student.studentId),
+    ]);
+
+    const alerts = rawAlerts.map((a) => ({
+      ...a,
+      studentId: student.studentId,
+      studentName: student.studentFullName,
+      studentCode: student.studentCode,
+      className: student.className,
+    }));
+
+    const newAlerts = alerts.filter((a) => a.status === "OPEN").length;
+
+    return res.json({
+      success: true,
+      data: {
+        school,
+        alerts,
+        counts: { total: school.length + alerts.length, newAlerts },
+      },
+    });
+  } catch (error) {
+    console.error("getStudentNotificationFeed error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể tải trung tâm thông báo",
+    });
+  }
+}
+
 // ── Events ────────────────────────────────────────────────────────────────────
 
 async function getStudentEvents(req, res) {
@@ -504,6 +541,7 @@ module.exports = {
   getMyNotifications,
   markMyNotificationRead,
   markAllMyNotificationsRead,
+  getStudentNotificationFeed,
   getMyMessageContacts,
   startMyTeacherConversation,
   searchMyMessages,

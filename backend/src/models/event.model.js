@@ -150,6 +150,81 @@ async function findEvents(userId, teacherClassIds, filters = {}) {
   };
 }
 
+// Admin: every event school-wide, no created_by/class ownership filter.
+async function findAllEvents(filters = {}) {
+  const { status, category, classId, startDate, endDate, search, page = 1, limit = 20 } = filters;
+  const offset = (page - 1) * limit;
+
+  const params = [];
+  let where = "1=1";
+  if (status)    { where += " AND e.status = ?";            params.push(status); }
+  if (category)  { where += " AND e.category = ?";          params.push(category); }
+  if (classId)   { where += " AND e.class_id = ?";          params.push(parseInt(classId, 10)); }
+  if (startDate) { where += " AND DATE(e.start_date) >= ?"; params.push(startDate); }
+  if (endDate)   { where += " AND DATE(e.start_date) <= ?"; params.push(endDate); }
+  if (search)    { where += " AND e.title LIKE ?";          params.push(`%${search}%`); }
+
+  const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM event e WHERE ${where}`, params);
+
+  const [rows] = await pool.query(
+    `SELECT
+       e.event_id AS eventId, e.title, e.category, e.event_type AS eventType,
+       DATE_FORMAT(e.start_date, '%Y-%m-%d %H:%i') AS startDate,
+       DATE_FORMAT(e.end_date, '%Y-%m-%d %H:%i')   AS endDate,
+       e.location, e.status, e.capacity, e.created_by AS createdBy,
+       sc.class_name AS className,
+       (SELECT COUNT(*) FROM event_registration er WHERE er.event_id = e.event_id) AS participantCount,
+       (SELECT COUNT(*) FROM event_registration er WHERE er.event_id = e.event_id AND er.attend_status IN ('PRESENT','LATE')) AS attendedCount
+     FROM event e
+     LEFT JOIN school_class sc ON sc.class_id = e.class_id
+     WHERE ${where}
+     ORDER BY e.start_date DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset],
+  );
+
+  return {
+    total: Number(total),
+    rows: rows.map((r) => ({ ...r, participantCount: Number(r.participantCount), attendedCount: Number(r.attendedCount) })),
+  };
+}
+
+async function dashboardStatsAll() {
+  const [[row]] = await pool.query(
+    `SELECT
+       (SELECT COUNT(*) FROM event WHERE status = 'ACTIVE' AND start_date > NOW()) AS upcoming,
+       (SELECT COUNT(*) FROM event WHERE status = 'ACTIVE' AND start_date <= NOW() AND (end_date IS NULL OR end_date >= NOW())) AS ongoing,
+       (SELECT COUNT(*) FROM event WHERE status = 'COMPLETED') AS completed,
+       (SELECT COUNT(*) FROM event) AS total`,
+  );
+  return {
+    upcoming: Number(row.upcoming), ongoing: Number(row.ongoing),
+    completed: Number(row.completed), total: Number(row.total),
+  };
+}
+
+async function analyticsAll() {
+  const [byCategory] = await pool.query(
+    `SELECT COALESCE(category, 'KHÁC') AS category, COUNT(*) AS count FROM event GROUP BY category`,
+  );
+  const [byMonth] = await pool.query(
+    `SELECT DATE_FORMAT(start_date, '%Y-%m') AS month, COUNT(*) AS count
+     FROM event GROUP BY DATE_FORMAT(start_date, '%Y-%m') ORDER BY month ASC`,
+  );
+  const [[totals]] = await pool.query(
+    `SELECT
+       (SELECT COUNT(*) FROM event_registration) AS totalParticipants,
+       (SELECT COUNT(*) FROM event_registration WHERE attend_status IN ('PRESENT','LATE')) AS totalAttended
+     FROM dual`,
+  );
+  return {
+    byCategory: byCategory.map((r) => ({ category: r.category, count: Number(r.count) })),
+    byMonth: byMonth.map((r) => ({ month: r.month, count: Number(r.count) })),
+    totalParticipants: Number(totals.totalParticipants),
+    totalAttended: Number(totals.totalAttended),
+  };
+}
+
 // ── Participants & attendance ─────────────────────────────────────────────────
 
 async function addParticipants(eventId, participants, registeredBy) {
@@ -309,6 +384,9 @@ module.exports = {
   saveOutcome,
   findById,
   findEvents,
+  findAllEvents,
+  dashboardStatsAll,
+  analyticsAll,
   addParticipants,
   removeParticipant,
   findParticipants,

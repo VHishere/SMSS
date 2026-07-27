@@ -23,15 +23,30 @@ async function notify(receivers, title, content, eventId) {
   );
 }
 
+// actor.isAdmin bypasses ownership entirely — admin manages every event
+// school-wide, not just ones it personally created.
 async function ensureOwner(eventId, actor) {
   const event = await eventModel.findById(eventId);
   if (!event) throw httpError("Không tìm thấy sự kiện", 404);
-  if (event.createdBy !== actor.userId) throw httpError("Bạn không có quyền với sự kiện này", 403);
+  if (!actor.isAdmin && event.createdBy !== actor.userId) throw httpError("Bạn không có quyền với sự kiện này", 403);
   return event;
 }
 
+// Read-only visibility: same rule findEvents() uses (created by me OR my
+// class OR school-wide), broader than ensureOwner's "created by me" check —
+// a teacher can legitimately see (but not necessarily edit) events they
+// didn't create. Admin always has full visibility.
+async function ensureVisible(eventId, actor) {
+  const event = await eventModel.findById(eventId);
+  if (!event) throw httpError("Không tìm thấy sự kiện", 404);
+  if (actor.isAdmin || event.createdBy === actor.userId || event.classId == null) return event;
+  const classes = await eventModel.findTeacherClasses(actor.teacherId);
+  if (classes.some((c) => c.classId === event.classId)) return event;
+  throw httpError("Bạn không có quyền xem sự kiện này", 403);
+}
+
 async function validateClassScope(actor, classId) {
-  if (!classId) return; // school-wide allowed
+  if (!classId || actor.isAdmin) return; // school-wide allowed; admin may assign any class
   const ok = await eventModel.isTeacherForClass(actor.teacherId, classId);
   if (!ok) throw httpError("Bạn không phụ trách lớp này", 403);
 }
@@ -209,7 +224,7 @@ async function saveOutcome({ actor, eventId, payload }) {
 // ── Detail aggregate ──────────────────────────────────────────────────────────
 
 async function getDetail({ actor, eventId }) {
-  const event = await ensureOwner(eventId, actor);
+  const event = await ensureVisible(eventId, actor);
   const [participants, documents, logs] = await Promise.all([
     eventModel.findParticipants(eventId),
     eventModel.findDocuments(eventId),

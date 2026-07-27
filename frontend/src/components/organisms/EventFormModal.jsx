@@ -18,7 +18,7 @@ const EVENT_TYPES = [
 
 function toLocalInput(value) { return value ? value.replace(" ", "T").slice(0, 16) : ""; }
 
-function EventFormModal({ mode, classes = [], categories = [], event = null, onClose, onSaved }) {
+function EventFormModal({ mode, classes = [], categories = [], event = null, api = eventApi, onClose, onSaved }) {
   const isEdit = mode === "edit";
 
   const [title, setTitle] = useState(event?.title ?? "");
@@ -38,11 +38,13 @@ function EventFormModal({ mode, classes = [], categories = [], event = null, onC
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    if (isEdit || !classId) { setContacts({ students: [], parents: [] }); return; }
     let m = true;
-    eventApi.getClassContacts(classId).then((res) => { if (m) setContacts(res.data); }).catch(() => {});
-    return () => { m = false; };
-  }, [classId, isEdit]);
+    const timer = setTimeout(() => {
+      if (isEdit || !classId) { setContacts({ students: [], parents: [] }); return; }
+      api.getClassContacts(classId).then((res) => { if (m) setContacts(res.data); }).catch(() => {});
+    }, 0);
+    return () => { m = false; clearTimeout(timer); };
+  }, [classId, isEdit, api]);
 
   function toggle(key) {
     setSelected((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
@@ -73,8 +75,8 @@ function EventFormModal({ mode, classes = [], categories = [], event = null, onC
         organizer: organizer.trim(), capacity: capacity ? Number(capacity) : null,
         description: description || null,
       };
-      if (isEdit) await eventApi.update(event.eventId, body);
-      else await eventApi.create({ ...body, participants: participantsPayload() });
+      if (isEdit) await api.update(event.eventId, body);
+      else await api.create({ ...body, participants: participantsPayload() });
       onSaved();
     } catch (err) { setErrorMsg(err.message); } finally { setBusy(false); }
   }

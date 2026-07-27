@@ -12,9 +12,23 @@ import { LoginPage } from "./pages/LoginPage";
 
 import { TeacherDashboard } from "./pages/dashboards/TeacherDashboard";
 
-import AdminDashboardLayout from "./pages/dashboards/admin/AdminDashboardLayout";
-import AdminOverviewPage from "./pages/dashboards/admin/AdminOverviewPage";
-import AdminUsersPage from "./pages/dashboards/admin/AdminUsersPage";
+import AdminDashboardLayout from "./pages/admin/AdminDashboardLayout";
+import AdminOverviewPage from "./pages/admin/AdminOverviewPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminFeesPage from "./pages/admin/AdminFeesPage";
+import AdminFeeDetailPage from "./pages/admin/AdminFeeDetailPage";
+import AdminFeeCategoriesPage from "./pages/admin/AdminFeeCategoriesPage";
+import AdminStudentsOverviewPage from "./pages/admin/AdminStudentsOverviewPage";
+import AdminStudentProfilePage from "./pages/admin/AdminStudentProfilePage";
+import AdminAcademicPage from "./pages/admin/AdminAcademicPage";
+import AdminBehaviourPage from "./pages/admin/AdminBehaviourPage";
+import AdminDisciplinePage from "./pages/admin/AdminDisciplinePage";
+import AdminReportsPage from "./pages/admin/AdminReportsPage";
+import AdminAttendancePage from "./pages/admin/AdminAttendancePage";
+import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage";
+import AdminMessages from "./pages/admin/AdminMessages";
+import AdminEventsPage from "./pages/admin/AdminEventsPage";
+import AdminEventDetailPage from "./pages/admin/AdminEventDetailPage";
 import ParentDashboard from "./pages/dashboards/ParentDashboard";
 import StudentDashboard from "./pages/dashboards/StudentDashboard";
 
@@ -132,6 +146,20 @@ function App() {
           >
             <Route index element={<AdminOverviewPage />} />
             <Route path="users" element={<AdminUsersPage />} />
+            <Route path="fees" element={<AdminFeesPage />} />
+            <Route path="fees/:id" element={<AdminFeeDetailPage />} />
+            <Route path="fee-categories" element={<AdminFeeCategoriesPage />} />
+            <Route path="students" element={<AdminStudentsOverviewPage />} />
+            <Route path="students/:studentId" element={<AdminStudentProfilePage />} />
+            <Route path="academic" element={<AdminAcademicPage />} />
+            <Route path="discipline" element={<AdminDisciplinePage />} />
+            <Route path="behaviour" element={<AdminBehaviourPage />} />
+            <Route path="attendance" element={<AdminAttendancePage />} />
+            <Route path="reports" element={<AdminReportsPage />} />
+            <Route path="notifications" element={<AdminNotificationsPage />} />
+            <Route path="messages" element={<AdminMessages />} />
+            <Route path="events" element={<AdminEventsPage />} />
+            <Route path="events/:eventId" element={<AdminEventDetailPage />} />
           </Route>
 
           <Route

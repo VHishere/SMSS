@@ -1,5 +1,8 @@
 const reportModel         = require("../models/report.model");
 const studentProfileModel = require("../models/studentProfile.model");
+const academicModel       = require("../models/academic.model");
+const behaviourModel      = require("../models/behaviour.model");
+const attendanceModel     = require("../models/attendance.model");
 const goalModel           = require("../models/goal.model");
 const academicService     = require("./academic.service");
 const behaviourService    = require("./behaviour.service");
@@ -11,7 +14,7 @@ function httpError(message, statusCode) {
   return err;
 }
 
-const REPORT_TYPES = ["ATTENDANCE", "ACADEMIC", "BEHAVIOUR", "PROGRESS", "CLASS_SUMMARY", "GOAL"];
+const REPORT_TYPES = ["ATTENDANCE", "ACADEMIC", "BEHAVIOUR", "PROGRESS", "CLASS_SUMMARY", "GOAL", "EFFICIENCY"];
 const REPORT_TITLES = {
   ATTENDANCE:    "Báo cáo chuyên cần",
   ACADEMIC:      "Báo cáo học tập",
@@ -19,7 +22,11 @@ const REPORT_TITLES = {
   PROGRESS:      "Báo cáo tiến bộ học sinh",
   CLASS_SUMMARY: "Báo cáo tổng hợp lớp",
   GOAL:          "Báo cáo hoàn thành mục tiêu",
+  EFFICIENCY:    "Báo cáo hiệu quả vận hành",
 };
+
+// UC-110: Institutional Efficiency Report — school-wide, admin only.
+const ADMIN_ONLY_REPORT_TYPES = ["EFFICIENCY"];
 
 const GOAL_TYPE_LABEL = { ACADEMIC: "Học tập", BEHAVIOUR: "Hạnh kiểm", ATTENDANCE: "Chuyên cần", PERSONAL: "Phát triển cá nhân" };
 const GOAL_STATUS_LABEL = { IN_PROGRESS: "Đang thực hiện", COMPLETED: "Hoàn thành", FAILED: "Chưa đạt", ARCHIVED: "Đã lưu trữ" };
@@ -322,6 +329,123 @@ async function buildGoals(filters) {
   };
 }
 
+// ── UC-110: Institutional Efficiency Report (school-wide, grouped by grade or term) ──
+
+// Aggregates operational metrics (attendance rate, average GPA, average
+// conduct, open warnings) across a set of classes for one semester. Reuses
+// the same per-class analytics services as the other report builders so the
+// numbers stay consistent with everything else in the app, rather than
+// re-deriving the GPA/conduct weighting formulas in raw SQL.
+async function computeGroupMetrics(classes, semesterId, schoolYearId, startDate, endDate) {
+  let totalStudents = 0;
+  let attendanceWeighted = 0, attendanceWeight = 0;
+  let gpaWeighted = 0, gpaWeight = 0;
+  let conductWeighted = 0, conductWeight = 0;
+  let openWarnings = 0;
+
+  for (const c of classes) {
+    const [academic, behaviour, attendance, academicWarnings, behaviourWarnings, absenceWarnings] = await Promise.all([
+      academicService.getClassAnalytics({ teacherId: null, classId: c.classId, semesterId }).catch(() => null),
+      behaviourService.getClassAnalytics({ classId: c.classId, semesterId }).catch(() => null),
+      reportModel.getClassAttendanceReport(c.classId, startDate, endDate).catch(() => null),
+      academicModel.findWarnings({ classId: c.classId, semesterId, status: "OPEN", page: 1, limit: 1 }).catch(() => ({ total: 0 })),
+      behaviourModel.findWarnings({ classId: c.classId, semesterId, status: "OPEN", page: 1, limit: 1 }).catch(() => ({ total: 0 })),
+      attendanceModel.findAbsenceWarnings(c.classId, schoolYearId).catch(() => []),
+    ]);
+
+    const classSize = academic?.summary?.totalStudents ?? behaviour?.summary?.totalStudents ?? 0;
+    totalStudents += classSize;
+
+    if (academic?.summary?.classAverage != null) { gpaWeighted += academic.summary.classAverage * classSize; gpaWeight += classSize; }
+    if (behaviour?.summary?.avgConduct != null) { conductWeighted += behaviour.summary.avgConduct * classSize; conductWeight += classSize; }
+    if (attendance?.totals?.attendanceRate != null) { attendanceWeighted += attendance.totals.attendanceRate * classSize; attendanceWeight += classSize; }
+
+    openWarnings += (academicWarnings.total ?? 0) + (behaviourWarnings.total ?? 0)
+      + absenceWarnings.filter((w) => w.status === "OPEN").length;
+  }
+
+  return {
+    classCount: classes.length,
+    totalStudents,
+    attendanceRate: attendanceWeight > 0 ? Math.round((attendanceWeighted / attendanceWeight) * 10) / 10 : null,
+    avgGpa: gpaWeight > 0 ? Math.round((gpaWeighted / gpaWeight) * 100) / 100 : null,
+    avgConduct: conductWeight > 0 ? Math.round((conductWeighted / conductWeight) * 10) / 10 : null,
+    openWarnings,
+  };
+}
+
+const EFFICIENCY_COLUMNS = (groupLabel) => [
+  { key: "groupLabel", label: groupLabel },
+  { key: "classCount", label: "Số lớp" },
+  { key: "totalStudents", label: "Sĩ số" },
+  { key: "attendanceRate", label: "Chuyên cần (%)" },
+  { key: "avgGpa", label: "Điểm TB" },
+  { key: "avgConduct", label: "Hạnh kiểm TB" },
+  { key: "openWarnings", label: "Cảnh báo đang mở" },
+];
+
+function fillDashes(row) {
+  return {
+    ...row,
+    attendanceRate: row.attendanceRate ?? "—",
+    avgGpa: row.avgGpa ?? "—",
+    avgConduct: row.avgConduct ?? "—",
+  };
+}
+
+async function buildEfficiencyByGrade(filters) {
+  const { semesterId } = filters;
+  if (!semesterId) throw httpError("Cần chọn học kỳ", 400);
+  const sem = await resolveSemesterRange(semesterId);
+  if (!sem) throw httpError("Không tìm thấy học kỳ", 404);
+
+  const allClasses = await studentProfileModel.findAllClasses();
+  const classesInYear = allClasses.filter((c) => c.schoolYearId === sem.schoolYearId);
+
+  const gradeMap = new Map();
+  for (const c of classesInYear) {
+    if (!gradeMap.has(c.gradeId)) gradeMap.set(c.gradeId, { gradeId: c.gradeId, gradeName: c.gradeName, classes: [] });
+    gradeMap.get(c.gradeId).classes.push(c);
+  }
+
+  const rows = [];
+  for (const grade of [...gradeMap.values()].sort((a, b) => a.gradeId - b.gradeId)) {
+    const metrics = await computeGroupMetrics(grade.classes, semesterId, sem.schoolYearId, sem.startDate, sem.endDate);
+    rows.push(fillDashes({ groupLabel: grade.gradeName, ...metrics }));
+  }
+
+  return {
+    sections: [{ heading: "Hiệu quả vận hành theo khối lớp", columns: EFFICIENCY_COLUMNS("Khối"), rows }],
+    filtersLabel: `Theo khối · Học kỳ ${sem.semesterName} · ${sem.schoolYearName}`,
+  };
+}
+
+async function buildEfficiencyBySemester() {
+  const [semesters, allClasses] = await Promise.all([
+    studentProfileModel.findSemesters(),
+    studentProfileModel.findAllClasses(),
+  ]);
+
+  const rows = [];
+  for (const sem of semesters) {
+    const classesInYear = allClasses.filter((c) => c.schoolYearId === sem.schoolYearId);
+    const metrics = classesInYear.length > 0
+      ? await computeGroupMetrics(classesInYear, sem.semesterId, sem.schoolYearId, sem.startDate, sem.endDate)
+      : { classCount: 0, totalStudents: 0, attendanceRate: null, avgGpa: null, avgConduct: null, openWarnings: 0 };
+    rows.push(fillDashes({ groupLabel: `${sem.semesterName} · ${sem.schoolYearName}`, ...metrics }));
+  }
+
+  return {
+    sections: [{ heading: "Hiệu quả vận hành theo học kỳ", columns: EFFICIENCY_COLUMNS("Học kỳ"), rows }],
+    filtersLabel: "Theo học kỳ · tất cả năm học",
+  };
+}
+
+async function buildEfficiency(filters) {
+  if (filters.groupBy === "SEMESTER") return buildEfficiencyBySemester();
+  return buildEfficiencyByGrade(filters);
+}
+
 const BUILDERS = {
   ATTENDANCE: buildAttendance,
   ACADEMIC: buildAcademic,
@@ -329,6 +453,7 @@ const BUILDERS = {
   PROGRESS: buildProgress,
   CLASS_SUMMARY: buildClassSummary,
   GOAL: buildGoals,
+  EFFICIENCY: buildEfficiency,
 };
 
 /**
@@ -351,5 +476,6 @@ async function generate({ reportType, filters }) {
 module.exports = {
   REPORT_TYPES,
   REPORT_TITLES,
+  ADMIN_ONLY_REPORT_TYPES,
   generate,
 };

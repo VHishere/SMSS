@@ -340,7 +340,7 @@ function ThreadPanel({
 
   if (!conversationId) {
     return (
-      <div className="flex min-h-[650px] items-center justify-center rounded-3xl border border-dashed border-orange-200 bg-white p-8 text-center">
+      <div className="flex min-h-162.5 items-center justify-center rounded-3xl border border-dashed border-orange-200 bg-white p-8 text-center">
         <div>
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#FFF7F2] text-[#F27123]">
             <FiMessageSquare size={28} />
@@ -359,7 +359,7 @@ function ThreadPanel({
   }
 
   return (
-    <div className="flex min-h-[650px] flex-col overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
+    <div className="flex min-h-162.5 flex-col overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-orange-100 bg-white px-6 py-4">
         <div className="flex items-center gap-3">
           <ConversationAvatar
@@ -643,7 +643,7 @@ function ParentMessages() {
 
       {!loading && !error && (
         <section className="grid gap-5 xl:grid-cols-[380px_1fr]">
-          <aside className="min-h-[650px] overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
+          <aside className="min-h-162.5 overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
             <div className="border-b border-orange-100 px-5 py-5">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <h2 className="mb-0 text-xl font-black text-[#0F2747]">
@@ -704,7 +704,7 @@ function ParentMessages() {
               </div>
             </div>
 
-            <div className="h-[560px] overflow-y-auto px-4 py-4">
+            <div className="h-140 overflow-y-auto px-4 py-4">
               <form
                 onSubmit={handleMessageSearch}
                 className="mb-4"

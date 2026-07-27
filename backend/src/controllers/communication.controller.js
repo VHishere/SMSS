@@ -545,6 +545,74 @@ async function uploadFile(req, res) {
   }
 }
 
+// ── Admin (communicates with STAFF/TEACHER users) ───────────────────────────
+
+// GET /admin/communication/contacts — every active STAFF/TEACHER user school-wide
+async function getContactsAdmin(req, res) {
+  try {
+    const rows = await commModel.findStaffTeacherContacts();
+    const isTeacher = (r) => r.roleNames.some((n) => n !== "STAFF");
+    return res.json({
+      success: true,
+      data: {
+        staff: rows.filter((r) => r.roleNames.includes("STAFF")),
+        teachers: rows.filter(isTeacher),
+      },
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy danh bạ");
+  }
+}
+
+// POST /admin/communication/conversations  body: { userId }
+async function startConversationAdmin(req, res) {
+  try {
+    const targetUserId = Number(req.body.userId);
+    if (!targetUserId) return res.status(400).json({ success: false, message: "Thiếu người nhận" });
+
+    const ok = await commModel.isStaffOrTeacher(targetUserId);
+    if (!ok) return res.status(404).json({ success: false, message: "Không thể nhắn tin với người dùng này" });
+
+    const existing = await commModel.findAnyDirectConversation("ADMIN_DIRECT", req.user.userId, targetUserId);
+    if (existing) {
+      return res.json({ success: true, data: { conversationId: existing, created: false } });
+    }
+
+    const conversationId = await commModel.createConversation({
+      type: "ADMIN_DIRECT",
+      title: null,
+      studentId: null,
+      createdBy: req.user.userId,
+      participants: [
+        { userId: req.user.userId, role: "ADMIN" },
+        { userId: targetUserId, role: "MEMBER" },
+      ],
+    });
+
+    return res.status(201).json({ success: true, data: { conversationId, created: true } });
+  } catch (error) {
+    return handleError(res, error, "Không thể bắt đầu trò chuyện");
+  }
+}
+
+// GET /admin/communication/search?keyword=&archived=
+async function searchMessages(req, res) {
+  try {
+    const keyword = String(req.query.keyword || "").trim();
+    if (!keyword) return res.status(400).json({ success: false, message: "Vui lòng nhập từ khóa tìm kiếm" });
+
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || "20", 10)));
+
+    const items = await commModel.searchMessages(req.user.userId, {
+      keyword, archived: req.query.archived === "true", page, limit,
+    });
+    return res.json({ success: true, data: { items, page } });
+  } catch (error) {
+    return handleError(res, error, "Không thể tìm kiếm lịch sử tin nhắn");
+  }
+}
+
 module.exports = {
   getDashboard,
   getContacts,
@@ -556,4 +624,7 @@ module.exports = {
   deleteMessage,
   archiveConversation,
   uploadFile,
+  getContactsAdmin,
+  startConversationAdmin,
+  searchMessages,
 };

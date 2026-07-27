@@ -9,6 +9,10 @@
     "students": "node src/scripts/list-students.js",
     "update-passwords": "node src/scripts/update-passwords.js",
     "migrate:payments": "node src/scripts/migrate-payments.js",
+    "migrate:fee-categories": "node src/scripts/migrate-fee-categories.js",
+    "migrate:announcement-grade": "node src/scripts/migrate-announcement-grade.js",
+    "migrate:behaviour-categories": "node src/scripts/migrate-behaviour-categories.js",
+    "migrate:conversation-admin-type": "node src/scripts/migrate-conversation-admin-type.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

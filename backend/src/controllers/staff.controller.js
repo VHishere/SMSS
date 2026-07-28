@@ -84,6 +84,24 @@ async function updateStudent(req, res) {
   }
 }
 
+async function uploadStudentAvatar(req, res) {
+  try {
+    const avatarUrl = req.file?.cloudinaryUrl;
+
+    if (!avatarUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "Chưa nhận được ảnh tải lên",
+      });
+    }
+
+    const data = await staffModel.setStudentAvatar(req.params.id, avatarUrl);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể cập nhật ảnh học sinh");
+  }
+}
+
 async function getParents(req, res) {
   try {
     const data = await staffModel.listParents({
@@ -539,6 +557,7 @@ module.exports = {
   getStudentById,
   createStudent,
   updateStudent,
+  uploadStudentAvatar,
   getParents,
   getParentById,
   createParent,

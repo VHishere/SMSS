@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { adminApi } from "../../api/client";
@@ -119,24 +120,24 @@ function AdminAnnouncementFormModal({ classes, grades, announcement = null, onCl
             {scope === "CLASS" && (
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">Lớp</label>
-                <select value={classId} onChange={(e) => setClassId(e.target.value)} className={inputCls}>
+                <PrettySelect value={classId} onChange={(e) => setClassId(e.target.value)} className={inputCls}>
                   {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-                </select>
+                </PrettySelect>
               </div>
             )}
             {scope === "GRADE" && (
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">Khối</label>
-                <select value={gradeId} onChange={(e) => setGradeId(e.target.value)} className={inputCls}>
+                <PrettySelect value={gradeId} onChange={(e) => setGradeId(e.target.value)} className={inputCls}>
                   {grades.map((g) => <option key={g.gradeId} value={g.gradeId}>{g.gradeName}</option>)}
-                </select>
+                </PrettySelect>
               </div>
             )}
             <div className={scope === "SCHOOL" ? "col-span-2" : ""}>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Đối tượng</label>
-              <select value={audience} onChange={(e) => setAudience(e.target.value)} className={inputCls}>
+              <PrettySelect value={audience} onChange={(e) => setAudience(e.target.value)} className={inputCls}>
                 {AUDIENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           </div>
 

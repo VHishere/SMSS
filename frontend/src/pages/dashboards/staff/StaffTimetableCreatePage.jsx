@@ -9,6 +9,7 @@ import StaffFormCard, {
   inputClass,
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const WEEK_DAYS = [
   { value: 2, label: "Thứ 2" },
@@ -216,7 +217,7 @@ function StaffTimetableCreatePage() {
         footer={`Phạm vi áp dụng: ${targetSummary}`}
       >
         <StaffField label="Phạm vi">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.scope}
             onChange={(event) => updateForm("scope", event.target.value)}
@@ -224,11 +225,11 @@ function StaffTimetableCreatePage() {
             <option value="CLASS">Từng lớp</option>
             <option value="GRADE">Theo khối</option>
             <option value="SCHOOL">Cả trường</option>
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Năm học">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.schoolYearId}
             onChange={(event) => updateForm("schoolYearId", event.target.value)}
@@ -240,12 +241,12 @@ function StaffTimetableCreatePage() {
                 {year.yearName}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
 
         {form.scope !== "SCHOOL" && (
           <StaffField label="Khối">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.gradeId}
               onChange={(event) => updateForm("gradeId", event.target.value)}
@@ -257,13 +258,13 @@ function StaffTimetableCreatePage() {
                   {grade.gradeName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
 
         {form.scope === "CLASS" && (
           <StaffField label="Lớp">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.classId}
               onChange={(event) => updateForm("classId", event.target.value)}
@@ -275,12 +276,12 @@ function StaffTimetableCreatePage() {
                   {item.className}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
 
         <StaffField label="Thứ">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.dayOfWeek}
             onChange={(event) => updateForm("dayOfWeek", event.target.value)}
@@ -290,11 +291,11 @@ function StaffTimetableCreatePage() {
                 {day.label}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Tiết">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.periodNo}
             onChange={(event) => updateForm("periodNo", event.target.value)}
@@ -304,11 +305,11 @@ function StaffTimetableCreatePage() {
                 Tiết {period.periodNo} ({period.startTime}-{period.endTime})
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Môn học">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.subjectId}
             onChange={(event) => updateForm("subjectId", event.target.value)}
@@ -320,11 +321,11 @@ function StaffTimetableCreatePage() {
                 {subject.subjectName}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Cách chọn giáo viên">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.teacherMode}
             onChange={(event) => updateForm("teacherMode", event.target.value)}
@@ -333,12 +334,12 @@ function StaffTimetableCreatePage() {
               Tự lấy giáo viên đã phân công theo từng lớp
             </option>
             <option value="SELECTED_TEACHER">Chọn một giáo viên cụ thể</option>
-          </select>
+          </PrettySelect>
         </StaffField>
 
         {form.teacherMode === "SELECTED_TEACHER" && (
           <StaffField label="Giáo viên">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.teacherId}
               onChange={(event) => updateForm("teacherId", event.target.value)}
@@ -350,7 +351,7 @@ function StaffTimetableCreatePage() {
                   {teacher.fullName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
 

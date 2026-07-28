@@ -14,6 +14,7 @@ import LoadingState from "../../components/atoms/LoadingState";
 import EmptyState from "../../components/molecules/EmptyState";
 import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
 import { useStudentGrades } from "../../hooks/useStudentGrades";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 function normalizeText(value) {
   return String(value || "")
@@ -320,7 +321,7 @@ function StudentGrades() {
             />
           </label>
 
-          <select
+          <PrettySelect
             value={activeSemesterId}
             onChange={(event) => setSelectedSemesterId(event.target.value)}
             className="h-11 min-w-[220px] rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0F2747] outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
@@ -330,7 +331,7 @@ function StudentGrades() {
                 {semester.semesterName} · {semester.schoolYearName}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </div>
       </section>
 

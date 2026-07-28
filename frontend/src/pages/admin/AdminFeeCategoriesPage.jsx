@@ -7,6 +7,7 @@ import StaffDataTable from "../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../components/staff/StaffPageHeader";
 import StatusBadge from "../../components/staff/StatusBadge";
 import { inputClass } from "../../components/staff/StaffFormCard";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -206,7 +207,7 @@ function RateFormModal({ rate, category, lookups, onClose, onSaved }) {
 
           <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747]">
             Năm học
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.schoolYearId}
               onChange={(event) => setField("schoolYearId", event.target.value)}
@@ -218,12 +219,12 @@ function RateFormModal({ rate, category, lookups, onClose, onSaved }) {
                   {year.yearName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747]">
             Học kỳ (tùy chọn)
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.semesterId}
               onChange={(event) => setField("semesterId", event.target.value)}
@@ -234,12 +235,12 @@ function RateFormModal({ rate, category, lookups, onClose, onSaved }) {
                   {semester.semesterName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747]">
             Chu kỳ thu
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.billingCycle}
               onChange={(event) => setField("billingCycle", event.target.value)}
@@ -248,12 +249,12 @@ function RateFormModal({ rate, category, lookups, onClose, onSaved }) {
               <option value="MONTHLY">Hàng tháng</option>
               <option value="PER_SEMESTER">Theo học kỳ</option>
               <option value="PER_YEAR">Theo năm học</option>
-            </select>
+            </PrettySelect>
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747]">
             Khối (tùy chọn)
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.gradeId}
               onChange={(event) => setField("gradeId", event.target.value)}
@@ -264,12 +265,12 @@ function RateFormModal({ rate, category, lookups, onClose, onSaved }) {
                   {grade.gradeName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747]">
             Lớp (tùy chọn)
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.classId}
               onChange={(event) => setField("classId", event.target.value)}
@@ -280,7 +281,7 @@ function RateFormModal({ rate, category, lookups, onClose, onSaved }) {
                   {classItem.className}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747] md:col-span-2">
@@ -439,7 +440,7 @@ function AdminFeeCategoriesPage() {
   };
 
   const categoryToolbar = (
-    <select
+    <PrettySelect
       className="w-full rounded-xl border border-slate-200 bg-[#FFF7F2] px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#F27123] focus:bg-white sm:w-auto"
       value={filters.status}
       onChange={(event) => setFilters((prev) => ({ ...prev, status: event.target.value }))}
@@ -447,12 +448,12 @@ function AdminFeeCategoriesPage() {
       <option value="">Tất cả trạng thái</option>
       <option value="ACTIVE">Đang áp dụng</option>
       <option value="INACTIVE">Ngừng áp dụng</option>
-    </select>
+    </PrettySelect>
   );
 
   const rateToolbar = (
     <>
-      <select
+      <PrettySelect
         className="w-full rounded-xl border border-slate-200 bg-[#FFF7F2] px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#F27123] focus:bg-white sm:w-auto"
         value={rateFilters.schoolYearId}
         onChange={(event) => setRateFilters((prev) => ({ ...prev, schoolYearId: event.target.value }))}
@@ -463,9 +464,9 @@ function AdminFeeCategoriesPage() {
             {year.yearName}
           </option>
         ))}
-      </select>
+      </PrettySelect>
 
-      <select
+      <PrettySelect
         className="w-full rounded-xl border border-slate-200 bg-[#FFF7F2] px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#F27123] focus:bg-white sm:w-auto"
         value={rateFilters.status}
         onChange={(event) => setRateFilters((prev) => ({ ...prev, status: event.target.value }))}
@@ -473,7 +474,7 @@ function AdminFeeCategoriesPage() {
         <option value="">Tất cả trạng thái</option>
         <option value="ACTIVE">Đang áp dụng</option>
         <option value="INACTIVE">Ngừng áp dụng</option>
-      </select>
+      </PrettySelect>
     </>
   );
 

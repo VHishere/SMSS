@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useStudentProfile } from "../../hooks/useStudentProfile";
@@ -315,9 +316,9 @@ function AcademicTab({ acad, beh, semesters, effSem, setSem }) {
         <div className="mb-3 flex items-center justify-between">
           <h3 className="flex items-center gap-2 font-bold" style={{ color: C.onSurface }}><Ms name="show_chart" style={{ color: C.orange }} /> Tiến độ GPA theo học kỳ</h3>
           {semesters.length > 0 && (
-            <select value={effSem} onChange={(e) => setSem(e.target.value)} className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-[#00458E]" style={{ borderColor: C.border, color: C.onSurface }}>
+            <PrettySelect value={effSem} onChange={(e) => setSem(e.target.value)} className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-[#00458E]" style={{ borderColor: C.border, color: C.onSurface }}>
               {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-            </select>
+            </PrettySelect>
           )}
         </div>
         {history.length > 0 ? <TrendChart history={history} /> : <p className="py-8 text-center text-sm text-slate-400">Chưa đủ dữ liệu để vẽ biểu đồ.</p>}

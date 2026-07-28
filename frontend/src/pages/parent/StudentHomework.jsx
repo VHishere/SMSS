@@ -18,6 +18,7 @@ import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentStudentHomework } from "../../hooks/useParentStudentHomework";
 import { formatDateTimeVN } from "../../utils/datetime";
 import { getCurrentSchoolYearLabel } from "../../utils/formatters";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 // ─── FSchool Stitch design tokens (matches the teacher homework portal) ──────
 
@@ -475,24 +476,24 @@ function StudentHomework() {
 
               {showFilters && (
                 <div className="flex flex-wrap items-center gap-2 border-b bg-white px-6 py-3" style={{ borderColor: C.border }}>
-                  <select value={subjectId} onChange={(e) => { setSubjectId(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                  <PrettySelect value={subjectId} onChange={(e) => { setSubjectId(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
                     <option value="">Tất cả môn</option>
                     {subjectOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
-                  <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                  </PrettySelect>
+                  <PrettySelect value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
                     <option value="">Mọi trạng thái</option>
                     <option value="OPEN">Đang mở</option>
                     <option value="CLOSED">Đã đóng</option>
-                  </select>
-                  <select value={submissionFilter} onChange={(e) => { setSubmissionFilter(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                  </PrettySelect>
+                  <PrettySelect value={submissionFilter} onChange={(e) => { setSubmissionFilter(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
                     <option value="">Mọi trạng thái nộp</option>
                     <option value="GRADED">Đã chấm</option>
                     <option value="SUBMITTED">Đã nộp</option>
                     <option value="MISSING">Chưa nộp</option>
-                  </select>
-                  <select value={sort} onChange={(e) => { setSort(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                  </PrettySelect>
+                  <PrettySelect value={sort} onChange={(e) => { setSort(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
                     {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
+                  </PrettySelect>
                   <div className="flex">
                     <input
                       type="text"

@@ -7,6 +7,7 @@ import { useAuth } from "../../context/useAuth";
 import { parentApi } from "../../api/client";
 import { useParentStudents } from "../../hooks/useParentStudents";
 import { formatDateTimeVN } from "../../utils/datetime";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 // ─── FSchool Stitch design tokens (matches teacher/AnnouncementsPage.jsx) ────
 const C = {
@@ -304,12 +305,12 @@ function ParentNotifications() {
               })}
             </div>
             <div className="flex items-center gap-2">
-              <select value={category} onChange={(e) => setCategory(e.target.value)}
+              <PrettySelect value={category} onChange={(e) => setCategory(e.target.value)}
                 className="rounded-full border bg-white px-4 py-2 text-sm font-medium shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={{ borderColor: C.border, color: C.onSurface }}>
                 <option value="all">Tất cả danh mục</option>
                 <option value="school">Thông báo nhà trường</option>
                 <option value="alerts">Cảnh báo học sinh</option>
-              </select>
+              </PrettySelect>
               <button type="button" onClick={markAllRead} disabled={unreadCount === 0}
                 className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-40" style={{ backgroundColor: C.orange }}>
                 <Ms name="done_all" className="text-[18px]!" /> Đánh dấu đã đọc tất cả

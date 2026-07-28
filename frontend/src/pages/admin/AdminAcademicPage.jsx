@@ -6,6 +6,7 @@ import StaffPageHeader from "../../components/staff/StaffPageHeader";
 import { useAdminAcademicMeta } from "../../hooks/useAdminAcademicMeta";
 import { useAdminAcademicAnalytics } from "../../hooks/useAdminAcademicAnalytics";
 import { useAdminAcademicWarnings } from "../../hooks/useAdminAcademicWarnings";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 const C = {
   onSurface: "#1A1C1C", muted: "#584238", border: "#DFC0B2", primary: "#9F4200",
@@ -324,9 +325,9 @@ function DetailTab({ classId, semesterId, subjectOptions, scoreTypes, onOpenStud
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <select value={studentId} onChange={(e) => setSelectedStudentId(e.target.value)} className={selectCls} style={selectStyle}>
+          <PrettySelect value={studentId} onChange={(e) => setSelectedStudentId(e.target.value)} className={selectCls} style={selectStyle}>
             {roster.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName} ({s.studentCode})</option>)}
-          </select>
+          </PrettySelect>
           {onOpenStudent && (
             <button type="button" onClick={() => onOpenStudent(studentId)} className="inline-flex items-center gap-1 rounded-full px-4 py-2 text-xs font-bold text-white" style={{ backgroundColor: C.orange }}><Ms name="open_in_new" className="text-[14px]!" /> Hồ sơ đầy đủ</button>
           )}
@@ -482,12 +483,12 @@ function WarningsTab({ classId, semesterId, onOpenStudent }) {
         ))}
       </div>
 
-      <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls} style={selectStyle}>
+      <PrettySelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls} style={selectStyle}>
         <option value="">Tất cả trạng thái</option>
         <option value="OPEN">Mở</option>
         <option value="IN_PROGRESS">Đang can thiệp</option>
         <option value="RESOLVED">Đã xử lý</option>
-      </select>
+      </PrettySelect>
 
       {loading && <div className="space-y-2">{[0, 1, 2].map((n) => <div key={n} className="h-16 animate-pulse rounded-3xl bg-slate-200/60" />)}</div>}
       {error && <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
@@ -560,17 +561,17 @@ function AdminAcademicPage() {
 
   const filterPicker = !metaLoading && classes.length > 0 && (
     <>
-      <select value={classId} onChange={(e) => setSelectedClassId(e.target.value)} className={selectCls} style={selectStyle}>
+      <PrettySelect value={classId} onChange={(e) => setSelectedClassId(e.target.value)} className={selectCls} style={selectStyle}>
         {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-      </select>
+      </PrettySelect>
       {showSubject && (
-        <select value={subjectId} onChange={(e) => setSelectedSubjectId(e.target.value)} className={selectCls} style={selectStyle}>
+        <PrettySelect value={subjectId} onChange={(e) => setSelectedSubjectId(e.target.value)} className={selectCls} style={selectStyle}>
           {subjectOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-        </select>
+        </PrettySelect>
       )}
-      <select value={semesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls} style={selectStyle}>
+      <PrettySelect value={semesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls} style={selectStyle}>
         {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-      </select>
+      </PrettySelect>
     </>
   );
 

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { behaviourApi, homeworkApi } from "../../api/client";
@@ -114,10 +115,10 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
           {!isEdit ? (
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Học sinh <span className="text-red-500">*</span></label>
-              <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
+              <PrettySelect value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
                 <option value="">— Chọn học sinh —</option>
                 {students.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName} ({s.studentCode})</option>)}
-              </select>
+              </PrettySelect>
             </div>
           ) : (
             <div className="rounded-3xl px-3 py-2 text-sm" style={{ backgroundColor: "#F3F3F3", border: "1px solid #DFC0B2", color: "#1A1C1C" }}>
@@ -133,7 +134,7 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Danh mục <span className="text-red-500">*</span></label>
-            <select value={category} onChange={(e) => {
+            <PrettySelect value={category} onChange={(e) => {
               const nextCategory = e.target.value;
               setCategory(nextCategory);
               const match = categories.find((c) => c.key === nextCategory);
@@ -141,7 +142,7 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
             }} className={inputCls}>
               <option value="">— Chọn danh mục —</option>
               {categories.map((c) => <option key={c.key} value={c.key}>{c.label} ({isMerit ? "+" : "-"}{c.points})</option>)}
-            </select>
+            </PrettySelect>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -160,11 +161,11 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
           {!isMerit && (
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Mức độ</label>
-              <select value={severityLevel} onChange={(e) => setSeverityLevel(e.target.value)} className={inputCls}>
+              <PrettySelect value={severityLevel} onChange={(e) => setSeverityLevel(e.target.value)} className={inputCls}>
                 <option value="LOW">Nhẹ</option>
                 <option value="MEDIUM">Trung bình</option>
                 <option value="HIGH">Nghiêm trọng</option>
-              </select>
+              </PrettySelect>
               <label className="mt-2.5 flex items-start gap-2 text-sm" style={{ color: "#1A1C1C" }}>
                 <input type="checkbox" checked={affectsConduct} onChange={(e) => setAffectsConduct(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#DC2626]" />
                 <span>

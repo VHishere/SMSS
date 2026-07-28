@@ -1984,6 +1984,12 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
+  uploadStudentAvatar: (id, file) => {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    return uploadRequest(`/staff/students/${id}/avatar`, formData);
+  },
+
   getParents: (params = {}) => {
     const normalized =
       typeof params === "string" ? { search: params } : params;
@@ -2173,4 +2179,54 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
+};
+
+// ── Giáo viên Quản nhiệm (GVQN / DORM_SUPERVISOR) ────────────────────────────
+export const supervisorApi = {
+  getDashboard: () => request("/supervisor/dashboard"),
+
+  getAreas: () => request("/supervisor/areas"),
+
+  getAttendance: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ""),
+    ).toString();
+    return request(`/supervisor/attendance${qs ? `?${qs}` : ""}`);
+  },
+
+  submitBulkAttendance: (body) =>
+    request("/supervisor/attendance/bulk", { method: "POST", body: JSON.stringify(body) }),
+
+  getLogbook: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ""),
+    ).toString();
+    return request(`/supervisor/logbook${qs ? `?${qs}` : ""}`);
+  },
+
+  createLogEntry: (body) =>
+    request("/supervisor/logbook", { method: "POST", body: JSON.stringify(body) }),
+
+  getLeaveRequests: () => request("/supervisor/leave-requests"),
+
+  decideLeaveRequest: (id, action, comment) =>
+    request(`/supervisor/leave-requests/${id}/decide`, { method: "POST", body: JSON.stringify({ action, comment }) }),
+
+  getWeekend: (date) => request(`/supervisor/weekend${date ? `?date=${date}` : ""}`),
+
+  setWeekendStatus: (id, status) =>
+    request(`/supervisor/weekend/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+
+  getSupport: (status) => request(`/supervisor/support${status ? `?status=${status}` : ""}`),
+
+  createSupport: (body) =>
+    request("/supervisor/support", { method: "POST", body: JSON.stringify(body) }),
+
+  getContacts: () => request("/supervisor/contacts"),
+
+  createTask: (body) =>
+    request("/supervisor/tasks", { method: "POST", body: JSON.stringify(body) }),
+
+  updateTaskStatus: (taskId, status) =>
+    request(`/supervisor/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ status }) }),
 };

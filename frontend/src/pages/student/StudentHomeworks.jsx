@@ -17,6 +17,7 @@ import LoadingState from "../../components/atoms/LoadingState";
 import EmptyState from "../../components/molecules/EmptyState";
 import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
 import { useStudentHomeworks } from "../../hooks/useStudentHomeworks";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 function parseDate(value) {
   if (!value) return null;
@@ -348,7 +349,7 @@ function StudentHomeworks() {
                 Lọc theo môn học
               </span>
 
-              <select
+              <PrettySelect
                 value={subjectId}
                 onChange={(event) => setSubjectId(event.target.value)}
                 className="
@@ -364,7 +365,7 @@ function StudentHomeworks() {
                     {option.label}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </label>
           </div>
         </div>

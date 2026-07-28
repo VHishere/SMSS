@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { reportApi, studentProfileApi } from "../../api/client";
@@ -162,27 +163,27 @@ function ReportBuilderPage() {
             <div className="flex flex-wrap items-end gap-3 p-5">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-slate-500">Lớp</label>
-                <select value={classId} onChange={(e) => { setClassId(e.target.value); setStudentId(""); }} className={selectCls}>
+                <PrettySelect value={classId} onChange={(e) => { setClassId(e.target.value); setStudentId(""); }} className={selectCls}>
                   {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-                </select>
+                </PrettySelect>
               </div>
 
               {NEEDS_STUDENT.includes(reportType) && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-slate-500">Học sinh</label>
-                  <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={selectCls}>
+                  <PrettySelect value={studentId} onChange={(e) => setStudentId(e.target.value)} className={selectCls}>
                     <option value="">— Chọn —</option>
                     {students.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName}</option>)}
-                  </select>
+                  </PrettySelect>
                 </div>
               )}
 
               {NEEDS_SEMESTER.includes(reportType) && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-slate-500">Học kỳ</label>
-                  <select value={semesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls}>
+                  <PrettySelect value={semesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls}>
                     {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-                  </select>
+                  </PrettySelect>
                 </div>
               )}
 
@@ -286,12 +287,12 @@ function ReportBuilderPage() {
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Tên mẫu</label>
             <input type="text" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="VD: Chuyên cần 10B1 hàng tuần" className={`${selectCls} mb-3 w-full`} />
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Lịch chạy</label>
-            <select value={tplSchedule} onChange={(e) => setTplSchedule(e.target.value)} className={`${selectCls} mb-4 w-full`}>
+            <PrettySelect value={tplSchedule} onChange={(e) => setTplSchedule(e.target.value)} className={`${selectCls} mb-4 w-full`}>
               <option value="NONE">Không lập lịch</option>
               <option value="DAILY">Hàng ngày</option>
               <option value="WEEKLY">Hàng tuần</option>
               <option value="MONTHLY">Hàng tháng</option>
-            </select>
+            </PrettySelect>
             {saveMsg && <p className="mb-3 text-xs text-red-600">{saveMsg}</p>}
             <div className="flex gap-3">
               <button type="button" onClick={() => setShowSave(false)} className="flex-1 rounded-full border border-[#FFE7D6] py-2.5 text-sm font-medium text-slate-600 hover:bg-[#FFF7F2]">Hủy</button>

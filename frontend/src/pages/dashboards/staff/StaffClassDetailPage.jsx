@@ -9,6 +9,7 @@ import StaffFormCard, {
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const ROLE_LABELS = {
   HOMEROOM_TEACHER: "Giáo viên chủ nhiệm",
@@ -225,7 +226,7 @@ function StaffClassDetailPage() {
           loading={saving}
         >
           <StaffField label="Học sinh" className="md:col-span-2">
-            <select
+            <PrettySelect
               className={inputClass}
               value={studentForm.studentId}
               onChange={(event) => setStudentForm({ studentId: event.target.value })}
@@ -237,7 +238,7 @@ function StaffClassDetailPage() {
                   {student.studentCode} - {student.fullName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
         </StaffFormCard>
 
@@ -248,7 +249,7 @@ function StaffClassDetailPage() {
           loading={saving}
         >
           <StaffField label="Giáo viên">
-            <select
+            <PrettySelect
               className={inputClass}
               value={teacherForm.teacherId}
               onChange={(event) =>
@@ -265,10 +266,10 @@ function StaffClassDetailPage() {
                   {teacher.teacherCode} - {teacher.fullName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
           <StaffField label="Vai trò">
-            <select
+            <PrettySelect
               className={inputClass}
               value={teacherForm.roleInClass}
               onChange={(event) =>
@@ -281,11 +282,11 @@ function StaffClassDetailPage() {
             >
               <option value="HOMEROOM_TEACHER">Giáo viên chủ nhiệm</option>
               <option value="SUBJECT_TEACHER">Giáo viên bộ môn</option>
-            </select>
+            </PrettySelect>
           </StaffField>
           {teacherForm.roleInClass === "SUBJECT_TEACHER" && (
             <StaffField label="Môn học" className="md:col-span-2">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={teacherForm.subjectId}
                 onChange={(event) =>
@@ -302,7 +303,7 @@ function StaffClassDetailPage() {
                     {subject.subjectName}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </StaffField>
           )}
         </StaffFormCard>

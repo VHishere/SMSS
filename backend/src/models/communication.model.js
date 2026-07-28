@@ -235,8 +235,13 @@ async function findConversations(userId, filters = {}) {
          WHERE cp2.conversation_id = c.conversation_id AND cp2.user_id <> ? LIMIT 1) AS otherName,
        (SELECT cp3.role_in_conversation FROM conversation_participant cp3
          WHERE cp3.conversation_id = c.conversation_id AND cp3.user_id <> ? LIMIT 1) AS otherRole,
+       (SELECT ua.avatar FROM conversation_participant cp4
+         INNER JOIN user_account ua ON ua.user_id = cp4.user_id
+         WHERE cp4.conversation_id = c.conversation_id AND cp4.user_id <> cp.user_id LIMIT 1) AS otherAvatar,
        (SELECT sua.full_name FROM student s INNER JOIN user_account sua ON sua.user_id = s.user_id
          WHERE s.student_id = c.student_id) AS studentName,
+       (SELECT sua.avatar FROM student s INNER JOIN user_account sua ON sua.user_id = s.user_id
+         WHERE s.student_id = c.student_id) AS studentAvatar,
        (SELECT m.content FROM conversation_message m
          WHERE m.conversation_id = c.conversation_id
          ORDER BY m.sent_at DESC, m.message_id DESC LIMIT 1) AS lastContent,
@@ -267,12 +272,15 @@ async function findConversations(userId, filters = {}) {
     studentId: r.studentId,
     otherName: r.otherName,
     otherRole: r.otherRole,
+    otherAvatar: r.otherAvatar,
     studentName: r.studentName,
+    studentAvatar: r.studentAvatar,
     lastContent: r.lastContent,
     lastType: r.lastType,
     lastSentAt: r.lastSentAt,
     unreadCount: Number(r.unreadCount),
     displayName: r.conversationType === "GROUP" ? (r.title || "Nhóm") : (r.otherName || "—"),
+    displayAvatar: r.conversationType === "GROUP" ? null : (r.otherAvatar || null),
   }));
 }
 
@@ -284,7 +292,9 @@ async function findConversationMeta(conversationId) {
        c.title,
        c.student_id AS studentId,
        (SELECT sua.full_name FROM student s INNER JOIN user_account sua ON sua.user_id = s.user_id
-         WHERE s.student_id = c.student_id) AS studentName
+         WHERE s.student_id = c.student_id) AS studentName,
+       (SELECT sua.avatar FROM student s INNER JOIN user_account sua ON sua.user_id = s.user_id
+         WHERE s.student_id = c.student_id) AS studentAvatar
      FROM conversation c WHERE c.conversation_id = ?`,
     [conversationId],
   );
@@ -296,6 +306,7 @@ async function findParticipants(conversationId) {
     `SELECT
        cp.user_id AS userId,
        ua.full_name AS fullName,
+       ua.avatar,
        cp.role_in_conversation AS role,
        DATE_FORMAT(cp.last_read_at, '%Y-%m-%d %H:%i') AS lastReadAt,
        cp.last_read_at AS lastReadRaw

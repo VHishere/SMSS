@@ -5,7 +5,7 @@ function StaffReportsPage() {
     <>
       <StaffPageHeader
         title="Báo cáo"
-        description="Khu vực báo cáo tổng hợp sẽ được bổ sung trong giai đoạn tiếp theo"
+        // description="Khu vực báo cáo tổng hợp sẽ được bổ sung trong giai đoạn tiếp theo"
       />
 
       <div className="rounded-2xl border border-dashed border-orange-200 bg-white p-10 text-center shadow-sm">

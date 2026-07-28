@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 
 import { timetableApi } from "../../api/client";
 
@@ -73,10 +74,10 @@ function SubstitutionModal({ lessons = [], candidates = [], initialTimetableId, 
           {/* Bước 1 */}
           <div>
             <label className="mb-1.5 block text-sm font-bold" style={{ color: C.onSurface }}>Bước 1: Chọn ca dạy của bạn muốn đổi</label>
-            <select value={timetableId} onChange={(e) => setTimetableId(e.target.value)} className={inputCls}>
+            <PrettySelect value={timetableId} onChange={(e) => setTimetableId(e.target.value)} className={inputCls}>
               {lessons.length === 0 && <option value="">Chưa có tiết dạy</option>}
               {lessons.map((l) => <option key={l.timetableId} value={l.timetableId}>{lessonLabel(l)}</option>)}
-            </select>
+            </PrettySelect>
             {selectedLesson && <p className="mt-1 text-xs text-slate-400">Áp dụng cho {WD[selectedLesson.dayOfWeek]} gần nhất · Phòng {selectedLesson.roomName ?? "—"} · {selectedLesson.className}</p>}
           </div>
 

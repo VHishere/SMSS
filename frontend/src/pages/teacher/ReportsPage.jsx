@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { reportApi } from "../../api/client";
@@ -75,7 +76,6 @@ function ReportingView() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <nav className="mb-1 flex items-center gap-2 text-xs" style={{ color: C.muted }}><span>Cổng thông tin</span><Ms name="chevron_right" className="!text-[14px]" /><span className="font-bold" style={{ color: C.orange }}>Báo cáo & Phân tích</span></nav>
           <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Báo cáo & Xuất dữ liệu</h2>
         </div>
         <div className="flex gap-2">
@@ -112,9 +112,9 @@ function ReportingView() {
         <h3 className="mb-4 flex items-center gap-2 font-bold" style={{ color: C.onSurface }}><Ms name="tune" style={{ color: C.orange }} /> Cấu hình báo cáo</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div><label className="mb-1 block text-[11px] font-bold uppercase" style={{ color: C.muted }}>Danh mục báo cáo</label>
-            <select value={cfg.type} onChange={(e) => setCfg((c) => ({ ...c, type: e.target.value }))} className={`${selectCls} w-full`} style={selStyle}>
+            <PrettySelect value={cfg.type} onChange={(e) => setCfg((c) => ({ ...c, type: e.target.value }))} className={`${selectCls} w-full`} style={selStyle}>
               {REPORT_TYPES.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-            </select>
+            </PrettySelect>
           </div>
           <div><label className="mb-1 block text-[11px] font-bold uppercase" style={{ color: C.muted }}>Định dạng xuất</label>
             <div className="flex gap-2">
@@ -212,7 +212,6 @@ function HomeroomReportView({ teacherName }) {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <nav className="mb-1 flex items-center gap-2 text-xs" style={{ color: C.muted }}><span>Quản lý học sinh</span><Ms name="chevron_right" className="!text-[14px]" /><span className="font-bold" style={{ color: C.orange }}>Báo cáo chủ nhiệm</span></nav>
           <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Báo cáo chủ nhiệm{className ? ` · ${className}` : ""}</h2>
         </div>
         <div className="flex gap-2">

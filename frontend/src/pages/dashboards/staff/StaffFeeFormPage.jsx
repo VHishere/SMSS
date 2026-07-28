@@ -9,6 +9,7 @@ import StaffFormCard, {
   inputClass,
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const initialForm = {
   title: "",
@@ -161,7 +162,7 @@ function StaffFeeFormPage() {
         </StaffField>
 
         <StaffField label="Loại phí">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.feeType}
             onChange={(event) => setField("feeType", event.target.value)}
@@ -171,11 +172,11 @@ function StaffFeeFormPage() {
             <option value="Xe đưa đón">Xe đưa đón</option>
             <option value="Hoạt động ngoại khóa">Hoạt động ngoại khóa</option>
             <option value="Khác">Khác</option>
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Năm học">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.schoolYearId}
             onChange={(event) => setField("schoolYearId", event.target.value)}
@@ -187,11 +188,11 @@ function StaffFeeFormPage() {
                 {year.yearName}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Học kỳ">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.semesterId}
             onChange={(event) => setField("semesterId", event.target.value)}
@@ -202,7 +203,7 @@ function StaffFeeFormPage() {
                 {semester.semesterName}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Số tiền">
@@ -239,18 +240,18 @@ function StaffFeeFormPage() {
         </StaffField>
 
         <StaffField label="Trạng thái">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.status}
             onChange={(event) => setField("status", event.target.value)}
           >
             <option value="PUBLISHED">Công bố ngay</option>
             <option value="DRAFT">Lưu nháp</option>
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Phạm vi áp dụng">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.scopeType}
             onChange={(event) => setField("scopeType", event.target.value)}
@@ -259,12 +260,12 @@ function StaffFeeFormPage() {
             <option value="CLASS">Theo lớp</option>
             <option value="GRADE">Theo khối</option>
             <option value="SCHOOL">Toàn trường</option>
-          </select>
+          </PrettySelect>
         </StaffField>
 
         {form.scopeType === "STUDENT" && (
           <StaffField label="Học sinh">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.studentId}
               onChange={(event) => setField("studentId", event.target.value)}
@@ -276,13 +277,13 @@ function StaffFeeFormPage() {
                   {student.studentCode} - {student.fullName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
 
         {(form.scopeType === "CLASS" || form.scopeType === "GRADE") && (
           <StaffField label="Khối">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.gradeId}
               onChange={(event) => setField("gradeId", event.target.value)}
@@ -294,13 +295,13 @@ function StaffFeeFormPage() {
                   {grade.gradeName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
 
         {form.scopeType === "CLASS" && (
           <StaffField label="Lớp">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.classId}
               onChange={(event) => setField("classId", event.target.value)}
@@ -312,7 +313,7 @@ function StaffFeeFormPage() {
                   {classItem.className} - {classItem.schoolYearName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
 

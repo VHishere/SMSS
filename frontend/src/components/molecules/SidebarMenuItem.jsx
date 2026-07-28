@@ -8,30 +8,32 @@ function SidebarMenuItem({
   onClick,
   end = false,
   variant = "default",
+  collapsed = false,
 }) {
+  // data-menu-item: để hook auto-collapse biết đây là mục điều hướng (bấm để đi,
+  // KHÔNG đổi trạng thái thu gọn). title: tooltip khi đang thu gọn (chỉ còn icon).
+  const common = {
+    to,
+    end,
+    onClick,
+    "data-menu-item": true,
+    title: collapsed ? label : undefined,
+    style: { textDecoration: "none" },
+  };
+
   if (variant === "stitch") {
-    // FSchool Teacher Portal (Stitch design): active = orange pill inset,
-    // inactive = full-bleed row on deep blue, Material Symbols icons
+    // FSchool Stitch: active = pill cam bo tròn; inactive = hàng trên nền xanh đậm
     return (
       <NavLink
-        to={to}
-        end={end}
-        onClick={onClick}
-        style={{ textDecoration: "none" }}
+        {...common}
         className={({ isActive }) => `
-          flex items-center gap-3 px-4 py-3
+          flex items-center gap-3 overflow-hidden px-4 py-3
           text-sm transition-all duration-200
-
+          ${collapsed ? "justify-center" : ""}
           ${
             isActive
-              ? `
-                mx-2 rounded-xl bg-[#F27123]
-                font-bold text-white shadow-md
-              `
-              : `
-                text-white hover:bg-[#00458E]/50
-                hover:text-white
-              `
+              ? "mx-2 rounded-full bg-[#F27123] font-bold text-white shadow-md"
+              : "text-white hover:bg-[#00458E]/50 hover:text-white"
           }
         `}
       >
@@ -40,53 +42,40 @@ function SidebarMenuItem({
             {msIcon}
           </span>
         ) : (
-          <Icon
-            size={19}
-            className="shrink-0"
-          />
+          <Icon size={19} className="shrink-0" />
         )}
 
-        <span>{label}</span>
+        {/* whitespace-nowrap: khi sidebar đang mở rộng (chiều rộng còn đang chạy
+            animation) nhãn KHÔNG được xuống dòng, nếu không menu sẽ cao vọt lên
+            rồi bật lại — nhìn như trang bị reload. */}
+        {!collapsed && (
+          <span className="whitespace-nowrap">{label}</span>
+        )}
       </NavLink>
     );
   }
 
   return (
     <NavLink
-      to={to}
-      end={end}
-      onClick={onClick}
-      style={{
-        textDecoration: "none",
-      }}
+      {...common}
       className={({ isActive }) => `
-        group flex items-center gap-3
+        group flex items-center gap-3 overflow-hidden
         rounded-xl px-4 py-3
         text-sm font-semibold
         transition-colors duration-200
-
+        ${collapsed ? "justify-center" : ""}
         ${
           isActive
-            ? `
-              bg-[#F27123]
-              text-white
-              shadow-md
-              shadow-orange-950/20
-            `
-            : `
-              text-blue-100
-              hover:bg-white/10
-              hover:text-white
-            `
+            ? "bg-[#F27123] text-white shadow-md shadow-orange-950/20"
+            : "text-blue-100 hover:bg-white/10 hover:text-white"
         }
       `}
     >
-      <Icon
-        size={20}
-        className="shrink-0"
-      />
+      <Icon size={20} className="shrink-0" />
 
-      <span>{label}</span>
+      {!collapsed && (
+        <span className="whitespace-nowrap">{label}</span>
+      )}
     </NavLink>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import MeetingFormModal from "../../components/organisms/MeetingFormModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
@@ -368,10 +369,10 @@ function MeetingsPage() {
                 <h3 className="font-bold" style={{ color: C.onSurface }}>Các buổi đã lên lịch</h3>
                 <div className="flex items-center gap-2">
                   {meta.classes.length > 1 && (
-                    <select value={classF} onChange={(e) => setClassF(e.target.value)} className="rounded-full border bg-white px-2 py-1 text-xs outline-none" style={{ borderColor: C.border, color: C.muted }}>
+                    <PrettySelect value={classF} onChange={(e) => setClassF(e.target.value)} className="rounded-full border bg-white px-2 py-1 text-xs outline-none" style={{ borderColor: C.border, color: C.muted }}>
                       <option value="">Tất cả lớp</option>
                       {meta.classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-                    </select>
+                    </PrettySelect>
                   )}
                   <span className="rounded-full px-2 py-1 text-xs font-bold" style={{ backgroundColor: "rgba(34,93,173,0.1)", color: C.secondary }}>{meetings.length} Hoạt động</span>
                 </div>

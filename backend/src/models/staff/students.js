@@ -12,6 +12,7 @@ const studentSelect = `
     ua.full_name AS fullName,
     ua.email,
     ua.phone,
+    ua.avatar,
     DATE_FORMAT(s.date_of_birth, '%Y-%m-%d') AS dateOfBirthRaw,
     DATE_FORMAT(s.date_of_birth, '%d/%m/%Y') AS dateOfBirth,
     s.gender,
@@ -230,9 +231,30 @@ async function updateStudent(studentId, data) {
   }
 }
 
+async function setStudentAvatar(studentId, avatarUrl) {
+  const [rows] = await pool.query(
+    "SELECT user_id AS userId FROM student WHERE student_id = ?",
+    [studentId],
+  );
+
+  if (!rows[0]) {
+    const error = new Error("Không tìm thấy học sinh");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  await pool.query(
+    "UPDATE user_account SET avatar = ?, updated_at = NOW() WHERE user_id = ?",
+    [avatarUrl, rows[0].userId],
+  );
+
+  return getStudentById(studentId);
+}
+
 module.exports = {
   listStudents,
   getStudentById,
   createStudent,
   updateStudent,
+  setStudentAvatar,
 };

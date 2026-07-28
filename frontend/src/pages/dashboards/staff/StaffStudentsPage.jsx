@@ -7,6 +7,7 @@ import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import { formatGender, formatStatus } from "../../../utils/formatters";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const filterSelectClass =
   "h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] px-4 text-sm font-medium text-[#1A1C1C] outline-none transition hover:border-[#F27123] focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20 lg:w-44";
@@ -58,7 +59,7 @@ function StaffStudentsPage() {
 
   const filterToolbar = (
     <>
-      <select
+      <PrettySelect
         className={filterSelectClass}
         value={filters.gradeId}
         onChange={(event) =>
@@ -75,9 +76,9 @@ function StaffStudentsPage() {
             {grade.gradeName}
           </option>
         ))}
-      </select>
+      </PrettySelect>
 
-      <select
+      <PrettySelect
         className={filterSelectClass}
         value={filters.classId}
         onChange={(event) =>
@@ -90,7 +91,7 @@ function StaffStudentsPage() {
             {cls.className}
           </option>
         ))}
-      </select>
+      </PrettySelect>
     </>
   );
 

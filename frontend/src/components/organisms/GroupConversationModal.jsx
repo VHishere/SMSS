@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { communicationApi } from "../../api/client";
@@ -42,17 +43,17 @@ function GroupConversationModal({ classes, onClose, onCreated }) {
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Lớp</label>
-            <select value={classId} onChange={(e) => setClassId(e.target.value)} className={inputCls}>
+            <PrettySelect value={classId} onChange={(e) => setClassId(e.target.value)} className={inputCls}>
               {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-            </select>
+            </PrettySelect>
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Thành viên</label>
-            <select value={audience} onChange={(e) => setAudience(e.target.value)} className={inputCls}>
+            <PrettySelect value={audience} onChange={(e) => setAudience(e.target.value)} className={inputCls}>
               <option value="ALL">Tất cả (phụ huynh + học sinh)</option>
               <option value="PARENTS">Chỉ phụ huynh</option>
               <option value="STUDENTS">Chỉ học sinh</option>
-            </select>
+            </PrettySelect>
           </div>
           {errorMsg && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>}
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import { staffApi } from "../../../api/client";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const inputCls =
   "w-full rounded-xl border border-orange-100 bg-white px-3 py-2 text-sm text-[#0F2747] outline-none focus:border-[#F27123] focus:ring-2 focus:ring-orange-100";
@@ -126,28 +127,30 @@ function StaffSurveysPage() {
 
   return (
     <>
-      <StaffPageHeader title="Khảo sát đánh giá giáo viên" description="Tạo khảo sát cuối kỳ (học sinh đánh giá ẩn danh) và xem tổng hợp." />
+      <StaffPageHeader title="Khảo sát đánh giá giáo viên" 
+      // description="Tạo khảo sát cuối kỳ (học sinh đánh giá ẩn danh) và xem tổng hợp." 
+      />
 
       {/* Create form */}
       <form onSubmit={handleCreate} className="mb-6 rounded-2xl border border-orange-100 bg-white p-5 shadow-sm">
         <h3 className="mb-3 text-base font-bold text-[#0F2747]">Tạo khảo sát mới</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <select className={inputCls} value={form.semesterId} onChange={set("semesterId")}>
+          <PrettySelect className={inputCls} value={form.semesterId} onChange={set("semesterId")}>
             <option value="">— Học kỳ * —</option>
             {(lookups.semesters ?? []).map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-          </select>
-          <select className={inputCls} value={form.teacherId} onChange={set("teacherId")}>
+          </PrettySelect>
+          <PrettySelect className={inputCls} value={form.teacherId} onChange={set("teacherId")}>
             <option value="">— Giáo viên * —</option>
             {(lookups.teachers ?? []).map((t) => <option key={t.teacherId} value={t.teacherId}>{t.fullName}</option>)}
-          </select>
-          <select className={inputCls} value={form.subjectId} onChange={set("subjectId")}>
+          </PrettySelect>
+          <PrettySelect className={inputCls} value={form.subjectId} onChange={set("subjectId")}>
             <option value="">— Môn (tùy chọn) —</option>
             {(lookups.subjects ?? []).map((s) => <option key={s.subjectId} value={s.subjectId}>{s.subjectName}</option>)}
-          </select>
-          <select className={inputCls} value={form.classId} onChange={set("classId")}>
+          </PrettySelect>
+          <PrettySelect className={inputCls} value={form.classId} onChange={set("classId")}>
             <option value="">— Lớp (tùy chọn, giới hạn HS) —</option>
             {(lookups.classes ?? []).map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-          </select>
+          </PrettySelect>
           <input className={`${inputCls} md:col-span-2`} placeholder="Tiêu đề (tùy chọn)" value={form.title} onChange={set("title")} />
         </div>
         <div className="mt-3 flex items-center gap-3">

@@ -9,6 +9,7 @@ import { useAdminStudentGoals } from "../../hooks/useAdminStudentGoals";
 import { useAdminStudentAcademic } from "../../hooks/useAdminStudentAcademic";
 import { useAdminStudentBehaviour } from "../../hooks/useAdminStudentBehaviour";
 import { formatDateVN } from "../../utils/datetime";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 const C = { onSurface: "#1A1C1C", muted: "#584238", border: "#DFC0B2", orange: "#F27123", secondary: "#225DAD", deepBlue: "#00458E", surfaceLow: "#F3F3F3" };
 function Ms({ name, className = "", style, fill = false }) {
@@ -139,11 +140,11 @@ function EditPersonalInfoModal({ studentId, profile, onClose, onSaved }) {
           </StaffField>
 
           <StaffField label="Giới tính">
-            <select className={inputClass} value={form.gender} onChange={setField("gender")}>
+            <PrettySelect className={inputClass} value={form.gender} onChange={setField("gender")}>
               <option value="MALE">Nam</option>
               <option value="FEMALE">Nữ</option>
               <option value="OTHER">Khác</option>
-            </select>
+            </PrettySelect>
           </StaffField>
 
           <StaffField label="Địa chỉ" className="sm:col-span-2">
@@ -416,9 +417,9 @@ function AcademicTab({ acad, semesters, effSem, setSem }) {
         <div className="mb-3 flex items-center justify-between">
           <h3 className="flex items-center gap-2 font-bold" style={{ color: C.onSurface }}><Ms name="show_chart" style={{ color: C.orange }} /> Tiến độ GPA theo học kỳ</h3>
           {semesters.length > 0 && (
-            <select value={effSem} onChange={(e) => setSem(e.target.value)} className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-[#00458E]" style={{ borderColor: C.border, color: C.onSurface }}>
+            <PrettySelect value={effSem} onChange={(e) => setSem(e.target.value)} className="rounded-full border bg-white px-3 py-1.5 text-xs font-semibold outline-none focus:ring-1 focus:ring-[#00458E]" style={{ borderColor: C.border, color: C.onSurface }}>
               {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-            </select>
+            </PrettySelect>
           )}
         </div>
         {history.length > 0 ? <TrendChart history={history} /> : <p className="py-8 text-center text-sm text-slate-400">Chưa đủ dữ liệu để vẽ biểu đồ.</p>}

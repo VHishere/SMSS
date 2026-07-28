@@ -8,13 +8,16 @@ import {
 } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
+import WelcomeBanner from "../../../components/molecules/WelcomeBanner";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StaffStatCard from "../../../components/staff/StaffStatCard";
 import StatusBadge from "../../../components/staff/StatusBadge";
+import { useAuth } from "../../../context/useAuth";
 import { formatStatus } from "../../../utils/formatters";
 
 function StaffOverviewPage() {
+  const { user } = useAuth();
   const [overview, setOverview] = useState(null);
   const [students, setStudents] = useState([]);
   const [parents, setParents] = useState([]);
@@ -53,6 +56,8 @@ function StaffOverviewPage() {
 
   return (
     <>
+      <WelcomeBanner name={user?.fullName ?? user?.username} />
+
       <StaffPageHeader title="Tổng quan Staff" />
 
       {error && (

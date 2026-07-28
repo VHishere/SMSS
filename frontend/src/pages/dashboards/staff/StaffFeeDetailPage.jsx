@@ -6,6 +6,7 @@ import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -277,7 +278,7 @@ function StaffFeeDetailPage() {
 
                 <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747]">
                   Hình thức
-                  <select
+                  <PrettySelect
                     className="rounded-xl border border-slate-200 bg-[#FFF7F2] px-3 py-2.5 text-sm font-normal outline-none focus:border-[#F27123] focus:bg-white"
                     value={paymentForm.paymentMethod}
                     onChange={(event) =>
@@ -289,7 +290,7 @@ function StaffFeeDetailPage() {
                     <option value="CARD">Thẻ</option>
                     <option value="ZALOPAY">ZaloPay</option>
                     <option value="OTHER">Khác</option>
-                  </select>
+                  </PrettySelect>
                 </label>
 
                 <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747]">

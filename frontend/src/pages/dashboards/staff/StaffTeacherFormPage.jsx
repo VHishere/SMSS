@@ -9,6 +9,7 @@ import StaffFormCard, {
   inputClass,
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const emptyForm = {
   teacherCode: "",
@@ -182,14 +183,14 @@ function StaffTeacherFormPage() {
         </StaffField>
         {isEdit && (
           <StaffField label="Trạng thái">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.status}
               onChange={handleChange("status")}
             >
               <option value="ACTIVE">Hoạt động</option>
               <option value="INACTIVE">Ngưng hoạt động</option>
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
       </StaffFormCard>

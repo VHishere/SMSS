@@ -6,6 +6,7 @@ import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -73,7 +74,7 @@ function StaffFeesPage() {
 
   const toolbar = (
     <>
-      <select
+      <PrettySelect
         className="w-full rounded-xl border border-slate-200 bg-[#FFF7F2] px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#F27123] focus:bg-white sm:w-auto"
         value={filters.schoolYearId}
         onChange={(event) =>
@@ -86,9 +87,9 @@ function StaffFeesPage() {
             {year.yearName}
           </option>
         ))}
-      </select>
+      </PrettySelect>
 
-      <select
+      <PrettySelect
         className="w-full rounded-xl border border-slate-200 bg-[#FFF7F2] px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#F27123] focus:bg-white sm:w-auto"
         value={filters.status}
         onChange={(event) =>
@@ -100,7 +101,7 @@ function StaffFeesPage() {
         <option value="PUBLISHED">Đã công bố</option>
         <option value="LOCKED">Đã khóa</option>
         <option value="CANCELLED">Đã hủy</option>
-      </select>
+      </PrettySelect>
     </>
   );
 

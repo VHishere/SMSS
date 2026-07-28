@@ -12,6 +12,7 @@ import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentBehaviourSemesters } from "../../hooks/useParentBehaviourSemesters";
 import { useParentBehaviourConduct } from "../../hooks/useParentBehaviourConduct";
 import { useParentBehaviourRecords } from "../../hooks/useParentBehaviourRecords";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 const TABS = [
   { key: "overview",   label: "Tổng quan", icon: FiUser },
@@ -717,12 +718,12 @@ function StudentProfilePage() {
               <p className="text-sm text-slate-500">{profile.studentCode} · {profile.className ?? "—"} · {profile.gradeName ?? ""}</p>
             </div>
             {semesters.length > 0 && (
-              <select value={effSemId} onChange={(e) => changeSemester(e.target.value)}
+              <PrettySelect value={effSemId} onChange={(e) => changeSemester(e.target.value)}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]">
                 {semesters.map((s) => (
                   <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>
                 ))}
-              </select>
+              </PrettySelect>
             )}
           </section>
 

@@ -10,6 +10,7 @@ import StaffFormCard, {
   primaryActionClass,
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 function StaffCurriculumPage() {
   const [lookups, setLookups] = useState({
@@ -112,7 +113,7 @@ function StaffCurriculumPage() {
     <>
       <StaffPageHeader
         title="Chương trình học"
-        description="Thiết lập môn học và buổi học theo từng năm học và học kỳ."
+        // description="Thiết lập môn học và buổi học theo từng năm học và học kỳ."
         action={
           <div className="flex flex-wrap gap-2">
             <Link
@@ -139,7 +140,7 @@ function StaffCurriculumPage() {
       )}
 
       <div className="mb-4 flex flex-wrap gap-3">
-        <select
+        <PrettySelect
           className={`${inputClass} sm:max-w-64`}
           value={filters.schoolYearId}
           onChange={(e) =>
@@ -152,8 +153,8 @@ function StaffCurriculumPage() {
               {year.yearName}
             </option>
           ))}
-        </select>
-        <select
+        </PrettySelect>
+        <PrettySelect
           className={`${inputClass} sm:max-w-64`}
           value={filters.semesterId}
           onChange={(e) =>
@@ -166,7 +167,7 @@ function StaffCurriculumPage() {
               {semester.semesterName}
             </option>
           ))}
-        </select>
+        </PrettySelect>
       </div>
 
       {showForm && (
@@ -179,7 +180,7 @@ function StaffCurriculumPage() {
             footer="Môn học được lưu theo năm học, học kỳ và khối đã chọn."
           >
             <StaffField label="Năm học">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={form.schoolYearId}
                 onChange={(e) =>
@@ -193,10 +194,10 @@ function StaffCurriculumPage() {
                     {year.yearName}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </StaffField>
             <StaffField label="Học kỳ">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={form.semesterId}
                 onChange={(e) =>
@@ -216,10 +217,10 @@ function StaffCurriculumPage() {
                       {semester.semesterName}
                     </option>
                   ))}
-              </select>
+              </PrettySelect>
             </StaffField>
             <StaffField label="Khối (tuỳ chọn)">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={form.gradeId}
                 onChange={(e) =>
@@ -232,10 +233,10 @@ function StaffCurriculumPage() {
                     {grade.gradeName}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </StaffField>
             <StaffField label="Môn học">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={form.subjectId}
                 onChange={(e) =>
@@ -249,7 +250,7 @@ function StaffCurriculumPage() {
                     {subject.subjectName}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </StaffField>
             <StaffField label="Số buổi/tuần">
               <input

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import StaffPageHeader from "../../components/staff/StaffPageHeader";
 import { useAdminClassOverview } from "../../hooks/useAdminClassOverview";
 import { useAdminStudentMeta } from "../../hooks/useAdminStudentMeta";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 // Same "Stitch" design tokens used across admin/teacher pages.
 const C = {
@@ -161,16 +162,16 @@ function AdminStudentsOverviewPage() {
           <div className="mb-5 flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Khối</label>
-              <select value={gradeId} onChange={(e) => selectGrade(e.target.value)} className={selectCls} style={selStyle}>
+              <PrettySelect value={gradeId} onChange={(e) => selectGrade(e.target.value)} className={selectCls} style={selStyle}>
                 <option value="">Tất cả khối</option>
                 {grades.map((g) => <option key={g.gradeId} value={g.gradeId}>{g.gradeName}</option>)}
-              </select>
+              </PrettySelect>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Lớp</label>
-              <select value={effClassId} onChange={(e) => setClassId(e.target.value)} className={selectCls} style={selStyle}>
+              <PrettySelect value={effClassId} onChange={(e) => setClassId(e.target.value)} className={selectCls} style={selStyle}>
                 {classChoices.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           </div>
 
@@ -178,30 +179,30 @@ function AdminStudentsOverviewPage() {
           <div className="mb-5 flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Học kỳ</label>
-              <select value={effSemesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls} style={selStyle}>
+              <PrettySelect value={effSemesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls} style={selStyle}>
                 {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-              </select>
+              </PrettySelect>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Mức quan tâm</label>
-              <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)} className={selectCls} style={selStyle}>
+              <PrettySelect value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)} className={selectCls} style={selStyle}>
                 <option value="">Tất cả</option>
                 <option value="HIGH">Ưu tiên</option>
                 <option value="MEDIUM">Cần theo dõi</option>
                 <option value="LOW">Lưu ý</option>
                 <option value="NONE">Ổn định</option>
-              </select>
+              </PrettySelect>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Hạnh kiểm</label>
-              <select value={conductFilter} onChange={(e) => setConductFilter(e.target.value)} className={selectCls} style={selStyle}>
+              <PrettySelect value={conductFilter} onChange={(e) => setConductFilter(e.target.value)} className={selectCls} style={selStyle}>
                 <option value="">Tất cả</option>
                 <option value="TOT">Tốt</option>
                 <option value="KHA">Khá</option>
                 <option value="TB">Đạt</option>
                 <option value="YEU">Chưa đạt</option>
                 <option value="NA">Chưa đánh giá</option>
-              </select>
+              </PrettySelect>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Tìm học sinh</label>

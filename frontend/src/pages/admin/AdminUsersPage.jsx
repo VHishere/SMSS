@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { adminApi, staffApi } from "../../api/client";
 import { formatRoleLabel, ROLE_LABELS } from "../../utils/formatters";
 import Modal from "../../components/atoms/Modal";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 // FSchool Admin Portal — Stitch design tokens (matches the parent/teacher portal)
 const C = {
@@ -229,7 +230,7 @@ function EditUserModal({ user, roles, students, onClose, onSaved }) {
                         {c.studentCode} · {c.studentName}
                       </span>
 
-                      <select
+                      <PrettySelect
                         value={c.relationship || "Guardian"}
                         onChange={(e) =>
                           updateChild(c.studentId, { relationship: e.target.value })
@@ -242,7 +243,7 @@ function EditUserModal({ user, roles, students, onClose, onSaved }) {
                             {opt.label}
                           </option>
                         ))}
-                      </select>
+                      </PrettySelect>
 
                       <label className="flex items-center gap-1 text-xs">
                         <input
@@ -269,7 +270,7 @@ function EditUserModal({ user, roles, students, onClose, onSaved }) {
               )}
 
               <div className="flex items-center gap-2">
-                <select
+                <PrettySelect
                   value={addStudentId}
                   onChange={(e) => setAddStudentId(e.target.value)}
                   className="flex-1 rounded-lg border px-3 py-2 text-sm"
@@ -281,7 +282,7 @@ function EditUserModal({ user, roles, students, onClose, onSaved }) {
                       {s.studentCode} · {s.fullName}
                     </option>
                   ))}
-                </select>
+                </PrettySelect>
                 <button
                   type="button"
                   onClick={addChild}
@@ -454,7 +455,7 @@ function AdminUsersPage() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center rounded-xl border bg-white p-1 px-3 shadow-sm" style={{ borderColor: C.outlineVariant }}>
             <Ms name="filter_alt" className="mr-2 !text-[20px]!" style={{ color: C.primary }} />
-            <select
+            <PrettySelect
               value={status}
               onChange={(event) => updateFilter(setStatus)(event.target.value)}
               className={selectStyle}
@@ -465,12 +466,12 @@ function AdminUsersPage() {
                   {option.label}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </div>
 
           <div className="flex items-center rounded-xl border bg-white p-1 px-3 shadow-sm" style={{ borderColor: C.outlineVariant }}>
             <Ms name="badge" className="mr-2 !text-[20px]!" style={{ color: C.primary }} />
-            <select
+            <PrettySelect
               value={role}
               onChange={(event) => updateFilter(setRole)(event.target.value)}
               className={selectStyle}
@@ -481,7 +482,7 @@ function AdminUsersPage() {
                   {option.label}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </div>
 
           <div className="flex items-center rounded-xl border bg-white px-3 shadow-sm" style={{ borderColor: C.outlineVariant }}>
@@ -659,7 +660,7 @@ function AdminUsersPage() {
           >
             <div className="flex items-center gap-1.5 text-sm" style={{ color: C.onSurfaceVariant }}>
               Trang
-              <select
+              <PrettySelect
                 value={currentPage}
                 onChange={(event) => setPage(Number(event.target.value))}
                 className="cursor-pointer rounded-lg border bg-white px-2 py-1 text-sm font-semibold outline-none"
@@ -670,7 +671,7 @@ function AdminUsersPage() {
                     {p}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
               /{totalPages}
             </div>
 

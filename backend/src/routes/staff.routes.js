@@ -7,6 +7,8 @@ const {
   authorize,
 } = require("../middleware/auth.middleware");
 
+const { profileAvatarUpload } = require("../middleware/upload.middleware");
+
 const router = express.Router();
 
 const staffRoles = ["STAFF", "ADMIN"];
@@ -115,6 +117,14 @@ router.put(
   authenticate,
   authorize(...staffRoles),
   staffController.updateStudent,
+);
+
+router.post(
+  "/students/:id/avatar",
+  authenticate,
+  authorize(...staffRoles),
+  profileAvatarUpload,
+  staffController.uploadStudentAvatar,
 );
 
 router.get(

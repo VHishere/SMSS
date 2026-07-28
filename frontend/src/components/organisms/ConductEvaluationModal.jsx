@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { behaviourApi } from "../../api/client";
@@ -110,10 +111,10 @@ function ConductEvaluationModal({ student, semesterId, onClose, onSaved }) {
 
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-slate-600">Xếp loại hạnh kiểm <span className="text-red-500">*</span></label>
-                <select value={grade} onChange={(e) => setGrade(e.target.value)} className={inputCls}>
+                <PrettySelect value={grade} onChange={(e) => setGrade(e.target.value)} className={inputCls}>
                   <option value="">— Chọn xếp loại —</option>
                   {GRADES.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
-                </select>
+                </PrettySelect>
                 <p className="mt-1 text-xs text-slate-400">GVCN chốt dựa trên dữ liệu tham khảo (điểm danh + vi phạm nghiêm trọng).</p>
               </div>
 

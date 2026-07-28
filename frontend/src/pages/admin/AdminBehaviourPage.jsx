@@ -5,6 +5,7 @@ import StaffPageHeader from "../../components/staff/StaffPageHeader";
 import { useAdminBehaviourMeta } from "../../hooks/useAdminBehaviourMeta";
 import { useAdminBehaviourRecords } from "../../hooks/useAdminBehaviourRecords";
 import { useAdminBehaviourAnalytics } from "../../hooks/useAdminBehaviourAnalytics";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 const C = {
   onSurface: "#1A1C1C", muted: "#584238", border: "#DFC0B2", orange: "#F27123",
@@ -335,12 +336,12 @@ function AdminBehaviourPage() {
 
   const headerAction = !metaLoading && classes.length > 0 && (
     <>
-      <select value={classId} onChange={(e) => setSelectedClassId(e.target.value)} className={selectCls} style={selStyle}>
+      <PrettySelect value={classId} onChange={(e) => setSelectedClassId(e.target.value)} className={selectCls} style={selStyle}>
         {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-      </select>
-      <select value={semesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls} style={selStyle}>
+      </PrettySelect>
+      <PrettySelect value={semesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls} style={selStyle}>
         {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-      </select>
+      </PrettySelect>
       <button type="button" onClick={exportCsv} className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium hover:bg-[#F3F3F3]" style={{ borderColor: C.border, color: C.onSurface }}>
         <Ms name="file_download" className="text-[18px]!" /> Xuất báo cáo
       </button>

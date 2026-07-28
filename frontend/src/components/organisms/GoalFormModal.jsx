@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { goalApi } from "../../api/client";
@@ -70,9 +71,9 @@ function GoalFormModal({ mode, studentId, goal = null, goalTypes = [], onClose, 
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Loại mục tiêu <span className="text-red-500">*</span></label>
-            <select value={goalType} onChange={(e) => setGoalType(e.target.value)} className={inputCls}>
+            <PrettySelect value={goalType} onChange={(e) => setGoalType(e.target.value)} className={inputCls}>
               {goalTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-            </select>
+            </PrettySelect>
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Tiêu đề <span className="text-red-500">*</span></label>

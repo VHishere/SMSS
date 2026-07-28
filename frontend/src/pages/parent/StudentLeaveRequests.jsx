@@ -12,6 +12,7 @@ import { useParentStudentTimetable } from "../../hooks/useParentStudentTimetable
 import { parentApi } from "../../api/client";
 import { formatLeaveDateRange, formatLeavePeriods } from "../../utils/leaveTime";
 import { getCurrentSchoolYearLabel } from "../../utils/formatters";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 // ─── FSchool Stitch design tokens (matches the teacher leave-request portal) ─
 
@@ -383,11 +384,11 @@ function CreateLeaveRequestModal({ studentId, onClose, onCreated }) {
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium" style={{ color: C.onSurfaceVariant }}>Loại đơn</label>
-          <select value={leaveType} onChange={(e) => setLeaveType(e.target.value)} className={INPUT_CLS} style={{ borderColor: C.outlineVariant, color: C.onSurface }}>
+          <PrettySelect value={leaveType} onChange={(e) => setLeaveType(e.target.value)} className={INPUT_CLS} style={{ borderColor: C.outlineVariant, color: C.onSurface }}>
             {Object.entries(CREATABLE_LEAVE_TYPES).map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
             ))}
-          </select>
+          </PrettySelect>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -797,7 +798,7 @@ function ParentStudentLeaveRequests() {
             <span className="text-xs font-bold" style={{ color: C.onSurface }}>Bộ lọc:</span>
           </div>
 
-          <select
+          <PrettySelect
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="cursor-pointer rounded-full border bg-white px-4 py-2 text-sm outline-none focus:ring-1"
@@ -806,7 +807,7 @@ function ParentStudentLeaveRequests() {
             {STATUS_OPTIONS.map((s) => (
               <option key={s.key} value={s.key}>{s.label}</option>
             ))}
-          </select>
+          </PrettySelect>
 
           <div className="flex items-center gap-2">
             <input

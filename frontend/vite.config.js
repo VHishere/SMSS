@@ -33,4 +33,10 @@ export default defineConfig({
       },
     },
   },
+
+  // vitest: cần jsdom + globals cho các test component/hook
+  test: {
+    environment: "jsdom",
+    globals: true,
+  },
 });

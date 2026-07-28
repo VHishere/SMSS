@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import WarningInterventionModal from "../../components/organisms/WarningInterventionModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
@@ -392,9 +393,9 @@ function DetailTab({ classId, semesterId, subjectOptions, scoreTypes, onOpenStud
             <p className="text-xs text-slate-400">{student?.studentCode} · ĐTB {overall ?? "—"}</p>
           </div>
         </div>
-        <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={selectCls} style={selectStyle}>
+        <PrettySelect value={studentId} onChange={(e) => setStudentId(e.target.value)}>
           {roster.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName} ({s.studentCode})</option>)}
-        </select>
+        </PrettySelect>
       </div>
 
       <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: `1px solid ${C.border}` }}>
@@ -578,12 +579,12 @@ function WarningsTab({ classId, semesterId, onOpenStudent }) {
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls} style={selectStyle}>
+        <PrettySelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="">Tất cả trạng thái</option>
           <option value="OPEN">Mở</option>
           <option value="IN_PROGRESS">Đang can thiệp</option>
           <option value="RESOLVED">Đã xử lý</option>
-        </select>
+        </PrettySelect>
         <div className="flex items-center gap-3">
           {genMsg && <span className="text-xs text-slate-500">{genMsg}</span>}
           <button type="button" onClick={handleGenerate} disabled={generating} className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-50" style={{ backgroundColor: C.deepBlue }}>
@@ -677,17 +678,17 @@ function AcademicPage() {
             <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
               <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Quản lý sổ điểm</h2>
               <div className="flex flex-wrap items-end gap-2">
-                <select value={classId} onChange={(e) => setClassId(e.target.value)} className={selectCls} style={selectStyle}>
+                <PrettySelect value={classId} onChange={(e) => setClassId(e.target.value)}>
                   {classOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+                </PrettySelect>
                 {showSubject && (
-                  <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className={selectCls} style={selectStyle}>
+                  <PrettySelect value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
                     {subjectOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                  </PrettySelect>
                 )}
-                <select value={semesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls} style={selectStyle}>
+                <PrettySelect value={semesterId} onChange={(e) => setSemesterId(e.target.value)}>
                   {meta.semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-                </select>
+                </PrettySelect>
               </div>
             </div>
 

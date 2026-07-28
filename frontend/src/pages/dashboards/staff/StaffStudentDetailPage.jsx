@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 
 
 import { staffApi } from "../../../api/client";
+
+import UserAvatar from "../../../components/atoms/UserAvatar";
 
 import StaffDetailCard, { StaffDetailItem } from "../../../components/staff/StaffDetailCard";
 
@@ -34,6 +36,12 @@ function StaffStudentDetailPage() {
 
   const [loading, setLoading] = useState(true);
 
+  const [uploading, setUploading] = useState(false);
+
+  const [uploadError, setUploadError] = useState("");
+
+  const fileRef = useRef(null);
+
 
 
   useEffect(() => {
@@ -49,6 +57,54 @@ function StaffStudentDetailPage() {
       .finally(() => setLoading(false));
 
   }, [id]);
+
+
+
+  async function onAvatarChange(event) {
+
+    const file = event.target.files?.[0];
+
+    event.target.value = "";
+
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+
+      setUploadError("Ảnh không hợp lệ (chỉ chấp nhận tệp ảnh).");
+
+      return;
+
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+
+      setUploadError("Ảnh vượt quá 5MB.");
+
+      return;
+
+    }
+
+    setUploading(true);
+
+    setUploadError("");
+
+    try {
+
+      const res = await staffApi.uploadStudentAvatar(id, file);
+
+      setStudent(res.data);
+
+    } catch (err) {
+
+      setUploadError(err.message);
+
+    } finally {
+
+      setUploading(false);
+
+    }
+
+  }
 
 
 
@@ -127,6 +183,54 @@ function StaffStudentDetailPage() {
         <StaffDetailCard title="Thông tin cá nhân">
 
           <div className="grid gap-4">
+
+            <div className="flex items-center gap-4">
+
+              <UserAvatar name={student.fullName} src={student.avatar} size="xl" />
+
+              <div>
+
+                <input
+
+                  ref={fileRef}
+
+                  type="file"
+
+                  accept="image/*"
+
+                  className="hidden"
+
+                  onChange={onAvatarChange}
+
+                />
+
+                <button
+
+                  type="button"
+
+                  onClick={() => fileRef.current?.click()}
+
+                  disabled={uploading}
+
+                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-[#0F2747] hover:bg-slate-50 disabled:opacity-50"
+
+                >
+
+                  {uploading ? "Đang tải..." : student.avatar ? "Đổi ảnh" : "Tải ảnh lên"}
+
+                </button>
+
+                <p className="mb-0 mt-1 text-xs text-slate-400">JPG/PNG, tối đa 5MB</p>
+
+                {uploadError && (
+
+                  <p className="mb-0 mt-1 text-xs text-red-600">{uploadError}</p>
+
+                )}
+
+              </div>
+
+            </div>
 
             <StaffDetailItem label="Họ tên" value={student.fullName} />
 

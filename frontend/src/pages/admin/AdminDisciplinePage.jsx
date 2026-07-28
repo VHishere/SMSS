@@ -10,6 +10,7 @@ import { useAdminBehaviourMeta } from "../../hooks/useAdminBehaviourMeta";
 import { useAdminBehaviourRecords } from "../../hooks/useAdminBehaviourRecords";
 import { useAdminBehaviourAnalytics } from "../../hooks/useAdminBehaviourAnalytics";
 import { useAdminBehaviourWarnings } from "../../hooks/useAdminBehaviourWarnings";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 const C = {
   onSurface: "#1A1C1C", muted: "#584238", border: "#DFC0B2", primary: "#9F4200",
@@ -117,10 +118,10 @@ function OverviewTab({ records, warnings, catMap, onEdit }) {
       <div className="overflow-hidden rounded-3xl bg-white shadow-sm lg:col-span-2" style={{ border: `1px solid ${C.border}` }}>
         <div className="flex items-center justify-between border-b p-5" style={{ borderColor: C.border }}>
           <h4 className="font-bold" style={{ color: C.onSurface }}>Ghi nhận gần đây</h4>
-          <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="rounded-lg border bg-white px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={selStyle}>
+          <PrettySelect value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="rounded-lg border bg-white px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={selStyle}>
             <option value="">Tất cả các mục</option>
             {catOptions.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-          </select>
+          </PrettySelect>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -213,12 +214,12 @@ function WarningsTab({ classId, semesterId }) {
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls} style={selStyle}>
+        <PrettySelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls} style={selStyle}>
           <option value="">Tất cả trạng thái</option>
           <option value="OPEN">Mở</option>
           <option value="IN_PROGRESS">Đang can thiệp</option>
           <option value="RESOLVED">Đã xử lý</option>
-        </select>
+        </PrettySelect>
         <div className="flex items-center gap-3">
           {genMsg && <span className="text-xs text-slate-500">{genMsg}</span>}
           <button type="button" onClick={handleGenerate} disabled={generating}
@@ -341,12 +342,12 @@ function AdminDisciplinePage() {
 
   const headerAction = !metaLoading && classes.length > 0 && (
     <>
-      <select value={classId} onChange={(e) => setSelectedClassId(e.target.value)} className={selectCls} style={selStyle}>
+      <PrettySelect value={classId} onChange={(e) => setSelectedClassId(e.target.value)} className={selectCls} style={selStyle}>
         {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-      </select>
-      <select value={semesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls} style={selStyle}>
+      </PrettySelect>
+      <PrettySelect value={semesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls} style={selStyle}>
         {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-      </select>
+      </PrettySelect>
       <button type="button" onClick={() => setShowCategoryManager(true)} className="flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition-colors hover:bg-[#F3F3F3]" style={{ borderColor: C.border, color: C.onSurface }}>
         <Ms name="tune" className="text-[18px]!" /> Danh mục
       </button>

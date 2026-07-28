@@ -9,6 +9,7 @@ import StaffFormCard, {
   inputClass,
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const WEEK_DAYS = [
   { value: "", label: "Chưa xếp lịch" },
@@ -269,7 +270,7 @@ function StaffCurriculumDetailPage() {
               />
             </StaffField>
             <StaffField label="Thứ">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={sessionForm.dayOfWeek}
                 onChange={(e) =>
@@ -284,7 +285,7 @@ function StaffCurriculumDetailPage() {
                     {day.label}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </StaffField>
             <StaffField label="Tiết">
               <input
@@ -328,7 +329,7 @@ function StaffCurriculumDetailPage() {
               />
             </StaffField>
             <StaffField label="Buổi trong ngày">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={sessionForm.sessionPart}
                 onChange={(e) =>
@@ -343,7 +344,7 @@ function StaffCurriculumDetailPage() {
                     {part.label}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </StaffField>
             <div className="md:col-span-2 flex justify-end">
               <button

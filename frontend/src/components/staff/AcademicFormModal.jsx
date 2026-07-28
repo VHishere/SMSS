@@ -3,6 +3,7 @@ import Modal from "react-bootstrap/Modal";
 
 import { staffApi } from "../../api/client";
 import { StaffField, inputClass } from "./StaffFormCard";
+import PrettySelect from "../molecules/PrettySelect";
 
 const emptyForm = {
   studentId: "",
@@ -106,7 +107,7 @@ function AcademicFormModal({ show, onHide, editId, onSaved }) {
           )}
 
           <StaffField label="Học sinh">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.studentId}
               onChange={handleChange("studentId")}
@@ -118,11 +119,11 @@ function AcademicFormModal({ show, onHide, editId, onSaved }) {
                   {item.studentCode} · {item.fullName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
 
           <StaffField label="Môn học">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.subjectId}
               onChange={handleChange("subjectId")}
@@ -134,11 +135,11 @@ function AcademicFormModal({ show, onHide, editId, onSaved }) {
                   {item.subjectName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
 
           <StaffField label="Học kỳ">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.semesterId}
               onChange={handleChange("semesterId")}
@@ -150,11 +151,11 @@ function AcademicFormModal({ show, onHide, editId, onSaved }) {
                   {item.semesterName} · {item.schoolYearName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
 
           <StaffField label="Loại điểm">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.scoreType}
               onChange={handleChange("scoreType")}
@@ -164,7 +165,7 @@ function AcademicFormModal({ show, onHide, editId, onSaved }) {
               <option value="TX3">TX3 (thường xuyên · hệ số 1)</option>
               <option value="MIDTERM">1 tiết (định kỳ · hệ số 2)</option>
               <option value="FINAL">Cuối kỳ (hệ số 3)</option>
-            </select>
+            </PrettySelect>
           </StaffField>
 
           <StaffField label="Điểm">

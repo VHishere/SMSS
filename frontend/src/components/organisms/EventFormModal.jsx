@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { eventApi } from "../../api/client";
@@ -99,25 +100,25 @@ function EventFormModal({ mode, classes = [], categories = [], event = null, api
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Loại sự kiện <span className="text-red-500">*</span></label>
-              <select value={eventType} onChange={(e) => setEventType(e.target.value)} className={inputCls}>
+              <PrettySelect value={eventType} onChange={(e) => setEventType(e.target.value)} className={inputCls}>
                 <option value="">— Chọn loại —</option>
                 {EVENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              </PrettySelect>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Danh mục <span className="text-red-500">*</span></label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
+              <PrettySelect value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
                 <option value="">— Chọn danh mục —</option>
                 {categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Lớp (để trống = toàn trường)</label>
-            <select value={classId} onChange={(e) => { setClassId(e.target.value); setSelected(new Set()); }} className={inputCls} disabled={isEdit}>
+            <PrettySelect value={classId} onChange={(e) => { setClassId(e.target.value); setSelected(new Set()); }} className={inputCls} disabled={isEdit}>
               <option value="">Toàn trường</option>
               {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-            </select>
+            </PrettySelect>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

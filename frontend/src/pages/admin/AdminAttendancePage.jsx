@@ -7,6 +7,7 @@ import { useAdminAttendanceMeta } from "../../hooks/useAdminAttendanceMeta";
 import { useAdminAttendanceOverview } from "../../hooks/useAdminAttendanceOverview";
 import { useAdminAttendanceAnalytics } from "../../hooks/useAdminAttendanceAnalytics";
 import { formatDateVN } from "../../utils/datetime";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 const C = {
   onSurface: "#1A1C1C", muted: "#584238", border: "#DFC0B2", primary: "#9F4200",
@@ -402,9 +403,9 @@ function AdminAttendancePage() {
   function setTab(key) { setSearchParams({ tab: key }); }
 
   const classPicker = !metaLoading && classes.length > 0 && (
-    <select value={classId} onChange={(e) => setSelectedClassId(e.target.value)} className={selectCls} style={selStyle}>
+    <PrettySelect value={classId} onChange={(e) => setSelectedClassId(e.target.value)} className={selectCls} style={selStyle}>
       {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-    </select>
+    </PrettySelect>
   );
 
   return (

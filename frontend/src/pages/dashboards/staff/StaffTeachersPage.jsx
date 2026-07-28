@@ -6,6 +6,7 @@ import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 import {
   formatAccountStatus,
   formatTeacherType,
@@ -61,7 +62,7 @@ function StaffTeachersPage() {
 
   const filterToolbar = (
     <>
-      <select
+      <PrettySelect
         className={filterSelectClass}
         value={filters.gradeId}
         onChange={(event) =>
@@ -78,9 +79,9 @@ function StaffTeachersPage() {
             {grade.gradeName}
           </option>
         ))}
-      </select>
+      </PrettySelect>
 
-      <select
+      <PrettySelect
         className={filterSelectClass}
         value={filters.classId}
         onChange={(event) =>
@@ -93,7 +94,7 @@ function StaffTeachersPage() {
             {cls.className}
           </option>
         ))}
-      </select>
+      </PrettySelect>
     </>
   );
 

@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import EventFormModal from "../../components/organisms/EventFormModal";
 import { adminApi } from "../../api/client";
 import { formatDateTimeVN } from "../../utils/datetime";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 const C = { onSurface: "#1A1C1C", muted: "#584238", border: "#DFC0B2", orange: "#F27123", secondary: "#225DAD", deepBlue: "#00458E", surfaceLow: "#F3F3F3" };
 function Ms({ name, className = "", style }) {
@@ -211,9 +212,9 @@ function ParticipantsTab({ eventId, event, participants, classes, readOnly, onCh
 
       {showAdd && (
         <div className="mb-4 rounded-3xl p-3" style={{ border: `1px solid ${C.border}`, backgroundColor: C.surfaceLow }}>
-          <select value={addClassId} onChange={(e) => { setAddClassId(e.target.value); setSelected(new Set()); }} className={`${inputCls} mb-2`}>
+          <PrettySelect value={addClassId} onChange={(e) => { setAddClassId(e.target.value); setSelected(new Set()); }} className={`${inputCls} mb-2`}>
             {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-          </select>
+          </PrettySelect>
           <div className="max-h-40 space-y-1 overflow-y-auto">
             {[...contacts.students.map((s) => ({ key: `STUDENT::${s.userId}::${s.studentId}`, userId: s.userId, name: s.name, sub: `HS · ${s.code}` })),
               ...contacts.parents.map((p) => ({ key: `PARENT::${p.userId}::${p.studentId ?? ""}`, userId: p.userId, name: p.name, sub: `PH · ${p.studentName}` }))]
@@ -239,9 +240,9 @@ function ParticipantsTab({ eventId, event, participants, classes, readOnly, onCh
                 <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
                 {!readOnly && (
                   <>
-                    <select value={p.attendStatus} onChange={(e) => mark(p, e.target.value)} className="rounded-xl border px-2 py-1 text-xs outline-none" style={{ borderColor: C.border }}>
+                    <PrettySelect value={p.attendStatus} onChange={(e) => mark(p, e.target.value)} className="rounded-xl border px-2 py-1 text-xs outline-none" style={{ borderColor: C.border }}>
                       {Object.entries(ATT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                    </select>
+                    </PrettySelect>
                     <button type="button" onClick={() => remove(p)} className="text-slate-300 hover:text-red-500"><Ms name="delete" className="text-[16px]!" /></button>
                   </>
                 )}

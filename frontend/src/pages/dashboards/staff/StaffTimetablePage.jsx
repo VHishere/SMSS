@@ -11,6 +11,7 @@ import {
 import { staffApi } from "../../../api/client";
 import { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const WEEK_DAYS = [
   { value: 2, label: "Thứ 2", offset: 0 },
@@ -255,7 +256,7 @@ function StaffTimetablePage() {
       <section className="mb-5 rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[repeat(4,minmax(0,1fr))]">
           <StaffField label="Năm học">
-            <select
+            <PrettySelect
               className={inputClass}
               value={filters.schoolYearId}
               onChange={(event) => updateFilter("schoolYearId", event.target.value)}
@@ -265,10 +266,10 @@ function StaffTimetablePage() {
                   {year.yearName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
           <StaffField label="Khối">
-            <select
+            <PrettySelect
               className={inputClass}
               value={filters.gradeId}
               onChange={(event) => updateFilter("gradeId", event.target.value)}
@@ -279,10 +280,10 @@ function StaffTimetablePage() {
                   {grade.gradeName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
           <StaffField label="Lớp">
-            <select
+            <PrettySelect
               className={inputClass}
               value={filters.classId}
               onChange={(event) => updateFilter("classId", event.target.value)}
@@ -293,7 +294,7 @@ function StaffTimetablePage() {
                   {item.className}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
           <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-2">
             <button

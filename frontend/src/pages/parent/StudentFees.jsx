@@ -9,6 +9,7 @@ import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentStudentFees } from "../../hooks/useParentStudentFees";
 import { parentApi } from "../../api/client";
 import { getCurrentSchoolYearLabel } from "../../utils/formatters";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 // ─── FSchool Stitch design tokens (matches the other parent portal pages) ────
 
@@ -588,7 +589,7 @@ function ParentStudentFees() {
             <span className="text-xs font-bold" style={{ color: C.onSurface }}>Bộ lọc:</span>
           </div>
 
-          <select
+          <PrettySelect
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="cursor-pointer rounded-full border bg-white px-4 py-2 text-sm outline-none focus:ring-1"
@@ -597,7 +598,7 @@ function ParentStudentFees() {
             {STATUS_OPTIONS.map((s) => (
               <option key={s.key} value={s.key}>{s.label}</option>
             ))}
-          </select>
+          </PrettySelect>
         </div>
 
         {error && (

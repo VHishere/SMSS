@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../api/client";
 import StaffPageHeader from "../../components/staff/StaffPageHeader";
 import { printReport } from "../../utils/printReport";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 function Ms({ name, className = "", style }) {
   return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>;
@@ -183,45 +184,45 @@ function AdminReportsPage() {
             <div className="flex flex-wrap items-end gap-3 p-5">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-slate-500">Loại báo cáo</label>
-                <select value={reportType} onChange={(e) => { setReportType(e.target.value); setDataset(null); }} className={selectCls}>
+                <PrettySelect value={reportType} onChange={(e) => { setReportType(e.target.value); setDataset(null); }} className={selectCls}>
                   {reportTypeOptions.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
-                </select>
+                </PrettySelect>
               </div>
 
               {!NEEDS_NO_CLASS.includes(reportType) && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-slate-500">Lớp</label>
-                  <select value={classId} onChange={(e) => { setSelectedClassId(e.target.value); setStudentId(""); }} className={selectCls}>
+                  <PrettySelect value={classId} onChange={(e) => { setSelectedClassId(e.target.value); setStudentId(""); }} className={selectCls}>
                     {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-                  </select>
+                  </PrettySelect>
                 </div>
               )}
 
               {NEEDS_STUDENT.includes(reportType) && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-slate-500">Học sinh</label>
-                  <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={selectCls}>
+                  <PrettySelect value={studentId} onChange={(e) => setStudentId(e.target.value)} className={selectCls}>
                     <option value="">— Chọn —</option>
                     {students.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName}</option>)}
-                  </select>
+                  </PrettySelect>
                 </div>
               )}
 
               {reportType === "EFFICIENCY" && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-slate-500">Nhóm theo</label>
-                  <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} className={selectCls}>
+                  <PrettySelect value={groupBy} onChange={(e) => setGroupBy(e.target.value)} className={selectCls}>
                     {Object.entries(GROUP_BY_LABEL).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-                  </select>
+                  </PrettySelect>
                 </div>
               )}
 
               {(NEEDS_SEMESTER.includes(reportType) || (reportType === "EFFICIENCY" && groupBy === "GRADE")) && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-slate-500">Học kỳ</label>
-                  <select value={semesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls}>
+                  <PrettySelect value={semesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls}>
                     {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-                  </select>
+                  </PrettySelect>
                 </div>
               )}
 

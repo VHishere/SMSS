@@ -22,6 +22,7 @@ import LoadingState from "../../components/atoms/LoadingState";
 import EmptyState from "../../components/molecules/EmptyState";
 import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
 import { useStudentAttendance } from "../../hooks/useStudentAttendance";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 const WEEK_DAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 
@@ -604,7 +605,7 @@ function AttendanceTable({
             />
           </label>
 
-          <select
+          <PrettySelect
             value={subjectFilter}
             onChange={(event) => setSubjectFilter(event.target.value)}
             className="h-10 min-w-[170px] rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-[#0F2747] outline-none transition focus:border-orange-300 focus:bg-white focus:ring-2 focus:ring-orange-100"
@@ -615,9 +616,9 @@ function AttendanceTable({
                 {subject}
               </option>
             ))}
-          </select>
+          </PrettySelect>
 
-          <select
+          <PrettySelect
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
             className="h-10 min-w-[170px] rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-[#0F2747] outline-none transition focus:border-orange-300 focus:bg-white focus:ring-2 focus:ring-orange-100"
@@ -628,7 +629,7 @@ function AttendanceTable({
                 {config.label}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </div>
       </div>
 

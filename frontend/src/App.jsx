@@ -109,6 +109,15 @@ import SupportCasesPage from "./pages/teacher/SupportCasesPage";
 
 import StudentHomeworkDetail from "./pages/student/StudentHomeworkDetail";
 
+import SupervisorDashboard from "./pages/supervisor/SupervisorDashboard";
+import SupervisorAreas from "./pages/supervisor/SupervisorAreas";
+import DormAttendance from "./pages/supervisor/DormAttendance";
+import SupervisionLog from "./pages/supervisor/SupervisionLog";
+import SupervisorLeave from "./pages/supervisor/SupervisorLeave";
+import SupervisorWeekend from "./pages/supervisor/SupervisorWeekend";
+import SupervisorSupport from "./pages/supervisor/SupervisorSupport";
+import SupervisorContacts from "./pages/supervisor/SupervisorContacts";
+
 import "./App.css";
 
 const TEACHER_ROLES = [
@@ -116,6 +125,8 @@ const TEACHER_ROLES = [
   "SUBJECT_TEACHER",
   "DORM_SUPERVISOR",
 ];
+
+const SUPERVISOR_ROLES = ["DORM_SUPERVISOR"];
 
 function App() {
   return (
@@ -655,6 +666,16 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* ── Giáo viên Quản nhiệm (GVQN / DORM_SUPERVISOR) ── */}
+          <Route path="/supervisor" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorDashboard /></ProtectedRoute>} />
+          <Route path="/supervisor/areas" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorAreas /></ProtectedRoute>} />
+          <Route path="/supervisor/attendance" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><DormAttendance /></ProtectedRoute>} />
+          <Route path="/supervisor/logbook" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisionLog /></ProtectedRoute>} />
+          <Route path="/supervisor/leave-approvals" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorLeave /></ProtectedRoute>} />
+          <Route path="/supervisor/weekend" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorWeekend /></ProtectedRoute>} />
+          <Route path="/supervisor/support" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorSupport /></ProtectedRoute>} />
+          <Route path="/supervisor/messages" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorContacts /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

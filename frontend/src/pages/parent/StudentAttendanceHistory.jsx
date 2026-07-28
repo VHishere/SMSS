@@ -9,6 +9,7 @@ import { useParentStudentAttendanceStats } from "../../hooks/useParentStudentAtt
 import { useParentStudents } from "../../hooks/useParentStudents";
 import { formatDateVN } from "../../utils/datetime";
 import { getCurrentSchoolYearLabel } from "../../utils/formatters";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 // ─── FSchool Stitch design tokens (matches the teacher attendance portal) ────
 
@@ -232,7 +233,7 @@ function HistoryTab({ studentId }) {
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center rounded-xl border bg-white p-1 px-3 shadow-sm" style={{ borderColor: C.outlineVariant }}>
           <Ms name="event_note" className="mr-2 !text-[20px]!" style={{ color: C.primary }} />
-          <select
+          <PrettySelect
             value={selectedYear}
             onChange={(e) => {
               const year = e.target.value;
@@ -244,12 +245,12 @@ function HistoryTab({ studentId }) {
             {schoolYears.map((y) => (
               <option key={y.value} value={y.value}>{y.label}</option>
             ))}
-          </select>
+          </PrettySelect>
         </div>
 
         <div className="flex items-center rounded-xl border bg-white p-1 px-3 shadow-sm" style={{ borderColor: C.outlineVariant }}>
           <Ms name="calendar_view_week" className="mr-2 !text-[20px]!" style={{ color: C.primary }} />
-          <select
+          <PrettySelect
             value={selectedWeekStart}
             onChange={(e) => setFilter((f) => ({ ...f, weekStart: e.target.value }))}
             className={`${selectStyle} min-w-70`}
@@ -258,7 +259,7 @@ function HistoryTab({ studentId }) {
             {weeks.map((w) => (
               <option key={w.value} value={w.value}>{w.label}</option>
             ))}
-          </select>
+          </PrettySelect>
         </div>
       </div>
 
@@ -545,7 +546,7 @@ function StatsTab({ studentId }) {
             <label className="block text-xs font-semibold uppercase tracking-wider" style={{ color: C.onSurfaceVariant }}>Phạm vi</label>
             <div className="flex items-center rounded-xl border bg-white px-3 shadow-sm" style={{ borderColor: C.outlineVariant }}>
               <Ms name="filter_alt" className="mr-2 !text-[20px]!" style={{ color: C.primary }} />
-              <select
+              <PrettySelect
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
                 className={selectStyle}
@@ -554,7 +555,7 @@ function StatsTab({ studentId }) {
                 {CONTEXT_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
-              </select>
+              </PrettySelect>
             </div>
           </div>
         </div>
@@ -783,7 +784,7 @@ function ParentStudentAttendanceHistory() {
             {students.length > 1 && (
               <div className="flex items-center rounded-xl border bg-white p-1 shadow-sm" style={{ borderColor: C.outlineVariant }}>
                 <Ms name="family_restroom" className="px-3" style={{ color: C.primary }} />
-                <select
+                <PrettySelect
                   value={activeStudentId ?? ""}
                   onChange={(e) =>
                     setSearchParams((prev) => {
@@ -800,7 +801,7 @@ function ParentStudentAttendanceHistory() {
                       {s.studentFullName}{s.className ? ` · ${s.className}` : ""}
                     </option>
                   ))}
-                </select>
+                </PrettySelect>
               </div>
             )}
           </div>

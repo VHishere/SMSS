@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { homeworkApi } from "../../api/client";
@@ -272,10 +273,10 @@ function HomeworkFormModal({ mode, assignments = [], homework = null, onClose, o
           {isEdit && (
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Trạng thái</label>
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls}>
+              <PrettySelect value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls}>
                 <option value="OPEN">Đang mở</option>
                 <option value="CLOSED">Đóng bài tập</option>
-              </select>
+              </PrettySelect>
               <p className="mt-1 text-xs text-slate-400">
                 Sau khi đóng, bài tập sẽ không thể chỉnh sửa.
               </p>

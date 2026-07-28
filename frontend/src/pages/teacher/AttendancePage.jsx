@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useAttendanceAnalytics } from "../../hooks/useAttendanceAnalytics";
@@ -541,13 +542,13 @@ function PeriodSheet({ period, date, onBack }) {
               {pageStudents.map((s) => (
                 <div key={s.studentId} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
                   <span className="w-44 min-w-0 truncate text-sm font-medium" style={{ color: C.onSurface }}>{s.fullName}</span>
-                  <select value={feedback[s.studentId]?.rating ?? ""} onChange={(e) => setFb(s.studentId, "rating", e.target.value)}
+                  <PrettySelect value={feedback[s.studentId]?.rating ?? ""} onChange={(e) => setFb(s.studentId, "rating", e.target.value)}
                     className="rounded-xl border px-2 py-1.5 text-sm outline-none" style={{ borderColor: C.outlineVariant, color: C.onSurface }}>
                     <option value="">— Mức —</option>
                     <option value="GOOD">Tốt</option>
                     <option value="NORMAL">Bình thường</option>
                     <option value="NEEDS_IMPROVEMENT">Cần cố gắng</option>
-                  </select>
+                  </PrettySelect>
                   <input type="text" value={feedback[s.studentId]?.content ?? ""} onChange={(e) => setFb(s.studentId, "content", e.target.value)}
                     placeholder="Nhận xét (tùy chọn)..." className="min-w-40 flex-1 rounded-xl border px-3 py-1.5 text-sm outline-none" style={{ borderColor: C.outlineVariant, color: C.onSurface }} />
                 </div>
@@ -1024,10 +1025,10 @@ function OverviewTab({ homeroomClasses }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         {homeroomClasses.length > 1 ? (
-          <select value={classId ?? ""} onChange={(e) => setClassId(Number(e.target.value))}
+          <PrettySelect value={classId ?? ""} onChange={(e) => setClassId(Number(e.target.value))}
             className="rounded-xl border bg-white px-3 py-2 text-sm shadow-sm outline-none" style={{ borderColor: C.outlineVariant, color: C.onSurface }}>
             {homeroomClasses.map((c) => <option key={c.classId} value={c.classId}>Lớp {c.className}</option>)}
-          </select>
+          </PrettySelect>
         ) : <span />}
         <button type="button" onClick={handleGenerate} disabled={generating || !classId}
           className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-sm transition active:scale-95 disabled:opacity-50" style={{ backgroundColor: C.deepBlue }}>
@@ -1158,14 +1159,14 @@ function AttendancePage() {
               {activeTab === "analytics" && profile.classes.length > 0 && (
                 <div className="flex items-center rounded-xl border bg-white p-1 shadow-sm" style={{ borderColor: C.outlineVariant }}>
                   <Ms name="school" className="px-3" style={{ color: C.primary }} />
-                  <select
+                  <PrettySelect
                     value={selectedClassId ?? ""}
                     onChange={(e) => setSelectedClassId(Number(e.target.value))}
                     className="cursor-pointer border-none bg-transparent pr-8 text-sm font-medium outline-none"
                     style={{ color: C.onSurface }}
                   >
                     {profile.classes.map((c) => <option key={c.classId} value={c.classId}>Lớp {c.className}</option>)}
-                  </select>
+                  </PrettySelect>
                 </div>
               )}
               {activeTab === "roll-call" && (

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import LeaveDecisionModal from "../../components/organisms/LeaveDecisionModal";
 import LeaveRequestDetailDrawer from "../../components/organisms/LeaveRequestDetailDrawer";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
@@ -295,7 +296,7 @@ function LeaveRequestsPage() {
             <span className="text-xs font-bold" style={{ color: C.onSurface }}>Bộ lọc:</span>
           </div>
 
-          <select
+          <PrettySelect
             value={classId}
             onChange={(e) => { setClassId(e.target.value); resetToFirstPage(); }}
             className="cursor-pointer rounded-full border bg-white px-4 py-2 text-sm outline-none focus:ring-1"
@@ -305,9 +306,9 @@ function LeaveRequestsPage() {
             {classes.map((c) => (
               <option key={c.classId} value={c.classId}>{c.className}</option>
             ))}
-          </select>
+          </PrettySelect>
 
-          <select
+          <PrettySelect
             value={activeStatus}
             onChange={(e) => changeStatus(e.target.value)}
             className="cursor-pointer rounded-full border bg-white px-4 py-2 text-sm outline-none focus:ring-1"
@@ -316,7 +317,7 @@ function LeaveRequestsPage() {
             {STATUS_OPTIONS.map((s) => (
               <option key={s.key} value={s.key}>{s.label}</option>
             ))}
-          </select>
+          </PrettySelect>
 
           <div className="flex items-center gap-2">
             <input

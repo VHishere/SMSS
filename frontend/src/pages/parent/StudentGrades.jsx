@@ -14,6 +14,7 @@ import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentStudentGrades } from "../../hooks/useParentStudentGrades";
 import { getCurrentSchoolYearLabel } from "../../utils/formatters";
 import { parentApi } from "../../api/client";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 // ─── FSchool Stitch design tokens (matches the teacher academic portal) ──────
 
@@ -807,22 +808,22 @@ function ParentStudentGrades() {
 
             <div className="flex flex-wrap items-end gap-2">
               {students.length > 1 && (
-                <select value={activeStudentId ?? ""} onChange={(e) => selectStudent(Number(e.target.value))} className={selectCls} style={selectStyle}>
+                <PrettySelect value={activeStudentId ?? ""} onChange={(e) => selectStudent(Number(e.target.value))} className={selectCls} style={selectStyle}>
                   {students.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentFullName}</option>)}
-                </select>
+                </PrettySelect>
               )}
-              <select
+              <PrettySelect
                 value={activeYearKey}
                 onChange={(e) => { setSelectedYearKey(e.target.value); setSelectedSemesterKey("ALL"); }}
                 className={selectCls}
                 style={selectStyle}
               >
                 {yearOptions.map((y) => <option key={y.key} value={y.key}>{y.label}</option>)}
-              </select>
+              </PrettySelect>
               {activeTab !== "analytics" && (
-                <select value={selectedSemesterKey} onChange={(e) => setSelectedSemesterKey(e.target.value)} className={selectCls} style={selectStyle}>
+                <PrettySelect value={selectedSemesterKey} onChange={(e) => setSelectedSemesterKey(e.target.value)} className={selectCls} style={selectStyle}>
                   {semesterOptions.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
-                </select>
+                </PrettySelect>
               )}
             </div>
           </div>

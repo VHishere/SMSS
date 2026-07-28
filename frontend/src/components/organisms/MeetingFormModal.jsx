@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { meetingApi } from "../../api/client";
@@ -109,24 +110,24 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Loại</label>
-              <select value={meetingType} onChange={(e) => setMeetingType(e.target.value)} className={inputCls}>
+              <PrettySelect value={meetingType} onChange={(e) => setMeetingType(e.target.value)} className={inputCls}>
                 {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              </PrettySelect>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Lớp</label>
-              <select value={classId} onChange={(e) => { setClassId(e.target.value); setSelected(new Set()); setStudentId(""); }} className={inputCls} disabled={isEdit}>
+              <PrettySelect value={classId} onChange={(e) => { setClassId(e.target.value); setSelected(new Set()); setStudentId(""); }} className={inputCls} disabled={isEdit}>
                 {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           </div>
           {meetingType === "INDIVIDUAL" && (
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Học sinh liên quan <span className="text-red-500">*</span></label>
-              <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
+              <PrettySelect value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
                 <option value="">— Chọn học sinh —</option>
                 {studentOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">

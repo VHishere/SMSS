@@ -10,6 +10,7 @@ import StaffFormCard, {
   primaryActionClass,
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const filterSelectClass =
   "h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] px-4 text-sm font-medium text-[#1A1C1C] outline-none transition hover:border-[#F27123] focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20 lg:w-48";
@@ -85,7 +86,7 @@ function StaffClassesPage() {
 
   const filterToolbar = (
     <>
-      <select
+      <PrettySelect
         className={filterSelectClass}
         value={filters.schoolYearId}
         onChange={(event) =>
@@ -98,9 +99,9 @@ function StaffClassesPage() {
             {year.yearName}
           </option>
         ))}
-      </select>
+      </PrettySelect>
 
-      <select
+      <PrettySelect
         className={filterSelectClass}
         value={filters.gradeId}
         onChange={(event) =>
@@ -113,7 +114,7 @@ function StaffClassesPage() {
             {grade.gradeName}
           </option>
         ))}
-      </select>
+      </PrettySelect>
     </>
   );
 
@@ -159,7 +160,7 @@ function StaffClassesPage() {
               />
             </StaffField>
             <StaffField label="Khối">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={form.gradeId}
                 onChange={(event) =>
@@ -173,10 +174,10 @@ function StaffClassesPage() {
                     {grade.gradeName}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </StaffField>
             <StaffField label="Năm học">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={form.schoolYearId}
                 onChange={(event) =>
@@ -190,7 +191,7 @@ function StaffClassesPage() {
                     {year.yearName}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </StaffField>
             <StaffField label="Phòng học">
               <input

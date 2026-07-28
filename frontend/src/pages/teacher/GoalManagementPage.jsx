@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { goalApi } from "../../api/client";
@@ -81,20 +82,20 @@ function GoalManagementPage() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: "#1A1C1C" }}>Theo dõi mục tiêu</h1>
             <div className="flex flex-wrap items-end gap-2">
-              <select value={effClassId} onChange={(e) => { setClassId(e.target.value); setPage(1); }} className={selectCls}>
+              <PrettySelect value={effClassId} onChange={(e) => { setClassId(e.target.value); setPage(1); }} className={selectCls}>
                 {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-              </select>
-              <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className={selectCls}>
+              </PrettySelect>
+              <PrettySelect value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className={selectCls}>
                 <option value="">Mọi trạng thái</option>
                 <option value="IN_PROGRESS">Đang thực hiện</option>
                 <option value="COMPLETED">Hoàn thành</option>
                 <option value="FAILED">Chưa đạt</option>
                 <option value="ARCHIVED">Đã lưu trữ</option>
-              </select>
-              <select value={goalType} onChange={(e) => { setGoalType(e.target.value); setPage(1); }} className={selectCls}>
+              </PrettySelect>
+              <PrettySelect value={goalType} onChange={(e) => { setGoalType(e.target.value); setPage(1); }} className={selectCls}>
                 <option value="">Mọi loại</option>
                 {goalTypes.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           </div>
 

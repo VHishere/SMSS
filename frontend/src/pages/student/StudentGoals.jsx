@@ -18,6 +18,7 @@ import LoadingState from "../../components/atoms/LoadingState";
 import EmptyState from "../../components/molecules/EmptyState";
 import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
 import { useStudentSelfGoals } from "../../hooks/useStudentSelfGoals";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 const STATUS_META = {
   IN_PROGRESS: {
@@ -239,7 +240,7 @@ function GoalCreateModal({ types, onClose, onCreated }) {
                   size={16}
                 />
 
-                <select
+                <PrettySelect
                   id="goal-type"
                   value={form.goalType}
                   onChange={(event) =>
@@ -260,7 +261,7 @@ function GoalCreateModal({ types, onClose, onCreated }) {
                       {type.label}
                     </option>
                   ))}
-                </select>
+                </PrettySelect>
               </div>
             </div>
 
@@ -618,7 +619,7 @@ function StudentGoals() {
           ))}
         </div>
 
-        <select
+        <PrettySelect
           value={filters.status}
           onChange={(event) =>
             setFilters((current) => ({
@@ -632,7 +633,7 @@ function StudentGoals() {
           <option value="IN_PROGRESS">Đang thực hiện</option>
           <option value="COMPLETED">Đã hoàn thành</option>
           <option value="FAILED">Chưa đạt</option>
-        </select>
+        </PrettySelect>
       </section>
 
       {loading && <LoadingState label="Đang tải danh sách mục tiêu..." />}

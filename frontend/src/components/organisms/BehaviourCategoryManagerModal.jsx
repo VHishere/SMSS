@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { adminApi } from "../../api/client";
@@ -149,10 +150,10 @@ function BehaviourCategoryManagerModal({ onClose }) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Loại</label>
-                <select value={form.behaviorType} disabled={Boolean(editingId)} onChange={(e) => setForm((f) => ({ ...f, behaviorType: e.target.value }))} className={`${inputCls} disabled:bg-slate-100`}>
+                <PrettySelect value={form.behaviorType} disabled={Boolean(editingId)} onChange={(e) => setForm((f) => ({ ...f, behaviorType: e.target.value }))} className={`${inputCls} disabled:bg-slate-100`}>
                   <option value="POSITIVE">Khen thưởng</option>
                   <option value="VIOLATION">Vi phạm</option>
-                </select>
+                </PrettySelect>
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-slate-600">Mức điểm <span className="text-red-500">*</span></label>

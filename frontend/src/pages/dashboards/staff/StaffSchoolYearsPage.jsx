@@ -10,6 +10,7 @@ import StaffFormCard, {
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 function StaffSchoolYearsPage() {
   const [schoolYears, setSchoolYears] = useState([]);
@@ -66,7 +67,7 @@ function StaffSchoolYearsPage() {
     <>
       <StaffPageHeader
         title="Quản lý năm học"
-        description="Tạo năm học mới và kích hoạt năm học hiện tại"
+        // description="Tạo năm học mới và kích hoạt năm học hiện tại"
         action={
           <button
             type="button"
@@ -125,7 +126,7 @@ function StaffSchoolYearsPage() {
               />
             </StaffField>
             <StaffField label="Trạng thái">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={form.status}
                 onChange={(e) =>
@@ -134,7 +135,7 @@ function StaffSchoolYearsPage() {
               >
                 <option value="PLANNED">Dự kiến</option>
                 <option value="ACTIVE">Đang hoạt động</option>
-              </select>
+              </PrettySelect>
             </StaffField>
           </StaffFormCard>
         </div>

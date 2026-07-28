@@ -327,6 +327,17 @@ export const dashboardNavigation = {
     },
   ],
 
+  SUPERVISOR: [
+    { label: "Dashboard", path: "/supervisor", icon: FiGrid, ms: "dashboard", end: true },
+    { label: "Khu tôi phụ trách", path: "/supervisor/areas", icon: FiGrid, ms: "apartment" },
+    { label: "Điểm danh nội trú", path: "/supervisor/attendance", icon: FiCalendar, ms: "how_to_reg" },
+    { label: "Sổ trực quản nhiệm", path: "/supervisor/logbook", icon: FiFileText, ms: "menu_book" },
+    { label: "Duyệt nghỉ", path: "/supervisor/leave-approvals", icon: FiFileText, ms: "fact_check" },
+    { label: "Đăng ký cuối tuần", path: "/supervisor/weekend", icon: FiCalendar, ms: "luggage" },
+    { label: "Hỗ trợ", path: "/supervisor/support", icon: FiLifeBuoy, ms: "support_agent" },
+    { label: "Liên lạc", path: "/supervisor/messages", icon: FiMessageSquare, ms: "contact_phone" },
+  ],
+
   PARENT: [
     {
       label: "Dashboard",

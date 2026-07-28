@@ -17,6 +17,7 @@ import {
 
 import { studentApi } from "../../api/client";
 import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 function formatDate(value) {
   if (!value) return "Chưa cập nhật";
@@ -340,7 +341,7 @@ function EditProfileModal({
                 Giới tính
               </span>
 
-              <select
+              <PrettySelect
                 value={form.gender}
                 onChange={(event) =>
                   updateField("gender", event.target.value)
@@ -350,7 +351,7 @@ function EditProfileModal({
                 <option value="MALE">Nam</option>
                 <option value="FEMALE">Nữ</option>
                 <option value="OTHER">Khác</option>
-              </select>
+              </PrettySelect>
             </label>
 
             <label className="block sm:col-span-2">

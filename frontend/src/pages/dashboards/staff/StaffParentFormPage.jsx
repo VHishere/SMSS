@@ -9,6 +9,7 @@ import StaffFormCard, {
   inputClass,
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const emptyForm = {
   fullName: "",
@@ -146,7 +147,7 @@ function StaffParentFormPage() {
           />
         </StaffField>
         <StaffField label="Quan hệ">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.relationship}
             onChange={handleChange("relationship")}
@@ -154,10 +155,10 @@ function StaffParentFormPage() {
             <option value="Father">Cha</option>
             <option value="Mother">Mẹ</option>
             <option value="Guardian">Người giám hộ</option>
-          </select>
+          </PrettySelect>
         </StaffField>
         <StaffField label="Học sinh liên kết">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.studentId}
             onChange={handleChange("studentId")}
@@ -168,7 +169,7 @@ function StaffParentFormPage() {
                 {item.studentCode} · {item.fullName}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
         <StaffField label="Liên hệ chính" className="rounded-2xl border border-[#DFC0B2] bg-[#F9F9F9] p-4 md:self-end">
           <input
@@ -180,14 +181,14 @@ function StaffParentFormPage() {
         </StaffField>
         {isEdit && (
           <StaffField label="Trạng thái">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.status}
               onChange={handleChange("status")}
             >
               <option value="ACTIVE">Hoạt động</option>
               <option value="INACTIVE">Ngưng hoạt động</option>
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
       </StaffFormCard>

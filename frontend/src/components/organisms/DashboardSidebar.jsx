@@ -72,6 +72,7 @@ function useNavScrollMemory(storageKey) {
 function StitchSidebarContent({
   items,
   onNavigate,
+  collapsed = false,
   scrollStorageKey = "nav_scroll_stitch",
 }) {
   const navigate = useNavigate();
@@ -85,19 +86,33 @@ function StitchSidebarContent({
 
   return (
     <div className="flex h-full flex-col bg-[#00458E] py-6">
-      <div className="shrink-0 px-6 pb-8">
-        <div className="flex items-center justify-center py-2">
-          <img
-            src={fptLogo}
-            alt="FPT Education Logo"
-            className="w-full max-w-50 rounded-md object-contain"
-          />
+      {/* Khối logo giữ CHIỀU CAO CỐ ĐỊNH (h-20) ở cả 2 trạng thái — nếu để cao
+          theo nội dung thì logo vuông (thu gọn) thấp hơn logo chữ (mở rộng),
+          làm toàn bộ menu bị nhảy lên/xuống mỗi lần thu gọn - mở lại. */}
+      <div className={`shrink-0 pb-8 ${collapsed ? "px-2" : "px-6"}`}>
+        <div className="flex h-20 items-center justify-center">
+          {collapsed ? (
+            <img
+              src="/logo-fpt-schools.png"
+              alt="FPT Schools"
+              className="h-14 w-14 rounded-lg object-contain"
+            />
+          ) : (
+            /* Kích thước TUYỆT ĐỐI + max-w-none: giữ đúng 200x64 như cũ và
+               không bị bóp méo khi sidebar đang chạy animation mở ra
+               (max-w-none để không bị quy tắc max-width:100% toàn cục ép nhỏ). */
+            <img
+              src={fptLogo}
+              alt="FPT Education Logo"
+              className="h-16 w-[200px] max-w-none shrink-0 rounded-md object-contain"
+            />
+          )}
         </div>
       </div>
 
       <nav
         ref={navRef}
-        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto"
+        className="no-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto"
       >
         {items.map((item) => (
           <SidebarMenuItem
@@ -109,18 +124,22 @@ function StitchSidebarContent({
             end={item.end}
             onClick={onNavigate}
             variant="stitch"
+            collapsed={collapsed}
           />
         ))}
       </nav>
 
-      <div className="mt-auto shrink-0 px-6 pt-4">
+      <div className={`mt-auto shrink-0 pt-4 ${collapsed ? "px-2" : "px-6"}`}>
         <button
           type="button"
           onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-full px-4 py-3 text-white transition-colors hover:bg-[#BA1A1A]/20 hover:text-[#FFDAD6]"
+          title={collapsed ? "Đăng xuất" : undefined}
+          className={`flex w-full items-center gap-3 overflow-hidden rounded-full px-4 py-3 text-white transition-colors hover:bg-[#BA1A1A]/20 hover:text-[#FFDAD6] ${collapsed ? "justify-center" : ""}`}
         >
-          <span className="material-symbols-outlined text-[22px]!">logout</span>
-          <span className="text-sm">Đăng xuất</span>
+          <span className="material-symbols-outlined shrink-0 text-[22px]!">logout</span>
+          {!collapsed && (
+            <span className="text-sm whitespace-nowrap">Đăng xuất</span>
+          )}
         </button>
       </div>
     </div>
@@ -132,18 +151,32 @@ function SidebarContent({
   footerLabel,
   footerValue,
   onNavigate,
+  collapsed = false,
+  scrollStorageKey = "nav_scroll_default",
 }) {
-  const navRef = useNavScrollMemory("nav_scroll_default");
+  const navRef = useNavScrollMemory(scrollStorageKey);
 
   return (
     <div className="flex h-full flex-col bg-[#0F2747] p-4">
+      {/* Chiều cao cố định (h-12 = đúng chiều cao logo trong FptBrand) để menu
+          không bị nhảy khi thu gọn - mở lại sidebar. */}
       <div className="flex shrink-0 justify-center px-2 py-3">
-        <FptBrand />
+        <div className="flex h-12 w-full items-center justify-center">
+          {collapsed ? (
+            <img
+              src="/logo-fpt-schools.png"
+              alt="FPT Schools"
+              className="h-12 w-12 rounded-lg object-contain"
+            />
+          ) : (
+            <FptBrand />
+          )}
+        </div>
       </div>
 
       <nav
         ref={navRef}
-        className="no-scrollbar mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1.5"
+        className="no-scrollbar mt-3 flex min-h-0 flex-1 flex-col gap-1.5 overflow-x-hidden overflow-y-auto pr-1.5"
       >
         {items.map((item) => (
           <SidebarMenuItem
@@ -153,19 +186,23 @@ function SidebarContent({
             icon={item.icon}
             end={item.end}
             onClick={onNavigate}
+            collapsed={collapsed}
           />
         ))}
       </nav>
 
-      {footerValue && (
+      {/* truncate (nowrap + cắt bớt): khi sidebar đang chạy animation mở ra, chữ
+          trong footer KHÔNG được xuống dòng — nếu wrap thì footer cao lên, ép
+          vùng menu co lại rồi bật về, nhìn như trang bị nhảy. */}
+      {footerValue && !collapsed && (
         <div className="mt-6 shrink-0 rounded-2xl border border-white/10 bg-white/5 p-4">
           {footerLabel && (
-            <p className="mb-1 text-xs text-blue-200">
+            <p className="mb-1 truncate text-xs text-blue-200">
               {footerLabel}
             </p>
           )}
 
-          <div className="font-bold text-white">
+          <div className="truncate font-bold text-white">
             {footerValue}
           </div>
         </div>
@@ -180,6 +217,9 @@ function DashboardSidebar({
   footerValue,
   showMobile = false,
   onCloseMobile,
+  collapsed = false,
+  sidebarRef,
+  onSidebarMouseDown,
   variant = "auto",
 }) {
   const { user } = useAuth();
@@ -209,19 +249,22 @@ function DashboardSidebar({
 
   return (
     <>
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — thu gọn còn 76px khi collapsed */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 hidden lg:block ${desktopWidthClass}`}
+        ref={sidebarRef}
+        onMouseDown={onSidebarMouseDown}
+        className={`fixed inset-y-0 left-0 z-40 hidden overflow-hidden transition-[width] duration-500 ease-in-out lg:block ${collapsed ? "w-[76px]" : desktopWidthClass}`}
       >
         <Content
           items={items}
           footerLabel={footerLabel}
           footerValue={footerValue}
           scrollStorageKey={scrollStorageKey}
+          collapsed={collapsed}
         />
       </aside>
 
-      {/* Mobile sidebar */}
+      {/* Mobile sidebar — luôn đầy đủ (không thu gọn) */}
       <Offcanvas
         show={showMobile}
         onHide={onCloseMobile}
@@ -234,6 +277,7 @@ function DashboardSidebar({
             footerLabel={footerLabel}
             footerValue={footerValue}
             onNavigate={onCloseMobile}
+            collapsed={false}
             scrollStorageKey={scrollStorageKey}
           />
         </Offcanvas.Body>

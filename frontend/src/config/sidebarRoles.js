@@ -10,6 +10,7 @@ export const STITCH_ROLES = [
   "DORM_SUPERVISOR",
   "PARENT",
   "ADMIN",
+  "STUDENT",
 ];
 
 export function isStitchUser(user) {

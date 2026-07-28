@@ -253,7 +253,7 @@ function StaffTimetablePage() {
         </div>
       )}
 
-      <section className="mb-5 rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
+      <section className="mb-5 rounded-3xl border card-border bg-white p-4 shadow-sm">
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[repeat(4,minmax(0,1fr))]">
           <StaffField label="Năm học">
             <PrettySelect
@@ -336,7 +336,7 @@ function StaffTimetablePage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
         <div className="border-b border-orange-100 px-5 py-4">
           <h2 className="mb-1 text-lg font-bold text-[#0F2747]">
             Thời khóa biểu tuần
@@ -346,11 +346,11 @@ function StaffTimetablePage() {
         <div className="overflow-x-auto p-4">
           <table className="w-full min-w-[960px] border-separate border-spacing-0 overflow-hidden rounded-2xl border border-slate-200">
             <thead>
-              <tr className="bg-[#0F2747] text-white">
-                <th className="sticky left-0 z-30 w-24 border-r border-white/10 bg-[#0F2747] px-4 py-4 text-center text-sm font-bold">
+              <tr className="bg-[#00458E] text-white">
+                <th className="sticky left-0 z-30 w-24 border-r border-white/10 bg-[#00458E] px-4 py-4 text-center text-sm font-bold">
                   Tiết
                 </th>
-                <th className="sticky left-24 z-30 w-40 border-r border-white/10 bg-[#0F2747] px-4 py-4 text-left text-sm font-bold">
+                <th className="sticky left-24 z-30 w-40 border-r border-white/10 bg-[#00458E] px-4 py-4 text-left text-sm font-bold">
                   Thời gian
                 </th>
                 {weekDays.map((day) => (

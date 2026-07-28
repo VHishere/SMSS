@@ -173,7 +173,7 @@ function EventCalendar({ events, selectedDate, onSelectDate }) {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="rounded-3xl border card-border bg-white p-4 shadow-sm">
       <div className="mb-4 grid grid-cols-[32px_minmax(0,1fr)_32px] items-center gap-2 px-2">
         <button
           type="button"
@@ -318,8 +318,8 @@ function EventFeatureCard({ event, onRegistered }) {
       onClick={openDetail}
       onKeyDown={handleCardKeyDown}
       className="
-        group cursor-pointer overflow-hidden rounded-2xl
-        border border-slate-200 bg-white shadow-sm
+        group cursor-pointer overflow-hidden rounded-3xl
+        border card-border bg-white shadow-sm
         transition hover:-translate-y-0.5 hover:shadow-md
         focus:outline-none focus:ring-2 focus:ring-orange-200
       "
@@ -439,7 +439,7 @@ function CompactEventCard({ event }) {
   return (
     <Link
       to={`/student/events/${event.eventId}`}
-      className="group grid grid-cols-[58px_minmax(0,1fr)] gap-3 rounded-2xl border border-slate-200 bg-white p-3 no-underline shadow-sm transition hover:border-orange-200 hover:shadow-md"
+      className="group grid grid-cols-[58px_minmax(0,1fr)] gap-3 rounded-3xl border card-border bg-white p-3 no-underline shadow-sm transition hover:card-border hover:shadow-md"
     >
       <span className="relative flex min-h-16 flex-col items-center justify-center overflow-hidden rounded-xl text-white">
         <EventCover
@@ -469,7 +469,7 @@ function CompactEventCard({ event }) {
 
 function RegisteredEventsTable({ events }) {
   return (
-    <section className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className="mt-5 overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
       <div className="flex items-center justify-between gap-4 px-5 py-4">
         <div>
           <h2 className="mb-1 flex items-center gap-2 text-base font-extrabold text-[#0F2747]">
@@ -595,7 +595,7 @@ function StudentEvents() {
       <section
         className="
     mb-4 flex w-full flex-col gap-4
-    rounded-2xl border border-slate-200 bg-white
+    rounded-3xl border card-border bg-white
     px-5 py-4 shadow-sm
     md:flex-row md:items-center md:justify-between
   "
@@ -666,7 +666,7 @@ function StudentEvents() {
                 onSelectDate={setSelectedDate}
               />
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <section className="rounded-3xl border card-border bg-white p-4 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <h2 className="mb-0 !text-sm !leading-5 font-extrabold uppercase tracking-wide text-slate-500">
                     Sự kiện sắp tới

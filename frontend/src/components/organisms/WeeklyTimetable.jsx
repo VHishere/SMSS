@@ -60,19 +60,17 @@ function WeeklyTimetable({
 
   return (
     <section
-      className="
-        overflow-hidden rounded-3xl
-        border border-orange-100
-        bg-white shadow-sm
-      "
+      className="overflow-hidden rounded-3xl bg-white shadow-sm"
+      style={{ border: "1px solid #DFC0B2" }}
     >
       <div className="space-y-4 p-3 sm:p-4 lg:hidden">
         {weekDays.map((day) => (
           <article
             key={day.value}
-            className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm"
+            className="overflow-hidden rounded-3xl bg-white shadow-sm"
+            style={{ border: "1px solid #DFC0B2" }}
           >
-            <div className="bg-[#0F2747] px-4 py-3 text-white">
+            <div className="bg-[#00458E] px-4 py-3 text-white">
               <h3 className="mb-0 text-base font-bold">
                 {day.label}
               </h3>
@@ -128,8 +126,7 @@ function WeeklyTimetable({
             table-fixed
             w-full min-w-[1280px]
             border-separate border-spacing-0
-            overflow-hidden rounded-2xl
-            border border-slate-200
+            overflow-hidden rounded-3xl
           "
         >
           <colgroup>
@@ -145,12 +142,12 @@ function WeeklyTimetable({
           </colgroup>
 
           <thead>
-            <tr className="bg-[#0F2747] text-white">
+            <tr className="bg-[#00458E] text-white">
               <th
                 className="
                   sticky left-0 z-30
                   border-r border-white/10
-                  bg-[#0F2747]
+                  bg-[#00458E]
                   px-4 py-4 text-center
                   text-sm font-bold
                 "
@@ -162,7 +159,7 @@ function WeeklyTimetable({
                 className="
                   sticky left-24 z-30
                   border-r border-white/10
-                  bg-[#0F2747]
+                  bg-[#00458E]
                   px-4 py-4 text-left
                   text-sm font-bold
                 "

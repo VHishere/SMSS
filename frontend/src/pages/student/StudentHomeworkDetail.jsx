@@ -132,7 +132,7 @@ function SubmissionOverview({ homework, status }) {
   const overdue = homework.isOverdue || isPastDue(homework.dueDate);
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
       <h3 className="mb-5 text-xl font-black text-[#0F2747]">
         Trạng thái nộp bài
       </h3>
@@ -220,7 +220,7 @@ function TeacherFeedback({ homework }) {
     homework.teacherName?.trim()?.charAt(0)?.toUpperCase() || "G";
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
       <h3 className="mb-4 flex items-center gap-2 text-lg font-extrabold text-[#0F2747]">
         <FiMessageCircle className="text-[#F27123]" />
         Trao đổi
@@ -364,7 +364,7 @@ function StudentHomeworkDetail() {
               </div>
             )}
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-3xl border card-border bg-white p-6 shadow-sm">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <span
@@ -451,7 +451,7 @@ function StudentHomeworkDetail() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-3xl border card-border bg-white p-6 shadow-sm">
               <h3 className="mb-5 flex items-center gap-3 text-2xl font-extrabold text-[#0F2747]">
                 <FiAlertCircle className="text-[#F27123]" />
                 Hướng dẫn làm bài
@@ -488,7 +488,7 @@ function StudentHomeworkDetail() {
               </div>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <section className="rounded-3xl border card-border bg-white p-6 shadow-sm">
               <h3 className="mb-5 flex items-center gap-3 text-xl font-extrabold text-[#0F2747]">
                 <FiFileText className="text-[#F27123]" />
                 Tài liệu đính kèm

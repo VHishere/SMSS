@@ -167,7 +167,7 @@ function StudentBehaviour() {
             </article>
 
             <div className="grid grid-cols-2 gap-3">
-              <article className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+              <article className="rounded-3xl border card-border bg-white p-4 text-center shadow-sm">
                 <span className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
                   <FiAward />
                 </span>
@@ -179,7 +179,7 @@ function StudentBehaviour() {
                 </span>
               </article>
 
-              <article className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+              <article className="rounded-3xl border card-border bg-white p-4 text-center shadow-sm">
                 <span className="mx-auto mb-2 grid h-9 w-9 place-items-center rounded-xl bg-red-50 text-red-600">
                   <FiAlertTriangle />
                 </span>
@@ -191,7 +191,7 @@ function StudentBehaviour() {
                 </span>
               </article>
 
-              <article className="col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <article className="col-span-2 rounded-3xl border card-border bg-white p-4 shadow-sm">
                 <div className="flex items-center gap-3">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-orange-50 text-[#F27123]">
                     <FiTarget />
@@ -209,7 +209,7 @@ function StudentBehaviour() {
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <section className="overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
             <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="mb-1 text-base font-extrabold text-[#0F2747]">

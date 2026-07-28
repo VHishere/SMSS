@@ -101,7 +101,7 @@ function StudentHomeworkSubmitPanel({
     <form
       onSubmit={handleSubmit}
       className="
-        rounded-2xl border border-slate-200
+        rounded-3xl border card-border
         bg-white p-5 shadow-sm
       "
     >

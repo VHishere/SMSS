@@ -124,7 +124,7 @@ function SectionCard({
   return (
     <section
       className={`
-        rounded-2xl border border-slate-200 bg-white
+        rounded-3xl border card-border bg-white
         p-5 shadow-sm
         ${className}
       `}
@@ -464,7 +464,7 @@ function StudentProfile() {
       </div>
 
       {loading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+        <div className="rounded-3xl border card-border bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
           Đang tải hồ sơ học sinh...
         </div>
       ) : null}
@@ -484,7 +484,7 @@ function StudentProfile() {
             </div>
           ) : null}
 
-          <section className="relative mb-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <section className="relative mb-4 overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
             <div className="absolute right-0 top-0 h-32 w-44 rounded-bl-[100px] bg-slate-50" />
 
             <div className="relative flex flex-col gap-5 p-5 sm:flex-row sm:items-center">

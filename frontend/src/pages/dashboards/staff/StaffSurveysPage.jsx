@@ -27,7 +27,7 @@ function AggregateModal({ survey, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="mb-1 text-lg font-bold text-[#0F2747]">Tổng hợp đánh giá (ẩn danh)</h3>
         <p className="mb-4 text-sm text-slate-500">GV {survey.teacherName}{survey.subjectName ? ` · ${survey.subjectName}` : ""} · {survey.semesterName}</p>
         {loading ? (
@@ -132,7 +132,7 @@ function StaffSurveysPage() {
       />
 
       {/* Create form */}
-      <form onSubmit={handleCreate} className="mb-6 rounded-2xl border border-orange-100 bg-white p-5 shadow-sm">
+      <form onSubmit={handleCreate} className="mb-6 rounded-3xl border card-border bg-white p-5 shadow-sm">
         <h3 className="mb-3 text-base font-bold text-[#0F2747]">Tạo khảo sát mới</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           <PrettySelect className={inputCls} value={form.semesterId} onChange={set("semesterId")}>
@@ -165,11 +165,11 @@ function StaffSurveysPage() {
       {loading ? (
         <div className="h-40 animate-pulse rounded-2xl bg-slate-100" />
       ) : surveys.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-orange-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">Chưa có khảo sát nào.</div>
+        <div className="rounded-3xl border border-dashed card-border bg-white p-10 text-center text-sm text-slate-500 shadow-sm">Chưa có khảo sát nào.</div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#0F2747] text-white">
+            <thead className="bg-[#00458E] text-white">
               <tr>
                 <th className="px-4 py-3 font-semibold">Giáo viên</th>
                 <th className="px-4 py-3 font-semibold">Môn / Học kỳ</th>

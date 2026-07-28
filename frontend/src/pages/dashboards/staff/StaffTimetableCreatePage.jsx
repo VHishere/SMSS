@@ -199,7 +199,7 @@ function StaffTimetableCreatePage() {
             {conflicts.map((item) => (
               <div
                 key={`${item.classId}-${item.reason}`}
-                className="rounded-2xl bg-white px-4 py-3 text-sm text-red-700 shadow-sm"
+                className="rounded-3xl bg-white px-4 py-3 text-sm text-red-700 shadow-sm"
               >
                 <p className="mb-1 font-semibold">{item.className}</p>
                 <p className="mb-0">{item.reason}</p>

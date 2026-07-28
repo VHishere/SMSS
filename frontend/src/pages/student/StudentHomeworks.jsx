@@ -126,9 +126,9 @@ function HomeworkCard({ homework }) {
     <Link
       to={`/student/homeworks/${homework.homeworkId}`}
       className="
-        group block rounded-2xl border border-slate-200 bg-white
+        group block rounded-3xl border card-border bg-white
         p-4 text-inherit no-underline shadow-sm transition
-        hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md
+        hover:-translate-y-0.5 hover:card-border hover:shadow-md
       "
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -323,9 +323,9 @@ function StudentHomeworks() {
 
           <div
             className="
-              flex w-full items-center gap-3 rounded-2xl
-              border border-slate-200 bg-white p-2.5 shadow-sm
-              transition focus-within:border-orange-300
+              flex w-full items-center gap-3 rounded-3xl
+              border card-border bg-white p-2.5 shadow-sm
+              transition focus-within:card-border
               focus-within:ring-2 focus-within:ring-orange-100
               md:w-auto
             "

@@ -14,7 +14,9 @@ import { Link } from "react-router-dom";
 
 import ErrorAlert from "../../components/atoms/ErrorAlert";
 import LoadingState from "../../components/atoms/LoadingState";
+import WelcomeBanner from "../../components/molecules/WelcomeBanner";
 import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
+import { useAuth } from "../../context/useAuth";
 import { useStudentDashboard } from "../../hooks/useStudentDashboard";
 
 function parseDate(value) {
@@ -863,6 +865,7 @@ function ChartLegend({ items }) {
 }
 
 function StudentDashboard() {
+  const { user } = useAuth();
   const { data, loading, error } = useStudentDashboard();
   const context = data?.context;
   const today = new Date();
@@ -928,6 +931,11 @@ function StudentDashboard() {
 
   return (
     <StudentDashboardShell context={context}>
+      <WelcomeBanner
+        name={context?.fullName || user?.fullName || user?.username}
+        message="Chúc bạn một ngày học tập hiệu quả."
+      />
+
       {loading && (
         <LoadingState label="Đang tải bảng điều khiển học sinh..." />
       )}

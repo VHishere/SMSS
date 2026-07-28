@@ -17,6 +17,12 @@ import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 
+// Bảng màu chuẩn của hệ thống (giống các trang teacher). Viền đặt qua inline
+// style vì utility `border-*` của Tailwind bị CSS unlayered của Bootstrap ghi đè
+// (đo được: border-slate-200 ra #DEE2E6 xám thay vì #DFC0B2).
+const C = { onSurface: "#1A1C1C", border: "#DFC0B2" };
+const CARD_BORDER = { border: `1px solid ${C.border}` };
+
 const SUBJECT_VISUALS = [
   { icon: FiBookOpen, box: "bg-orange-100 text-[#F27123]" },
   { icon: FiDatabase, box: "bg-slate-100 text-slate-500" },
@@ -168,7 +174,7 @@ function SurveyForm({ survey, onSubmitted }) {
 
   if (survey.submitted) {
     return (
-      <section className="grid min-h-[520px] place-items-center rounded-2xl border border-emerald-100 bg-white p-8 text-center shadow-sm">
+      <section className="grid min-h-[520px] place-items-center rounded-3xl border border-emerald-100 bg-white p-8 text-center shadow-sm">
         <div className="max-w-sm">
           <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-emerald-50 text-emerald-600">
             <FiCheckCircle size={30} />
@@ -187,7 +193,8 @@ function SurveyForm({ survey, onSubmitted }) {
   return (
     <form
       onSubmit={submit}
-      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+      className="overflow-hidden rounded-3xl bg-white shadow-sm"
+      style={CARD_BORDER}
     >
       <header className="flex items-start justify-between gap-4 bg-[#0F4C8A] px-5 py-4 text-white">
         <div className="min-w-0">
@@ -384,11 +391,18 @@ function StudentSurveys() {
       sidebarFooterLabel="Khảo sát"
       sidebarFooterValue="Đánh giá giáo viên"
     >
-      <section className="mb-4 grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center">
+      <h1
+        className="mb-6 text-2xl font-extrabold tracking-tight sm:text-3xl"
+        style={{ color: C.onSurface }}
+      >
+        Khảo sát ý kiến học sinh
+      </h1>
+
+      <section
+        className="mb-4 grid gap-4 rounded-3xl bg-white p-5 shadow-sm lg:grid-cols-[minmax(0,1fr)_280px] lg:items-center"
+        style={CARD_BORDER}
+      >
         <div>
-          <h1 className="mb-1 text-xl font-black text-[#0F2747]">
-            Khảo sát ý kiến học sinh
-          </h1>
           <p className="mb-0 max-w-3xl text-xs leading-5 text-slate-500">
             Ý kiến của bạn là cơ sở quan trọng để nhà trường và giáo viên nâng cao chất lượng giảng dạy. Mọi phản hồi đều được tổng hợp ẩn danh.
           </p>
@@ -418,26 +432,35 @@ function StudentSurveys() {
       </section>
 
       {loading && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">
+        <div
+          className="rounded-3xl bg-white p-10 text-center text-sm text-slate-500 shadow-sm"
+          style={CARD_BORDER}
+        >
           Đang tải khảo sát...
         </div>
       )}
 
       {!loading && error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">
+        <div className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">
           {error}
         </div>
       )}
 
       {!loading && !error && surveys.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-10 text-center text-sm text-slate-500">
+        <div
+          className="rounded-3xl border-dashed bg-white p-10 text-center text-sm text-slate-500"
+          style={{ border: `1px dashed ${C.border}` }}
+        >
           Hiện chưa có khảo sát giáo viên nào đang mở.
         </div>
       )}
 
       {!loading && !error && surveys.length > 0 && selectedSurvey && (
         <div className="grid items-start gap-4 xl:grid-cols-[300px_minmax(0,1fr)]">
-          <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-5">
+          <aside
+            className="rounded-3xl bg-white p-4 shadow-sm xl:sticky xl:top-5"
+            style={CARD_BORDER}
+          >
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="mb-0 text-xs font-extrabold text-[#0F2747]">
                 Danh sách môn học

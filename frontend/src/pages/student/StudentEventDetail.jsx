@@ -243,7 +243,7 @@ function StudentEventDetail() {
       {!loading && !error && event && (
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_350px]">
           <div className="min-w-0 space-y-4">
-            <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <article className="overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
               <div className="relative h-[260px] overflow-hidden sm:h-[360px]">
                 <EventCover
                   event={event}
@@ -326,7 +326,7 @@ function StudentEventDetail() {
             </article>
 
             {gallery.length > 0 && (
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <h2 className="mb-0 text-sm font-extrabold text-[#0F2747]">
                     Thư viện hình ảnh
@@ -357,7 +357,7 @@ function StudentEventDetail() {
             )}
 
             {relatedEvents.length > 0 && (
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <h2 className="mb-0 text-sm font-extrabold text-[#0F2747]">
                     Sự kiện liên quan
@@ -402,7 +402,7 @@ function StudentEventDetail() {
           </div>
 
           <aside className="space-y-4 xl:sticky xl:top-5">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm">
+            <section className="rounded-3xl border card-border bg-white p-5 text-center shadow-sm">
               <span className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-orange-50 text-[#F27123]">
                 <FiUserPlus size={23} />
               </span>
@@ -454,7 +454,7 @@ function StudentEventDetail() {
               </p>
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
               <h2 className="mb-4 text-sm font-extrabold text-[#0F2747]">
                 Đơn vị tổ chức
               </h2>
@@ -485,7 +485,7 @@ function StudentEventDetail() {
               </div>
             </section>
 
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <section className="overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
               <div className="p-5 pb-3">
                 <h2 className="mb-0 text-sm font-extrabold text-[#0F2747]">
                   Địa điểm

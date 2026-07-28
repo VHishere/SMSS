@@ -440,7 +440,7 @@ function GoalCard({ goal, typeLabel }) {
   const deadline = getDeadlineMeta(goal.targetDate);
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-md">
+    <article className="rounded-3xl border card-border bg-white p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:card-border hover:shadow-md">
       <div className="mb-3 flex items-start justify-between gap-3">
         <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${type.iconClass}`}>
           <Icon size={16} />
@@ -579,7 +579,7 @@ function StudentGoals() {
         </div>
       </section>
 
-      <section className="mb-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:flex-row md:items-center md:justify-between">
+      <section className="mb-4 flex flex-col gap-3 rounded-3xl border card-border bg-white p-3 shadow-sm md:flex-row md:items-center md:justify-between">
         <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
           <button
             type="button"
@@ -678,7 +678,7 @@ function StudentGoals() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(true)}
-                  className="flex min-h-[210px] flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white p-5 text-center transition hover:border-orange-300 hover:bg-orange-50/40"
+                  className="flex min-h-[210px] flex-col items-center justify-center rounded-3xl border border-dashed card-border bg-white p-5 text-center transition hover:card-border hover:bg-orange-50/40"
                 >
                   <span className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-slate-100 text-[#0F4C8A]">
                     <FiPlus />
@@ -695,7 +695,7 @@ function StudentGoals() {
           </section>
 
           <aside className="space-y-4 xl:sticky xl:top-5">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
               <h2 className="mb-4 flex items-center gap-2 text-sm font-extrabold text-[#0F2747]">
                 <FiTarget className="text-[#F27123]" />
                 Kế hoạch sắp tới
@@ -727,7 +727,7 @@ function StudentGoals() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
               <h2 className="mb-4 flex items-center gap-2 text-sm font-extrabold text-[#0F2747]">
                 <FiUser className="text-[#F27123]" />
                 Phản hồi giáo viên
@@ -753,7 +753,7 @@ function StudentGoals() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#0F2747]">
                 <FiCheckCircle className="text-emerald-600" />
                 Tổng quan

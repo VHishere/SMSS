@@ -367,7 +367,7 @@ function StudentGrades() {
               <FiStar className="absolute -bottom-5 right-3 text-white/10" size={110} />
             </article>
 
-            <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <article className="rounded-3xl border card-border bg-white p-5 shadow-sm">
               <span className="mb-4 grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700">
                 <FiTrendingUp />
               </span>
@@ -382,7 +382,7 @@ function StudentGrades() {
               </p>
             </article>
 
-            <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <article className="rounded-3xl border card-border bg-white p-5 shadow-sm">
               <span className="mb-4 grid h-10 w-10 place-items-center rounded-xl bg-orange-50 text-[#F27123]">
                 <FiTrendingDown />
               </span>
@@ -399,7 +399,7 @@ function StudentGrades() {
           </section>
 
           <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <section className="overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
               <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
                 <div>
                   <h2 className="mb-1 flex items-center gap-2 text-sm font-extrabold text-[#0F2747]">
@@ -486,7 +486,7 @@ function StudentGrades() {
             </section>
 
             <aside className="space-y-4 xl:sticky xl:top-5">
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
                 <div className="mb-5 flex items-center justify-between gap-3">
                   <h2 className="mb-0 flex items-center gap-2 text-sm font-extrabold text-[#0F2747]">
                     <FiBarChart2 className="text-[#F27123]" />
@@ -532,7 +532,7 @@ function StudentGrades() {
                 )}
               </section>
 
-              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
                 <h2 className="mb-4 text-sm font-extrabold text-[#0F2747]">
                   Tình trạng học tập
                 </h2>

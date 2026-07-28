@@ -103,7 +103,7 @@ function ParentStudentTimetable() {
         <div
           className="
             flex flex-wrap items-center justify-end
-            gap-6 rounded-2xl border border-orange-100
+            gap-6 rounded-3xl border card-border
             bg-white px-5 py-3 shadow-sm
           "
         >
@@ -134,7 +134,7 @@ function ParentStudentTimetable() {
       {loading && (
         <div
           className="
-            rounded-2xl border border-orange-100
+            rounded-3xl border card-border
             bg-white p-8 text-center
             text-sm text-slate-500 shadow-sm
           "

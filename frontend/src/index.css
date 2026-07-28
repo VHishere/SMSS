@@ -12,6 +12,19 @@ button {
     border-radius: revert-layer;
 }
 
+/* Viền thẻ (card) CHUẨN của hệ thống — #DFC0B2, giống các trang teacher.
+   Phải đặt NGOÀI @layer (+ !important) vì utility `border-<màu>` của Tailwind
+   nằm trong @layer utilities nên luôn thua CSS không-layer của Bootstrap
+   (đo được: border-orange-100 / border-slate-200 đều ra xám #DEE2E6).
+   Dùng: className="rounded-3xl border card-border bg-white" */
+.card-border {
+    border: 1px solid #DFC0B2 !important;
+}
+
+.card-border-dashed {
+    border: 1px dashed #DFC0B2 !important;
+}
+
 :root {
     --cream: #fff7f2;
     --peach: #ffe7d6;

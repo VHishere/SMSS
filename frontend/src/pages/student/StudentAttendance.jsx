@@ -310,13 +310,13 @@ function SummaryCard({
   helper,
   icon: Icon,
   accentClass,
-  valueClass = "text-[#0F2747]",
+  valueClass = "text-[#1A1C1C]",
 }) {
   return (
     <article
       className={`
-        relative overflow-hidden rounded-2xl border border-slate-200
-        bg-white p-4 shadow-sm
+        relative overflow-hidden rounded-3xl border card-border
+        bg-white p-6 shadow-sm
       `}
     >
       <span
@@ -326,21 +326,25 @@ function SummaryCard({
         `}
       />
 
+      {/* Cỡ chữ theo chuẩn thẻ tổng quan của teacher: nhãn 12px in hoa,
+          số text-5xl (48px), chú thích 12px in nghiêng. */}
       <div className="flex items-start justify-between gap-3 pl-1">
-        <div>
-          <p className="mb-1 text-xs font-medium text-slate-500">
+        <div className="min-w-0">
+          <p className="mb-1 text-xs font-medium uppercase tracking-wider text-[#584238]">
             {label}
           </p>
-          <strong className={`block text-2xl font-black ${valueClass}`}>
+          <strong
+            className={`block text-5xl font-bold leading-none tracking-tight ${valueClass}`}
+          >
             {value}
           </strong>
-          <p className="mb-0 mt-1 text-[10px] text-slate-400">
+          <p className="mb-0 mt-2 text-xs italic text-[#584238]">
             {helper}
           </p>
         </div>
 
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-50 text-slate-400">
-          <Icon size={16} />
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-slate-50 text-slate-400">
+          <Icon size={20} />
         </span>
       </div>
     </article>
@@ -420,7 +424,7 @@ function StatusLegend({
   summary,
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
       <h2 className="mb-4 text-sm font-extrabold text-[#0F2747]">
         Chú giải và trạng thái
       </h2>
@@ -453,7 +457,7 @@ function RecentLeaveRequestCard({
 }) {
   if (!request) {
     return (
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
         <h2 className="mb-4 text-sm font-extrabold text-[#0F2747]">
           Đơn nghỉ phép gần nhất
         </h2>
@@ -475,7 +479,7 @@ function RecentLeaveRequestCard({
     };
 
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className="mb-1 text-sm font-extrabold text-[#0F2747]">
@@ -583,7 +587,7 @@ function AttendanceTable({
   }, [items, search, statusFilter, subjectFilter]);
 
   return (
-    <section className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className="mt-4 overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
       <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="mb-1 text-sm font-extrabold text-[#0F2747]">
@@ -841,7 +845,7 @@ function StudentAttendance() {
           </section>
 
           <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
               <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-2">
                   <FiCalendar className="text-[#0F4C8A]" />

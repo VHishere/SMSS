@@ -118,4 +118,78 @@ async function getDashboardSummary(req, res) {
   }
 }
 
-module.exports = { getMyProfile, getDashboardSummary };
+// Trung tâm thông báo của GVCN — gộp dữ liệu THẬT từ 3 nguồn:
+//  • school : thông báo đã phát hành tới lớp chủ nhiệm
+//  • alerts : cảnh báo học lực / hạnh kiểm / chuyên cần của HS lớp chủ nhiệm
+//  • system : việc cần xử lý (đơn xin nghỉ đang chờ duyệt)
+async function getNotifications(req, res) {
+  try {
+    const profile = await teacherModel.findProfileByUserId(req.user.userId);
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy hồ sơ giáo viên",
+      });
+    }
+
+    const isHomeroom = profile.classes.some(
+      (c) => c.roleInClass === "HOMEROOM_TEACHER",
+    );
+
+    if (!isHomeroom) {
+      return res.json({
+        success: true,
+        data: {
+          isHomeroom: false,
+          counts: { total: 0, newAlerts: 0, unread: 0 },
+          school: [],
+          alerts: [],
+          system: [],
+        },
+      });
+    }
+
+    const [alerts, school, pendingLeaveRequests] = await Promise.all([
+      teacherModel.findStudentAlertFeed(profile.teacherId),
+      teacherModel.findHomeroomAnnouncements(profile.teacherId),
+      teacherModel.findPendingLeaveRequestCount(profile.teacherId),
+    ]);
+
+    const system = [];
+    if (pendingLeaveRequests > 0) {
+      system.push({
+        key: "LEAVE_PENDING",
+        title: "Đơn xin nghỉ chờ duyệt",
+        content: `Bạn có ${pendingLeaveRequests} đơn xin nghỉ phép của học sinh đang chờ phê duyệt.`,
+        count: pendingLeaveRequests,
+        actionType: "LEAVE_REQUESTS",
+      });
+    }
+
+    const newAlerts = alerts.filter((a) => a.status === "OPEN").length;
+
+    return res.json({
+      success: true,
+      data: {
+        isHomeroom: true,
+        counts: {
+          total: school.length + alerts.length + system.length,
+          newAlerts,
+          unread: newAlerts + system.length,
+        },
+        school,
+        alerts,
+        system,
+      },
+    });
+  } catch (error) {
+    console.error("getNotifications teacher error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể lấy dữ liệu thông báo",
+    });
+  }
+}
+
+module.exports = { getMyProfile, getDashboardSummary, getNotifications };

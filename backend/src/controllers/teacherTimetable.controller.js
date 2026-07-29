@@ -109,6 +109,15 @@ async function createSubstitution(req, res) {
     if (!REQUEST_TYPES.includes(requestType)) {
       return res.status(400).json({ success: false, message: "Loại yêu cầu không hợp lệ" });
     }
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ success: false, message: "Vui lòng nhập lý do" });
+    }
+    const _p = (n) => String(n).padStart(2, "0");
+    const _now = new Date();
+    const _today = `${_now.getFullYear()}-${_p(_now.getMonth() + 1)}-${_p(_now.getDate())}`;
+    if (String(targetDate).slice(0, 10) < _today) {
+      return res.status(400).json({ success: false, message: "Ngày áp dụng phải từ hôm nay trở đi" });
+    }
 
     // Ownership: the lesson must belong to the requesting teacher
     const lesson = await timetableModel.findLessonById(parseInt(timetableId, 10));
@@ -117,8 +126,13 @@ async function createSubstitution(req, res) {
       return res.status(403).json({ success: false, message: "Bạn không dạy tiết học này" });
     }
 
-    if (requestType === "SUBSTITUTE" && !substituteTeacherId) {
-      return res.status(400).json({ success: false, message: "Vui lòng chọn giáo viên dạy thay" });
+    if (requestType === "SUBSTITUTE") {
+      if (!substituteTeacherId) {
+        return res.status(400).json({ success: false, message: "Vui lòng chọn giáo viên dạy thay" });
+      }
+      if (parseInt(substituteTeacherId, 10) === teacher.teacherId) {
+        return res.status(400).json({ success: false, message: "Giáo viên dạy thay phải khác giáo viên yêu cầu" });
+      }
     }
     if (requestType === "SWAP" && !swapTimetableId) {
       return res.status(400).json({ success: false, message: "Vui lòng chọn tiết để hoán đổi" });
@@ -137,7 +151,7 @@ async function createSubstitution(req, res) {
       targetDate,
       substituteTeacherId: substituteTeacherId ? parseInt(substituteTeacherId, 10) : null,
       swapTimetableId: swapTimetableId ? parseInt(swapTimetableId, 10) : null,
-      reason: reason ?? null,
+      reason: reason.trim(),
     });
 
     // Notify admins for review (UC-84 is the Admin side)

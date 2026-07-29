@@ -7,6 +7,8 @@ const {
   authorize,
 } = require("../middleware/auth.middleware");
 
+const { profileAvatarUpload } = require("../middleware/upload.middleware");
+
 const router = express.Router();
 
 const staffRoles = ["STAFF", "ADMIN"];
@@ -23,6 +25,70 @@ router.get(
   authenticate,
   authorize(...staffRoles),
   staffController.getLookups,
+);
+
+// Khảo sát đánh giá giáo viên (HS → GV, ẩn danh) — quản lý tạo + xem tổng hợp
+router.get(
+  "/surveys",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.listTeacherSurveys,
+);
+
+router.post(
+  "/surveys",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createTeacherSurvey,
+);
+
+router.post(
+  "/surveys/:id/close",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.closeTeacherSurvey,
+);
+
+router.get(
+  "/surveys/:id/aggregate",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getTeacherSurveyAggregate,
+);
+
+router.get(
+  "/fees",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getFeePlans,
+);
+
+router.post(
+  "/fees",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createFeePlan,
+);
+
+router.get(
+  "/fees/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getFeePlanById,
+);
+
+router.put(
+  "/fees/:id/status",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.updateFeePlanStatus,
+);
+
+router.post(
+  "/fees/:id/assignments/:assignmentId/payments",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.recordFeePayment,
 );
 
 router.get(
@@ -53,6 +119,14 @@ router.put(
   staffController.updateStudent,
 );
 
+router.post(
+  "/students/:id/avatar",
+  authenticate,
+  authorize(...staffRoles),
+  profileAvatarUpload,
+  staffController.uploadStudentAvatar,
+);
+
 router.get(
   "/parents",
   authenticate,
@@ -79,6 +153,34 @@ router.put(
   authenticate,
   authorize(...staffRoles),
   staffController.updateParent,
+);
+
+router.get(
+  "/teachers",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getTeachers,
+);
+
+router.get(
+  "/teachers/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getTeacherById,
+);
+
+router.post(
+  "/teachers",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createTeacher,
+);
+
+router.put(
+  "/teachers/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.updateTeacher,
 );
 
 router.get(
@@ -166,24 +268,80 @@ router.delete(
 );
 
 router.get(
-  "/promotion/candidates",
+  "/classes/:id/timetable",
   authenticate,
   authorize(...staffRoles),
-  staffController.getPromotionCandidates,
-);
-
-router.get(
-  "/promotion/target-classes",
-  authenticate,
-  authorize(...staffRoles),
-  staffController.getTargetClasses,
+  staffController.getClassTimetable,
 );
 
 router.post(
-  "/promotion",
+  "/timetable",
   authenticate,
   authorize(...staffRoles),
-  staffController.promoteStudents,
+  staffController.createTimetableLessons,
+);
+
+router.post(
+  "/classes/:id/timetable",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createClassTimetableLesson,
+);
+
+router.put(
+  "/classes/:id/timetable/:timetableId",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.updateClassTimetableLesson,
+);
+
+router.delete(
+  "/classes/:id/timetable/:timetableId",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.deleteClassTimetableLesson,
+);
+
+router.get(
+  "/curriculum",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getCurriculum,
+);
+
+router.get(
+  "/curriculum/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getCurriculumById,
+);
+
+router.post(
+  "/curriculum",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.createCurriculumItem,
+);
+
+router.put(
+  "/curriculum/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.updateCurriculumItem,
+);
+
+router.delete(
+  "/curriculum/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.deleteCurriculumItem,
+);
+
+router.put(
+  "/curriculum/sessions/:sessionId",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.updateStudySession,
 );
 
 module.exports = router;

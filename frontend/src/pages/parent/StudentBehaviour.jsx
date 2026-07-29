@@ -1,217 +1,308 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import {
-  FiAward,
-  FiBarChart2,
-  FiClipboard,
-  FiMinusCircle,
-  FiPlusCircle,
-} from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentBehaviourSemesters } from "../../hooks/useParentBehaviourSemesters";
 import { useParentBehaviourRecords } from "../../hooks/useParentBehaviourRecords";
 import { useParentBehaviourConduct } from "../../hooks/useParentBehaviourConduct";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
+import PrettySelect from "../../components/molecules/PrettySelect";
+
+// ─── FSchool Stitch design tokens (matches the teacher behaviour portal) ─────
+
+const C = {
+  onSurface: "#1A1C1C", muted: "#584238", border: "#DFC0B2", primary: "#9F4200",
+  orange: "#F27123", secondary: "#225DAD", deepBlue: "#00458E", tertiary: "#4A5F82",
+  error: "#BA1A1A", success: "#15803D", surface: "#F9F9F9", surfaceLow: "#F3F3F3", surfaceHigh: "#E8E8E8",
+};
+
+function Ms({ name, className = "", style, fill = false }) {
+  return <span className={`material-symbols-outlined ${className}`} style={{ ...(fill ? { fontVariationSettings: "'FILL' 1" } : {}), ...style }}>{name}</span>;
+}
+
+function initials(name) {
+  const p = (name || "").trim().split(/\s+/);
+  if (!p.length) return "?";
+  if (p.length === 1) return p[0][0]?.toUpperCase() ?? "?";
+  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+}
+
+function humanizeCategory(key) {
+  if (!key) return "Khác";
+  return String(key)
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function monthLabel(dateStr) {
+  const d = new Date(`${dateStr}-01T00:00:00`);
+  return `T${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`;
+}
+
+const AVA = ["#00458E", "#4A5F82", "#225DAD", "#F27123"];
+const CAT_COLORS = ["#00458E", "#F27123", "#225DAD", "#15803D", "#B45309", "#7C3AED", "#BA1A1A", "#4A5F82"];
 
 const TABS = [
-  { key: "records",  label: "Ghi nhận",  icon: FiClipboard },
-  { key: "conduct",  label: "Hạnh kiểm", icon: FiAward },
-  { key: "analytics", label: "Phân tích", icon: FiBarChart2 },
+  { key: "overview", label: "Tổng quan", ms: "dashboard" },
+  { key: "analytics", label: "Phân tích", ms: "insights" },
 ];
 
-const GRADE_COLOR = { TOT: "#16A34A", KHA: "#08509F", TB: "#F59E0B", YEU: "#DC2626", NA: "#64748B" };
+const selectCls = "rounded-xl border bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]";
+const selStyle = { borderColor: C.border, color: C.onSurface };
+const THEAD = "text-white";
+const THEAD_STYLE = { backgroundColor: C.deepBlue };
+const TH = "px-4 py-3 text-xs font-medium uppercase tracking-wider";
 
-const selectCls =
-  "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
-
-// ─── Records Tab ──────────────────────────────────────────────────────────────
-
-function RecordsTab({ studentId, semester }) {
-  const [behaviorType, setBehaviorType] = useState("POSITIVE");
-
-  const filters = useMemo(
-    () => ({
-      behaviorType,
-      startDate: semester?.startDate,
-      endDate:   semester?.endDate,
-      page: 1,
-      limit: 50,
-    }),
-    [behaviorType, semester?.startDate, semester?.endDate],
-  );
-
-  const { data, loading, error } = useParentBehaviourRecords(studentId, filters, Boolean(studentId));
-  const isMerit = behaviorType === "POSITIVE";
-
+function AvatarChip({ name, avatar, i = 0, size = 9 }) {
+  const cls = size === 8 ? "h-8 w-8" : "h-9 w-9";
   return (
-    <div>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1 rounded-xl border border-slate-200 bg-white p-1">
-          <button type="button" onClick={() => setBehaviorType("POSITIVE")}
-            className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition"
-            style={isMerit ? { backgroundColor: "#16A34A", color: "#fff" } : { color: "#64748B" }}>
-            <FiPlusCircle size={14} /> Khen thưởng
-          </button>
-          <button type="button" onClick={() => setBehaviorType("VIOLATION")}
-            className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition"
-            style={!isMerit ? { backgroundColor: "#DC2626", color: "#fff" } : { color: "#64748B" }}>
-            <FiMinusCircle size={14} /> Kỷ luật
-          </button>
-        </div>
-      </div>
-
-      {loading && <div className="space-y-2">{[0,1,2,3].map((n) => <div key={n} className="h-16 animate-pulse rounded-xl bg-slate-100" />)}</div>}
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
-
-      {!loading && !error && data && (
-        !data.items.length ? (
-          <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-            Chưa có bản ghi {isMerit ? "khen thưởng" : "kỷ luật"} nào trong kỳ này.
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left" style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}>
-                    {["NỘI DUNG", "ĐIỂM", "NGÀY", "GV GHI"].map((c, i) => (
-                      <th key={i} className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>{c}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((r, idx) => (
-                    <tr key={r.behaviorId} className="border-b last:border-b-0" style={{ borderColor: "#FFF7F2", backgroundColor: idx % 2 === 1 ? "#FAFAFA" : "#fff" }}>
-                      <td className="px-4 py-3">
-                        <div className="text-sm font-medium text-[#0F2747]">{r.title}</div>
-                        {r.description && <div className="text-xs text-slate-400">{r.description}</div>}
-                        {r.evidenceUrl && (
-                          <a href={r.evidenceUrl} target="_blank" rel="noreferrer" className="text-xs font-medium" style={{ color: "#08509F" }}>Xem minh chứng</a>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-bold" style={{ color: isMerit ? "#16A34A" : "#DC2626" }}>
-                          {isMerit ? "+" : "-"}{Math.abs(r.points)}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-slate-500">{r.recordDate}</td>
-                      <td className="px-4 py-3 text-slate-500">{r.createdByName ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )
-      )}
+    <div className={`flex ${cls} shrink-0 items-center justify-center rounded-full text-xs font-bold text-white`} style={{ backgroundColor: AVA[i % AVA.length] }}>
+      {avatar ? <img src={avatar} alt={name} className={`${cls} rounded-full object-cover`} /> : initials(name)}
     </div>
   );
 }
 
-// ─── Conduct Tab ──────────────────────────────────────────────────────────────
+function recStatus(r) {
+  if (r.behaviorType === "VIOLATION") return { label: "Vi phạm", bg: "rgba(186,26,26,0.1)", text: C.error, delta: `-${Math.abs(r.points)}`, dcolor: C.error };
+  if (r.points >= 20) return { label: "Khen thưởng cao", bg: "rgba(242,113,35,0.1)", text: C.orange, delta: `+${r.points}`, dcolor: C.orange };
+  return { label: "Khen thưởng", bg: "rgba(34,93,173,0.1)", text: C.secondary, delta: `+${r.points}`, dcolor: C.secondary };
+}
 
-function ConductTab({ studentId, semesterId }) {
-  const { data, loading, error } = useParentBehaviourConduct(studentId, semesterId);
+// ─── StatBox (ported from teacher's analytics tab) ────────────────────────────
 
-  if (loading) return <div className="h-40 animate-pulse rounded-2xl bg-slate-100" />;
-  if (error)   return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
-  if (!data)   return null;
-
-  const { computed, existing } = data;
-  const gradeColor = GRADE_COLOR[computed.grade.key] ?? "#64748B";
-
+function StatBox({ label, value, color = C.onSurface }) {
   return (
-    <div className="space-y-4">
-      {/* Summary card */}
-      <div className="rounded-2xl bg-white p-6 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-widest" style={{ color: "#F27123" }}>Tổng kết hạnh kiểm</p>
-            <p className="mt-1 text-4xl font-bold" style={{ color: "#0F2747" }}>{computed.finalScore}<span className="ml-1 text-lg text-slate-400">/100</span></p>
-          </div>
-          <span className="rounded-2xl px-5 py-2 text-lg font-bold" style={{ backgroundColor: gradeColor + "22", color: gradeColor }}>
-            {computed.grade.label}
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="rounded-xl p-4" style={{ backgroundColor: "#ECFDF5" }}>
-            <p className="text-xs font-medium text-slate-500">Điểm gốc</p>
-            <p className="mt-1 text-2xl font-bold" style={{ color: "#0F2747" }}>{computed.base}</p>
-          </div>
-          <div className="rounded-xl p-4" style={{ backgroundColor: "#ECFDF5" }}>
-            <p className="text-xs font-medium text-slate-500">Điểm thưởng</p>
-            <p className="mt-1 text-2xl font-bold" style={{ color: "#16A34A" }}>+{computed.meritPoints}</p>
-          </div>
-          <div className="rounded-xl p-4" style={{ backgroundColor: "#FEF2F2" }}>
-            <p className="text-xs font-medium text-slate-500">Điểm trừ</p>
-            <p className="mt-1 text-2xl font-bold" style={{ color: "#DC2626" }}>-{Math.abs(computed.demeritPoints)}</p>
-          </div>
-        </div>
-        {computed.adjustment !== 0 && (
-          <p className="mt-3 text-xs text-slate-400">Điều chỉnh thủ công: {computed.adjustment > 0 ? "+" : ""}{computed.adjustment}</p>
-        )}
-      </div>
-
-      {/* Existing evaluation (if any) */}
-      {existing && (
-        <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest" style={{ color: "#F27123" }}>Nhận xét của giáo viên</p>
-          <p className="text-sm text-[#0F2747]">{existing.comment}</p>
-          <p className="mt-2 text-xs text-slate-400">
-            Trạng thái: <span className="font-semibold">{existing.status === "APPROVED" ? "Đã duyệt" : "Bản nháp"}</span>
-            {existing.updatedAt && ` · Cập nhật: ${existing.updatedAt}`}
-          </p>
-        </div>
-      )}
+    <div className="rounded-3xl bg-white p-4 shadow-sm" style={{ borderLeft: `4px solid ${color}` }}>
+      <p className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: C.muted }}>{label}</p>
+      <p className="text-3xl font-extrabold leading-none" style={{ color }}>{value}</p>
     </div>
   );
 }
 
-// ─── Analytics Tab ────────────────────────────────────────────────────────────
+// ─── Charts (ported from teacher's analytics tab) ─────────────────────────────
 
-function AnalyticsTab({ studentId, semesterId }) {
-  const { data, loading, error } = useParentBehaviourConduct(studentId, semesterId);
-
-  if (loading) return <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">{[0,1,2,3].map((n) => <div key={n} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}</div>;
-  if (error)   return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
-  if (!data)   return null;
-
-  const agg = data.aggregate;
-
-  const stats = [
-    { label: "Điểm hạnh kiểm", value: data.computed.finalScore, color: "#08509F" },
-    { label: "Số lần khen thưởng", value: agg.meritCount, color: "#16A34A" },
-    { label: "Số lần vi phạm", value: agg.violationCount, color: "#DC2626" },
-    { label: "Điểm thưởng tích lũy", value: `+${agg.meritPoints}`, color: "#16A34A" },
-  ];
-
+function DonutChart({ segments, total }) {
+  const R = 52, cx = 70, cy = 70, Circ = 2 * Math.PI * R;
+  const arcs = segments.map((s, i) => {
+    const before = segments.slice(0, i).reduce((sum, x) => sum + x.count, 0);
+    const len = total > 0 ? (s.count / total) * Circ : 0;
+    const off = total > 0 ? -(before / total) * Circ : 0;
+    return { color: s.color, len, off };
+  });
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {stats.map((s) => (
-          <div key={s.label} className="rounded-xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-            <p className="mb-1 text-xs font-medium text-slate-500">{s.label}</p>
-            <p className="text-2xl font-bold leading-none" style={{ color: s.color }}>{s.value}</p>
+    <div className="flex flex-wrap items-center justify-center gap-6">
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
+        {arcs.map((a, i) => a.len > 0 && <circle key={i} cx={cx} cy={cy} r={R} fill="none" stroke={a.color} strokeWidth="16" strokeDasharray={`${a.len} ${Circ}`} strokeDashoffset={a.off} transform={`rotate(-90 ${cx} ${cy})`} />)}
+        <text x={cx} y={cy - 2} textAnchor="middle" fontSize="22" fontWeight="700" fill={C.onSurface}>{total}</text>
+        <text x={cx} y={cy + 16} textAnchor="middle" fontSize="10" fill="#64748B">bản ghi</text>
+      </svg>
+      <div className="space-y-1.5">
+        {segments.map((s) => (
+          <div key={s.label} className="flex items-center gap-2 text-xs">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+            <span className="text-slate-600">{s.label}</span>
+            <span className="ml-auto pl-4 font-semibold" style={{ color: C.onSurface }}>{s.count}</span>
           </div>
         ))}
       </div>
+    </div>
+  );
+}
 
-      {agg.demeritPoints > 0 && (
-        <div className="rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          <p className="mb-3 text-sm font-bold" style={{ color: "#0F2747" }}>Tổng điểm trừ trong kỳ</p>
-          <p className="text-3xl font-bold" style={{ color: "#DC2626" }}>-{Math.abs(agg.demeritPoints)}</p>
-          <p className="mt-1 text-xs text-slate-400">từ {agg.violationCount} lần vi phạm</p>
-        </div>
-      )}
+function MeritTrendChart({ trend }) {
+  if (!trend.length) return <p className="text-sm text-slate-400">Chưa có dữ liệu.</p>;
+  const stepX = 84, padX = 34, padTop = 18, chartH = 120, padBottom = 26;
+  const n = trend.length;
+  const W = padX * 2 + Math.max(1, n - 1) * stepX;
+  const H = padTop + chartH + padBottom;
+  const baseY = padTop + chartH;
+  const maxV = Math.max(...trend.flatMap((t) => [t.merit, Math.abs(t.demerit)]), 1);
+  const x = (i) => padX + i * stepX;
+  const y = (v) => padTop + (1 - v / maxV) * chartH;
+  const seriesLine = (key) => trend.map((t, i) => `${x(i)},${y(Math.abs(t[key]))}`).join(" ");
+  return (
+    <div className="overflow-x-auto">
+      <svg width={W} height={H} className="block">
+        {[0, maxV / 2, maxV].map((g, i) => (
+          <g key={i}>
+            <line x1={padX - 6} y1={y(g)} x2={W - padX + 6} y2={y(g)} stroke="#EEEEEE" strokeWidth="1" />
+            <text x={padX - 10} y={y(g) + 3} fontSize="9" fill="#94A3B8" textAnchor="end">{Math.round(g)}</text>
+          </g>
+        ))}
+        {n > 1 && <polyline points={seriesLine("merit")} fill="none" stroke={C.success} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+        {n > 1 && <polyline points={seriesLine("demerit")} fill="none" stroke={C.error} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+        {trend.map((t, i) => (
+          <g key={t.month}>
+            <circle cx={x(i)} cy={y(t.merit)} r="3.5" fill="#fff" stroke={C.success} strokeWidth="2" />
+            <circle cx={x(i)} cy={y(Math.abs(t.demerit))} r="3.5" fill="#fff" stroke={C.error} strokeWidth="2" />
+            <text x={x(i)} y={baseY + 16} fontSize="9" fill="#64748B" textAnchor="middle">{t.month}</text>
+          </g>
+        ))}
+      </svg>
+      <div className="mt-2 flex gap-4 text-xs text-slate-500">
+        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: C.success }} /> Khen thưởng</span>
+        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: C.error }} /> Kỷ luật</span>
+      </div>
+    </div>
+  );
+}
 
-      {agg.meritPoints === 0 && agg.demeritPoints === 0 && (
-        <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-          Chưa có dữ liệu hành vi trong kỳ này.
+// ─── Tab 1: Tổng quan (records table + official conduct evaluation) ──────────
+
+function OverviewTab({ records, conduct }) {
+  const [typeFilter, setTypeFilter] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const filtered = useMemo(
+    () => (typeFilter ? records.filter((r) => r.behaviorType === typeFilter) : records),
+    [records, typeFilter],
+  );
+  const shown = showAll ? filtered : filtered.slice(0, 6);
+
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      {/* Left: recent records table */}
+      <div className="overflow-hidden rounded-3xl bg-white shadow-sm lg:col-span-2" style={{ border: `1px solid ${C.border}` }}>
+        <div className="flex items-center justify-between border-b p-5" style={{ borderColor: C.border }}>
+          <h4 className="font-bold" style={{ color: C.onSurface }}>Ghi nhận gần đây</h4>
+          <PrettySelect value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-lg border bg-white px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={selStyle}>
+            <option value="">Tất cả các loại</option>
+            <option value="POSITIVE">Khen thưởng</option>
+            <option value="VIOLATION">Vi phạm</option>
+          </PrettySelect>
         </div>
-      )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className={THEAD} style={THEAD_STYLE}>
+              <tr>
+                <th className={TH}>Tiêu đề</th>
+                <th className={TH}>Danh mục</th>
+                <th className={TH}>Trạng thái</th>
+                <th className={`${TH} text-right`}>Điểm rèn luyện</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y" style={{ borderColor: C.border }}>
+              {shown.length === 0 ? (
+                <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-slate-400">Chưa có ghi nhận nào.</td></tr>
+              ) : shown.map((r, i) => {
+                const st = recStatus(r);
+                return (
+                  <tr key={r.behaviorId} className="transition-colors hover:bg-[#F3F3F3]">
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-3">
+                        <AvatarChip name={r.title} i={i} size={8} />
+                        <div className="min-w-0">
+                          <p className="font-bold" style={{ color: C.onSurface }}>{r.title}</p>
+                          <p className="text-[11px]" style={{ color: C.muted }}>{r.recordDate} • {r.createdByName ?? "—"}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4" style={{ color: C.onSurface }}>{humanizeCategory(r.category)}</td>
+                    <td className="px-4 py-4"><span className="rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td>
+                    <td className="px-4 py-4 text-right font-bold" style={{ color: st.dcolor, fontFamily: "monospace" }}>{st.delta}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {filtered.length > 6 && (
+          <div className="flex justify-center border-t p-3" style={{ borderColor: C.border, backgroundColor: C.surfaceLow }}>
+            <button type="button" onClick={() => setShowAll((v) => !v)} className="text-sm font-bold hover:underline" style={{ color: C.secondary }}>
+              {showAll ? "Thu gọn" : `Xem tất cả ${filtered.length} bản ghi`}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Right: official conduct evaluation */}
+      <div className="flex flex-col gap-6">
+        <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: "rgba(34,93,173,0.1)", color: C.secondary }}>
+              <Ms name="workspace_premium" />
+            </div>
+            <div>
+              <h4 className="font-bold" style={{ color: C.onSurface }}>Đánh giá hạnh kiểm</h4>
+              {conduct && <p className="text-[11px]" style={{ color: C.muted }}>{conduct.semesterName} · {conduct.schoolYearName}</p>}
+            </div>
+          </div>
+
+          {!conduct ? (
+            <p className="text-sm text-slate-400">Chưa có dữ liệu đánh giá cho học kỳ này.</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-2xl p-4" style={{ backgroundColor: C.surfaceLow }}>
+                  <p className="mb-1 text-[11px] font-bold uppercase" style={{ color: C.muted }}>Điểm nền</p>
+                  <p className="text-xl font-bold" style={{ color: C.onSurface }}>{conduct.baseScore}</p>
+                </div>
+                <div className="rounded-2xl p-4" style={{ backgroundColor: "rgba(21,128,61,0.08)" }}>
+                  <p className="mb-1 text-[11px] font-bold uppercase" style={{ color: C.muted }}>Điểm cộng</p>
+                  <p className="text-xl font-bold" style={{ color: C.success }}>+{conduct.meritPoints}</p>
+                </div>
+                <div className="rounded-2xl p-4" style={{ backgroundColor: "rgba(186,26,26,0.08)" }}>
+                  <p className="mb-1 text-[11px] font-bold uppercase" style={{ color: C.muted }}>Điểm trừ</p>
+                  <p className="text-xl font-bold" style={{ color: C.error }}>-{conduct.demeritPoints}</p>
+                </div>
+                <div className="rounded-2xl p-4" style={{ backgroundColor: "rgba(242,113,35,0.08)" }}>
+                  <p className="mb-1 text-[11px] font-bold uppercase" style={{ color: C.muted }}>Xếp loại</p>
+                  <p className="text-xl font-bold" style={{ color: C.orange }}>{conduct.conductGrade || "—"}</p>
+                </div>
+              </div>
+              {conduct.comment && (
+                <p className="mt-4 text-sm" style={{ color: C.muted }}>{conduct.comment}</p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Tab 2: Phân tích (per-record category distribution + monthly trend) ─────
+
+function AnalyticsTab({ records }) {
+  const donutSegments = useMemo(() => {
+    const counts = {};
+    records.forEach((r) => { const key = humanizeCategory(r.category); counts[key] = (counts[key] ?? 0) + 1; });
+    return Object.entries(counts).map(([label, count], i) => ({ label, count, color: CAT_COLORS[i % CAT_COLORS.length] }));
+  }, [records]);
+  const donutTotal = donutSegments.reduce((sum, d) => sum + d.count, 0);
+
+  const trend = useMemo(() => {
+    const byMonth = {};
+    records.forEach((r) => {
+      const key = String(r.recordDate).slice(0, 7); // YYYY-MM
+      if (!byMonth[key]) byMonth[key] = { key, merit: 0, demerit: 0 };
+      if (r.behaviorType === "POSITIVE") byMonth[key].merit += r.points;
+      else byMonth[key].demerit += Math.abs(r.points);
+    });
+    return Object.values(byMonth)
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map((t) => ({ ...t, month: monthLabel(t.key) }));
+  }, [records]);
+
+  if (records.length === 0) {
+    return <div className="rounded-3xl px-4 py-3 text-sm" style={{ border: `1px solid ${C.border}`, backgroundColor: C.surfaceLow, color: C.onSurface }}>Chưa có dữ liệu để phân tích trong học kỳ này.</div>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+        <h3 className="mb-4 text-sm font-bold" style={{ color: C.onSurface }}>Phân bố theo danh mục</h3>
+        {donutTotal > 0 ? <DonutChart segments={donutSegments} total={donutTotal} /> : <p className="py-6 text-center text-sm text-slate-400">Chưa có dữ liệu.</p>}
+      </div>
+      <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+        <h3 className="mb-4 flex items-center gap-1.5 text-sm font-bold" style={{ color: C.onSurface }}><Ms name="show_chart" className="text-[18px]!" style={{ color: C.orange }} /> Khen thưởng vs Kỷ luật theo tháng</h3>
+        <MeritTrendChart trend={trend} />
+      </div>
     </div>
   );
 }
@@ -220,136 +311,136 @@ function AnalyticsTab({ studentId, semesterId }) {
 
 function StudentBehaviour() {
   const { user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get("tab") || "records";
-
   const { students, loading: studentsLoading } = useParentStudents();
 
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [selectedSemesterId, setSelectedSemesterId] = useState("");
+  const [activeTab, setActiveTab] = useState("overview");
 
   const effStudentId = selectedStudentId || (students[0]?.studentId ? String(students[0].studentId) : "");
-  const activeStudent = students.find((s) => String(s.studentId) === effStudentId) ?? null;
-
   const { data: semesters, loading: semestersLoading } = useParentBehaviourSemesters(effStudentId);
 
   const effSemesterId = selectedSemesterId || (semesters[0]?.semesterId ? String(semesters[0].semesterId) : "");
-  const effSemester   = semesters.find((s) => String(s.semesterId) === effSemesterId);
+  const effSemester = semesters.find((s) => String(s.semesterId) === effSemesterId);
+
+  const recordFilters = useMemo(
+    () => ({ startDate: effSemester?.startDate, endDate: effSemester?.endDate, page: 1, limit: 100 }),
+    [effSemester?.startDate, effSemester?.endDate],
+  );
+
+  const { data: recordsData, loading: recordsLoading, error: recordsError } =
+    useParentBehaviourRecords(effStudentId, recordFilters, Boolean(effStudentId));
+
+  const { data: conductData, loading: conductLoading, error: conductError } =
+    useParentBehaviourConduct(effStudentId, effSemesterId);
 
   const headerUser = useMemo(() => ({
-    name:   user?.fullName ?? user?.username ?? "Phụ huynh",
-    role:   "Phụ huynh",
+    name: user?.fullName ?? user?.username ?? "Phụ huynh",
+    role: "Phụ huynh",
     avatar: user?.avatar ?? "",
   }), [user]);
-
-  function setTab(key) { setSearchParams({ tab: key }); }
 
   function selectStudent(id) {
     setSelectedStudentId(String(id));
     setSelectedSemesterId("");
   }
 
+  const records = recordsData?.items || [];
+  const loading = studentsLoading || semestersLoading || recordsLoading || conductLoading;
+  const error = recordsError || conductError;
+
+  const summary = useMemo(
+    () =>
+      conductData
+        ? {
+            meritCount: conductData.aggregate?.meritCount || 0,
+            meritPoints: conductData.aggregate?.meritPoints || 0,
+            violationCount: conductData.aggregate?.violationCount || 0,
+            demeritPoints: Math.abs(conductData.aggregate?.demeritPoints || 0),
+            totalRecords: (conductData.aggregate?.meritCount || 0) + (conductData.aggregate?.violationCount || 0),
+          }
+        : null,
+    [conductData],
+  );
+
+  const conduct = useMemo(
+    () =>
+      conductData
+        ? {
+            finalScore: conductData.computed?.finalScore,
+            conductGrade: conductData.conductGradeLabel ?? conductData.computed?.grade?.label,
+            baseScore: conductData.computed?.base,
+            meritPoints: conductData.computed?.meritPoints,
+            demeritPoints: Math.abs(conductData.computed?.demeritPoints || 0),
+            comment: conductData.existing?.comment,
+            semesterName: effSemester?.semesterName,
+            schoolYearName: effSemester?.schoolYearName,
+          }
+        : null,
+    [conductData, effSemester],
+  );
+
+  const summaryScore = useMemo(() => {
+    if (conduct?.finalScore != null) return conduct.finalScore;
+    const merit = Number(summary?.meritPoints || 0);
+    const demerit = Number(summary?.demeritPoints || 0);
+    return Math.max(0, 100 + merit - demerit);
+  }, [conduct, summary]);
+
   return (
-    <DashboardShell user={headerUser} menuItems={dashboardNavigation.PARENT}>
-      <section className="mb-6 overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-6 lg:px-8">
-          <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Theo dõi học sinh</p>
-            <h1 className="mb-1 text-3xl font-bold" style={{ color: "#0F2747" }}>Hạnh kiểm</h1>
-            <p className="text-sm text-slate-500">Xem kết quả khen thưởng, kỷ luật và hạnh kiểm của con trong từng học kỳ.</p>
-          </div>
+    <DashboardShell
+      user={headerUser}
+      menuItems={dashboardNavigation.PARENT}
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={getCurrentSchoolYearLabel(students)}
+    >
+      {/* Header */}
+      <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Hạnh kiểm</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          {!studentsLoading && students.length > 1 && (
+            <PrettySelect value={effStudentId} onChange={(e) => selectStudent(e.target.value)} className={selectCls} style={selStyle}>
+              {students.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentFullName}</option>)}
+            </PrettySelect>
+          )}
+          <PrettySelect value={effSemesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls} style={selStyle}>
+            {semestersLoading ? (
+              <option>Đang tải...</option>
+            ) : (
+              semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)
+            )}
+          </PrettySelect>
         </div>
-      </section>
+      </div>
 
-      {studentsLoading ? (
-        <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
-      ) : students.length === 0 ? (
-        <div className="rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid #FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>
-          Không tìm thấy thông tin học sinh.
-        </div>
-      ) : (
+      {loading && <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">{[0, 1, 2, 3].map((n) => <div key={n} className="h-24 animate-pulse rounded-3xl bg-slate-200/60" />)}</div>}
+
+      {!loading && error && (
+        <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">Không tải được hạnh kiểm: {error}</div>
+      )}
+
+      {!loading && !error && (
         <>
-          {/* Student pill selector — only when >1 child */}
-          {students.length > 1 && (
-            <div className="mb-4 flex flex-wrap gap-2">
-              {students.map((s) => (
-                <button
-                  key={s.studentId}
-                  type="button"
-                  onClick={() => selectStudent(s.studentId)}
-                  className="rounded-full px-4 py-2 text-sm font-medium transition"
-                  style={
-                    String(s.studentId) === effStudentId
-                      ? { backgroundColor: "#08509F", color: "#fff" }
-                      : { border: "1px solid #e2e8f0", backgroundColor: "#fff", color: "#475569" }
-                  }
-                >
-                  {s.studentFullName}
-                  {s.className && <span className="ml-1.5 opacity-70">· {s.className}</span>}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Student info banner */}
-          {activeStudent && (
-            <div className="mb-5 flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
-              {activeStudent.studentAvatar ? (
-                <img src={activeStudent.studentAvatar} alt={activeStudent.studentFullName}
-                  className="h-9 w-9 shrink-0 rounded-full object-cover" />
-              ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#08509F] text-sm font-bold text-white">
-                  {activeStudent.studentFullName?.[0] ?? "?"}
-                </div>
-              )}
-              <div>
-                <span className="text-sm font-semibold" style={{ color: "#0F2747" }}>{activeStudent.studentFullName}</span>
-                <span className="ml-2 text-xs text-slate-500">
-                  {activeStudent.studentCode}
-                  {activeStudent.className && ` · ${activeStudent.className}`}
-                  {activeStudent.relationship && ` · ${activeStudent.relationship}`}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Semester selector */}
-          <div className="mb-5 flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Học kỳ</label>
-              <select value={effSemesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls}
-                disabled={semestersLoading || semesters.length === 0}>
-                {semestersLoading
-                  ? <option>Đang tải...</option>
-                  : semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)
-                }
-              </select>
-            </div>
+          {/* Stat boxes */}
+          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <StatBox label="Điểm hạnh kiểm" value={summaryScore} color={C.secondary} />
+            <StatBox label="Sự kiện tích cực" value={summary?.meritCount || 0} color={C.success} />
+            <StatBox label="Vi phạm" value={summary?.violationCount || 0} color={C.error} />
+            <StatBox label="Tổng bản ghi" value={summary?.totalRecords || 0} color={C.orange} />
           </div>
 
           {/* Tabs */}
-          <div className="mb-6 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-            {TABS.map(({ key, label, icon: Icon }) => (
-              <button key={key} type="button" onClick={() => setTab(key)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition"
-                style={activeTab === key ? { backgroundColor: "#F27123", color: "#fff" } : { color: "#64748B" }}>
-                <Icon size={15} />
-                <span className="hidden sm:inline">{label}</span>
+          <div className="mb-6 flex w-fit flex-wrap items-center gap-1 rounded-full border p-1" style={{ backgroundColor: C.surfaceLow, borderColor: C.border }}>
+            {TABS.map(({ key, label, ms }) => (
+              <button key={key} type="button" onClick={() => setActiveTab(key)} className="flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm transition-all"
+                style={activeTab === key ? { backgroundColor: C.orange, color: "#fff", fontWeight: 700 } : { color: C.muted, fontWeight: 500 }}>
+                <Ms name={ms} className="text-[18px]!" /><span>{label}</span>
               </button>
             ))}
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6" }}>
-            {activeTab === "records" && (
-              <RecordsTab studentId={effStudentId} semester={effSemester} />
-            )}
-            {activeTab === "conduct" && (
-              <ConductTab studentId={effStudentId} semesterId={effSemesterId} />
-            )}
-            {activeTab === "analytics" && (
-              <AnalyticsTab studentId={effStudentId} semesterId={effSemesterId} />
-            )}
-          </div>
+          {activeTab === "overview" && <OverviewTab records={records} conduct={conduct} />}
+          {activeTab === "analytics" && <AnalyticsTab records={records} />}
         </>
       )}
     </DashboardShell>

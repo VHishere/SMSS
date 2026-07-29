@@ -3,9 +3,14 @@ import { FiCheck } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  inputClass,
+  primaryActionClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 function StaffSchoolYearsPage() {
   const [schoolYears, setSchoolYears] = useState([]);
@@ -62,12 +67,12 @@ function StaffSchoolYearsPage() {
     <>
       <StaffPageHeader
         title="Quản lý năm học"
-        description="Tạo năm học mới và kích hoạt năm học hiện tại"
+        // description="Tạo năm học mới và kích hoạt năm học hiện tại"
         action={
           <button
             type="button"
             onClick={() => setShowForm((prev) => !prev)}
-            className="rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white"
+            className={primaryActionClass}
           >
             + Tạo năm học
           </button>
@@ -87,6 +92,7 @@ function StaffSchoolYearsPage() {
             onSubmit={handleCreate}
             submitLabel="Tạo năm học"
             loading={saving}
+            footer="Chỉ kích hoạt năm học khi đã sẵn sàng dùng cho lớp, lịch học và học phí."
           >
             <StaffField label="Tên năm học">
               <input
@@ -120,7 +126,7 @@ function StaffSchoolYearsPage() {
               />
             </StaffField>
             <StaffField label="Trạng thái">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={form.status}
                 onChange={(e) =>
@@ -129,7 +135,7 @@ function StaffSchoolYearsPage() {
               >
                 <option value="PLANNED">Dự kiến</option>
                 <option value="ACTIVE">Đang hoạt động</option>
-              </select>
+              </PrettySelect>
             </StaffField>
           </StaffFormCard>
         </div>

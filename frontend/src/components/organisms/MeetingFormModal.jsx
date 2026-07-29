@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiX } from "react-icons/fi";
+import PrettySelect from "../molecules/PrettySelect";
+function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { meetingApi } from "../../api/client";
 
@@ -66,6 +67,8 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
     if (!title.trim()) { setErrorMsg("Nhập tiêu đề"); return; }
     if (!meetingDate) { setErrorMsg("Chọn thời gian họp"); return; }
     if (!classId) { setErrorMsg("Chọn lớp"); return; }
+    if (meetingType === "INDIVIDUAL" && !studentId) { setErrorMsg("Họp cá nhân cần chọn học sinh"); return; }
+    if (endTime && new Date(endTime) <= new Date(meetingDate)) { setErrorMsg("Thời gian kết thúc phải sau thời gian bắt đầu"); return; }
     if (!isEdit && selected.size === 0) { setErrorMsg("Chọn ít nhất một người tham dự"); return; }
 
     setBusy(true); setErrorMsg("");
@@ -89,14 +92,14 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
   }
 
   const inputCls =
-    "w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+    "w-full rounded-xl border border-[#DFC0B2] px-3 py-2.5 text-sm text-[#1A1C1C] outline-none focus:border-[#225DAD] focus:ring-1 focus:ring-[#225DAD]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-xl" style={{ border: "1px solid #FFE7D6" }}>
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #FFE7D6" }}>
-          <h3 className="text-base font-bold" style={{ color: "#0F2747" }}>{isEdit ? "Sửa cuộc họp" : "Tạo cuộc họp"}</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><FiX size={20} /></button>
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl bg-white shadow-xl" style={{ border: "1px solid #DFC0B2" }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #DFC0B2" }}>
+          <h3 className="text-base font-bold" style={{ color: "#1A1C1C" }}>{isEdit ? "Sửa cuộc họp" : "Tạo cuộc họp"}</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><Ms name="close" className="text-[20px]!" /></button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
@@ -107,24 +110,24 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Loại</label>
-              <select value={meetingType} onChange={(e) => setMeetingType(e.target.value)} className={inputCls}>
+              <PrettySelect value={meetingType} onChange={(e) => setMeetingType(e.target.value)} className={inputCls}>
                 {TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              </PrettySelect>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Lớp</label>
-              <select value={classId} onChange={(e) => { setClassId(e.target.value); setSelected(new Set()); setStudentId(""); }} className={inputCls} disabled={isEdit}>
+              <PrettySelect value={classId} onChange={(e) => { setClassId(e.target.value); setSelected(new Set()); setStudentId(""); }} className={inputCls} disabled={isEdit}>
                 {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           </div>
           {meetingType === "INDIVIDUAL" && (
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-600">Học sinh liên quan</label>
-              <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
-                <option value="">— Không —</option>
+              <label className="mb-1.5 block text-xs font-medium text-slate-600">Học sinh liên quan <span className="text-red-500">*</span></label>
+              <PrettySelect value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
+                <option value="">— Chọn học sinh —</option>
                 {studentOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">
@@ -134,7 +137,7 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Kết thúc</label>
-              <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} className={inputCls} />
+              <input type="datetime-local" value={endTime} min={meetingDate || undefined} onChange={(e) => setEndTime(e.target.value)} className={inputCls} />
             </div>
           </div>
           <div>
@@ -152,13 +155,13 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
                 Mời tham dự <span className="text-red-500">*</span>
                 <span className="ml-2 font-normal text-slate-400">({selected.size} đã chọn)</span>
               </label>
-              <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl p-2" style={{ border: "1px solid #FFE7D6" }}>
+              <div className="max-h-40 space-y-1 overflow-y-auto rounded-3xl p-2" style={{ border: "1px solid #DFC0B2" }}>
                 {parents.length === 0 ? <p className="p-2 text-xs text-slate-400">Lớp chưa có phụ huynh.</p> : parents.map((p) => {
                   const key = `${p.userId}::${p.studentId ?? ""}`;
                   return (
-                    <label key={key} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-[#FFF7F2]">
+                    <label key={key} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-[#F3F3F3]">
                       <input type="checkbox" checked={selected.has(key)} onChange={() => toggle(p.userId, p.studentId)} className="accent-[#F27123]" />
-                      <span className="text-[#0F2747]">{p.parentName}</span>
+                      <span className="text-[#1A1C1C]">{p.parentName}</span>
                       <span className="text-xs text-slate-400">· {p.relationship ?? "PH"} của {p.studentName}</span>
                     </label>
                   );
@@ -167,12 +170,12 @@ function MeetingFormModal({ mode, classes = [], meeting = null, onClose, onSaved
             </div>
           )}
 
-          {errorMsg && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>}
+          {errorMsg && <p className="rounded-3xl bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>}
         </div>
 
-        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #FFE7D6" }}>
-          <button type="button" onClick={onClose} disabled={busy} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Hủy</button>
-          <button type="button" onClick={handleSubmit} disabled={busy} className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
+        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #DFC0B2" }}>
+          <button type="button" onClick={onClose} disabled={busy} className="flex-1 rounded-full border border-[#DFC0B2] py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">Hủy</button>
+          <button type="button" onClick={handleSubmit} disabled={busy} className="flex-1 rounded-full py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
             {busy ? "Đang lưu..." : isEdit ? "Lưu thay đổi" : "Tạo & gửi lời mời"}
           </button>
         </div>

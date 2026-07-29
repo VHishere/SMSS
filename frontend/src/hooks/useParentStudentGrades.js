@@ -1,54 +1,28 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { parentApi } from "../api/client";
 
-export function useParentStudentGrades() {
+export function useParentStudentGrades(studentId) {
   const [data, setData] = useState(null);
-  const [studentInfo, setStudentInfo] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const refetch = useCallback(() => {
+    if (!studentId) return;
+
+    setLoading(true);
+    setError("");
+
+    return parentApi
+      .getStudentGrades(studentId)
+      .then((response) => setData(response.data))
+      .catch((requestError) => setError(requestError.message))
+      .finally(() => setLoading(false));
+  }, [studentId]);
+
   useEffect(() => {
-    let isMounted = true;
+    refetch();
+  }, [refetch]);
 
-    parentApi
-      .getMyStudents()
-      .then((response) => {
-        const students = response.data || [];
-
-        if (students.length === 0) {
-          throw new Error("Không tìm thấy học sinh liên kết");
-        }
-
-        const primary = students.find((s) => s.isPrimary) || students[0];
-
-        if (isMounted) {
-          setStudentInfo(primary);
-        }
-
-        return parentApi.getStudentGrades(primary.studentId);
-      })
-      .then((response) => {
-        if (isMounted) {
-          setData(response.data);
-          setError("");
-        }
-      })
-      .catch((requestError) => {
-        if (isMounted) {
-          setError(requestError.message);
-        }
-      })
-      .finally(() => {
-        if (isMounted) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  return { data, studentInfo, loading, error };
+  return { data, loading, error, refetch };
 }

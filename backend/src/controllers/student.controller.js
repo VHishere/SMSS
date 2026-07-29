@@ -4,6 +4,8 @@ const goalModel = require("../models/goal.model");
 const goalService = require("../services/goal.service");
 const { GOAL_TYPES } = require("../services/goal.service");
 const studentModel = require("../models/students");
+const homeworkModel = require("../models/homework.model");
+const feedbackModel = require("../models/feedback.model");
 
 function handleError(res, error, fallback) {
   if (error.statusCode) {
@@ -99,6 +101,117 @@ async function getMyHomeworks(req, res) {
       res,
       error,
       "Không thể tải danh sách bài tập về nhà",
+    );
+  }
+}
+
+async function getMyHomeworkDetail(req, res) {
+  try {
+    const context = await resolveStudentContext(req.user.userId);
+
+    if (!context) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy hồ sơ học sinh",
+      });
+    }
+
+    const homeworkId = parseInt(req.params.homeworkId, 10);
+
+    if (!Number.isInteger(homeworkId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Mã bài tập không hợp lệ",
+      });
+    }
+
+    const homework = await homeworkModel.findDetailWithStudentSubmission(
+      homeworkId,
+      context.studentId,
+    );
+
+    if (!homework) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy bài tập hoặc bài tập không thuộc lớp của bạn",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        context,
+        homework,
+      },
+    });
+  } catch (error) {
+    return handleError(
+      res,
+      error,
+      "Không thể tải chi tiết bài tập",
+    );
+  }
+}
+
+async function submitMyHomework(req, res) {
+  try {
+    const context = await resolveStudentContext(req.user.userId);
+
+    if (!context) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy hồ sơ học sinh",
+      });
+    }
+
+    const homeworkId = parseInt(req.params.homeworkId, 10);
+
+    if (!Number.isInteger(homeworkId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Mã bài tập không hợp lệ",
+      });
+    }
+
+    const content = String(req.body.content || "").trim();
+    const fileUrl = req.file?.cloudinaryUrl || null;
+
+    if (!content && !fileUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng nhập nội dung hoặc đính kèm tệp bài làm",
+      });
+    }
+
+    const submission = await homeworkModel.submitStudentSubmission({
+      homeworkId,
+      studentId: context.studentId,
+      actorUserId: req.user.userId,
+      content,
+      fileUrl,
+    });
+
+    const homework = await homeworkModel.findDetailWithStudentSubmission(
+      homeworkId,
+      context.studentId,
+    );
+
+    return res.status(submission.isResubmission ? 200 : 201).json({
+      success: true,
+      message: submission.isResubmission
+        ? "Đã cập nhật bài nộp"
+        : "Đã nộp bài thành công",
+      data: {
+        context,
+        homework,
+        submission,
+      },
+    });
+  } catch (error) {
+    return handleError(
+      res,
+      error,
+      "Không thể nộp bài tập",
     );
   }
 }
@@ -487,6 +600,42 @@ async function getMyEvents(req, res) {
   }
 }
 
+async function getMyEventDetail(req, res) {
+  try {
+    const eventId = parseInt(req.params.eventId, 10);
+
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Mã sự kiện không hợp lệ",
+      });
+    }
+
+    const result = await studentModel.findEventDetailByUserId(
+      req.user.userId,
+      eventId,
+    );
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy sự kiện hoặc bạn không có quyền xem",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return handleError(
+      res,
+      error,
+      "Không thể tải chi tiết sự kiện",
+    );
+  }
+}
+
 async function registerMyEvent(req, res) {
   try {
     const eventId = parseInt(req.params.eventId, 10);
@@ -622,15 +771,23 @@ async function getMyMessageContacts(req, res) {
       });
     }
 
+    const groups = await commModel.ensureStudentGroupConversations({
+      userId: req.user.userId,
+      context: result.context,
+    });
+
     return res.json({
       success: true,
-      data: result,
+      data: {
+        ...result,
+        groups,
+      },
     });
   } catch (error) {
     return handleError(
       res,
       error,
-      "Không thể tải danh bạ giáo viên",
+      "Không thể tải danh bạ tin nhắn",
     );
   }
 }
@@ -710,9 +867,159 @@ async function startMyTeacherConversation(req, res) {
   }
 }
 
+async function updateMyProfile(req, res) {
+  try {
+    const currentProfile = await studentModel.findProfileByUserId(
+      req.user.userId,
+    );
+
+    if (!currentProfile) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy hồ sơ học sinh",
+      });
+    }
+
+    const allowedGenders = ["MALE", "FEMALE", "OTHER"];
+
+    const payload = {
+      fullName: String(req.body.fullName || "").trim(),
+      phone: String(req.body.phone || "").trim(),
+      avatar: req.file?.cloudinaryUrl || currentProfile.avatar || null,
+      dateOfBirth: req.body.dateOfBirth || null,
+      gender: allowedGenders.includes(req.body.gender)
+        ? req.body.gender
+        : "OTHER",
+      address: String(req.body.address || "").trim(),
+    };
+
+    if (!payload.fullName) {
+      return res.status(400).json({
+        success: false,
+        message: "Họ và tên không được để trống",
+      });
+    }
+
+    const updatedProfile = await studentModel.updateProfileByUserId(
+      req.user.userId,
+      payload,
+    );
+
+    return res.json({
+      success: true,
+      message: "Đã cập nhật thông tin cá nhân",
+      data: updatedProfile,
+    });
+  } catch (error) {
+    return handleError(
+      res,
+      error,
+      "Không thể cập nhật hồ sơ học sinh",
+    );
+  }
+}
+
+async function searchMyMessages(req, res) {
+  try {
+    const keyword = String(req.query.keyword || "").trim();
+
+    if (!keyword) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng nhập từ khóa tìm kiếm",
+      });
+    }
+
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.min(
+      50,
+      Math.max(1, parseInt(req.query.limit || "20", 10)),
+    );
+
+    const items = await commModel.searchMessages(req.user.userId, {
+      keyword,
+      archived: req.query.archived === "true",
+      page,
+      limit,
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        items,
+        page,
+      },
+    });
+  } catch (error) {
+    return handleError(
+      res,
+      error,
+      "Không thể tìm kiếm lịch sử tin nhắn",
+    );
+  }
+}
+
+// ── Nhận xét theo tiết (GVBM → HS) + khảo sát GV (ẩn danh) ────────────────────
+
+async function getMyLessonFeedback(req, res) {
+  try {
+    const context = await resolveStudentContext(req.user.userId);
+    if (!context) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ học sinh" });
+    const data = await feedbackModel.findStudentFeedback(context.studentId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy nhận xét theo tiết");
+  }
+}
+
+async function getMySurveys(req, res) {
+  try {
+    const context = await resolveStudentContext(req.user.userId);
+    if (!context) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ học sinh" });
+    const data = await feedbackModel.findOpenSurveysForStudent(context.studentId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy danh sách khảo sát");
+  }
+}
+
+async function submitMySurvey(req, res) {
+  try {
+    const surveyId = parseInt(req.params.surveyId, 10);
+    const { score, comment } = req.body;
+    const numScore = score == null || score === "" ? null : Number(score);
+    if (numScore !== null && (!Number.isInteger(numScore) || numScore < 1 || numScore > 5)) {
+      return res.status(400).json({ success: false, message: "Điểm đánh giá phải từ 1 đến 5" });
+    }
+    const context = await resolveStudentContext(req.user.userId);
+    if (!context) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ học sinh" });
+
+    const survey = await feedbackModel.findSurveyById(surveyId);
+    if (!survey || survey.status !== "OPEN") {
+      return res.status(404).json({ success: false, message: "Khảo sát không tồn tại hoặc đã đóng" });
+    }
+    try {
+      await feedbackModel.submitSurveyResponse({
+        surveyId, studentId: context.studentId, score: numScore, comment: (comment || "").trim() || null,
+      });
+    } catch (e) {
+      if (e.code === "ER_DUP_ENTRY") {
+        return res.status(409).json({ success: false, message: "Bạn đã gửi đánh giá cho khảo sát này rồi" });
+      }
+      throw e;
+    }
+    return res.json({ success: true, message: "Đã gửi đánh giá (ẩn danh). Cảm ơn bạn!" });
+  } catch (error) {
+    return handleError(res, error, "Không thể gửi đánh giá");
+  }
+}
+
 module.exports = {
   getMyProfile,
   getMyDashboard,
+  getMyLessonFeedback,
+  getMySurveys,
+  submitMySurvey,
   getMyHomeworks,
   getMyGrades,
   getMyAttendanceHistory,
@@ -724,10 +1031,15 @@ module.exports = {
   updateMyGoalProgress,
   getMyGoalLog,
   getMyEvents,
+  getMyEventDetail,
   registerMyEvent,
   getMyNotifications,
   markMyNotificationRead,
   markAllMyNotificationsRead,
   getMyMessageContacts,
   startMyTeacherConversation,
+  getMyHomeworkDetail,
+  submitMyHomework,
+  updateMyProfile,
+  searchMyMessages,
 };

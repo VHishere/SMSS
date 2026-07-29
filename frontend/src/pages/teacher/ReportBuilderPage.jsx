@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { FiArrowLeft, FiDownload, FiPrinter, FiSave } from "react-icons/fi";
-
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { reportApi, studentProfileApi } from "../../api/client";
 import { useReportMeta } from "../../hooks/useReportMeta";
 import { printReport } from "../../utils/printReport";
+
+function Ms({ name, className = "", style }) {
+  return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>;
+}
 
 const REPORT_LABEL = {
   ATTENDANCE: "Báo cáo chuyên cần",
@@ -21,7 +24,7 @@ const NEEDS_STUDENT = ["PROGRESS"];
 const NEEDS_DATERANGE = ["ATTENDANCE"];
 
 const selectCls =
-  "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+  "rounded-xl border border-[#DFC0B2] bg-white px-3 py-2 text-sm text-[#1A1C1C] shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]";
 
 function isoToday() { return new Date().toISOString().slice(0, 10); }
 function isoDaysAgo(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
@@ -141,45 +144,46 @@ function ReportBuilderPage() {
 
   return (
     <DashboardShell user={headerUser} menuItems={dashboardNavigation.TEACHER} sidebarFooterLabel="Báo cáo" sidebarFooterValue={REPORT_LABEL[reportType] ?? ""}>
-      <button type="button" onClick={() => navigate("/teacher/reports")} className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-[#0F2747]">
-        <FiArrowLeft size={15} /> Về trung tâm báo cáo
+      <button type="button" onClick={() => navigate("/teacher/reports")} className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-[#1A1C1C]">
+        <Ms name="arrow_back" className="!text-[18px]" /> Về trung tâm báo cáo
       </button>
 
-      <section className="mb-6 rounded-2xl p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6", backgroundColor: "#fff" }}>
-        <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Trình tạo báo cáo</p>
-        <h1 className="text-2xl font-bold sm:text-3xl" style={{ color: "#0F2747" }}>{REPORT_LABEL[reportType] ?? "Báo cáo"}</h1>
-      </section>
+      <h1 className="mb-6 text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: "#1A1C1C" }}>{REPORT_LABEL[reportType] ?? "Báo cáo"}</h1>
 
       {metaLoading ? (
-        <div className="h-40 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="h-40 animate-pulse rounded-3xl bg-slate-100" />
       ) : (
         <>
           {/* Filters */}
-          <div className="mb-5 rounded-2xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-            <div className="flex flex-wrap items-end gap-3">
+          <div className="mb-5 overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: "1px solid #DFC0B2" }}>
+            <div className="flex items-center gap-2 border-b px-5 py-4" style={{ borderColor: "#DFC0B2", backgroundColor: "#F3F3F3" }}>
+              <Ms name="filter_list" style={{ color: "#F27123" }} />
+              <h3 className="text-base font-bold" style={{ color: "#1A1C1C" }}>Cấu hình báo cáo</h3>
+            </div>
+            <div className="flex flex-wrap items-end gap-3 p-5">
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-slate-500">Lớp</label>
-                <select value={classId} onChange={(e) => { setClassId(e.target.value); setStudentId(""); }} className={selectCls}>
+                <PrettySelect value={classId} onChange={(e) => { setClassId(e.target.value); setStudentId(""); }} className={selectCls}>
                   {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-                </select>
+                </PrettySelect>
               </div>
 
               {NEEDS_STUDENT.includes(reportType) && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-slate-500">Học sinh</label>
-                  <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={selectCls}>
+                  <PrettySelect value={studentId} onChange={(e) => setStudentId(e.target.value)} className={selectCls}>
                     <option value="">— Chọn —</option>
                     {students.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName}</option>)}
-                  </select>
+                  </PrettySelect>
                 </div>
               )}
 
               {NEEDS_SEMESTER.includes(reportType) && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-slate-500">Học kỳ</label>
-                  <select value={semesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls}>
+                  <PrettySelect value={semesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls}>
                     {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-                  </select>
+                  </PrettySelect>
                 </div>
               )}
 
@@ -196,26 +200,26 @@ function ReportBuilderPage() {
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-medium text-slate-500">Nhanh</label>
                     <div className="flex gap-1">
-                      <button type="button" onClick={() => applyPreset(7)} className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs hover:bg-slate-50">7 ngày</button>
-                      <button type="button" onClick={() => applyPreset(30)} className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs hover:bg-slate-50">30 ngày</button>
-                      <button type="button" onClick={applySemesterRange} className="rounded-lg border border-slate-200 px-2.5 py-2 text-xs hover:bg-slate-50">Học kỳ</button>
+                      <button type="button" onClick={() => applyPreset(7)} className="rounded-full border border-[#FFE7D6] px-2.5 py-2 text-xs hover:bg-[#FFF7F2]">7 ngày</button>
+                      <button type="button" onClick={() => applyPreset(30)} className="rounded-full border border-[#FFE7D6] px-2.5 py-2 text-xs hover:bg-[#FFF7F2]">30 ngày</button>
+                      <button type="button" onClick={applySemesterRange} className="rounded-full border border-[#FFE7D6] px-2.5 py-2 text-xs hover:bg-[#FFF7F2]">Học kỳ</button>
                     </div>
                   </div>
                 </>
               )}
 
               <button type="button" onClick={handleGenerate} disabled={loading}
-                className="rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
+                className="rounded-full px-5 py-2.5 text-sm font-semibold text-white transition disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
                 {loading ? "Đang tạo..." : "Tạo báo cáo"}
               </button>
             </div>
           </div>
 
-          {error && <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
+          {error && <div className="mb-5 rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
 
           {/* Preview + export */}
           {dataset && (
-            <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6" }}>
+            <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6" }}>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-bold" style={{ color: "#0F2747" }}>{dataset.title}</h2>
@@ -223,16 +227,16 @@ function ReportBuilderPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button type="button" onClick={handleExcel} disabled={exporting}
-                    className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50" style={{ backgroundColor: "#16A34A" }}>
-                    <FiDownload size={14} /> {exporting ? "..." : "Excel"}
+                    className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50" style={{ backgroundColor: "#15803D" }}>
+                    <Ms name="table_view" className="!text-[16px]" /> {exporting ? "..." : "Excel"}
                   </button>
                   <button type="button" onClick={handlePdf}
-                    className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition" style={{ backgroundColor: "#08509F" }}>
-                    <FiPrinter size={14} /> In / PDF
+                    className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90" style={{ backgroundColor: "#00458E" }}>
+                    <Ms name="picture_as_pdf" className="!text-[16px]" /> In / PDF
                   </button>
                   <button type="button" onClick={() => setShowSave(true)}
-                    className="flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
-                    <FiSave size={14} /> Lưu mẫu
+                    className="rounded-full border border-[#FFE7D6] px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-[#FFF7F2]">
+                    Lưu mẫu
                   </button>
                 </div>
               </div>
@@ -240,19 +244,19 @@ function ReportBuilderPage() {
               {dataset.sections.map((section, si) => (
                 <div key={si} className="mb-6">
                   <h3 className="mb-2 text-sm font-bold" style={{ color: "#F27123" }}>{section.heading}</h3>
-                  <div className="overflow-x-auto rounded-xl" style={{ border: "1px solid #FFE7D6" }}>
+                  <div className="overflow-x-auto rounded-xl" style={{ border: "1px solid #DFC0B2" }}>
                     <table className="min-w-full text-sm">
-                      <thead>
-                        <tr style={{ backgroundColor: "#0F2747" }}>
-                          {section.columns.map((c) => <th key={c.key} className="px-3 py-2 text-left text-xs font-bold text-white">{c.label}</th>)}
+                      <thead className="text-white" style={{ backgroundColor: "#00458E" }}>
+                        <tr>
+                          {section.columns.map((c) => <th key={c.key} className="px-3 py-2.5 text-left text-xs font-medium uppercase tracking-wider">{c.label}</th>)}
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="divide-y" style={{ borderColor: "#DFC0B2" }}>
                         {section.rows.length === 0 ? (
                           <tr><td colSpan={section.columns.length} className="px-3 py-4 text-center text-sm text-slate-400">Không có dữ liệu</td></tr>
                         ) : section.rows.map((row, ri) => (
-                          <tr key={ri} style={{ backgroundColor: ri % 2 ? "#FFF7F2" : "#fff" }}>
-                            {section.columns.map((c) => <td key={c.key} className="px-3 py-2 text-[#0F2747]">{row[c.key] ?? "—"}</td>)}
+                          <tr key={ri} className="transition-colors hover:bg-[#F3F3F3]">
+                            {section.columns.map((c) => <td key={c.key} className="px-3 py-2.5 text-[#1A1C1C]">{row[c.key] ?? "—"}</td>)}
                           </tr>
                         ))}
                       </tbody>
@@ -261,7 +265,7 @@ function ReportBuilderPage() {
                   {section.summary?.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-3">
                       {section.summary.map((s, i) => (
-                        <div key={i} className="rounded-xl px-4 py-2 text-sm" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
+                        <div key={i} className="rounded-3xl px-4 py-2 text-sm" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
                           <span className="text-slate-500">{s.label}: </span>
                           <span className="font-bold" style={{ color: "#0F2747" }}>{s.value}</span>
                         </div>
@@ -278,21 +282,21 @@ function ReportBuilderPage() {
       {/* Save template modal */}
       {showSave && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl" style={{ border: "1px solid #FFE7D6" }}>
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl" style={{ border: "1px solid #FFE7D6" }}>
             <h3 className="mb-4 text-base font-bold" style={{ color: "#0F2747" }}>Lưu mẫu báo cáo</h3>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Tên mẫu</label>
             <input type="text" value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="VD: Chuyên cần 10B1 hàng tuần" className={`${selectCls} mb-3 w-full`} />
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Lịch chạy</label>
-            <select value={tplSchedule} onChange={(e) => setTplSchedule(e.target.value)} className={`${selectCls} mb-4 w-full`}>
+            <PrettySelect value={tplSchedule} onChange={(e) => setTplSchedule(e.target.value)} className={`${selectCls} mb-4 w-full`}>
               <option value="NONE">Không lập lịch</option>
               <option value="DAILY">Hàng ngày</option>
               <option value="WEEKLY">Hàng tuần</option>
               <option value="MONTHLY">Hàng tháng</option>
-            </select>
+            </PrettySelect>
             {saveMsg && <p className="mb-3 text-xs text-red-600">{saveMsg}</p>}
             <div className="flex gap-3">
-              <button type="button" onClick={() => setShowSave(false)} className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50">Hủy</button>
-              <button type="button" onClick={handleSaveTemplate} className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white" style={{ backgroundColor: "#F27123" }}>Lưu</button>
+              <button type="button" onClick={() => setShowSave(false)} className="flex-1 rounded-full border border-[#FFE7D6] py-2.5 text-sm font-medium text-slate-600 hover:bg-[#FFF7F2]">Hủy</button>
+              <button type="button" onClick={handleSaveTemplate} className="flex-1 rounded-full py-2.5 text-sm font-semibold text-white" style={{ backgroundColor: "#F27123" }}>Lưu</button>
             </div>
           </div>
         </div>

@@ -13,20 +13,23 @@ function StaffStatCard({
   };
 
   return (
-    <div className="rounded-2xl border border-orange-100 bg-white p-5 shadow-sm">
+    <div className="rounded-3xl border border-[#DFC0B2] bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <p className="mb-1 text-sm font-medium text-slate-500">
+        {/* Cỡ chữ theo chuẩn thẻ tổng quan của teacher: nhãn 12px in hoa,
+            số text-5xl (48px). break-words để giá trị dạng chữ (vd "2025-2026")
+            xuống dòng thay vì tràn ra ngoài thẻ. */}
+        <div className="min-w-0">
+          <p className="mb-1 text-xs font-medium uppercase tracking-wider text-[#584238]">
             {label}
           </p>
-          <p className="mb-0 text-3xl font-bold text-[#0F2747]">
+          <p className="mb-0 text-5xl font-bold leading-none tracking-tight break-words text-[#1A1C1C]">
             {value}
           </p>
         </div>
 
         {Icon && (
           <div
-            className={`flex h-11 w-11 items-center justify-center rounded-xl ${accentClasses[accent]}`}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${accentClasses[accent]}`}
           >
             <Icon size={22} />
           </div>
@@ -34,7 +37,7 @@ function StaffStatCard({
       </div>
 
       {hint && (
-        <p className="mb-0 text-xs font-medium text-slate-500">
+        <p className="mb-0 text-xs font-medium text-[#584238]">
           {hint}
         </p>
       )}

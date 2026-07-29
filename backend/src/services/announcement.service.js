@@ -1,5 +1,6 @@
 const announcementModel = require("../models/announcement.model");
 const commModel         = require("../models/communication.model");
+const studentProfileModel = require("../models/studentProfile.model");
 
 function httpError(message, statusCode) {
   const err = new Error(message);
@@ -30,8 +31,14 @@ async function fanOut(announcement) {
 
 async function createAnnouncement({ teacher, actorUserId, payload }) {
   validate(payload);
-  const ok = await commModel.isTeacherForClass(teacher.teacherId, payload.classId);
-  if (!ok) throw httpError("Bạn không phụ trách lớp này", 403);
+  if (payload.publishNow && (!payload.content || !payload.content.trim())) {
+    throw httpError("Không thể phát hành thông báo trống nội dung", 400);
+  }
+  if (!payload.publishNow && payload.scheduledAt && new Date(payload.scheduledAt).getTime() <= Date.now()) {
+    throw httpError("Thời gian lên lịch phải ở tương lai", 400);
+  }
+  const ok = await studentProfileModel.isHomeroomOfClass(teacher.teacherId, payload.classId);
+  if (!ok) throw httpError("Chỉ giáo viên chủ nhiệm mới gửi thông báo cho lớp này", 403);
 
   // status: DRAFT (save), SCHEDULED (with scheduledAt), PUBLISHED (publish now)
   let status = "DRAFT";
@@ -64,8 +71,11 @@ async function updateAnnouncement({ teacher, announcementId, payload }) {
   if (existing.status === "PUBLISHED") throw httpError("Thông báo đã phát hành, không thể sửa", 409);
 
   validate(payload);
-  const ok = await commModel.isTeacherForClass(teacher.teacherId, payload.classId);
-  if (!ok) throw httpError("Bạn không phụ trách lớp này", 403);
+  if (payload.scheduledAt && new Date(payload.scheduledAt).getTime() <= Date.now()) {
+    throw httpError("Thời gian lên lịch phải ở tương lai", 400);
+  }
+  const ok = await studentProfileModel.isHomeroomOfClass(teacher.teacherId, payload.classId);
+  if (!ok) throw httpError("Chỉ giáo viên chủ nhiệm mới gửi thông báo cho lớp này", 403);
 
   const status = payload.scheduledAt ? "SCHEDULED" : "DRAFT";
   const affected = await announcementModel.update(announcementId, {
@@ -82,6 +92,7 @@ async function publishAnnouncement({ teacher, announcementId }) {
   if (existing.createdBy !== teacher.userId) throw httpError("Bạn không có quyền phát hành", 403);
   if (existing.status === "PUBLISHED") throw httpError("Thông báo đã được phát hành", 409);
   if (existing.status === "ARCHIVED") throw httpError("Thông báo đã lưu trữ", 409);
+  if (!existing.content || !existing.content.trim()) throw httpError("Không thể phát hành thông báo trống nội dung", 400);
 
   await announcementModel.setStatus(announcementId, "PUBLISHED");
   const sent = await fanOut(existing);
@@ -110,9 +121,115 @@ async function publishDue() {
   let published = 0;
   for (const a of due) {
     await announcementModel.setStatus(a.announcementId, "PUBLISHED");
-    try { await fanOut(a); published++; } catch (e) { console.error("publishDue fan-out:", e); }
+    try { await fanOutScoped(a); published++; } catch (e) { console.error("publishDue fan-out:", e); }
   }
   return { published };
+}
+
+// ── Admin: school-wide / grade-wide / class-wide announcements ─────────────
+// Same lifecycle as the teacher flow above, but no homeroom-of-class or
+// createdBy ownership checks (admin manages every announcement), and the
+// target can be a whole school, a whole grade, or a single class.
+
+function validateAdmin({ title, audience, classId, gradeId }) {
+  if (!title || !title.trim()) throw httpError("Tiêu đề thông báo là bắt buộc", 400);
+  if (!AUDIENCES.includes(audience)) throw httpError("Đối tượng nhận không hợp lệ", 400);
+  if (classId && gradeId) throw httpError("Chỉ chọn lớp hoặc khối, không chọn cả hai", 400);
+}
+
+async function fanOutScoped(announcement) {
+  const memberAudience = AUDIENCE_TO_MEMBER[announcement.audience] ?? "ALL";
+  const receivers = await commModel.findScopedMemberUserIds({
+    classId: announcement.classId,
+    gradeId: announcement.gradeId,
+    audience: memberAudience,
+  });
+  await announcementModel.insertNotifications(
+    receivers,
+    `Thông báo: ${announcement.title}`,
+    (announcement.content || "").slice(0, 200),
+    announcement.announcementId,
+  );
+  return receivers.length;
+}
+
+async function createAnnouncementAdmin({ actorUserId, payload }) {
+  validateAdmin(payload);
+  if (payload.publishNow && (!payload.content || !payload.content.trim())) {
+    throw httpError("Không thể phát hành thông báo trống nội dung", 400);
+  }
+  if (!payload.publishNow && payload.scheduledAt && new Date(payload.scheduledAt).getTime() <= Date.now()) {
+    throw httpError("Thời gian lên lịch phải ở tương lai", 400);
+  }
+
+  let status = "DRAFT";
+  if (payload.publishNow) status = "PUBLISHED";
+  else if (payload.scheduledAt) status = "SCHEDULED";
+
+  const announcementId = await announcementModel.create({
+    title: payload.title.trim(),
+    content: payload.content ?? null,
+    audience: payload.audience,
+    classId: payload.classId || null,
+    gradeId: payload.gradeId || null,
+    status,
+    scheduledAt: payload.scheduledAt || null,
+    createdBy: actorUserId,
+  });
+
+  if (status === "PUBLISHED") {
+    try { await fanOutScoped({ announcementId, ...payload, title: payload.title.trim() }); }
+    catch (e) { console.error("announcement fan-out (non-critical):", e); }
+  }
+
+  return { announcementId, status };
+}
+
+async function updateAnnouncementAdmin({ announcementId, payload }) {
+  const existing = await announcementModel.findById(announcementId);
+  if (!existing) throw httpError("Không tìm thấy thông báo", 404);
+  if (existing.status === "ARCHIVED") throw httpError("Thông báo đã lưu trữ, không thể sửa", 409);
+  if (existing.status === "PUBLISHED") throw httpError("Thông báo đã phát hành, không thể sửa", 409);
+
+  validateAdmin(payload);
+  if (payload.scheduledAt && new Date(payload.scheduledAt).getTime() <= Date.now()) {
+    throw httpError("Thời gian lên lịch phải ở tương lai", 400);
+  }
+
+  const status = payload.scheduledAt ? "SCHEDULED" : "DRAFT";
+  const affected = await announcementModel.update(announcementId, {
+    title: payload.title.trim(), content: payload.content ?? null, audience: payload.audience,
+    classId: payload.classId || null, gradeId: payload.gradeId || null,
+    scheduledAt: payload.scheduledAt || null, status,
+  });
+  if (affected === 0) throw httpError("Không thể cập nhật thông báo", 409);
+  return { announcementId, status };
+}
+
+async function publishAnnouncementAdmin({ announcementId }) {
+  const existing = await announcementModel.findById(announcementId);
+  if (!existing) throw httpError("Không tìm thấy thông báo", 404);
+  if (existing.status === "PUBLISHED") throw httpError("Thông báo đã được phát hành", 409);
+  if (existing.status === "ARCHIVED") throw httpError("Thông báo đã lưu trữ", 409);
+  if (!existing.content || !existing.content.trim()) throw httpError("Không thể phát hành thông báo trống nội dung", 400);
+
+  await announcementModel.setStatus(announcementId, "PUBLISHED");
+  const sent = await fanOutScoped(existing);
+  return { announcementId, sent };
+}
+
+async function setPinnedAdmin({ announcementId, isPinned }) {
+  const existing = await announcementModel.findById(announcementId);
+  if (!existing) throw httpError("Không tìm thấy thông báo", 404);
+  await announcementModel.setPinned(announcementId, isPinned);
+  return { announcementId, isPinned };
+}
+
+async function archiveAnnouncementAdmin({ announcementId }) {
+  const existing = await announcementModel.findById(announcementId);
+  if (!existing) throw httpError("Không tìm thấy thông báo", 404);
+  await announcementModel.setStatus(announcementId, "ARCHIVED");
+  return { announcementId };
 }
 
 module.exports = {
@@ -122,4 +239,9 @@ module.exports = {
   setPinned,
   archiveAnnouncement,
   publishDue,
+  createAnnouncementAdmin,
+  updateAnnouncementAdmin,
+  publishAnnouncementAdmin,
+  setPinnedAdmin,
+  archiveAnnouncementAdmin,
 };

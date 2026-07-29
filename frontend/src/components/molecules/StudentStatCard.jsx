@@ -18,10 +18,10 @@ function StudentStatCard({
     <div
       className="
         rounded-2xl border border-orange-100
-        bg-white p-5 shadow-sm
+        bg-white p-4 shadow-sm sm:p-5
       "
     >
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div
           className={`
             flex h-11 w-11 items-center
@@ -33,7 +33,7 @@ function StudentStatCard({
         </div>
 
         {hint && (
-          <span className="text-xs font-medium text-slate-400">
+          <span className="max-w-[9rem] text-right text-xs font-medium leading-5 text-slate-400">
             {hint}
           </span>
         )}
@@ -43,7 +43,7 @@ function StudentStatCard({
         {label}
       </p>
 
-      <p className="mb-0 text-2xl font-bold text-[#0F2747]">
+      <p className="mb-0 break-words text-2xl font-bold text-[#0F2747]">
         {value ?? "—"}
       </p>
     </div>

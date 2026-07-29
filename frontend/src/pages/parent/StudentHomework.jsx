@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  FiAlertCircle,
-  FiAlertTriangle,
   FiAward,
   FiBook,
-  FiBookOpen,
   FiCheckCircle,
   FiClock,
-  FiEdit3,
   FiFileText,
-  FiInbox,
   FiMessageSquare,
   FiPaperclip,
-  FiSearch,
   FiX,
 } from "react-icons/fi";
 
@@ -22,8 +16,34 @@ import { useAuth } from "../../context/useAuth";
 import { parentApi } from "../../api/client";
 import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentStudentHomework } from "../../hooks/useParentStudentHomework";
+import { formatDateTimeVN } from "../../utils/datetime";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── FSchool Stitch design tokens (matches the teacher homework portal) ──────
+
+const C = {
+  onSurface: "#1E293B",
+  muted: "#64748B",
+  border: "#E2E8F0",
+  orange: "#F27123",
+  deepBlue: "#00458E",
+  error: "#EF4444",
+  success: "#22C55E",
+  warning: "#F59E0B",
+  info: "#3B82F6",
+};
+
+function Ms({ name, className = "", style, fill = false }) {
+  return (
+    <span
+      className={`material-symbols-outlined ${className}`}
+      style={{ ...(fill ? { fontVariationSettings: "'FILL' 1" } : {}), ...style }}
+    >
+      {name}
+    </span>
+  );
+}
 
 function fmtDate(value) {
   if (!value) return "—";
@@ -33,9 +53,26 @@ function fmtDate(value) {
   }).format(new Date(value));
 }
 
+// "dd/mm/yyyy HH:mm" → "HH:mm - dd/mm/yyyy" (mirrors teacher's due display order)
+function dueDisplay(dueDate) {
+  const s = formatDateTimeVN(dueDate);
+  const [datePart, timePart] = String(s).split(" ");
+  return timePart ? `${timePart} - ${datePart}` : s;
+}
+
+function dueCountdown(dueDate, isOverdue) {
+  if (!dueDate) return { text: "", color: C.muted };
+  const due = new Date(String(dueDate).replace(" ", "T"));
+  const days = Math.floor((due - new Date()) / 86400000);
+  if (isOverdue || days < 0) return { text: `Trễ ${Math.abs(days)} ngày`, color: C.error };
+  if (days === 0) return { text: "Hạn chót hôm nay", color: C.error };
+  if (days === 1) return { text: "Hạn chót ngày mai", color: C.warning };
+  return { text: `Còn ${days} ngày`, color: C.muted };
+}
+
 const STATUS_MAP = {
   GRADED:    { label: "Đã chấm",  cls: "bg-green-50 text-green-700",   dot: "bg-green-500" },
-  SUBMITTED: { label: "Đã nộp",   cls: "bg-blue-50 text-[#08509F]",    dot: "bg-[#08509F]" },
+  SUBMITTED: { label: "Đã nộp",   cls: "bg-blue-50 text-[#3B82F6]",    dot: "bg-[#3B82F6]" },
   MISSING:   { label: "Chưa nộp", cls: "bg-amber-50 text-amber-700",   dot: "bg-amber-500" },
   LATE:      { label: "Nộp muộn", cls: "bg-red-50 text-red-600",       dot: "bg-red-500" },
 };
@@ -51,42 +88,49 @@ function SubmissionBadge({ status, isLate }) {
   );
 }
 
-const HW_STATUS = {
-  OPEN:   { label: "Đang mở", cls: "bg-green-50 text-green-700" },
-  CLOSED: { label: "Đã đóng", cls: "bg-slate-100 text-slate-500" },
-};
+// ─── Status chip for homework rows (ported from teacher) ─────────────────────
+
+function hwStatusChip(hw) {
+  if (hw.status === "CLOSED") return { label: "ĐÃ ĐÓNG",  bg: "#F1F5F9",             text: C.muted };
+  if (hw.isOverdue)           return { label: "QUÁ HẠN",  bg: "#FEF2F2",             text: C.error };
+  return                             { label: "ĐANG MỞ",  bg: "#FFEDD5",             text: C.orange };
+}
 
 const SORT_OPTIONS = [
-  { value: "due_desc",     label: "Hạn nộp mới nhất" },
-  { value: "due_asc",      label: "Hạn nộp gần nhất" },
+  { value: "due_asc",      label: "Hạn sớm nhất" },
+  { value: "due_desc",     label: "Hạn muộn nhất" },
   { value: "created_desc", label: "Mới tạo" },
   { value: "title_asc",    label: "Tên A→Z" },
 ];
 
-const SELECT_CLS =
-  "rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+const selectCls = "rounded-xl border bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-1";
 
-function StatCard({ icon: Icon, iconBg, iconColor, label, value, active, onClick }) {
+// ─── Progress-ring stat card (ported from teacher) ────────────────────────────
+
+function RingStat({ label, display, fraction, color }) {
+  const CIRC = 251.2; // 2πr, r=40
+  const offset = CIRC * (1 - Math.min(Math.max(fraction, 0), 1));
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="rounded-xl bg-white p-4 shadow-sm text-left transition w-full"
-      style={{
-        border: active ? "2px solid #F27123" : "1px solid #FFE7D6",
-        outline: "none",
-      }}
+    <div
+      className="group flex items-center gap-6 rounded-3xl border bg-white p-6 shadow-sm transition-all hover:shadow-md"
+      style={{ borderColor: C.border }}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="mb-1 text-xs font-medium text-slate-500">{label}</p>
-          <p className="text-2xl font-bold leading-none" style={{ color: "#0F2747" }}>{value}</p>
-        </div>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: active ? "#F27123" : iconBg }}>
-          <Icon size={18} style={{ color: active ? "#fff" : iconColor }} />
-        </div>
+      <div className="relative flex items-center justify-center">
+        <svg className="h-24 w-24">
+          <circle cx="48" cy="48" r="40" fill="transparent" stroke="#F1F5F9" strokeWidth="8" />
+          <circle
+            cx="48" cy="48" r="40" fill="transparent"
+            stroke={color} strokeWidth="8" strokeLinecap="round"
+            strokeDasharray={CIRC} strokeDashoffset={offset}
+            style={{ transform: "rotate(-90deg)", transformOrigin: "50% 50%", transition: "stroke-dashoffset 0.35s" }}
+          />
+        </svg>
+        <span className="absolute text-2xl font-black" style={{ color }}>{display}</span>
       </div>
-    </button>
+      <div>
+        <h3 className="text-lg font-bold" style={{ color: C.onSurface }}>{label}</h3>
+      </div>
+    </div>
   );
 }
 
@@ -107,54 +151,54 @@ function DetailModal({ studentId, homework, onClose }) {
 
   if (!homework) return null;
 
-  const hwStatusInfo = HW_STATUS[homework.status] || HW_STATUS.OPEN;
+  const chip = hwStatusChip(homework);
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(15,39,71,0.45)" }}
+      style={{ backgroundColor: "rgba(15,23,42,0.45)" }}
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white shadow-2xl"
+        className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 rounded-t-3xl border-b px-6 py-5" style={{ borderColor: "#FFE7D6", backgroundColor: "#fff" }}>
-          <div className="flex-1 min-w-0">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 rounded-t-3xl border-b px-6 py-5" style={{ borderColor: C.border, backgroundColor: "#fff" }}>
+          <div className="min-w-0 flex-1">
             <div className="mb-1 flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-blue-50 px-3 py-0.5 text-xs font-bold text-[#08509F]">
+              <span className="rounded-2xl px-3 py-1 text-[10px] font-black uppercase tracking-tight text-white" style={{ backgroundColor: C.deepBlue }}>
                 {homework.subjectName}
               </span>
               {homework.submissionStatus !== "GRADED" && (
-                <span className={`rounded-full px-3 py-0.5 text-xs font-bold ${hwStatusInfo.cls}`}>
-                  {hwStatusInfo.label}
+                <span className="rounded px-2 py-0.5 text-[10px] font-extrabold uppercase" style={{ backgroundColor: chip.bg, color: chip.text }}>
+                  {chip.label}
                 </span>
               )}
             </div>
-            <h2 className="text-lg font-bold text-[#0F2747] leading-tight">{homework.title}</h2>
+            <h2 className="text-lg font-bold leading-tight" style={{ color: C.onSurface }}>{homework.title}</h2>
           </div>
           <button type="button" onClick={onClose} className="mt-0.5 rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <FiX size={20} />
           </button>
         </div>
 
-        <div className="px-6 py-5 space-y-5">
+        <div className="space-y-5 px-6 py-5">
           {/* Meta row */}
-          <div className="flex flex-wrap gap-3 text-sm text-slate-600">
+          <div className="flex flex-wrap gap-3 text-sm" style={{ color: C.muted }}>
             <div className="flex items-center gap-1.5">
-              <FiClock size={14} className="text-[#F27123]" />
-              <span>Hạn nộp: <strong className="text-[#0F2747]">{fmtDate(homework.dueDate)}</strong></span>
+              <FiClock size={14} style={{ color: C.orange }} />
+              <span>Hạn nộp: <strong style={{ color: C.onSurface }}>{fmtDate(homework.dueDate)}</strong></span>
             </div>
             {detail?.teacherName && (
               <div className="flex items-center gap-1.5">
-                <FiBook size={14} className="text-[#08509F]" />
-                <span>GV: <strong className="text-[#0F2747]">{detail.teacherName}</strong></span>
+                <FiBook size={14} style={{ color: C.deepBlue }} />
+                <span>GV: <strong style={{ color: C.onSurface }}>{detail.teacherName}</strong></span>
               </div>
             )}
             <div className="flex items-center gap-1.5">
               <FiAward size={14} className="text-slate-400" />
-              <span>Điểm tối đa: <strong className="text-[#0F2747]">{homework.maxScore}</strong></span>
+              <span>Điểm tối đa: <strong style={{ color: C.onSurface }}>{homework.maxScore}</strong></span>
             </div>
           </div>
 
@@ -170,27 +214,24 @@ function DetailModal({ studentId, homework, onClose }) {
 
           {detail && !loading && (
             <>
-              {/* Description */}
               {detail.description && (
                 <div>
-                  <p className="mb-1 text-xs font-bold uppercase tracking-wider text-[#F27123]">Mô tả</p>
-                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{detail.description}</p>
+                  <p className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: C.orange }}>Mô tả</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-700">{detail.description}</p>
                 </div>
               )}
 
-              {/* Instructions */}
               {detail.instructions && (
-                <div className="rounded-xl bg-[#FFF7F2] px-4 py-3" style={{ border: "1px solid #FFE7D6" }}>
-                  <p className="mb-1 text-xs font-bold uppercase tracking-wider text-[#F27123]">Hướng dẫn</p>
-                  <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{detail.instructions}</p>
+                <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "#FFF7ED", border: `1px solid ${C.border}` }}>
+                  <p className="mb-1 text-xs font-bold uppercase tracking-wider" style={{ color: C.orange }}>Hướng dẫn</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-700">{detail.instructions}</p>
                 </div>
               )}
 
-              {/* Attachments */}
               {detail.attachments?.length > 0 && (
                 <div>
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-[#F27123]">
-                    <FiPaperclip className="inline mr-1" size={12} />Tệp đính kèm ({detail.attachments.length})
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wider" style={{ color: C.orange }}>
+                    <FiPaperclip className="mr-1 inline" size={12} />Tệp đính kèm ({detail.attachments.length})
                   </p>
                   <div className="space-y-2">
                     {detail.attachments.map((att) => (
@@ -199,10 +240,10 @@ function DetailModal({ studentId, homework, onClose }) {
                         href={att.fileUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center gap-3 rounded-xl border px-4 py-2.5 text-sm font-medium text-[#08509F] hover:bg-blue-50 transition"
-                        style={{ borderColor: "#E2E8F0" }}
+                        className="flex items-center gap-3 rounded-xl border px-4 py-2.5 text-sm font-medium transition hover:bg-blue-50"
+                        style={{ borderColor: C.border, color: C.info }}
                       >
-                        <FiFileText size={16} className="shrink-0 text-[#08509F]" />
+                        <FiFileText size={16} className="shrink-0" style={{ color: C.info }} />
                         <span className="truncate">{att.fileName}</span>
                       </a>
                     ))}
@@ -210,13 +251,11 @@ function DetailModal({ studentId, homework, onClose }) {
                 </div>
               )}
 
-              {/* Divider */}
-              <hr style={{ borderColor: "#FFE7D6" }} />
+              <hr style={{ borderColor: C.border }} />
 
-              {/* Submission section */}
               <div>
-                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-[#F27123]">Kết quả nộp bài</p>
-                <div className="rounded-2xl border px-5 py-4 space-y-3" style={{ borderColor: "#FFE7D6" }}>
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider" style={{ color: C.orange }}>Kết quả nộp bài</p>
+                <div className="space-y-3 rounded-2xl border px-5 py-4" style={{ borderColor: C.border }}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <SubmissionBadge status={detail.submissionStatus} isLate={detail.isLate} />
                     {detail.submitTime && (
@@ -231,7 +270,7 @@ function DetailModal({ studentId, homework, onClose }) {
                   {detail.submissionContent && (
                     <div>
                       <p className="mb-1 text-xs font-semibold text-slate-500">Nội dung bài nộp</p>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{detail.submissionContent}</p>
+                      <p className="whitespace-pre-wrap text-sm text-slate-700">{detail.submissionContent}</p>
                     </div>
                   )}
 
@@ -240,8 +279,8 @@ function DetailModal({ studentId, homework, onClose }) {
                       href={detail.submissionFileUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-[#08509F] hover:bg-blue-50 transition"
-                      style={{ borderColor: "#E2E8F0" }}
+                      className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition hover:bg-blue-50"
+                      style={{ borderColor: C.border, color: C.info }}
                     >
                       <FiFileText size={15} />Xem file bài nộp
                     </a>
@@ -249,7 +288,7 @@ function DetailModal({ studentId, homework, onClose }) {
 
                   {detail.score !== null && (
                     <div className="flex items-center gap-2 rounded-xl bg-green-50 px-4 py-3">
-                      <FiCheckCircle size={16} className="text-green-600 shrink-0" />
+                      <FiCheckCircle size={16} className="shrink-0 text-green-600" />
                       <span className="text-sm font-bold text-green-700">
                         Điểm: {detail.score} / {detail.maxScore}
                       </span>
@@ -257,11 +296,11 @@ function DetailModal({ studentId, homework, onClose }) {
                   )}
 
                   {detail.feedback && (
-                    <div className="rounded-xl bg-[#FFF7F2] px-4 py-3" style={{ border: "1px solid #FFE7D6" }}>
-                      <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-[#F27123]">
+                    <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "#FFF7ED", border: `1px solid ${C.border}` }}>
+                      <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.orange }}>
                         <FiMessageSquare size={12} />Nhận xét của giáo viên
                       </p>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{detail.feedback}</p>
+                      <p className="whitespace-pre-wrap text-sm text-slate-700">{detail.feedback}</p>
                     </div>
                   )}
                 </div>
@@ -274,68 +313,7 @@ function DetailModal({ studentId, homework, onClose }) {
   );
 }
 
-// ─── Homework card ─────────────────────────────────────────────────────────────
-
-function HomeworkCard({ hw, onClick }) {
-  const hwStatus = HW_STATUS[hw.status] || HW_STATUS.OPEN;
-  const isOverdue = hw.isOverdue && hw.status === "OPEN";
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full text-left rounded-2xl border bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md focus:outline-none"
-      style={{ borderColor: "#FFE7D6" }}
-    >
-      {/* Top row */}
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-blue-50 px-3 py-0.5 text-xs font-bold text-[#08509F]">
-            {hw.subjectName}
-          </span>
-          {hw.submissionStatus !== "GRADED" && (
-            <>
-              <span className={`rounded-full px-3 py-0.5 text-xs font-bold ${hwStatus.cls}`}>
-                {hwStatus.label}
-              </span>
-              {isOverdue && (
-                <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-bold text-red-600">
-                  Quá hạn
-                </span>
-              )}
-            </>
-          )}
-        </div>
-        <SubmissionBadge status={hw.submissionStatus} isLate={hw.isLate} />
-      </div>
-
-      {/* Title */}
-      <h3 className="mb-2 font-bold text-[#0F2747] leading-snug">{hw.title}</h3>
-
-      {/* Footer */}
-      <div className="mt-3 flex flex-wrap items-center gap-4 border-t pt-3 text-xs text-slate-500" style={{ borderColor: "#FFF0E9" }}>
-        <div className="flex items-center gap-1.5">
-          <FiClock size={13} className="text-[#F27123]" />
-          Hạn: {fmtDate(hw.dueDate)}
-        </div>
-        {hw.score !== null && (
-          <div className="flex items-center gap-1.5">
-            <FiCheckCircle size={13} className="text-green-500" />
-            Điểm: <strong className="font-bold text-green-700">{hw.score}/{hw.maxScore}</strong>
-          </div>
-        )}
-        {hw.submitTime && hw.score === null && (
-          <div className="flex items-center gap-1.5">
-            <FiFileText size={13} className="text-[#08509F]" />
-            Đã nộp: {fmtDate(hw.submitTime)}
-          </div>
-        )}
-      </div>
-    </button>
-  );
-}
-
-// ─── Main page ─────────────────────────────────────────────────────────────────
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 function StudentHomework() {
   const { user } = useAuth();
@@ -345,33 +323,53 @@ function StudentHomework() {
   const [statusFilter,      setStatusFilter]      = useState("");
   const [submissionFilter,  setSubmissionFilter]  = useState("");
   const [subjectId,         setSubjectId]         = useState("");
-  const [sort,              setSort]              = useState("due_desc");
+  const [sort,               setSort]              = useState("due_asc");
   const [subjectOptions,    setSubjectOptions]    = useState([]);
-  const [search,            setSearch]            = useState("");
   const [searchInput,       setSearchInput]       = useState("");
+  const [search,            setSearch]            = useState("");
   const [page,              setPage]              = useState(1);
+  const [showFilters,       setShowFilters]       = useState(false);
   const [selectedHw,        setSelectedHw]        = useState(null);
 
   const LIMIT = 12;
 
-  const effStudentId  = selectedStudentId || (students[0]?.studentId ? String(students[0].studentId) : "");
-  const activeStudent = students.find((s) => String(s.studentId) === effStudentId) ?? null;
+  const effStudentId = selectedStudentId || (students[0]?.studentId ? String(students[0].studentId) : "");
 
   const params = useMemo(() => ({
     status:           statusFilter     || undefined,
     submissionStatus: submissionFilter || undefined,
     subjectId:        subjectId        || undefined,
     sort,
-    search:           search           || undefined,
+    search: search || undefined,
     page,
     limit: LIMIT,
   }), [statusFilter, submissionFilter, subjectId, sort, search, page]);
 
-  const { data, loading, error } = useParentStudentHomework(
-    effStudentId,
-    params,
-    Boolean(effStudentId),
-  );
+  const { data, loading, error } = useParentStudentHomework(effStudentId, params, Boolean(effStudentId));
+
+  // Exact "open" total (mirrors teacher's separate overdue-count fetch trick)
+  const openParams = useMemo(() => ({ status: "OPEN", page: 1, limit: 1 }), []);
+  const { data: openData } = useParentStudentHomework(effStudentId, openParams, Boolean(effStudentId));
+  const openTotal = openData?.pagination?.total ?? 0;
+
+  // "Cần chú ý": open homework this child hasn't submitted yet, soonest due first
+  const attentionParams = useMemo(() => ({ status: "OPEN", submissionStatus: "MISSING", sort: "due_asc", page: 1, limit: 6 }), []);
+  const { data: attentionData } = useParentStudentHomework(effStudentId, attentionParams, Boolean(effStudentId));
+  const attentionItems = attentionData?.items ?? [];
+
+  useEffect(() => {
+    if (!data?.items?.length) return;
+    setSubjectOptions((prev) => {
+      const map = Object.fromEntries(prev.map((s) => [s.id, s.name]));
+      for (const hw of data.items) map[hw.subjectId] = hw.subjectName;
+      return Object.entries(map).map(([id, name]) => ({ id, name }));
+    });
+  }, [data?.items]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => { setSearch(searchInput); setPage(1); }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const headerUser = useMemo(() => ({
     name:   user?.fullName || user?.username || "Phụ huynh",
@@ -381,83 +379,42 @@ function StudentHomework() {
 
   function handleStudentChange(id) {
     setSelectedStudentId(String(id));
-    setSubmissionFilter("");
-    setSubjectId("");
-    setPage(1);
+    setStatusFilter(""); setSubmissionFilter(""); setSubjectId(""); setPage(1);
   }
+  function resetPage() { setPage(1); }
 
-  function handleStatusChange(val) {
-    setStatusFilter(val);
-    setPage(1);
-  }
-
-  function handleSubmissionFilter(val) {
-    setSubmissionFilter((prev) => (prev === val ? "" : val));
-    setPage(1);
-  }
-
-  function handleSearch(e) {
-    e.preventDefault();
-    setSearch(searchInput);
-    setPage(1);
-  }
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSearch(searchInput);
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
-  const totalPages = data?.pagination?.totalPages || 1;
   const summary = data?.summary ?? { total: 0, graded: 0, submitted: 0, missing: 0 };
-
-  useEffect(() => {
-    if (!data?.items?.length) return;
-    Promise.resolve(data.items).then((items) => {
-      setSubjectOptions((prev) => {
-        const map = Object.fromEntries(prev.map((s) => [s.id, s.name]));
-        for (const hw of items) map[hw.subjectId] = hw.subjectName;
-        return Object.entries(map).map(([id, name]) => ({ id, name }));
-      });
-    });
-  }, [data?.items]);
+  const avgCompletion = summary.total > 0 ? Math.round(((summary.graded + summary.submitted) / summary.total) * 100) : 0;
+  const pagination = data?.pagination;
 
   return (
-    <DashboardShell user={headerUser} menuItems={dashboardNavigation.PARENT}>
-      {/* Page header */}
-      <section className="mb-6 overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-6 lg:px-8">
-          <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>Theo dõi học sinh</p>
-            <h1 className="mb-1 text-3xl font-bold" style={{ color: "#0F2747" }}>Bài tập về nhà</h1>
-            <p className="text-sm text-slate-500">Xem danh sách bài tập và kết quả nộp bài của con trong từng môn học.</p>
-          </div>
-        </div>
-      </section>
-
+    <DashboardShell
+      user={headerUser}
+      menuItems={dashboardNavigation.PARENT}
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={getCurrentSchoolYearLabel(students)}
+    >
       {studentsLoading ? (
-        <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="h-64 animate-pulse rounded-3xl bg-slate-100" />
       ) : students.length === 0 ? (
-        <div className="rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid #FFE7D6", backgroundColor: "#FFF7F2", color: "#0F2747" }}>
+        <div className="rounded-3xl px-4 py-3 text-sm" style={{ border: `1px solid ${C.border}`, backgroundColor: "#FFF7ED", color: C.onSurface }}>
           Không tìm thấy thông tin học sinh.
         </div>
       ) : (
-        <>
+        <div className="space-y-6">
           {/* Student pill selector — only when >1 child */}
           {students.length > 1 && (
-            <div className="mb-4 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               {students.map((s) => (
                 <button
                   key={s.studentId}
                   type="button"
                   onClick={() => handleStudentChange(s.studentId)}
-                  className="rounded-full px-4 py-2 text-sm font-medium transition"
+                  className="rounded-xl px-4 py-2 text-sm font-medium transition"
                   style={
                     String(s.studentId) === effStudentId
-                      ? { backgroundColor: "#08509F", color: "#fff" }
-                      : { border: "1px solid #e2e8f0", backgroundColor: "#fff", color: "#475569" }
+                      ? { backgroundColor: C.deepBlue, color: "#fff" }
+                      : { border: `1px solid ${C.border}`, backgroundColor: "#fff", color: C.muted }
                   }
                 >
                   {s.studentFullName}
@@ -467,150 +424,238 @@ function StudentHomework() {
             </div>
           )}
 
-          {/* Student info banner */}
-          {activeStudent && (
-            <div className="mb-5 flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
-              {activeStudent.studentAvatar ? (
-                <img src={activeStudent.studentAvatar} alt={activeStudent.studentFullName}
-                  className="h-9 w-9 shrink-0 rounded-full object-cover" />
-              ) : (
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#08509F] text-sm font-bold text-white">
-                  {activeStudent.studentFullName?.[0] ?? "?"}
-                </div>
-              )}
-              <div>
-                <span className="text-sm font-semibold" style={{ color: "#0F2747" }}>{activeStudent.studentFullName}</span>
-                <span className="ml-2 text-xs text-slate-500">
-                  {activeStudent.studentCode}
-                  {activeStudent.className && ` · ${activeStudent.className}`}
-                  {activeStudent.relationship && ` · ${activeStudent.relationship}`}
-                </span>
-              </div>
-            </div>
-          )}
+          {/* ── Action Area (Stitch header) ── */}
+          <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+            <h2 className="text-3xl font-extrabold tracking-tight" style={{ color: C.onSurface }}>
+              Bài tập
+            </h2>
+          </div>
 
-          {/* Summary stat cards — clickable submission status filter */}
-          <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard
-              icon={FiBookOpen} iconBg="#FFF0E8" iconColor="#F27123"
-              label="Tổng bài tập" value={summary.total}
-              active={submissionFilter === ""} onClick={() => handleSubmissionFilter("")}
+          {/* ── Statistics (progress rings) ── */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <RingStat
+              label="Đang mở"
+              display={String(openTotal).padStart(2, "0")}
+              fraction={summary.total > 0 ? openTotal / summary.total : 0}
+              color={C.orange}
             />
-            <StatCard
-              icon={FiCheckCircle} iconBg="#ECFDF5" iconColor="#16A34A"
-              label="Đã chấm" value={summary.graded}
-              active={submissionFilter === "GRADED"} onClick={() => handleSubmissionFilter("GRADED")}
+            <RingStat
+              label="Hoàn thành TB"
+              display={`${avgCompletion}%`}
+              fraction={avgCompletion / 100}
+              color={C.info}
             />
-            <StatCard
-              icon={FiEdit3} iconBg="#EBF3FF" iconColor="#08509F"
-              label="Đã nộp" value={summary.submitted}
-              active={submissionFilter === "SUBMITTED"} onClick={() => handleSubmissionFilter("SUBMITTED")}
-            />
-            <StatCard
-              icon={FiAlertTriangle} iconBg="#FEF3C7" iconColor="#D97706"
-              label="Chưa nộp" value={summary.missing}
-              active={submissionFilter === "MISSING"} onClick={() => handleSubmissionFilter("MISSING")}
+            <RingStat
+              label="Chưa nộp"
+              display={String(summary.missing).padStart(2, "0")}
+              fraction={summary.total > 0 ? summary.missing / summary.total : 0}
+              color={C.error}
             />
           </div>
 
-          {/* Filters */}
-          <div className="mb-5 flex flex-wrap items-end gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Môn</label>
-              <select value={subjectId} onChange={(e) => { setSubjectId(e.target.value); setPage(1); }} className={SELECT_CLS}>
-                <option value="">Tất cả môn</option>
-                {subjectOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Trạng thái</label>
-              <select value={statusFilter} onChange={(e) => { handleStatusChange(e.target.value); }} className={SELECT_CLS}>
-                <option value="">Tất cả</option>
-                <option value="OPEN">Đang mở</option>
-                <option value="CLOSED">Đã đóng</option>
-              </select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Sắp xếp</label>
-              <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }} className={SELECT_CLS}>
-                {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-            <form onSubmit={handleSearch} className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Tìm bài tập</label>
-              <div className="flex">
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="Tiêu đề bài tập..."
-                  className="w-44 rounded-l-lg border border-r-0 border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]"
-                />
-                <button type="submit" className="flex items-center rounded-r-lg px-3 text-white" style={{ backgroundColor: "#08509F" }}>
-                  <FiSearch size={15} />
+          {error && <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
+
+          {/* ── Main layout: table + attention panel ── */}
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            {/* Homework list */}
+            <div className="overflow-hidden rounded-3xl border bg-white shadow-sm xl:col-span-2" style={{ borderColor: C.border }}>
+              <div className="flex items-center justify-between border-b bg-slate-50/50 px-6 py-5" style={{ borderColor: C.border }}>
+                <div className="flex items-center gap-3">
+                  <Ms name="assignment" style={{ color: C.deepBlue }} />
+                  <h4 className="text-lg font-bold" style={{ color: C.onSurface }}>Danh sách bài tập</h4>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFilters((v) => !v)}
+                  className="flex items-center gap-1.5 rounded-full border bg-white px-3 py-1.5 text-xs font-bold transition-colors hover:bg-slate-50"
+                  style={{ borderColor: C.border, color: showFilters ? C.orange : C.muted }}
+                >
+                  <Ms name="filter_list" className="!text-[14px]!" /> Bộ lọc
                 </button>
               </div>
-            </form>
-          </div>
 
-          {/* Content */}
-          {loading && (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="h-40 animate-pulse rounded-2xl bg-slate-100" />
-              ))}
-            </div>
-          )}
-
-          {error && (
-            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-              <FiAlertCircle size={16} className="shrink-0" />
-              {error}
-            </div>
-          )}
-
-          {!loading && !error && data && (
-            <>
-              {data.items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-2xl border bg-white p-12 text-center shadow-sm" style={{ borderColor: "#FFE7D6" }}>
-                  <FiInbox size={36} className="mb-3 text-slate-300" />
-                  <p className="text-slate-400">Không có bài tập nào phù hợp.</p>
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {data.items.map((hw) => (
-                    <HomeworkCard key={hw.homeworkId} hw={hw} onClick={() => setSelectedHw(hw)} />
-                  ))}
-                </div>
-              )}
-
-              {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="mt-6 flex items-center justify-between text-sm text-slate-500">
-                  <span>
-                    {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, data.pagination.total)} / {data.pagination.total} bài tập
-                  </span>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium disabled:opacity-40 hover:bg-slate-50">Trước</button>
-                    <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium disabled:opacity-40 hover:bg-slate-50">Sau</button>
+              {showFilters && (
+                <div className="flex flex-wrap items-center gap-2 border-b bg-white px-6 py-3" style={{ borderColor: C.border }}>
+                  <PrettySelect value={subjectId} onChange={(e) => { setSubjectId(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                    <option value="">Tất cả môn</option>
+                    {subjectOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </PrettySelect>
+                  <PrettySelect value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                    <option value="">Mọi trạng thái</option>
+                    <option value="OPEN">Đang mở</option>
+                    <option value="CLOSED">Đã đóng</option>
+                  </PrettySelect>
+                  <PrettySelect value={submissionFilter} onChange={(e) => { setSubmissionFilter(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                    <option value="">Mọi trạng thái nộp</option>
+                    <option value="GRADED">Đã chấm</option>
+                    <option value="SUBMITTED">Đã nộp</option>
+                    <option value="MISSING">Chưa nộp</option>
+                  </PrettySelect>
+                  <PrettySelect value={sort} onChange={(e) => { setSort(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                    {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </PrettySelect>
+                  <div className="flex">
+                    <input
+                      type="text"
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      placeholder="Tìm bài tập..."
+                      className="w-40 rounded-l-xl border border-r-0 bg-white px-3 py-2 text-sm outline-none"
+                      style={{ borderColor: C.border, color: C.onSurface }}
+                    />
+                    <span className="flex items-center rounded-r-xl px-3 text-white" style={{ backgroundColor: C.deepBlue }}>
+                      <Ms name="search" className="!text-[16px]!" />
+                    </span>
                   </div>
                 </div>
               )}
-            </>
-          )}
 
-          {/* Detail modal */}
-          {selectedHw && (
-            <DetailModal
-              key={`${effStudentId}-${selectedHw.homeworkId}`}
-              studentId={effStudentId}
-              homework={selectedHw}
-              onClose={() => setSelectedHw(null)}
-            />
-          )}
-        </>
+              {loading ? (
+                <div className="space-y-3 p-6">
+                  {[0, 1, 2, 3].map((n) => <div key={n} className="h-16 animate-pulse rounded-2xl bg-slate-100" />)}
+                </div>
+              ) : !data?.items?.length ? (
+                <div className="p-12 text-center">
+                  <p className="text-sm font-medium" style={{ color: C.onSurface }}>Chưa có bài tập nào</p>
+                  <p className="mt-1 text-sm text-slate-400">Không có bài tập nào phù hợp với bộ lọc hiện tại.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-slate-50/30">
+                        {["MÔN HỌC", "TIÊU ĐỀ & THÔNG TIN", "NỘP BÀI", "THAO TÁC"].map((h, i) => (
+                          <th
+                            key={h}
+                            className={`px-6 py-4 text-[11px] font-extrabold uppercase tracking-wider text-slate-400 ${i === 2 ? "text-center" : ""} ${i === 3 ? "text-right" : ""}`}
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {data.items.map((hw) => {
+                        const chip = hwStatusChip(hw);
+                        return (
+                          <tr
+                            key={hw.homeworkId}
+                            onClick={() => setSelectedHw(hw)}
+                            className="group cursor-pointer transition-all hover:bg-slate-50/80"
+                          >
+                            <td className="px-6 py-5">
+                              <span className="rounded-2xl px-3 py-1 text-[10px] font-black uppercase tracking-tight text-white shadow-sm" style={{ backgroundColor: C.deepBlue }}>
+                                {hw.subjectName}
+                              </span>
+                            </td>
+                            <td className="px-6 py-5">
+                              <p className="font-bold" style={{ color: C.onSurface }}>{hw.title}</p>
+                              <div className="mt-1 flex flex-wrap items-center gap-3">
+                                <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-500">
+                                  <Ms name="event" className="!text-[14px]!" /> {dueDisplay(hw.dueDate)}
+                                </span>
+                                <span className="rounded px-2 py-0.5 text-[10px] font-extrabold uppercase" style={{ backgroundColor: chip.bg, color: chip.text }}>
+                                  {chip.label}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-5">
+                              <div className="flex flex-col items-center gap-1">
+                                <SubmissionBadge status={hw.submissionStatus} isLate={hw.isLate} />
+                                {hw.score !== null && (
+                                  <span className="text-[11px] font-bold text-green-700">{hw.score}/{hw.maxScore} điểm</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-5 text-right">
+                              <div className="flex justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedHw(hw); }}
+                                  title="Xem chi tiết"
+                                  className="flex h-9 w-9 items-center justify-center rounded-2xl transition-colors hover:bg-[#F27123]/10"
+                                  style={{ color: C.orange }}
+                                >
+                                  <Ms name="visibility" className="!text-[20px]!" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {pagination && pagination.totalPages > 1 && (
+                <div className="flex items-center justify-between border-t px-6 py-4 text-sm text-slate-500" style={{ borderColor: C.border }}>
+                  <span>{(page - 1) * pagination.limit + 1}–{Math.min(page * pagination.limit, pagination.total)} / {pagination.total} bài tập</span>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
+                      className="rounded-full border px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-40" style={{ borderColor: C.border }}>Trước</button>
+                    <button type="button" onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))} disabled={page >= pagination.totalPages}
+                      className="rounded-full border px-3 py-1.5 text-xs font-medium hover:bg-slate-50 disabled:opacity-40" style={{ borderColor: C.border }}>Sau</button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Attention Panel */}
+            <div className="flex flex-col overflow-hidden rounded-3xl border bg-white shadow-sm" style={{ borderColor: C.border }}>
+              <div className="border-b bg-slate-50/50 px-6 py-5" style={{ borderColor: C.border }}>
+                <h4 className="text-lg font-bold" style={{ color: C.onSurface }}>Cần chú ý</h4>
+                <p className="mt-0.5 text-[11px] text-slate-400">Bài tập đang mở mà con bạn chưa nộp</p>
+              </div>
+
+              <div className="flex-1 space-y-4 overflow-y-auto p-4" style={{ maxHeight: 600 }}>
+                {attentionItems.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-400">Không có bài tập nào cần chú ý.</p>
+                ) : (
+                  attentionItems.map((hw) => {
+                    const cd = dueCountdown(hw.dueDate, hw.isOverdue);
+                    return (
+                      <button
+                        key={hw.homeworkId}
+                        type="button"
+                        onClick={() => setSelectedHw(hw)}
+                        className="group relative w-full cursor-pointer rounded-3xl border p-4 text-left shadow-sm transition-all hover:border-[#F27123]/40 hover:bg-[#F27123]/2"
+                        style={{ borderColor: C.border }}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div
+                            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm"
+                            style={{ backgroundColor: hw.isOverdue ? C.error : C.deepBlue }}
+                          >
+                            <Ms name={hw.isOverdue ? "warning" : "assignment"} className="!text-[20px]!" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold" style={{ color: C.onSurface }}>{hw.title}</p>
+                            <p className="truncate text-[11px] font-medium text-slate-400">{hw.subjectName}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: cd.color }}>{cd.text}</span>
+                            <p className="mt-0.5 text-[10px] text-slate-400">{dueDisplay(hw.dueDate)}</p>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Detail modal */}
+      {selectedHw && (
+        <DetailModal
+          key={`${effStudentId}-${selectedHw.homeworkId}`}
+          studentId={effStudentId}
+          homework={selectedHw}
+          onClose={() => setSelectedHw(null)}
+        />
       )}
     </DashboardShell>
   );

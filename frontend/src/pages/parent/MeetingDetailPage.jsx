@@ -8,6 +8,8 @@ import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { parentMeetingApi } from "../../api/client";
+import { useParentStudents } from "../../hooks/useParentStudents";
+import { getCurrentSchoolYearLabel } from "../../utils/formatters";
 
 const TABS = [
   { key: "info",    label: "Thông tin",     icon: FiInfo },
@@ -33,10 +35,16 @@ const ACTION_STATUS = {
   COMPLETED:   { label: "Hoàn thành",   bg: "#ECFDF5", text: "#16A34A" },
 };
 
+function beginLoad(setLoading, setError) {
+  setLoading(true);
+  setError("");
+}
+
 function MeetingDetailPage() {
   const { meetingId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { students } = useParentStudents();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "info";
 
@@ -48,7 +56,7 @@ function MeetingDetailPage() {
 
   useEffect(() => {
     let m = true;
-    setLoading(true); setError("");
+    beginLoad(setLoading, setError);
     parentMeetingApi.getDetail(meetingId)
       .then((res) => { if (m) setData(res.data); })
       .catch((err) => { if (m) setError(err.message); })
@@ -56,17 +64,16 @@ function MeetingDetailPage() {
     return () => { m = false; };
   }, [meetingId]);
 
-  async function handleRespond(action) {
+  async function handleRespond() {
     setResponding(true); setRespondMsg({ text: "", ok: true });
     try {
-      const res = await parentMeetingApi.respond(meetingId, action);
-      const newStatus = action === "ACCEPT" ? "ACCEPTED" : "DECLINED";
-      setRespondMsg({ text: res.message ?? (action === "ACCEPT" ? "Đã xác nhận tham dự" : "Đã từ chối lời mời"), ok: true });
+      const res = await parentMeetingApi.respond(meetingId, "ACCEPT");
+      setRespondMsg({ text: res.message ?? "Đã xác nhận tham dự", ok: true });
       setData((prev) => ({
         ...prev,
-        meeting: { ...prev.meeting, invitationStatus: newStatus },
+        meeting: { ...prev.meeting, invitationStatus: "ACCEPTED" },
         invitations: prev.invitations.map((inv) =>
-          inv.userId === user.userId ? { ...inv, status: newStatus } : inv
+          inv.userId === user.userId ? { ...inv, status: "ACCEPTED" } : inv
         ),
       }));
     } catch (err) {
@@ -90,8 +97,8 @@ function MeetingDetailPage() {
     <DashboardShell
       user={headerUser}
       menuItems={dashboardNavigation.PARENT}
-      sidebarFooterLabel="Cuộc họp"
-      sidebarFooterValue={meeting?.className ?? ""}
+      sidebarFooterLabel="Năm học hiện tại"
+      sidebarFooterValue={getCurrentSchoolYearLabel(students)}
     >
       <button
         type="button"
@@ -153,20 +160,11 @@ function MeetingDetailPage() {
                   <button
                     type="button"
                     disabled={responding}
-                    onClick={() => handleRespond("ACCEPT")}
+                    onClick={() => handleRespond()}
                     className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
                     style={{ backgroundColor: "#16A34A" }}
                   >
                     {responding ? "..." : "Xác nhận tham dự"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={responding}
-                    onClick={() => handleRespond("DECLINE")}
-                    className="rounded-lg border px-4 py-2 text-sm font-semibold transition disabled:opacity-60"
-                    style={{ borderColor: "#DC2626", color: "#DC2626" }}
-                  >
-                    {responding ? "..." : "Từ chối"}
                   </button>
                 </div>
               )}

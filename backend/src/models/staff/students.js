@@ -12,6 +12,7 @@ const studentSelect = `
     ua.full_name AS fullName,
     ua.email,
     ua.phone,
+    ua.avatar,
     DATE_FORMAT(s.date_of_birth, '%Y-%m-%d') AS dateOfBirthRaw,
     DATE_FORMAT(s.date_of_birth, '%d/%m/%Y') AS dateOfBirth,
     s.gender,
@@ -30,23 +31,40 @@ const studentSelect = `
   LEFT JOIN school_year sy ON sy.school_year_id = sc.school_year_id
 `;
 
-async function listStudents(search = "") {
+async function listStudents(filters = "") {
+  const normalized =
+    typeof filters === "string" ? { search: filters } : filters || {};
+  const search = normalized.search || "";
   const keyword = `%${search.trim()}%`;
+  const conditions = [
+    "s.status = 'ACTIVE'",
+    `(
+      ? = ''
+      OR ua.full_name LIKE ?
+      OR s.student_code LIKE ?
+      OR ua.email LIKE ?
+      OR sc.class_name LIKE ?
+    )`,
+  ];
+  const params = [search.trim(), keyword, keyword, keyword, keyword];
+
+  if (normalized.gradeId) {
+    conditions.push("sc.grade_id = ?");
+    params.push(normalized.gradeId);
+  }
+
+  if (normalized.classId) {
+    conditions.push("sc.class_id = ?");
+    params.push(normalized.classId);
+  }
 
   const [rows] = await pool.query(
     `
       ${studentSelect}
-      WHERE s.status = 'ACTIVE'
-        AND (
-          ? = ''
-          OR ua.full_name LIKE ?
-          OR s.student_code LIKE ?
-          OR ua.email LIKE ?
-          OR sc.class_name LIKE ?
-        )
+      WHERE ${conditions.join(" AND ")}
       ORDER BY s.student_id
     `,
-    [search.trim(), keyword, keyword, keyword, keyword],
+    params,
   );
 
   return rows;
@@ -213,9 +231,30 @@ async function updateStudent(studentId, data) {
   }
 }
 
+async function setStudentAvatar(studentId, avatarUrl) {
+  const [rows] = await pool.query(
+    "SELECT user_id AS userId FROM student WHERE student_id = ?",
+    [studentId],
+  );
+
+  if (!rows[0]) {
+    const error = new Error("Không tìm thấy học sinh");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  await pool.query(
+    "UPDATE user_account SET avatar = ?, updated_at = NOW() WHERE user_id = ?",
+    [avatarUrl, rows[0].userId],
+  );
+
+  return getStudentById(studentId);
+}
+
 module.exports = {
   listStudents,
   getStudentById,
   createStudent,
   updateStudent,
+  setStudentAvatar,
 };

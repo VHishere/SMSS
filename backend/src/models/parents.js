@@ -301,9 +301,338 @@ async function findGradesByStudentId(studentId) {
   };
 }
 
+async function findNotificationsByUserId(userId, filters = {}) {
+  const limit = Math.min(100, Math.max(1, Number(filters.limit) || 30));
+  const unreadOnly = filters.unreadOnly === true || filters.unreadOnly === "true";
+
+  const params = [userId];
+  let where = "receiver_id = ?";
+
+  if (unreadOnly) {
+    where += " AND is_read = FALSE";
+  }
+
+  const [[summary]] = await pool.query(
+    `
+      SELECT
+        COUNT(*) AS totalNotifications,
+        SUM(CASE WHEN is_read = FALSE THEN 1 ELSE 0 END) AS unreadNotifications
+      FROM notification
+      WHERE receiver_id = ?
+    `,
+    [userId],
+  );
+
+  const [items] = await pool.query(
+    `
+      SELECT
+        notification_id AS notificationId,
+        title,
+        content,
+        type,
+        related_type AS relatedType,
+        related_id AS relatedId,
+        is_read AS isRead,
+        DATE_FORMAT(created_at, '%Y-%m-%d %H:%i') AS createdAt
+      FROM notification
+      WHERE ${where}
+      ORDER BY created_at DESC
+      LIMIT ?
+    `,
+    [...params, limit],
+  );
+
+  const totalNotifications = Number(summary?.totalNotifications || 0);
+  const unreadNotifications = Number(summary?.unreadNotifications || 0);
+
+  return {
+    summary: { totalNotifications, unreadNotifications },
+    items,
+  };
+}
+
+async function markNotificationRead(userId, notificationId) {
+  const [result] = await pool.query(
+    `
+      UPDATE notification
+      SET is_read = TRUE
+      WHERE receiver_id = ?
+        AND notification_id = ?
+    `,
+    [userId, notificationId],
+  );
+
+  return result.affectedRows;
+}
+
+async function markAllNotificationsRead(userId) {
+  const [result] = await pool.query(
+    `
+      UPDATE notification
+      SET is_read = TRUE
+      WHERE receiver_id = ?
+        AND is_read = FALSE
+    `,
+    [userId],
+  );
+
+  return result.affectedRows;
+}
+
+// Feed "Thông báo nhà trường" cho Trung tâm thông báo của phụ huynh — chỉ thông
+// báo toàn trường (không gắn lớp) hoặc gắn đúng lớp của con, và audience có phụ huynh.
+async function findAnnouncementFeedForClass(classId) {
+  const [rows] = await pool.query(
+    `SELECT a.announcement_id AS announcementId, a.title, a.content, a.audience,
+            a.is_pinned AS isPinned, a.published_at AS ts,
+            COALESCE(sc.class_name, 'Toàn trường') AS className,
+            ua.full_name AS createdByName
+     FROM announcement a
+     LEFT JOIN school_class sc ON sc.class_id = a.class_id
+     INNER JOIN user_account ua ON ua.user_id = a.created_by
+     WHERE a.status = 'PUBLISHED'
+       AND a.audience IN ('CLASS_ALL', 'CLASS_PARENTS')
+       AND (a.class_id IS NULL OR a.class_id = ?)
+     ORDER BY a.is_pinned DESC, a.published_at DESC
+     LIMIT 30`,
+    [classId],
+  );
+  return rows.map((r) => ({ ...r, createdAt: r.ts }));
+}
+
+// Feed "Cảnh báo học sinh" cho Trung tâm thông báo của phụ huynh — gộp 3 loại
+// cảnh báo (học lực / hạnh kiểm / chuyên cần) của một học sinh (con của phụ huynh).
+async function findWarningAlertsForStudent(studentId) {
+  const [academic] = await pool.query(
+    `SELECT warning_id AS warningId, 'ACADEMIC' AS source, warning_type AS warningType,
+            note, status, created_at AS ts
+     FROM academic_warning
+     WHERE student_id = ?
+     ORDER BY created_at DESC LIMIT 30`,
+    [studentId],
+  );
+  const [behaviour] = await pool.query(
+    `SELECT warning_id AS warningId, 'BEHAVIOUR' AS source, warning_type AS warningType,
+            note, status, created_at AS ts
+     FROM behavior_warning
+     WHERE student_id = ?
+     ORDER BY created_at DESC LIMIT 30`,
+    [studentId],
+  );
+  const [attendance] = await pool.query(
+    `SELECT warning_id AS warningId, 'ATTENDANCE' AS source, 'ABSENCE_RISK' AS warningType,
+            note, status, created_at AS ts
+     FROM attendance_warning
+     WHERE student_id = ?
+     ORDER BY created_at DESC LIMIT 30`,
+    [studentId],
+  );
+
+  return [...academic, ...behaviour, ...attendance]
+    .map((r) => ({ ...r, createdAt: r.ts }))
+    .sort((a, b) => new Date(b.ts) - new Date(a.ts));
+}
+
+async function findTeacherContactsByUserId(userId) {
+  const [teachers] = await pool.query(
+    `
+      SELECT DISTINCT
+        t.teacher_id  AS teacherId,
+        t.user_id     AS teacherUserId,
+        ua.full_name  AS teacherName,
+        ua.email,
+        ua.phone,
+        ua.avatar,
+        tc.role_in_class AS roleInClass,
+        sb.subject_name  AS subjectName,
+        sc.class_id      AS classId,
+        sc.class_name    AS className,
+        s.student_id     AS studentId,
+        sua.full_name    AS studentName
+
+      FROM parent_profile pp
+      INNER JOIN student_parent sp
+        ON sp.parent_id = pp.parent_id
+
+      INNER JOIN student s
+        ON s.student_id = sp.student_id
+        AND s.status    = 'ACTIVE'
+
+      INNER JOIN user_account sua
+        ON sua.user_id = s.user_id
+
+      INNER JOIN class_enrollment ce
+        ON ce.student_id = s.student_id
+        AND ce.status    = 'ACTIVE'
+
+      INNER JOIN school_class sc
+        ON sc.class_id = ce.class_id
+
+      INNER JOIN teacher_class tc
+        ON tc.class_id = sc.class_id
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+
+      LEFT JOIN subject sb
+        ON sb.subject_id = tc.subject_id
+
+      INNER JOIN teacher t
+        ON t.teacher_id = tc.teacher_id
+
+      INNER JOIN user_account ua
+        ON ua.user_id = t.user_id
+        AND ua.status = 'ACTIVE'
+
+      WHERE pp.user_id = ?
+
+      ORDER BY
+        sua.full_name ASC,
+        CASE tc.role_in_class WHEN 'HOMEROOM_TEACHER' THEN 0 ELSE 1 END,
+        ua.full_name ASC
+    `,
+    [userId],
+  );
+
+  const studentMap = new Map();
+
+  teachers.forEach((row) => {
+    if (!studentMap.has(row.studentId)) {
+      studentMap.set(row.studentId, {
+        studentId: row.studentId,
+        studentName: row.studentName,
+        classId: row.classId,
+        className: row.className,
+      });
+    }
+  });
+
+  return {
+    students: Array.from(studentMap.values()),
+    teachers,
+  };
+}
+
+async function findEventsByStudentId({ studentUserId, studentId, classId }, filters = {}) {
+  const { status, search } = filters;
+  const params = [studentUserId, studentId, classId];
+  let where = "WHERE (e.class_id IS NULL OR e.class_id = ?)";
+
+  if (status) {
+    where += " AND e.status = ?";
+    params.push(status);
+  } else {
+    where += " AND e.status IN ('ACTIVE', 'PUBLISHED', 'SCHEDULED', 'COMPLETED', 'CANCELLED')";
+  }
+
+  if (search) {
+    where += " AND (e.title LIKE ? OR e.description LIKE ? OR e.location LIKE ?)";
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+
+  const [events] = await pool.query(
+    `
+      SELECT
+        e.event_id AS eventId,
+        e.title,
+        e.event_type AS eventType,
+        e.category,
+        e.description,
+        DATE_FORMAT(e.start_date, '%Y-%m-%d %H:%i') AS startDate,
+        DATE_FORMAT(e.end_date, '%Y-%m-%d %H:%i') AS endDate,
+        e.location,
+        e.organizer,
+        e.capacity,
+        e.outcome,
+        e.status,
+        sc.class_name AS className,
+        er.registration_id AS registrationId,
+        er.attend_status AS attendStatus,
+        DATE_FORMAT(er.register_date, '%Y-%m-%d %H:%i') AS registeredAt,
+        (
+          SELECT COUNT(*)
+          FROM event_registration er2
+          WHERE er2.event_id = e.event_id
+        ) AS registeredCount
+      FROM event e
+      LEFT JOIN school_class sc
+        ON sc.class_id = e.class_id
+      LEFT JOIN event_registration er
+        ON er.event_id = e.event_id
+        AND (er.user_id = ? OR er.student_id = ?)
+      ${where}
+      ORDER BY
+        CASE WHEN e.start_date >= NOW() THEN 0 ELSE 1 END,
+        e.start_date ASC,
+        e.event_id DESC
+    `,
+    params,
+  );
+
+  return events.map((event) => ({
+    ...event,
+    registeredCount: Number(event.registeredCount || 0),
+    isRegistered: Boolean(event.registrationId),
+  }));
+}
+
+async function findEventForChild(eventId, classId) {
+  const [[event]] = await pool.query(
+    `
+      SELECT
+        e.event_id AS eventId,
+        e.title,
+        e.capacity,
+        e.status,
+        e.class_id AS classId,
+        (
+          SELECT COUNT(*)
+          FROM event_registration er
+          WHERE er.event_id = e.event_id
+        ) AS registeredCount
+      FROM event e
+      WHERE e.event_id = ?
+        AND (e.class_id IS NULL OR e.class_id = ?)
+      LIMIT 1
+    `,
+    [eventId, classId],
+  );
+
+  if (!event) {
+    return null;
+  }
+
+  return {
+    ...event,
+    registeredCount: Number(event.registeredCount || 0),
+  };
+}
+
+async function registerEventForChild({ studentUserId, studentId, eventId, registeredBy }) {
+  const [result] = await pool.query(
+    `
+      INSERT INTO event_registration
+        (event_id, user_id, participant_type, student_id, registered_by, attend_status)
+      VALUES (?, ?, 'STUDENT', ?, ?, 'REGISTERED')
+      ON DUPLICATE KEY UPDATE
+        attend_status = 'REGISTERED'
+    `,
+    [eventId, studentUserId, studentId, registeredBy],
+  );
+
+  return result.insertId;
+}
+
 module.exports = {
   findProfileByUserId,
   findLinkedStudentsByUserId,
   findStudentDetailByStudentId,
   findGradesByStudentId,
+  findNotificationsByUserId,
+  markNotificationRead,
+  markAllNotificationsRead,
+  findAnnouncementFeedForClass,
+  findWarningAlertsForStudent,
+  findTeacherContactsByUserId,
+  findEventsByStudentId,
+  findEventForChild,
+  registerEventForChild,
 };

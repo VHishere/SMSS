@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   FiArrowLeft,
+  FiAward,
   FiBarChart2,
+  FiCalendar,
   FiCheckCircle,
   FiClock,
   FiEdit3,
@@ -13,6 +15,7 @@ import {
 } from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import GradeSubmissionModal from "../../components/organisms/GradeSubmissionModal";
 import HomeworkFormModal from "../../components/organisms/HomeworkFormModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
@@ -21,6 +24,7 @@ import { homeworkApi } from "../../api/client";
 import { useHomeworkAnalytics } from "../../hooks/useHomeworkAnalytics";
 import { useHomeworkDetail } from "../../hooks/useHomeworkDetail";
 import { useHomeworkSubmissions } from "../../hooks/useHomeworkSubmissions";
+import { formatDateTimeVN } from "../../utils/datetime";
 
 const TABS = [
   { key: "info",        label: "Thông tin",  icon: FiFileText },
@@ -68,7 +72,7 @@ function InfoTab({ homework, onEdit, onToggleStatus }) {
           <button
             type="button"
             onClick={onToggleStatus}
-            className="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-medium transition"
+            className="flex items-center gap-1.5 rounded-full border px-3 py-2 text-sm font-medium transition"
             style={{ borderColor: "#E2E8F0", color: "#475569" }}
           >
             {homework.status === "OPEN" ? <><FiLock size={14} /> Đóng bài</> : <><FiCheckCircle size={14} /> Mở lại</>}
@@ -77,7 +81,7 @@ function InfoTab({ homework, onEdit, onToggleStatus }) {
             <button
               type="button"
               onClick={onEdit}
-              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-semibold text-white transition"
+              className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold text-white transition"
               style={{ backgroundColor: "#08509F" }}
             >
               <FiEdit3 size={14} /> Chỉnh sửa
@@ -89,18 +93,27 @@ function InfoTab({ homework, onEdit, onToggleStatus }) {
       <h2 className="mb-1 text-xl font-bold" style={{ color: "#0F2747" }}>{homework.title}</h2>
       <p className="mb-4 text-sm text-slate-500">{homework.className} · {homework.gradeName} · {homework.subjectName}</p>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
-          <p className="text-xs text-slate-400">Ngày giao</p>
-          <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{homework.assignDate}</p>
+      <div className="mb-5 flex flex-wrap gap-x-10 gap-y-3 rounded-3xl border border-slate-100 px-4 py-3">
+        <div className="flex items-center gap-2.5">
+          <FiCalendar size={16} className="text-slate-400" />
+          <div>
+            <p className="text-xs text-slate-400">Ngày giao</p>
+            <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{formatDateTimeVN(homework.assignDate)}</p>
+          </div>
         </div>
-        <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
-          <p className="text-xs text-slate-400">Hạn nộp</p>
-          <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{homework.dueDate}</p>
+        <div className="flex items-center gap-2.5">
+          <FiClock size={16} style={{ color: homework.status === "OPEN" && homework.isOverdue ? "#DC2626" : "#94A3B8" }} />
+          <div>
+            <p className="text-xs text-slate-400">Hạn nộp</p>
+            <p className="text-sm font-semibold" style={{ color: homework.status === "OPEN" && homework.isOverdue ? "#DC2626" : "#0F2747" }}>{formatDateTimeVN(homework.dueDate)}</p>
+          </div>
         </div>
-        <div className="rounded-xl px-4 py-3" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
-          <p className="text-xs text-slate-400">Điểm tối đa</p>
-          <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{homework.maxScore}</p>
+        <div className="flex items-center gap-2.5">
+          <FiAward size={16} className="text-slate-400" />
+          <div>
+            <p className="text-xs text-slate-400">Điểm tối đa</p>
+            <p className="text-sm font-semibold" style={{ color: "#0F2747" }}>{homework.maxScore}</p>
+          </div>
         </div>
       </div>
 
@@ -114,7 +127,7 @@ function InfoTab({ homework, onEdit, onToggleStatus }) {
       {homework.instructions && (
         <div className="mb-4">
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Hướng dẫn làm bài</p>
-          <div className="rounded-xl px-4 py-3 text-sm text-slate-700 whitespace-pre-line" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
+          <div className="rounded-3xl px-4 py-3 text-sm text-slate-700 whitespace-pre-line" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
             {homework.instructions}
           </div>
         </div>
@@ -122,19 +135,45 @@ function InfoTab({ homework, onEdit, onToggleStatus }) {
 
       {homework.attachments?.length > 0 && (
         <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Tệp đính kèm</p>
-          <ul className="space-y-2">
-            {homework.attachments.map((att) => (
-              <li key={att.attachmentId}>
-                <a href={att.fileUrl} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm transition hover:bg-slate-50"
-                  style={{ border: "1px solid #FFE7D6" }}>
-                  <FiExternalLink size={14} style={{ color: "#08509F" }} />
-                  <span className="font-medium" style={{ color: "#08509F" }}>{att.fileName}</span>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+            Tệp đính kèm ({homework.attachments.length})
+          </p>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {homework.attachments.map((att) => {
+              const isPdf = /\.pdf$/i.test(att.fileName ?? "");
+              const isImg = /\.(png|jpe?g|gif|webp)$/i.test(att.fileName ?? "");
+              return (
+                <a
+                  key={att.attachmentId}
+                  href={att.fileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group flex cursor-pointer items-center gap-4 rounded-xl border bg-[#F3F3F3] p-4 transition-colors hover:bg-[#E8E8E8]"
+                  style={{ borderColor: "#E2E8F0", textDecoration: "none" }}
+                >
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-lg"
+                    style={isPdf
+                      ? { backgroundColor: "rgba(255,218,214,0.4)", color: "#BA1A1A" }
+                      : isImg
+                        ? { backgroundColor: "rgba(119,169,254,0.2)", color: "#225DAD" }
+                        : { backgroundColor: "#E8E8E8", color: "#584238" }}
+                  >
+                    <span className="material-symbols-outlined">
+                      {isPdf ? "picture_as_pdf" : isImg ? "image" : "attach_file"}
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold" style={{ color: "#1E293B" }}>{att.fileName}</p>
+                    <p className="text-xs text-slate-500">Nhấn để mở</p>
+                  </div>
+                  <span className="material-symbols-outlined text-slate-500 opacity-0 transition-opacity group-hover:opacity-100">
+                    download
+                  </span>
                 </a>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
@@ -146,8 +185,10 @@ function InfoTab({ homework, onEdit, onToggleStatus }) {
 function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
   const { data, loading, error } = useHomeworkSubmissions(homeworkId, refreshKey);
   const [grading, setGrading] = useState(null);
+  const [statusF, setStatusF] = useState("");
+  const [sortBy,  setSortBy]  = useState("name");
 
-  const submissions = data?.submissions ?? [];
+  const submissions = useMemo(() => data?.submissions ?? [], [data]);
 
   const counts = useMemo(() => {
     let submitted = 0, graded = 0, missing = 0;
@@ -159,6 +200,15 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
     return { submitted, graded, missing };
   }, [submissions]);
 
+  const view = useMemo(() => {
+    let list = statusF ? submissions.filter((s) => s.status === statusF) : submissions;
+    list = [...list];
+    if (sortBy === "score_desc") list.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    else if (sortBy === "score_asc") list.sort((a, b) => (a.score ?? Number.POSITIVE_INFINITY) - (b.score ?? Number.POSITIVE_INFINITY));
+    else list.sort((a, b) => a.studentName.localeCompare(b.studentName));
+    return list;
+  }, [submissions, statusF, sortBy]);
+
   if (loading) {
     return (
       <div className="space-y-2">
@@ -166,32 +216,50 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
       </div>
     );
   }
-
   if (error) {
-    return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
+    return <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
   }
+
+  const selectCls = "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap gap-2">
-        <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>Đã nộp: {counts.submitted}</span>
-        <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#ECFDF5", color: "#16A34A" }}>Đã chấm: {counts.graded}</span>
-        <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}>Chưa nộp: {counts.missing}</span>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>Đã nộp: {counts.submitted}</span>
+          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#ECFDF5", color: "#16A34A" }}>Đã chấm: {counts.graded}</span>
+          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}>Chưa nộp: {counts.missing}</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <PrettySelect value={statusF} onChange={(e) => setStatusF(e.target.value)} className={selectCls}>
+            <option value="">Tất cả trạng thái</option>
+            <option value="GRADED">Đã chấm</option>
+            <option value="SUBMITTED">Chờ chấm</option>
+            <option value="MISSING">Chưa nộp</option>
+          </PrettySelect>
+          <PrettySelect value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={selectCls}>
+            <option value="name">Tên A→Z</option>
+            <option value="score_desc">Điểm cao → thấp</option>
+            <option value="score_asc">Điểm thấp → cao</option>
+          </PrettySelect>
+        </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+      <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b text-left" style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}>
+            <thead className="text-white" style={{ backgroundColor: "#00458E" }}>
+              <tr className="text-left">
                 {["HỌC SINH", "TRẠNG THÁI", "THỜI GIAN NỘP", "ĐIỂM", ""].map((c, i) => (
-                  <th key={i} className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ color: "#F27123" }}>{c}</th>
+                  <th key={i} className="px-4 py-3 text-xs font-medium uppercase tracking-wider">{c}</th>
                 ))}
               </tr>
             </thead>
-            <tbody>
-              {submissions.map((s, idx) => (
-                <tr key={s.studentId} className="border-b last:border-b-0" style={{ borderColor: "#FFF7F2", backgroundColor: idx % 2 === 1 ? "#FAFAFA" : "#fff" }}>
+            <tbody className="divide-y" style={{ borderColor: "#E2E8F0" }}>
+              {view.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-slate-400">Không có bài nộp phù hợp.</td></tr>
+              ) : view.map((s) => (
+                <tr key={s.studentId} className="transition-colors hover:bg-[#F3F3F3]">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
                       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: "#08509F" }}>
@@ -209,7 +277,7 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
                       {s.isLate && <span className="text-xs font-medium" style={{ color: "#DC2626" }}>Muộn</span>}
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">{s.submitTime ?? "—"}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-slate-500">{s.submitTime ? formatDateTimeVN(s.submitTime) : "—"}</td>
                   <td className="px-4 py-3">
                     {s.score === null ? <span className="text-slate-400">—</span> : (
                       <span className="font-semibold" style={{ color: "#0F2747" }}>{s.score}/{maxScore}</span>
@@ -222,7 +290,7 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
                       <button
                         type="button"
                         onClick={() => setGrading(s)}
-                        className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition"
+                        className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition"
                         style={{ backgroundColor: s.status === "GRADED" ? "#EBF3FF" : "#ECFDF5", color: s.status === "GRADED" ? "#08509F" : "#16A34A" }}
                       >
                         <FiEdit3 size={11} />
@@ -251,9 +319,41 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
 
 // ── Analytics Tab ─────────────────────────────────────────────────────────────
 
-function AnalyticItem({ label, value, suffix = "", color = "#0F2747" }) {
+function DonutChart({ segments, total }) {
+  const R = 52, cx = 70, cy = 70, C = 2 * Math.PI * R;
+  const arcs = segments.map((s, i) => {
+    const before = segments.slice(0, i).reduce((sum, x) => sum + x.count, 0);
+    const len = total > 0 ? (s.count / total) * C : 0;
+    const off = total > 0 ? -(before / total) * C : 0;
+    return { color: s.color, len, off };
+  });
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+    <div className="flex flex-wrap items-center justify-center gap-6">
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle cx={cx} cy={cy} r={R} fill="none" stroke="#F1F5F9" strokeWidth="16" />
+        {arcs.map((arc, i) => arc.len > 0 && (
+          <circle key={i} cx={cx} cy={cy} r={R} fill="none" stroke={arc.color} strokeWidth="16"
+            strokeDasharray={`${arc.len} ${C}`} strokeDashoffset={arc.off} transform={`rotate(-90 ${cx} ${cy})`} />
+        ))}
+        <text x={cx} y={cy - 2} textAnchor="middle" fontSize="22" fontWeight="700" fill="#0F2747">{total}</text>
+        <text x={cx} y={cy + 16} textAnchor="middle" fontSize="10" fill="#64748B">học sinh</text>
+      </svg>
+      <div className="space-y-1.5">
+        {segments.map((s) => (
+          <div key={s.label} className="flex items-center gap-2 text-xs">
+            <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+            <span className="text-slate-600">{s.label}</span>
+            <span className="ml-auto pl-4 font-semibold text-[#0F2747]">{s.count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value, suffix = "", color = "#0F2747" }) {
+  return (
+    <div className="rounded-3xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
       <p className="mb-1 text-xs font-medium text-slate-500">{label}</p>
       <p className="text-2xl font-bold leading-none" style={{ color }}>{value}{suffix}</p>
     </div>
@@ -265,24 +365,34 @@ function AnalyticsTab({ homeworkId, enabled, refreshKey }) {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        {[0, 1, 2, 3, 4, 5].map((n) => <div key={n} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {[0, 1].map((n) => <div key={n} className="h-40 animate-pulse rounded-xl bg-slate-100" />)}
       </div>
     );
   }
-  if (error) return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
+  if (error) return <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
   if (!data) return null;
 
   const a = data.analytics;
+  const pending = Math.max(0, a.totalSubmissions - a.gradedCount);
+  const segments = [
+    { label: "Đã chấm",  color: "#16A34A", count: a.gradedCount },
+    { label: "Chờ chấm", color: "#F59E0B", count: pending },
+    { label: "Chưa nộp", color: "#DC2626", count: a.missingCount },
+  ];
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-      <AnalyticItem label="Tỷ lệ nộp"        value={a.submissionRate} suffix="%" color="#F27123" />
-      <AnalyticItem label="Tỷ lệ hoàn thành" value={a.completionRate} suffix="%" color="#16A34A" />
-      <AnalyticItem label="Điểm trung bình"  value={a.avgScore === null ? "—" : a.avgScore} color="#08509F" />
-      <AnalyticItem label="Tổng bài nộp"     value={`${a.totalSubmissions}/${a.totalStudents}`} />
-      <AnalyticItem label="Nộp muộn"         value={a.lateCount} color="#F59E0B" />
-      <AnalyticItem label="Chưa nộp"         value={a.missingCount} color="#DC2626" />
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
+        <h3 className="mb-4 text-sm font-bold" style={{ color: "#0F2747" }}>Tình hình nộp bài</h3>
+        <DonutChart segments={segments} total={a.totalStudents} />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <MetricCard label="Tỷ lệ nộp"       value={a.submissionRate} suffix="%" color="#F27123" />
+        <MetricCard label="Đã chấm"         value={a.completionRate} suffix="%" color="#16A34A" />
+        <MetricCard label="Điểm trung bình" value={a.avgScore === null ? "—" : a.avgScore} color="#08509F" />
+        <MetricCard label="Nộp muộn"        value={a.lateCount} color="#F59E0B" />
+      </div>
     </div>
   );
 }
@@ -345,25 +455,25 @@ function HomeworkDetailPage() {
       {loading && (
         <div className="space-y-4">
           <div className="h-12 animate-pulse rounded-xl bg-slate-100" />
-          <div className="h-64 animate-pulse rounded-2xl bg-slate-100" />
+          <div className="h-64 animate-pulse rounded-3xl bg-slate-100" />
         </div>
       )}
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+        <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
       )}
 
       {!loading && !error && homework && (
         <>
-          {/* Tabs */}
-          <div className="mb-6 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+          {/* Tabs (Stitch pills) */}
+          <div className="mb-6 flex w-fit items-center gap-1 rounded-full border bg-[#F3F3F3] p-1" style={{ borderColor: "#E2E8F0" }}>
             {TABS.map(({ key, label, icon: Icon }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setTab(key)}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition"
-                style={activeTab === key ? { backgroundColor: "#F27123", color: "#fff" } : { color: "#64748B" }}
+                className="flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm transition-all"
+                style={activeTab === key ? { backgroundColor: "#F27123", color: "#fff", fontWeight: 700, boxShadow: "0 1px 2px rgba(0,0,0,0.1)" } : { color: "#64748B", fontWeight: 500 }}
               >
                 <Icon size={15} />
                 <span className="hidden sm:inline">{label}</span>
@@ -371,7 +481,7 @@ function HomeworkDetailPage() {
             ))}
           </div>
 
-          <div className="rounded-2xl bg-white p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6" }}>
+          <div className="rounded-3xl bg-white p-5 shadow-sm sm:p-6" style={{ border: "1px solid #FFE7D6" }}>
             {activeTab === "info" && (
               <InfoTab
                 homework={homework}

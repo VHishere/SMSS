@@ -8,6 +8,11 @@
     "dev": "nodemon src/server.js",
     "students": "node src/scripts/list-students.js",
     "update-passwords": "node src/scripts/update-passwords.js",
+    "migrate:payments": "node src/scripts/migrate-payments.js",
+    "migrate:fee-categories": "node src/scripts/migrate-fee-categories.js",
+    "migrate:announcement-grade": "node src/scripts/migrate-announcement-grade.js",
+    "migrate:behaviour-categories": "node src/scripts/migrate-behaviour-categories.js",
+    "migrate:conversation-admin-type": "node src/scripts/migrate-conversation-admin-type.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -16,14 +21,17 @@
   "type": "commonjs",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.10.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
+    "google-auth-library": "^10.9.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.2",
     "multer": "^2.2.0",
-    "mysql2": "^3.22.5"
+    "mysql2": "^3.22.5",
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

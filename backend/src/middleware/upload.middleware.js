@@ -1,93 +1,181 @@
-const fs = require("fs");
-const path = require("path");
+const { Readable } = require("stream");
 const multer = require("multer");
+const cloudinary = require("../config/cloudinary");
 
-const UPLOAD_ROOT = path.resolve(__dirname, "../../uploads");
-const HOMEWORK_DIR = path.join(UPLOAD_ROOT, "homework");
-const MESSAGE_DIR = path.join(UPLOAD_ROOT, "messages");
-const EVENT_DIR = path.join(UPLOAD_ROOT, "events");
-const LEAVE_REQUEST_DIR = path.join(UPLOAD_ROOT, "leave-requests");
+const storage = multer.memoryStorage();
 
-// Ensure the target directories exist at startup.
-fs.mkdirSync(HOMEWORK_DIR, { recursive: true });
-fs.mkdirSync(MESSAGE_DIR, { recursive: true });
-fs.mkdirSync(EVENT_DIR, { recursive: true });
-fs.mkdirSync(LEAVE_REQUEST_DIR, { recursive: true });
+const BASE_FOLDER = process.env.CLOUDINARY_FOLDER || "fpt-school";
 
-const ALLOWED_MIME = new Set([
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.ms-powerpoint",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+const IMAGE_MIMES = [
   "image/jpeg",
+  "image/jpg",
   "image/png",
   "image/webp",
-  "text/plain",
+  "image/gif",
+];
+
+const VIDEO_MIMES = [
+  "video/mp4",
+  "video/mpeg",
+  "video/quicktime",
+  "video/webm",
+  "video/x-msvideo",
+  "video/x-matroska",
+];
+
+const FILE_MIMES = [
+  ...IMAGE_MIMES,
+  ...VIDEO_MIMES,
+
+  "application/pdf",
+  "application/octet-stream",
+
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+
   "application/zip",
-]);
+  "application/x-zip-compressed",
+  "application/x-rar-compressed",
+  "application/vnd.rar",
+  "application/x-7z-compressed",
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+  "text/plain",
+  "text/csv",
+];
 
-function makeStorage(targetDir) {
-  return multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, targetDir),
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      const base = path
-        .basename(file.originalname, ext)
-        .replace(/[^a-zA-Z0-9-_]/g, "_")
-        .slice(0, 60);
-      const unique = `${Date.now()}_${Math.round(Math.random() * 1e9)}`;
-      cb(null, `${base}_${unique}${ext}`);
-    },
+function uploadBufferToCloudinary(buffer, options) {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      options,
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(result);
+      },
+    );
+
+    Readable.from(buffer).pipe(uploadStream);
   });
 }
 
-function fileFilter(_req, file, cb) {
-  if (ALLOWED_MIME.has(file.mimetype)) {
-    cb(null, true);
-  } else {
-    const err = new Error("Chỉ hỗ trợ file ảnh (JPEG, PNG, WEBP) hoặc PDF");
-    err.statusCode = 400;
-    cb(err);
-  }
-}
-
-
-// Wrap a multer single-file handler into the project's JSON error shape.
-function wrapSingle(uploader) {
-  return (req, res, next) => {
-    uploader(req, res, (err) => {
-      if (err) {
-        const status = err.code === "LIMIT_FILE_SIZE" ? 413 : err.statusCode || 400;
-        const message =
-          err.code === "LIMIT_FILE_SIZE"
-            ? "Tệp vượt quá dung lượng tối đa 10MB"
-            : err.message || "Tải tệp lên thất bại";
-        return res.status(status).json({ success: false, message });
+function createCloudinaryUpload({
+  fieldName = "file",
+  folder = "uploads",
+  allowedMimes = FILE_MIMES,
+  maxSizeMB = 20,
+  resourceType = "auto",
+}) {
+  const upload = multer({
+    storage,
+    limits: {
+      fileSize: maxSizeMB * 1024 * 1024,
+    },
+    fileFilter: (req, file, cb) => {
+      if (!allowedMimes.includes(file.mimetype)) {
+        cb(new Error("Định dạng file không được hỗ trợ"));
+        return;
       }
-      next();
+
+      cb(null, true);
+    },
+  }).single(fieldName);
+
+  return (req, res, next) => {
+    upload(req, res, async (uploadError) => {
+      if (uploadError) {
+        return res.status(400).json({
+          success: false,
+          message: uploadError.message || "Upload file thất bại",
+        });
+      }
+
+      if (!req.file) {
+        return next();
+      }
+
+      try {
+        const result = await uploadBufferToCloudinary(req.file.buffer, {
+          folder: `${BASE_FOLDER}/${folder}`,
+          resource_type: resourceType,
+          use_filename: true,
+          unique_filename: true,
+          overwrite: false,
+        });
+
+        req.file.cloudinaryUrl = result.secure_url;
+        req.file.cloudinaryPublicId = result.public_id;
+        req.file.cloudinaryResourceType = result.resource_type;
+        req.file.cloudinaryFormat = result.format;
+        req.file.cloudinaryBytes = result.bytes;
+
+        delete req.file.buffer;
+
+        return next();
+      } catch (error) {
+        console.error("Cloudinary upload error:", error);
+
+        return res.status(500).json({
+          success: false,
+          message: "Không thể upload file lên Cloudinary",
+        });
+      }
     });
   };
 }
 
-const handleUpload = wrapSingle(
-  multer({ storage: makeStorage(LEAVE_REQUEST_DIR), fileFilter, limits: { fileSize: MAX_FILE_SIZE } }).single("attachment"),
-);
+const profileAvatarUpload = createCloudinaryUpload({
+  fieldName: "avatar",
+  folder: "avatars",
+  allowedMimes: IMAGE_MIMES,
+  maxSizeMB: 5,
+  resourceType: "image",
+});
 
-const homeworkFileUpload = wrapSingle(
-  multer({ storage: makeStorage(HOMEWORK_DIR), fileFilter, limits: { fileSize: MAX_FILE_SIZE } }).single("file"),
-);
+const homeworkFileUpload = createCloudinaryUpload({
+  fieldName: "file",
+  folder: "homework",
+  allowedMimes: FILE_MIMES,
+  maxSizeMB: 50,
+  resourceType: "auto",
+});
 
-const messageFileUpload = wrapSingle(
-  multer({ storage: makeStorage(MESSAGE_DIR), fileFilter, limits: { fileSize: MAX_FILE_SIZE } }).single("file"),
-);
+const messageFileUpload = createCloudinaryUpload({
+  fieldName: "file",
+  folder: "messages",
+  allowedMimes: FILE_MIMES,
+  maxSizeMB: 50,
+  resourceType: "auto",
+});
 
-const eventFileUpload = wrapSingle(
-  multer({ storage: makeStorage(EVENT_DIR), fileFilter, limits: { fileSize: MAX_FILE_SIZE } }).single("file"),
-);
+const eventFileUpload = createCloudinaryUpload({
+  fieldName: "file",
+  folder: "events",
+  allowedMimes: FILE_MIMES,
+  maxSizeMB: 50,
+  resourceType: "auto",
+});
 
-module.exports = { homeworkFileUpload, messageFileUpload, eventFileUpload, UPLOAD_ROOT, handleUpload };
+const handleUpload = createCloudinaryUpload({
+  fieldName: "attachment",
+  folder: "leave-requests",
+  allowedMimes: FILE_MIMES,
+  maxSizeMB: 20,
+  resourceType: "auto",
+});
+
+module.exports = {
+  profileAvatarUpload,
+  homeworkFileUpload,
+  messageFileUpload,
+  eventFileUpload,
+  handleUpload,
+};

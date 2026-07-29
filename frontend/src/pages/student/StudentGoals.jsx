@@ -1,759 +1,800 @@
 import { useMemo, useState } from "react";
 import {
-    FiCalendar,
-    FiCheckCircle,
-    FiClock,
-    FiPlus,
-    FiTarget,
-    FiX,
-    FiXCircle,
+  FiBookOpen,
+  FiCalendar,
+  FiCheckCircle,
+  FiClock,
+  FiFlag,
+  FiPlus,
+  FiShield,
+  FiTarget,
+  FiUser,
+  FiX,
 } from "react-icons/fi";
 
 import { studentApi } from "../../api/client";
-
 import ErrorAlert from "../../components/atoms/ErrorAlert";
 import LoadingState from "../../components/atoms/LoadingState";
-import StatusPill from "../../components/atoms/StatusPill";
-
 import EmptyState from "../../components/molecules/EmptyState";
-
 import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
-
 import { useStudentSelfGoals } from "../../hooks/useStudentSelfGoals";
-import { formatDate } from "../../utils/dateFormat";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
-const STATUS_LABEL = {
-    IN_PROGRESS: "Đang thực hiện",
-    COMPLETED: "Hoàn thành",
-    FAILED: "Chưa đạt",
-    ARCHIVED: "Lưu trữ",
+const STATUS_META = {
+  IN_PROGRESS: {
+    label: "Đang thực hiện",
+    className: "bg-emerald-50 text-emerald-700",
+  },
+  COMPLETED: {
+    label: "Đã hoàn thành",
+    className: "bg-blue-50 text-blue-700",
+  },
+  FAILED: {
+    label: "Chưa đạt",
+    className: "bg-red-50 text-red-600",
+  },
+  ARCHIVED: {
+    label: "Đã lưu trữ",
+    className: "bg-slate-100 text-slate-600",
+  },
 };
 
-const STATUS_TONE = {
-    IN_PROGRESS: "blue",
-    COMPLETED: "green",
-    FAILED: "red",
-    ARCHIVED: "slate",
+const TYPE_META = {
+  ACADEMIC: {
+    label: "Học tập",
+    icon: FiBookOpen,
+    iconClass: "bg-blue-50 text-[#0F4C8A]",
+  },
+  BEHAVIOUR: {
+    label: "Hạnh kiểm",
+    icon: FiShield,
+    iconClass: "bg-orange-50 text-[#F27123]",
+  },
+  ATTENDANCE: {
+    label: "Chuyên cần",
+    icon: FiCalendar,
+    iconClass: "bg-emerald-50 text-emerald-700",
+  },
+  PERSONAL: {
+    label: "Phát triển cá nhân",
+    icon: FiFlag,
+    iconClass: "bg-violet-50 text-violet-700",
+  },
 };
 
-function SummaryPill({
-    icon: Icon,
-    label,
-    value,
-    className,
-}) {
-    return (
+function parseDate(value) {
+  if (!value) return null;
+
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDate(value) {
+  const date = parseDate(value);
+  if (!date) return "Chưa đặt thời hạn";
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function getDeadlineMeta(value) {
+  const date = parseDate(value);
+
+  if (!date) {
+    return {
+      label: "Chưa có hạn",
+      className: "bg-slate-100 text-slate-500",
+    };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (date.getTime() < today.getTime()) {
+    return {
+      label: "Kết thúc",
+      className: "bg-red-50 text-red-600",
+    };
+  }
+
+  if (date.getTime() === today.getTime()) {
+    return {
+      label: "Đến hạn hôm nay",
+      className: "bg-amber-50 text-amber-700",
+    };
+  }
+
+  return {
+    label: "Đúng hạn",
+    className: "bg-emerald-50 text-emerald-700",
+  };
+}
+
+function GoalCreateModal({ types, onClose, onCreated }) {
+  const [form, setForm] = useState({
+    goalType: types[0]?.key || "ACADEMIC",
+    title: "",
+    description: "",
+    targetDate: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  function updateField(field, value) {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+
+    try {
+      await studentApi.createMyGoal(form);
+      onCreated();
+    } catch (requestError) {
+      setError(requestError.message || "Không thể tạo mục tiêu.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      className="
+        fixed inset-0 z-[80] flex items-center justify-center
+        bg-slate-950/50 px-4 py-2 backdrop-blur-sm
+      "
+    >
+      <button
+        type="button"
+        aria-label="Đóng hộp thoại"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+
+      <form
+        onSubmit={handleSubmit}
+        className="
+          relative z-10 max-h-[calc(100vh-48px)] w-full max-w-2xl
+          overflow-y-auto rounded-3xl border border-slate-200
+          bg-white shadow-2xl
+        "
+      >
+        {/* Header */}
         <div
-            className={`
-        inline-flex items-center gap-2
-        rounded-full px-4 py-2
-        text-sm font-bold
-        ${className}
-      `}
+          className="
+            flex items-start justify-between gap-4
+            border-b border-slate-100 px-6 py-3 sm:px-7
+          "
         >
-            <Icon size={15} />
-
-            <span>{label}</span>
-
-            <span>{value}</span>
-        </div>
-    );
-}
-
-function GoalSummaryPills({
-    total,
-    inProgress,
-    completed,
-    failed,
-}) {
-    return (
-        <div className="flex flex-wrap items-center gap-3">
-            <SummaryPill
-                icon={FiTarget}
-                label="Tổng"
-                value={total}
-                className="bg-blue-50 text-[#08509F]"
-            />
-
-            <SummaryPill
-                icon={FiClock}
-                label="Đang làm"
-                value={inProgress}
-                className="bg-orange-50 text-[#C94F00]"
-            />
-
-            <SummaryPill
-                icon={FiCheckCircle}
-                label="Hoàn thành"
-                value={completed}
-                className="bg-green-50 text-green-700"
-            />
-
-            <SummaryPill
-                icon={FiXCircle}
-                label="Chưa đạt"
-                value={failed}
-                className="bg-red-50 text-red-600"
-            />
-        </div>
-    );
-}
-
-function InlineFilterSelect({
-    label,
-    value,
-    onChange,
-    children,
-}) {
-    return (
-        <label className="flex items-center gap-4">
-            <span className="whitespace-nowrap text-sm font-medium mr-3 text-slate-500">
-                {label}
+          <div className="flex min-w-0 items-start gap-4">
+            <span
+              className="
+                grid h-12 w-12 shrink-0 place-items-center
+                rounded-2xl bg-orange-50 text-[#F27123]
+              "
+            >
+              <FiTarget size={22} />
             </span>
 
-            <select
-                value={value}
-                onChange={onChange}
-                className="
-          h-11 min-w-[170px]
-          rounded-xl border border-slate-200
-          bg-white px-4 text-sm font-bold
-          text-[#0F2747] shadow-sm
-          outline-none transition
-          hover:border-orange-200
-          focus:border-[#F27123]
-          focus:ring-4 focus:ring-orange-100
-        "
+            <div className="min-w-0">
+              <h2 className="mb-1 text-xl font-black text-[#0F2747] sm:text-2xl">
+                Thiết lập mục tiêu mới
+              </h2>
+              <p className="mb-0 text-sm leading-6 text-slate-500">
+                Tạo mục tiêu rõ ràng để theo dõi trong học kỳ.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Đóng"
+            className="
+              grid h-10 w-10 shrink-0 place-items-center rounded-full
+              bg-slate-50 text-slate-400 transition
+              hover:bg-slate-100 hover:text-slate-700
+            "
+          >
+            <FiX size={18} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-3 sm:px-7">
+          {error && (
+            <p
+              className="
+                mb-5 rounded-xl border border-red-100 bg-red-50
+                px-4 py-3 text-sm font-medium text-red-600
+              "
             >
-                {children}
-            </select>
-        </label>
-    );
-}
+              {error}
+            </p>
+          )}
 
-function toDateOnly(value) {
-    if (!value) return null;
+          <div className="grid gap-5 sm:grid-cols-2">
+            {/* Loại mục tiêu */}
+            <div className="min-w-0">
+              <label
+                htmlFor="goal-type"
+                className=" block text-sm font-extrabold text-[#0F2747]"
+              >
+                Loại mục tiêu
+              </label>
 
-    const date = new Date(value);
+              <div className="relative">
+                <FiBookOpen
+                  className="
+                    pointer-events-none absolute left-3.5 top-1/2
+                    -translate-y-1/2 text-[#0F4C8A]
+                  "
+                  size={16}
+                />
 
-    if (Number.isNaN(date.getTime())) {
-        return null;
-    }
-
-    return new Date(
-        date.getFullYear(),
-        date.getMonth(),
-        date.getDate(),
-    );
-}
-
-function getTargetDateStatus(targetDate) {
-    const goalDate = toDateOnly(targetDate);
-
-    if (!goalDate) {
-        return {
-            label: "Chưa có hạn",
-            className: "border-slate-200 bg-slate-100 text-slate-500",
-        };
-    }
-
-    const now = new Date();
-
-    const today = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-    );
-
-    if (goalDate.getTime() < today.getTime()) {
-        return {
-            label: "Quá hạn",
-            className: "border-red-100 bg-red-50 text-red-600",
-        };
-    }
-
-    if (goalDate.getTime() === today.getTime()) {
-        return {
-            label: "Đến hạn",
-            className: "border-amber-100 bg-amber-50 text-amber-700",
-        };
-    }
-
-    return {
-        label: "Còn hạn",
-        className: "border-green-100 bg-green-50 text-green-700",
-    };
-}
-
-function GoalForm({
-    types,
-    onCreated,
-    onCancel,
-}) {
-    const [form, setForm] = useState({
-        goalType: types[0]?.key || "ACADEMIC",
-        title: "",
-        description: "",
-        targetDate: "",
-    });
-
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState("");
-
-    function updateField(key, value) {
-        setForm((current) => ({
-            ...current,
-            [key]: value,
-        }));
-    }
-
-    async function handleSubmit(event) {
-        event.preventDefault();
-
-        setSubmitting(true);
-        setError("");
-
-        try {
-            await studentApi.createMyGoal(form);
-
-            setForm({
-                goalType: types[0]?.key || "ACADEMIC",
-                title: "",
-                description: "",
-                targetDate: "",
-            });
-
-            onCreated();
-        } catch (requestError) {
-            setError(requestError.message);
-        } finally {
-            setSubmitting(false);
-        }
-    }
-
-    return (
-        <form
-            onSubmit={handleSubmit}
-            className="flex flex-col gap-5"
-        >
-            {error && (
-                <div
-                    className="
-            rounded-2xl border border-red-200
-            bg-red-50 px-4 py-3
-            text-sm text-red-600
-          "
+                <PrettySelect
+                  id="goal-type"
+                  value={form.goalType}
+                  onChange={(event) =>
+                    updateField("goalType", event.target.value)
+                  }
+                  className="
+                    h-12 w-full cursor-pointer rounded-xl
+                    border border-slate-200 bg-slate-50
+                    pl-10 pr-10 text-sm font-semibold text-slate-700
+                    outline-none transition
+                    hover:border-slate-300 hover:bg-white
+                    focus:border-orange-300 focus:bg-white
+                    focus:ring-2 focus:ring-orange-100
+                  "
                 >
-                    {error}
-                </div>
-            )}
-
-            <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                    <label
-                        htmlFor="goal-type"
-                        className="mb-2 block text-sm font-semibold text-slate-500"
-                    >
-                        Loại mục tiêu
-                    </label>
-
-                    <select
-                        id="goal-type"
-                        value={form.goalType}
-                        onChange={(event) =>
-                            updateField("goalType", event.target.value)
-                        }
-                        className="
-              h-11 w-full rounded-2xl
-              border border-slate-200
-              bg-white px-4 text-sm font-bold
-              text-[#0F2747] shadow-sm
-              outline-none transition
-              hover:border-orange-200
-              focus:border-[#F27123]
-              focus:ring-4 focus:ring-orange-100
-            "
-                    >
-                        {types.length > 0 ? (
-                            types.map((type) => (
-                                <option
-                                    key={type.key}
-                                    value={type.key}
-                                >
-                                    {type.label}
-                                </option>
-                            ))
-                        ) : (
-                            <option value="ACADEMIC">
-                                Học tập
-                            </option>
-                        )}
-                    </select>
-                </div>
-
-                <div>
-                    <label
-                        htmlFor="goal-target-date"
-                        className="mb-2 block text-sm font-semibold text-slate-500"
-                    >
-                        Ngày mục tiêu
-                    </label>
-
-                    <input
-                        id="goal-target-date"
-                        type="date"
-                        value={form.targetDate}
-                        onChange={(event) =>
-                            updateField("targetDate", event.target.value)
-                        }
-                        className="
-              h-11 w-full rounded-2xl
-              border border-slate-200
-              bg-white px-4 text-sm font-bold
-              text-[#0F2747] shadow-sm
-              outline-none transition
-              hover:border-orange-200
-              focus:border-[#F27123]
-              focus:ring-4 focus:ring-orange-100
-            "
-                    />
-                </div>
+                  {types.map((type) => (
+                    <option key={type.key} value={type.key}>
+                      {type.label}
+                    </option>
+                  ))}
+                </PrettySelect>
+              </div>
             </div>
 
-            <div className="w-full">
-                <label
-                    htmlFor="goal-title"
-                    className="mb-2 block text-sm font-semibold text-slate-500"
-                >
-                    Tiêu đề
-                </label>
+            {/* Thời hạn */}
+            <div className="min-w-0">
+              <label
+                htmlFor="goal-deadline"
+                className=" block text-sm font-extrabold text-[#0F2747]"
+              >
+                Thời hạn
+              </label>
+
+              <div className="relative">
+                <FiCalendar
+                  className="
+                    pointer-events-none absolute left-3.5 top-1/2
+                    -translate-y-1/2 text-[#F27123]
+                  "
+                  size={16}
+                />
 
                 <input
-                    id="goal-title"
-                    value={form.title}
-                    onChange={(event) =>
-                        updateField("title", event.target.value)
-                    }
-                    placeholder="Ví dụ: Đạt điểm trung bình Toán trên 8.5"
-                    className="
-            h-11 w-full rounded-2xl
-            border border-slate-200
-            bg-white px-4 text-sm font-bold
-            text-[#0F2747] shadow-sm
-            outline-none transition
-            hover:border-orange-200
-            focus:border-[#F27123]
-            focus:ring-4 focus:ring-orange-100
-          "
+                  id="goal-deadline"
+                  type="date"
+                  value={form.targetDate}
+                  onChange={(event) =>
+                    updateField("targetDate", event.target.value)
+                  }
+                  className="
+                    h-12 w-full rounded-xl border border-slate-200
+                    bg-slate-50 pl-10 pr-3 text-sm font-semibold
+                    text-slate-700 outline-none transition
+                    hover:border-slate-300 hover:bg-white
+                    focus:border-orange-300 focus:bg-white
+                    focus:ring-2 focus:ring-orange-100
+                  "
                 />
+              </div>
             </div>
 
-            <div className="w-full">
+            {/* Tên mục tiêu */}
+            <div className="min-w-0 sm:col-span-2">
+              <label
+                htmlFor="goal-title"
+                className="mb-2 block text-sm font-extrabold text-[#0F2747]"
+              >
+                Tên mục tiêu
+                <span className="ml-1 text-red-500">*</span>
+              </label>
+
+              <div className="relative">
+                <FiFlag
+                  className="
+                    pointer-events-none absolute left-3.5 top-1/2
+                    -translate-y-1/2 text-[#F27123]
+                  "
+                  size={16}
+                />
+
+                <input
+                  id="goal-title"
+                  required
+                  maxLength={200}
+                  value={form.title}
+                  onChange={(event) =>
+                    updateField("title", event.target.value)
+                  }
+                  placeholder="Ví dụ: Đạt điểm Toán trên 8.5"
+                  className="
+                    h-12 w-full rounded-xl border border-slate-200
+                    bg-slate-50 pl-10 pr-4 text-sm text-slate-700
+                    outline-none transition placeholder:text-slate-400
+                    hover:border-slate-300 hover:bg-white
+                    focus:border-orange-300 focus:bg-white
+                    focus:ring-2 focus:ring-orange-100
+                  "
+                />
+              </div>
+
+              <p className="mb-0 mt-1.5 text-xs text-slate-400">
+                Nên đặt tên ngắn gọn, cụ thể và có thể đo lường.
+              </p>
+            </div>
+
+            {/* Mô tả */}
+            <div className="min-w-0 sm:col-span-2">
+              <div className="mb-2 flex items-center justify-between gap-3">
                 <label
-                    htmlFor="goal-description"
-                    className="mb-2 block text-sm font-semibold text-slate-500"
+                  htmlFor="goal-description"
+                  className="block text-sm font-extrabold text-[#0F2747]"
                 >
-                    Mô tả
+                  Mô tả
                 </label>
 
-                <textarea
-                    id="goal-description"
-                    value={form.description}
-                    onChange={(event) =>
-                        updateField("description", event.target.value)
-                    }
-                    rows={4}
-                    placeholder="Mô tả cách thực hiện hoặc tiêu chí hoàn thành."
-                    className="
-            w-full resize-none rounded-2xl
-            border border-slate-200
-            bg-white px-4 py-3 text-sm
-            text-[#0F2747] shadow-sm
-            outline-none transition
-            hover:border-orange-200
-            focus:border-[#F27123]
-            focus:ring-4 focus:ring-orange-100
-          "
-                />
-            </div>
+                <span className="text-xs text-slate-400">
+                  {form.description.length}/500
+                </span>
+              </div>
 
-            <div className="flex justify-center gap-3 pt-2">
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    style={{
-                        borderRadius: "9999px",
-                    }}
-                    className="
-            h-11 min-w-[120px]
-            border border-slate-200
-            bg-white px-6 text-sm
-            font-bold text-slate-600
-            shadow-sm transition
-            hover:bg-slate-50
-          "
-                >
-                    Hủy
-                </button>
-
-                <button
-                    type="submit"
-                    disabled={submitting}
-                    style={{
-                        borderRadius: "9999px",
-                    }}
-                    className="
-            h-11 min-w-[150px]
-            bg-[#F27123] px-6
-            text-sm font-bold text-white
-            shadow-lg shadow-orange-200/70
-            transition hover:-translate-y-0.5
-            hover:bg-[#d95f17]
-            hover:shadow-xl hover:shadow-orange-200
-            disabled:cursor-not-allowed
-            disabled:opacity-60
-          "
-                >
-                    {submitting ? "Đang tạo..." : "Tạo mục tiêu"}
-                </button>
-            </div>
-        </form>
-    );
-}
-
-function GoalCreateModal({
-    open,
-    types,
-    onClose,
-    onCreated,
-}) {
-    if (!open) {
-        return null;
-    }
-
-    return (
-        <div
-            className="
-        fixed inset-0 z-50 flex items-center
-        justify-center bg-slate-900/40 px-4
-        backdrop-blur-sm
-      "
-        >
-            <div
+              <textarea
+                id="goal-description"
+                rows={5}
+                maxLength={500}
+                value={form.description}
+                onChange={(event) =>
+                  updateField("description", event.target.value)
+                }
+                placeholder="Mô tả nội dung, kế hoạch thực hiện và kết quả bạn muốn đạt được..."
                 className="
-          w-full max-w-2xl overflow-hidden
-          rounded-[28px] bg-white shadow-2xl
-        "
-            >
-                <div
-                    className="
-            flex items-start justify-between
-            border-b border-orange-100
-            px-7 py-6
-          "
-                >
-                    <div>
-                        <p
-                            className="
-                mb-2 text-xs font-bold uppercase
-                tracking-[0.18em] text-[#F27123]
-              "
-                        >
-                            Mục tiêu học sinh
-                        </p>
-
-                        <h2 className="mb-0 text-2xl font-bold text-[#0F2747]">
-                            Thêm mục tiêu mới
-                        </h2>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="
-    -mt-2 text-5xl font-light
-    leading-none text-slate-400
-    transition hover:text-[#F27123]
-  "
-                    >
-                        ×
-                    </button>
-                </div>
-
-                <div className="px-7 py-6">
-                    <GoalForm
-                        types={types}
-                        onCancel={onClose}
-                        onCreated={onCreated}
-                    />
-                </div>
+                  min-h-[130px] w-full resize-y rounded-xl
+                  border border-slate-200 bg-slate-50
+                  px-4 py-3 text-sm leading-6 text-slate-700
+                  outline-none transition placeholder:text-slate-400
+                  hover:border-slate-300 hover:bg-white
+                  focus:border-orange-300 focus:bg-white
+                  focus:ring-2 focus:ring-orange-100
+                "
+              />
             </div>
+          </div>
         </div>
-    );
+
+        {/* Footer */}
+        <div
+          className="
+            flex flex-col-reverse gap-3 border-t border-slate-100
+            bg-slate-50/70 px-6 py-4 sm:flex-row sm:justify-end sm:px-7
+          "
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="
+              h-11 rounded-xl border border-slate-200 bg-white
+              px-6 text-sm font-bold text-slate-600 transition
+              hover:border-slate-300 hover:bg-slate-50
+              disabled:cursor-not-allowed disabled:opacity-60
+            "
+          >
+            Hủy
+          </button>
+
+          <button
+            type="submit"
+            disabled={submitting || !form.title.trim()}
+            className="
+              inline-flex h-11 items-center justify-center gap-2
+              rounded-xl bg-[#F27123] px-7
+              text-sm font-extrabold text-white shadow-sm transition
+              hover:-translate-y-0.5 hover:bg-[#d95f17]
+              disabled:cursor-not-allowed disabled:bg-slate-300
+              disabled:shadow-none
+            "
+          >
+            <FiPlus size={17} />
+            {submitting ? "Đang tạo mục tiêu..." : "Tạo mục tiêu"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
-function GoalCard({
-    goal,
-    typeLabel,
-}) {
-    const targetDateStatus = getTargetDateStatus(goal.targetDate);
+function GoalCard({ goal, typeLabel }) {
+  const type = TYPE_META[goal.goalType] || {
+    label: typeLabel || goal.goalType || "Mục tiêu",
+    icon: FiTarget,
+    iconClass: "bg-slate-100 text-slate-600",
+  };
+  const Icon = type.icon;
+  const status = STATUS_META[goal.status] || {
+    label: goal.status || "Chưa cập nhật",
+    className: "bg-slate-100 text-slate-600",
+  };
+  const deadline = getDeadlineMeta(goal.targetDate);
 
-    return (
-        <article
-            className="
-        rounded-3xl border border-orange-100
-        bg-white p-5 shadow-sm
-        transition hover:-translate-y-0.5
-        hover:shadow-md
-      "
-        >
-            <div className="mb-4 flex items-start justify-between gap-4">
-                <div className="min-w-0 flex-1">
-                    <p
-                        className="
-              mb-2 text-xs font-bold uppercase
-              tracking-[0.16em] text-[#F27123]
-            "
-                    >
-                        {typeLabel}
-                    </p>
+  return (
+    <article className="rounded-3xl border card-border bg-white p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:card-border hover:shadow-md">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${type.iconClass}`}>
+          <Icon size={16} />
+        </span>
 
-                    <h3
-                        className="
-              mb-0 text-2xl font-bold
-              leading-tight text-[#0F2747]
-            "
-                    >
-                        {goal.title}
-                    </h3>
-                </div>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold ${status.className}`}>
+          {status.label}
+        </span>
+      </div>
 
-                <div className="flex shrink-0 flex-col items-end gap-2">
-                    <StatusPill tone={STATUS_TONE[goal.status]}>
-                        {STATUS_LABEL[goal.status] || goal.status}
-                    </StatusPill>
+      <p className="mb-1 text-[10px] font-extrabold uppercase tracking-wide text-[#F27123]">
+        {typeLabel || type.label}
+      </p>
 
-                    <div
-                        className={`
-              inline-flex items-center gap-1.5
-              rounded-full border px-3 py-1.5
-              text-xs font-bold
-              ${targetDateStatus.className}
-            `}
-                    >
-                        <FiCalendar size={13} />
+      <h3 className="mb-1.5 line-clamp-2 text-sm font-extrabold leading-5 text-[#0F2747]">
+        {goal.title}
+      </h3>
 
-                        <span>
-                            {targetDateStatus.label}
-                        </span>
+      <p className="mb-3 line-clamp-2 min-h-[40px] text-xs leading-5 text-slate-500">
+        {goal.description || "Mục tiêu chưa có mô tả chi tiết."}
+      </p>
 
-                        <span>
-                            · {formatDate(goal.targetDate)}
-                        </span>
-                    </div>
-                </div>
-            </div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+          <FiCalendar className="text-[#F27123]" />
+          {formatDate(goal.targetDate)}
+        </span>
 
-            <div
-                className="
-          mb-4 rounded-2xl
-          bg-[#FFF7F2] px-4 py-3
-        "
-            >
-                <p
-                    className="
-            mb-1 text-xs font-semibold uppercase
-            tracking-wide text-[#F27123]
-          "
-                >
-                    Mô tả mục tiêu
-                </p>
+        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${deadline.className}`}>
+          {deadline.label}
+        </span>
+      </div>
 
-                <p className="mb-0 text-sm leading-6 text-slate-600">
-                    {goal.description || "Chưa có mô tả."}
-                </p>
-            </div>
-
-            {goal.teacherRemark && (
-                <div className="mb-3 rounded-2xl bg-blue-50 px-4 py-3 text-sm text-[#08509F]">
-                    <span className="font-bold">GV nhận xét:</span>{" "}
-                    {goal.teacherRemark}
-                </div>
-            )}
-
-            {goal.finalComment && (
-                <div className="rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">
-                    <span className="font-bold">Kết luận:</span>{" "}
-                    {goal.finalComment}
-                </div>
-            )}
-        </article>
-    );
+      {goal.teacherRemark && (
+        <div className="mt-3 rounded-xl bg-blue-50 px-3 py-2.5">
+          <p className="mb-1 text-[10px] font-extrabold uppercase tracking-wide text-blue-600">
+            Nhận xét giáo viên
+          </p>
+          <p className="mb-0 line-clamp-2 text-xs leading-5 text-blue-700">
+            {goal.teacherRemark}
+          </p>
+        </div>
+      )}
+    </article>
+  );
 }
 
 function StudentGoals() {
-    const [filters, setFilters] = useState({
-        status: "",
-        goalType: "",
-    });
+  const [filters, setFilters] = useState({
+    status: "",
+    goalType: "",
+  });
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-    const [refreshKey, setRefreshKey] = useState(0);
-    const [showCreateModal, setShowCreateModal] = useState(false);
+  const { data, types, loading, error } = useStudentSelfGoals(
+    filters,
+    refreshKey,
+  );
 
-    const {
-        data,
-        types,
-        loading,
-        error,
-    } = useStudentSelfGoals(filters, refreshKey);
+  const goals = data?.goals || [];
 
-    const goals = data?.goals || [];
+  const typeMap = useMemo(
+    () => Object.fromEntries(types.map((type) => [type.key, type.label])),
+    [types],
+  );
 
-    const typeMap = useMemo(
-        () =>
-            Object.fromEntries(
-                types.map((type) => [
-                    type.key,
-                    type.label,
-                ]),
-            ),
-        [types],
-    );
+  const counts = useMemo(
+    () => ({
+      all: goals.length,
+      inProgress: goals.filter((goal) => goal.status === "IN_PROGRESS").length,
+      completed: goals.filter((goal) => goal.status === "COMPLETED").length,
+      failed: goals.filter((goal) => goal.status === "FAILED").length,
+    }),
+    [goals],
+  );
 
-    const inProgressCount = goals.filter(
-        (goal) => goal.status === "IN_PROGRESS",
-    ).length;
+  const nearestGoals = useMemo(
+    () =>
+      goals
+        .filter((goal) => goal.status === "IN_PROGRESS")
+        .sort((first, second) => {
+          const firstDate = parseDate(first.targetDate)?.getTime() || Number.MAX_SAFE_INTEGER;
+          const secondDate = parseDate(second.targetDate)?.getTime() || Number.MAX_SAFE_INTEGER;
+          return firstDate - secondDate;
+        })
+        .slice(0, 4),
+    [goals],
+  );
 
-    const completedCount = goals.filter(
-        (goal) => goal.status === "COMPLETED",
-    ).length;
+  const teacherRemarks = useMemo(
+    () => goals.filter((goal) => goal.teacherRemark).slice(0, 2),
+    [goals],
+  );
 
-    const failedCount = goals.filter(
-        (goal) => goal.status === "FAILED",
-    ).length;
+  function refresh() {
+    setRefreshKey((key) => key + 1);
+  }
 
-    function refresh() {
-        setRefreshKey((key) => key + 1);
-    }
+  function handleCreated() {
+    setShowCreateModal(false);
+    refresh();
+  }
 
-    function handleCreated() {
-        setShowCreateModal(false);
-        refresh();
-    }
+  return (
+    <StudentDashboardShell context={data?.context}>
+      <section className="mb-5 overflow-hidden rounded-2xl bg-[#0F4C8A] px-5 py-5 text-white shadow-sm sm:px-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-white/70">
+              Mục tiêu cá nhân
+            </p>
+            <h1 className="mb-2 text-2xl font-black sm:text-3xl">
+              Lộ trình học tập của bạn
+            </h1>
+            <p className="mb-0 max-w-2xl text-sm leading-6 text-white/80">
+              Xác định điều cần đạt, theo dõi thời hạn và tiếp nhận góp ý từ giáo viên.
+            </p>
+          </div>
 
-    return (
-        <StudentDashboardShell context={data?.context}>
-            <section
-                className="
-          mb-5 flex flex-wrap items-center
-          justify-between gap-3
-        "
+          <div className="flex w-full shrink-0 flex-col gap-3 sm:w-[220px]">
+            <div className="flex items-center justify-between rounded-xl bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <p className="mb-0 text-[10px] font-bold uppercase tracking-wide text-white/65">
+                Đang thực hiện
+              </p>
+              <strong className="text-2xl">{counts.inProgress}</strong>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl bg-white/10 px-4 py-3 backdrop-blur-sm">
+              <p className="mb-0 text-[10px] font-bold uppercase tracking-wide text-white/65">
+                Hoàn thành
+              </p>
+              <strong className="text-2xl">{counts.completed}</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-4 flex flex-col gap-3 rounded-3xl border card-border bg-white p-3 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1">
+          <button
+            type="button"
+            onClick={() =>
+              setFilters((current) => ({
+                ...current,
+                goalType: "",
+              }))
+            }
+            className={`shrink-0 rounded-lg px-4 py-2 text-xs font-bold transition ${
+              filters.goalType === ""
+                ? "bg-white text-[#F27123] shadow-sm"
+                : "text-slate-500 hover:text-[#0F2747]"
+            }`}
+          >
+            Tất cả
+          </button>
+
+          {types.map((type) => (
+            <button
+              key={type.key}
+              type="button"
+              onClick={() =>
+                setFilters((current) => ({
+                  ...current,
+                  goalType: type.key,
+                }))
+              }
+              className={`shrink-0 rounded-lg px-4 py-2 text-xs font-bold transition ${
+                filters.goalType === type.key
+                  ? "bg-white text-[#F27123] shadow-sm"
+                  : "text-slate-500 hover:text-[#0F2747]"
+              }`}
             >
-                <GoalSummaryPills
-                    total={goals.length}
-                    inProgress={inProgressCount}
-                    completed={completedCount}
-                    failed={failedCount}
-                />
+              {type.label}
+            </button>
+          ))}
+        </div>
 
-                <div className="flex flex-wrap items-center justify-end gap-6">
-                    <InlineFilterSelect
-                        label="Trạng thái"
-                        value={filters.status}
-                        onChange={(event) =>
-                            setFilters((current) => ({
-                                ...current,
-                                status: event.target.value,
-                            }))
-                        }
-                    >
-                        <option value="">Tất cả</option>
-                        <option value="IN_PROGRESS">Đang thực hiện</option>
-                        <option value="COMPLETED">Hoàn thành</option>
-                        <option value="FAILED">Chưa đạt</option>
-                    </InlineFilterSelect>
+        <PrettySelect
+          value={filters.status}
+          onChange={(event) =>
+            setFilters((current) => ({
+              ...current,
+              status: event.target.value,
+            }))
+          }
+          className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-[#0F2747] outline-none transition focus:border-orange-300 focus:bg-white focus:ring-2 focus:ring-orange-100"
+        >
+          <option value="">Tất cả trạng thái</option>
+          <option value="IN_PROGRESS">Đang thực hiện</option>
+          <option value="COMPLETED">Đã hoàn thành</option>
+          <option value="FAILED">Chưa đạt</option>
+        </PrettySelect>
+      </section>
 
-                    <InlineFilterSelect
-                        label="Loại mục tiêu"
-                        value={filters.goalType}
-                        onChange={(event) =>
-                            setFilters((current) => ({
-                                ...current,
-                                goalType: event.target.value,
-                            }))
-                        }
-                    >
-                        <option value="">Tất cả</option>
+      {loading && <LoadingState label="Đang tải danh sách mục tiêu..." />}
 
-                        {types.map((type) => (
-                            <option
-                                key={type.key}
-                                value={type.key}
-                            >
-                                {type.label}
-                            </option>
-                        ))}
-                    </InlineFilterSelect>
+      {!loading && error && (
+        <ErrorAlert error={`Không tải được mục tiêu: ${error}`} />
+      )}
 
-                    <button
-                        type="button"
-                        onClick={() => setShowCreateModal(true)}
-                        style={{
-                            borderRadius: "10px",
-                        }}
-                        className="
-    inline-flex h-11 items-center gap-2
-    bg-[#F27123]
-    px-6 text-sm font-bold text-white
-    shadow-lg shadow-orange-200/70
-    transition hover:-translate-y-0.5
-    hover:bg-[#d95f17]
-    hover:shadow-xl hover:shadow-orange-200
-  "
-                    >
-                        <FiPlus size={17} />
-                        Thêm mục tiêu
-                    </button>
+      {!loading && !error && data && (
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_350px]">
+          <section className="min-w-0">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="mb-1 text-base font-extrabold text-[#0F2747]">
+                  Mục tiêu của tôi
+                </h2>
+                <p className="mb-0 text-xs text-slate-500">
+                  Các mục tiêu được hiển thị trực tiếp, không có trang chi tiết riêng.
+                </p>
+              </div>
+
+              <span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-bold text-[#F27123]">
+                {counts.all} mục tiêu
+              </span>
+            </div>
+
+            {goals.length === 0 ? (
+              <EmptyState
+                title="Chưa có mục tiêu phù hợp"
+                description="Thử đổi bộ lọc hoặc tạo một mục tiêu mới."
+              />
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {goals.map((goal) => (
+                  <GoalCard
+                    key={goal.goalId}
+                    goal={goal}
+                    typeLabel={typeMap[goal.goalType]}
+                  />
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(true)}
+                  className="flex min-h-[210px] flex-col items-center justify-center rounded-3xl border border-dashed card-border bg-white p-5 text-center transition hover:card-border hover:bg-orange-50/40"
+                >
+                  <span className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-slate-100 text-[#0F4C8A]">
+                    <FiPlus />
+                  </span>
+                  <strong className="text-sm text-[#0F2747]">
+                    Thêm mục tiêu mới
+                  </strong>
+                  <span className="mt-1 text-xs text-slate-500">
+                    Thiết lập mục tiêu cho học tập hoặc rèn luyện.
+                  </span>
+                </button>
+              </div>
+            )}
+          </section>
+
+          <aside className="space-y-4 xl:sticky xl:top-5">
+            <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
+              <h2 className="mb-4 flex items-center gap-2 text-sm font-extrabold text-[#0F2747]">
+                <FiTarget className="text-[#F27123]" />
+                Kế hoạch sắp tới
+              </h2>
+
+              {nearestGoals.length === 0 ? (
+                <p className="mb-0 rounded-xl bg-slate-50 px-4 py-5 text-center text-xs leading-5 text-slate-500">
+                  Không có mục tiêu đang thực hiện.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {nearestGoals.map((goal, index) => (
+                    <div key={goal.goalId} className="flex items-start gap-3">
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#0F4C8A] text-[10px] font-extrabold text-white">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="mb-1 line-clamp-2 text-xs font-extrabold leading-5 text-[#0F2747]">
+                          {goal.title}
+                        </p>
+                        <p className="mb-0 inline-flex items-center gap-1 text-[10px] text-slate-500">
+                          <FiClock className="text-[#F27123]" />
+                          {formatDate(goal.targetDate)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              )}
             </section>
 
-            {loading && (
-                <LoadingState label="Đang tải mục tiêu..." />
-            )}
+            <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
+              <h2 className="mb-4 flex items-center gap-2 text-sm font-extrabold text-[#0F2747]">
+                <FiUser className="text-[#F27123]" />
+                Phản hồi giáo viên
+              </h2>
 
-            {!loading && error && (
-                <ErrorAlert error={`Không tải được mục tiêu: ${error}`} />
-            )}
+              {teacherRemarks.length === 0 ? (
+                <p className="mb-0 rounded-xl bg-slate-50 px-4 py-5 text-center text-xs leading-5 text-slate-500">
+                  Chưa có nhận xét từ giáo viên.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {teacherRemarks.map((goal) => (
+                    <div key={goal.goalId} className="rounded-xl bg-blue-50 px-4 py-3">
+                      <p className="mb-1 line-clamp-1 text-xs font-extrabold text-blue-800">
+                        {goal.title}
+                      </p>
+                      <p className="mb-0 line-clamp-3 text-xs leading-5 text-blue-700">
+                        {goal.teacherRemark}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
 
-            {!loading && !error && data && (
-                <>
-                    {goals.length === 0 ? (
-                        <EmptyState
-                            title="Chưa có mục tiêu"
-                            description="Tạo mục tiêu đầu tiên để bắt đầu theo dõi tiến độ."
-                        />
-                    ) : (
-                        <section className="grid gap-4 xl:grid-cols-2">
-                            {goals.map((goal) => (
-                                <GoalCard
-                                    key={goal.goalId}
-                                    goal={goal}
-                                    typeLabel={typeMap[goal.goalType] || goal.goalType}
-                                />
-                            ))}
-                        </section>
-                    )}
+            <section className="rounded-3xl border card-border bg-white p-5 shadow-sm">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#0F2747]">
+                <FiCheckCircle className="text-emerald-600" />
+                Tổng quan
+              </h2>
 
-                    <GoalCreateModal
-                        open={showCreateModal}
-                        types={types}
-                        onClose={() => setShowCreateModal(false)}
-                        onCreated={handleCreated}
-                    />
-                </>
-            )}
-        </StudentDashboardShell>
-    );
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-emerald-50 p-3 text-center">
+                  <strong className="block text-xl text-emerald-700">
+                    {counts.completed}
+                  </strong>
+                  <span className="text-[10px] font-bold text-emerald-700">
+                    Hoàn thành
+                  </span>
+                </div>
+
+                <div className="rounded-xl bg-red-50 p-3 text-center">
+                  <strong className="block text-xl text-red-600">
+                    {counts.failed}
+                  </strong>
+                  <span className="text-[10px] font-bold text-red-600">
+                    Chưa đạt
+                  </span>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      )}
+
+      {showCreateModal && (
+        <GoalCreateModal
+          types={types.length ? types : Object.entries(TYPE_META).map(([key, value]) => ({
+            key,
+            label: value.label,
+          }))}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleCreated}
+        />
+      )}
+    </StudentDashboardShell>
+  );
 }
 
 export default StudentGoals;

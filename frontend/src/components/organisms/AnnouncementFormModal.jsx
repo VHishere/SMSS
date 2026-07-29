@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { FiX } from "react-icons/fi";
+import PrettySelect from "../molecules/PrettySelect";
+function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { announcementApi } from "../../api/client";
 
@@ -11,6 +12,12 @@ const AUDIENCE_OPTIONS = [
 
 function toLocalInput(value) {
   return value ? value.replace(" ", "T").slice(0, 16) : "";
+}
+
+function nowLocalInput() {
+  const p = (n) => String(n).padStart(2, "0");
+  const d = new Date();
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 function AnnouncementFormModal({ classes, announcement = null, onClose, onSaved }) {
@@ -33,6 +40,8 @@ function AnnouncementFormModal({ classes, announcement = null, onClose, onSaved 
   async function save(publishNow) {
     if (!title.trim()) { setErrorMsg("Nhập tiêu đề"); return; }
     if (!classId) { setErrorMsg("Chọn lớp"); return; }
+    if (publishNow && !content.trim()) { setErrorMsg("Nhập nội dung trước khi phát hành"); return; }
+    if (!publishNow && scheduledAt && new Date(scheduledAt).getTime() <= Date.now()) { setErrorMsg("Thời gian lên lịch phải ở tương lai"); return; }
     setBusy(true); setErrorMsg("");
     try {
       if (isEdit) {
@@ -50,14 +59,14 @@ function AnnouncementFormModal({ classes, announcement = null, onClose, onSaved 
   }
 
   const inputCls =
-    "w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+    "w-full rounded-xl border border-[#DFC0B2] px-3 py-2.5 text-sm text-[#1A1C1C] outline-none focus:border-[#225DAD] focus:ring-1 focus:ring-[#225DAD]";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl bg-white shadow-xl" style={{ border: "1px solid #FFE7D6" }}>
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #FFE7D6" }}>
-          <h3 className="text-base font-bold" style={{ color: "#0F2747" }}>{isEdit ? "Sửa thông báo" : "Tạo thông báo"}</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><FiX size={20} /></button>
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl bg-white shadow-xl" style={{ border: "1px solid #DFC0B2" }}>
+        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #DFC0B2" }}>
+          <h3 className="text-base font-bold" style={{ color: "#1A1C1C" }}>{isEdit ? "Sửa thông báo" : "Tạo thông báo"}</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><Ms name="close" className="!text-[20px]" /></button>
         </div>
 
         <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
@@ -72,32 +81,32 @@ function AnnouncementFormModal({ classes, announcement = null, onClose, onSaved 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Lớp</label>
-              <select value={classId} onChange={(e) => setClassId(e.target.value)} className={inputCls}>
+              <PrettySelect value={classId} onChange={(e) => setClassId(e.target.value)} className={inputCls}>
                 {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-              </select>
+              </PrettySelect>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Đối tượng</label>
-              <select value={audience} onChange={(e) => setAudience(e.target.value)} className={inputCls}>
+              <PrettySelect value={audience} onChange={(e) => setAudience(e.target.value)} className={inputCls}>
                 {AUDIENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Lên lịch (tùy chọn)</label>
-            <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className={inputCls} />
+            <input type="datetime-local" value={scheduledAt} min={nowLocalInput()} onChange={(e) => setScheduledAt(e.target.value)} className={inputCls} />
             <p className="mt-1 text-xs text-slate-400">Để trống = lưu nháp. Có thời gian = lên lịch tự phát hành.</p>
           </div>
-          {errorMsg && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>}
+          {errorMsg && <p className="rounded-3xl bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>}
         </div>
 
-        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #FFE7D6" }}>
+        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #DFC0B2" }}>
           <button type="button" onClick={() => save(false)} disabled={busy}
-            className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+            className="flex-1 rounded-full border border-[#DFC0B2] py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50">
             {scheduledAt ? "Lưu & lên lịch" : "Lưu nháp"}
           </button>
           <button type="button" onClick={() => save(true)} disabled={busy}
-            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
+            className="flex-1 rounded-full py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>
             {busy ? "..." : "Phát hành ngay"}
           </button>
         </div>

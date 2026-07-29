@@ -13,6 +13,11 @@ import {
 } from "../../context/useAuth";
 import { useStudentTimetable } from "../../hooks/useStudentTimetable";
 
+// Bảng màu chuẩn của hệ thống (giống các trang teacher). Viền đặt qua inline
+// style vì utility `border-*` của Tailwind bị CSS unlayered của Bootstrap ghi đè
+// (đo được: border-orange-100 ra #DEE2E6 xám thay vì #DFC0B2).
+const C = { onSurface: "#1A1C1C", border: "#DFC0B2" };
+
 function InfoItem({
   icon: Icon,
   label,
@@ -86,57 +91,53 @@ function StudentTimetable() {
         "Chưa cập nhật"
       }
     >
-      <section className="mb-3 flex justify-end">
-        <div
-          className="
-            flex flex-wrap items-center justify-end
-            gap-6 rounded-2xl border border-orange-100
-            bg-white px-5 py-3 shadow-sm
-          "
-        >
-          <InfoItem
-            icon={FiUsers}
-            label="Lớp"
-            value={data?.context?.className}
-            colorClass="bg-orange-50 text-[#F27123]"
-          />
+      <h1
+        className="mb-6 text-2xl font-extrabold tracking-tight sm:text-3xl"
+        style={{ color: C.onSurface }}
+      >
+        Thời khóa biểu
+      </h1>
 
-          <InfoItem
-            icon={FiGrid}
-            label="Khối"
-            value={data?.context?.gradeName}
-            colorClass="bg-blue-50 text-[#08509F]"
-          />
+      <section
+        className="
+          mb-6 grid gap-4 rounded-3xl bg-white px-5 py-4 shadow-sm
+          sm:grid-cols-3
+        "
+        style={{ border: `1px solid ${C.border}` }}
+      >
+        <InfoItem
+          icon={FiUsers}
+          label="Lớp"
+          value={data?.context?.className}
+          colorClass="bg-orange-50 text-[#F27123]"
+        />
 
-          <InfoItem
-            icon={FiBookOpen}
-            label="Năm học"
-            value={data?.context?.schoolYearName}
-            colorClass="bg-green-50 text-green-600"
-          />
-        </div>
+        <InfoItem
+          icon={FiGrid}
+          label="Khối"
+          value={data?.context?.gradeName}
+          colorClass="bg-blue-50 text-[#08509F]"
+        />
+
+        <InfoItem
+          icon={FiBookOpen}
+          label="Năm học"
+          value={data?.context?.schoolYearName}
+          colorClass="bg-green-50 text-green-600"
+        />
       </section>
 
       {loading && (
         <div
-          className="
-            rounded-2xl border border-orange-100
-            bg-white p-8 text-center
-            text-sm text-slate-500 shadow-sm
-          "
+          className="rounded-3xl bg-white p-8 text-center text-sm text-slate-500 shadow-sm"
+          style={{ border: `1px solid ${C.border}` }}
         >
           Đang tải thời khóa biểu...
         </div>
       )}
 
       {error && (
-        <div
-          className="
-            rounded-2xl border border-red-200
-            bg-red-50 px-5 py-4
-            text-sm text-red-600
-          "
-        >
+        <div className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">
           Không tải được thời khóa biểu: {error}
         </div>
       )}

@@ -4,7 +4,7 @@ const reportModel         = require("../models/report.model");
 const reportService       = require("../services/report.service");
 const excelService        = require("../services/excel.service");
 
-const { REPORT_TYPES, REPORT_TITLES } = reportService;
+const { REPORT_TYPES, REPORT_TITLES, ADMIN_ONLY_REPORT_TYPES } = reportService;
 
 async function resolveTeacher(userId) {
   return teacherModel.findProfileByUserId(userId);
@@ -18,6 +18,9 @@ function handleError(res, error, fallback) {
 
 // Enforce that the teacher may access the requested scope.
 async function assertAccess(teacherId, reportType, filters = {}) {
+  if (ADMIN_ONLY_REPORT_TYPES.includes(reportType)) {
+    const e = new Error("Bạn không có quyền tạo báo cáo này"); e.statusCode = 403; throw e;
+  }
   if (reportType === "PROGRESS") {
     if (!filters.studentId) { const e = new Error("Cần chọn học sinh"); e.statusCode = 400; throw e; }
     const ok = await studentProfileModel.isTeacherForStudent(teacherId, parseInt(filters.studentId, 10));
@@ -45,7 +48,7 @@ async function getMeta(req, res) {
       data: {
         classes,
         semesters,
-        reportTypes: REPORT_TYPES.map((key) => ({ key, label: REPORT_TITLES[key] })),
+        reportTypes: REPORT_TYPES.filter((key) => !ADMIN_ONLY_REPORT_TYPES.includes(key)).map((key) => ({ key, label: REPORT_TITLES[key] })),
       },
     });
   } catch (error) {
@@ -209,6 +212,98 @@ async function runTemplate(req, res) {
   }
 }
 
+// ── Admin (school-wide, view + export only, no saved templates) ────────────
+
+// GET /admin/reports/meta — every class school-wide + semesters + report types
+async function getMetaAdmin(_req, res) {
+  try {
+    const [classes, semesters] = await Promise.all([
+      studentProfileModel.findAllClasses(),
+      studentProfileModel.findSemesters(),
+    ]);
+
+    return res.json({
+      success: true,
+      data: {
+        classes,
+        semesters,
+        reportTypes: REPORT_TYPES.map((key) => ({ key, label: REPORT_TITLES[key] })),
+      },
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy dữ liệu khởi tạo");
+  }
+}
+
+// POST /admin/reports/generate — on-screen preview (no log)
+async function generateAdmin(req, res) {
+  try {
+    const { reportType, filters } = req.body;
+    const dataset = await reportService.generate({ reportType, filters });
+    return res.json({ success: true, data: dataset });
+  } catch (error) {
+    return handleError(res, error, "Không thể tạo báo cáo");
+  }
+}
+
+// POST /admin/reports/export-excel — stream .xlsx + log
+async function exportExcelAdmin(req, res) {
+  try {
+    const { reportType, filters } = req.body;
+    const dataset = await reportService.generate({ reportType, filters });
+    const buffer = await excelService.buildWorkbook(dataset);
+
+    await reportModel.logReport({
+      reportType,
+      title: `${dataset.title} (Excel)`,
+      parameters: filters,
+      createdBy: req.user.userId,
+      fileUrl: null,
+    });
+
+    const safeName = dataset.title.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "_");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${safeName}.xlsx"`);
+    return res.send(Buffer.from(buffer));
+  } catch (error) {
+    return handleError(res, error, "Không thể xuất Excel");
+  }
+}
+
+// POST /admin/reports/log-export — record a client-side (PDF/print) export
+async function logExportAdmin(req, res) {
+  try {
+    const { reportType, filters, format } = req.body;
+
+    await reportModel.logReport({
+      reportType,
+      title: `${REPORT_TITLES[reportType] ?? "Báo cáo"} (${(format || "PDF").toUpperCase()})`,
+      parameters: filters,
+      createdBy: req.user.userId,
+      fileUrl: null,
+    });
+    return res.json({ success: true });
+  } catch (error) {
+    return handleError(res, error, "Không thể ghi nhật ký xuất báo cáo");
+  }
+}
+
+// GET /admin/reports/history — the requesting admin's own export history
+async function getHistoryAdmin(req, res) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page || "1", 10));
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || "20", 10)));
+    const { total, rows } = await reportModel.findReportHistory(req.user.userId, { page, limit });
+
+    return res.json({
+      success: true,
+      data: { items: rows, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } },
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy lịch sử báo cáo");
+  }
+}
+
 module.exports = {
   getMeta,
   generate,
@@ -219,4 +314,9 @@ module.exports = {
   createTemplate,
   deleteTemplate,
   runTemplate,
+  getMetaAdmin,
+  generateAdmin,
+  exportExcelAdmin,
+  logExportAdmin,
+  getHistoryAdmin,
 };

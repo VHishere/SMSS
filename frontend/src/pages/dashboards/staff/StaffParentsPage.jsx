@@ -1,23 +1,38 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { FiEye } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import { formatRelationship } from "../../../utils/formatters";
+import PrettySelect from "../../../components/molecules/PrettySelect";
+
+const filterSelectClass =
+  "h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] px-4 text-sm font-medium text-[#1A1C1C] outline-none transition hover:border-[#F27123] focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20 lg:w-44";
 
 function StaffParentsPage() {
   const [parents, setParents] = useState([]);
+  const [lookups, setLookups] = useState(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ gradeId: "", classId: "" });
+
+  useEffect(() => {
+    staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setLoading(true);
       staffApi
-        .getParents(search)
+        .getParents({
+          search,
+          gradeId: filters.gradeId,
+          classId: filters.classId,
+        })
         .then((response) => {
           setParents(response.data);
           setError("");
@@ -27,26 +42,67 @@ function StaffParentsPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, filters.gradeId, filters.classId]);
 
   const rows = useMemo(
-    () =>
-      parents.map((parent) => ({
-        ...parent,
-        id: parent.parentId,
-      })),
+    () => parents.map((parent) => ({ ...parent, id: parent.parentId })),
     [parents],
+  );
+
+  const filteredClasses = useMemo(
+    () =>
+      (lookups?.classes || []).filter(
+        (cls) => !filters.gradeId || String(cls.gradeId) === String(filters.gradeId),
+      ),
+    [filters.gradeId, lookups?.classes],
+  );
+
+  const filterToolbar = (
+    <>
+      <PrettySelect
+        className={filterSelectClass}
+        value={filters.gradeId}
+        onChange={(event) =>
+          setFilters((prev) => ({
+            ...prev,
+            gradeId: event.target.value,
+            classId: "",
+          }))
+        }
+      >
+        <option value="">Tất cả khối</option>
+        {lookups?.grades?.map((grade) => (
+          <option key={grade.gradeId} value={grade.gradeId}>
+            {grade.gradeName}
+          </option>
+        ))}
+      </PrettySelect>
+
+      <PrettySelect
+        className={filterSelectClass}
+        value={filters.classId}
+        onChange={(event) =>
+          setFilters((prev) => ({ ...prev, classId: event.target.value }))
+        }
+      >
+        <option value="">Tất cả lớp</option>
+        {filteredClasses.map((cls) => (
+          <option key={cls.classId} value={cls.classId}>
+            {cls.className}
+          </option>
+        ))}
+      </PrettySelect>
+    </>
   );
 
   return (
     <>
       <StaffPageHeader
-        title="Quản lý thông tin phụ huynh"
-        description="Theo dõi phụ huynh, mối quan hệ và học sinh liên kết"
+        title="Quản lý phụ huynh"
         action={
           <Link
             to="/staff/parents/new"
-            className="rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline"
+            className="rounded-full bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline hover:bg-[#E55C0A] hover:text-white"
           >
             + Thêm phụ huynh
           </Link>
@@ -60,13 +116,12 @@ function StaffParentsPage() {
       )}
 
       <StaffDataTable
-        title="Danh sách phụ huynh"
-        description={`${rows.length} phụ huynh`}
+        toolbar={filterToolbar}
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Tìm theo tên, email, SĐT, học sinh..."
         isLoading={loading}
-        getRowLink={(row) => `/staff/parents/${row.parentId}`}
+        tableAlignClassName="text-center"
         columns={[
           {
             key: "fullName",
@@ -88,9 +143,9 @@ function StaffParentsPage() {
             label: "Học sinh",
             render: (row) => (
               <div>
-                <p className="mb-0 font-semibold">{row.studentName || "—"}</p>
+                <p className="mb-0 font-semibold">{row.studentName || "-"}</p>
                 <p className="mb-0 text-xs text-slate-500">
-                  {row.studentCode || "—"}
+                  {row.studentCode || "-"}
                 </p>
               </div>
             ),
@@ -105,6 +160,19 @@ function StaffParentsPage() {
                 value={row.isPrimary ? "Chính" : "Phụ"}
                 tone={row.isPrimary ? "warning" : "neutral"}
               />
+            ),
+          },
+          {
+            key: "detail",
+            label: "Chi tiết",
+            render: (row) => (
+              <Link
+                to={`/staff/parents/${row.parentId}`}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#DFC0B2] bg-white text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50 hover:text-[#08509F]"
+                title="Xem chi tiết"
+              >
+                <FiEye size={18} />
+              </Link>
             ),
           },
         ]}

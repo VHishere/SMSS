@@ -8,7 +8,12 @@ const {
   authenticate,
   authorize,
 } = require("../middleware/auth.middleware");
-const { messageFileUpload } = require("../middleware/upload.middleware");
+
+const {
+  profileAvatarUpload,
+  homeworkFileUpload,
+  messageFileUpload,
+} = require("../middleware/upload.middleware");
 
 const router = express.Router();
 
@@ -36,6 +41,19 @@ router.get(
 );
 
 router.get(
+  "/me/homeworks/:homeworkId",
+  ...studentOnly,
+  studentController.getMyHomeworkDetail,
+);
+
+router.post(
+  "/me/homeworks/:homeworkId/submission",
+  ...studentOnly,
+  homeworkFileUpload,
+  studentController.submitMyHomework,
+);
+
+router.get(
   "/me/grades",
   ...studentOnly,
   studentController.getMyGrades,
@@ -57,6 +75,26 @@ router.get(
   "/me/behaviour",
   ...studentOnly,
   studentController.getMyBehaviour,
+);
+
+// Nhận xét theo tiết (GVBM → HS)
+router.get(
+  "/me/feedback",
+  ...studentOnly,
+  studentController.getMyLessonFeedback,
+);
+
+// Khảo sát đánh giá giáo viên (ẩn danh)
+router.get(
+  "/me/surveys",
+  ...studentOnly,
+  studentController.getMySurveys,
+);
+
+router.post(
+  "/me/surveys/:surveyId/submit",
+  ...studentOnly,
+  studentController.submitMySurvey,
 );
 
 router.get(
@@ -93,6 +131,12 @@ router.get(
   "/me/events",
   ...studentOnly,
   studentController.getMyEvents,
+);
+
+router.get(
+  "/me/events/:eventId",
+  ...studentOnly,
+  studentController.getMyEventDetail,
 );
 
 router.post(
@@ -166,6 +210,19 @@ router.patch(
   "/me/communication/conversations/:conversationId/archive",
   ...studentOnly,
   communicationController.archiveConversation,
+);
+
+router.patch(
+  "/me",
+  ...studentOnly,
+  profileAvatarUpload,
+  studentController.updateMyProfile,
+);
+
+router.get(
+  "/me/communication/search",
+  ...studentOnly,
+  studentController.searchMyMessages,
 );
 
 router.get(

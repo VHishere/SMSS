@@ -1,5 +1,30 @@
 @import "tailwindcss";
 
+/* ── Fix xung đột Bootstrap ↔ Tailwind v4 ──────────────────────────────
+   bootstrap.min.css (nạp cho react-bootstrap) là CSS KHÔNG nằm trong @layer,
+   nên rule Reboot `button{border-radius:0}` đè mọi utility `rounded-*` của
+   Tailwind (vốn ở @layer utilities → luôn thua CSS không-layer).
+   Rule dưới đây (không-layer, nạp SAU bootstrap) revert border-radius của
+   <button> về giá trị từ các @layer → tức là để utility rounded-* của Tailwind
+   được áp dụng lại. `.btn`/`.dropdown-toggle`… của Bootstrap có specificity cao
+   hơn `button` nên KHÔNG bị ảnh hưởng. */
+button {
+    border-radius: revert-layer;
+}
+
+/* Viền thẻ (card) CHUẨN của hệ thống — #DFC0B2, giống các trang teacher.
+   Phải đặt NGOÀI @layer (+ !important) vì utility `border-<màu>` của Tailwind
+   nằm trong @layer utilities nên luôn thua CSS không-layer của Bootstrap
+   (đo được: border-orange-100 / border-slate-200 đều ra xám #DEE2E6).
+   Dùng: className="rounded-3xl border card-border bg-white" */
+.card-border {
+    border: 1px solid #DFC0B2 !important;
+}
+
+.card-border-dashed {
+    border: 1px dashed #DFC0B2 !important;
+}
+
 :root {
     --cream: #fff7f2;
     --peach: #ffe7d6;
@@ -35,4 +60,40 @@ body {
 
 a {
     color: var(--blue);
+}
+
+/* Material Symbols (FSchool Teacher Portal - Stitch design) */
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    display: inline-block;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Bootstrap's reset ships unlayered CSS, which always wins the cascade
+ * over Tailwind utilities (Tailwind wraps them in @layer). This keeps
+ * .no-underline actually effective on <a>/<Link> elements.
+ */
+.no-underline {
+    text-decoration: none;
+}
+
+/* Ẩn thanh cuộn (scrollbar) nhưng VẪN cuộn được bằng chuột/cảm ứng/bàn phím */
+.no-scrollbar {
+    scrollbar-width: none;      /* Firefox */
+    -ms-overflow-style: none;   /* IE / Edge cũ */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+    display: none;              /* Chrome / Safari / Edge mới */
 }

@@ -1,26 +1,51 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import {
-  FiCheckCircle,
-  FiClock,
-  FiEye,
-  FiSearch,
-  FiXCircle,
-} from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import LeaveDecisionModal from "../../components/organisms/LeaveDecisionModal";
 import LeaveRequestDetailDrawer from "../../components/organisms/LeaveRequestDetailDrawer";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useLeaveRequests } from "../../hooks/useLeaveRequests";
+import { formatLeaveDateRange, formatLeavePeriods } from "../../utils/leaveTime";
+
+// ─── FSchool Stitch design tokens ────────────────────────────────────────────
+
+const C = {
+  onSurface: "#1A1C1C",
+  onSurfaceVariant: "#584238",
+  outlineVariant: "#DFC0B2",
+  primary: "#9F4200",
+  primaryContainer: "#F27123",
+  secondary: "#225DAD",
+  deepBlue: "#00458E",
+  tertiary: "#4A5F82",
+  error: "#BA1A1A",
+  surface: "#F9F9F9",
+  surfaceLow: "#F3F3F3",
+  surfaceHigh: "#E8E8E8",
+};
+
+const CARD_SHADOW = "0px 4px 12px rgba(15, 39, 71, 0.08)";
+
+function Ms({ name, className = "", style, fill = false }) {
+  return (
+    <span
+      className={`material-symbols-outlined ${className}`}
+      style={{ ...(fill ? { fontVariationSettings: "'FILL' 1" } : {}), ...style }}
+    >
+      {name}
+    </span>
+  );
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const STATUS_TABS = [
-  { key: "PENDING",  label: "Chờ duyệt",  icon: FiClock,       countKey: "PENDING"  },
-  { key: "APPROVED", label: "Đã duyệt",   icon: FiCheckCircle, countKey: "APPROVED" },
-  { key: "REJECTED", label: "Đã từ chối", icon: FiXCircle,     countKey: "REJECTED" },
+const STATUS_OPTIONS = [
+  { key: "PENDING",  label: "Chờ duyệt" },
+  { key: "APPROVED", label: "Đã duyệt"  },
+  { key: "REJECTED", label: "Từ chối"   },
 ];
 
 const LEAVE_TYPE_LABEL = {
@@ -32,22 +57,46 @@ const LEAVE_TYPE_LABEL = {
   OTHER:          "Khác",
 };
 
-const STATUS_BADGE = {
-  PENDING:  { label: "Chờ duyệt",  bg: "#FFFBEB", text: "#D97706" },
-  APPROVED: { label: "Đã duyệt",   bg: "#ECFDF5", text: "#16A34A" },
-  REJECTED: { label: "Đã từ chối", bg: "#FEF2F2", text: "#DC2626" },
+// Icon + màu loại đơn theo design Stitch (medical_services / family_restroom / assignment_turned_in)
+const LEAVE_TYPE_META = {
+  SICK_LEAVE:     { icon: "medical_services",     color: C.primary },
+  FAMILY:         { icon: "family_restroom",      color: C.tertiary },
+  FAMILY_LEAVE:   { icon: "family_restroom",      color: C.tertiary },
+  PERSONAL:       { icon: "assignment_turned_in", color: "#003C7C" },
+  PERSONAL_LEAVE: { icon: "assignment_turned_in", color: "#003C7C" },
+  OTHER:          { icon: "description",          color: C.onSurfaceVariant },
 };
+
+// Status pill theo design Stitch (.status-pill .status-*)
+const STATUS_PILL = {
+  PENDING:  { label: "Chờ duyệt", bg: "rgba(242, 113, 35, 0.1)", text: "#9F4200" },
+  APPROVED: { label: "Đã duyệt",  bg: "rgba(34, 93, 173, 0.1)",  text: "#225DAD" },
+  REJECTED: { label: "Từ chối",   bg: "rgba(186, 26, 26, 0.1)",  text: "#BA1A1A" },
+};
+
+const TABLE_COLS = [
+  { label: "Tên học sinh", align: "text-left"   },
+  { label: "Lớp",          align: "text-left"   },
+  { label: "Loại đơn",     align: "text-left"   },
+  { label: "Thời gian",    align: "text-left"   },
+  { label: "Trạng thái",   align: "text-center" },
+  { label: "Thao tác",     align: "text-right"  },
+];
 
 function leaveTypeLabel(type) {
   if (!type) return "—";
   return LEAVE_TYPE_LABEL[type] ?? type;
 }
 
+function leaveTypeMeta(type) {
+  return LEAVE_TYPE_META[type] ?? { icon: "description", color: C.onSurfaceVariant };
+}
+
 function StatusBadge({ status }) {
-  const cfg = STATUS_BADGE[status] ?? { label: status, bg: "#F1F5F9", text: "#475569" };
+  const cfg = STATUS_PILL[status] ?? { label: status, bg: "#F1F5F9", text: "#475569" };
   return (
     <span
-      className="inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold"
+      className="inline-block whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold"
       style={{ backgroundColor: cfg.bg, color: cfg.text }}
     >
       {cfg.label}
@@ -55,7 +104,34 @@ function StatusBadge({ status }) {
   );
 }
 
-const TABLE_COLS = ["HỌC SINH", "LỚP", "LOẠI NGHỈ", "THỜI GIAN", "NGÀY NỘP", "TRẠNG THÁI", ""];
+// ─── Summary Bento Card (Stitch: left accent border, icon phải, số display-lg) ─
+
+function SummaryCard({ label, value, caption, iconName, accent, children }) {
+  return (
+    <div
+      className="rounded-[2rem] bg-white p-6 transition-transform hover:-translate-y-0.5"
+      style={{ borderLeft: `4px solid ${accent}`, boxShadow: CARD_SHADOW }}
+    >
+      <div className="mb-2 flex items-start justify-between">
+        <p className="text-xs font-medium uppercase tracking-wider" style={{ color: C.onSurfaceVariant }}>
+          {label}
+        </p>
+        <Ms name={iconName} style={{ color: accent }} />
+      </div>
+      <div className="flex items-baseline gap-2">
+        <span className="text-5xl font-bold leading-none tracking-tight" style={{ color: C.onSurface }}>
+          {value}
+        </span>
+      </div>
+      {caption && (
+        <p className="mt-2 text-xs italic" style={{ color: C.onSurfaceVariant }}>
+          {caption}
+        </p>
+      )}
+      {children}
+    </div>
+  );
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -98,6 +174,13 @@ function LeaveRequestsPage() {
   const classes    = data?.classes    ?? [];
   const pagination = data?.pagination;
 
+  const totalRequests = (counts.PENDING ?? 0) + (counts.APPROVED ?? 0) + (counts.REJECTED ?? 0);
+  const processedRate = totalRequests > 0
+    ? Math.round((((counts.APPROVED ?? 0) + (counts.REJECTED ?? 0)) / totalRequests) * 100)
+    : 0;
+
+  const pad2 = (n) => String(n ?? 0).padStart(2, "0");
+
   const headerUser = useMemo(() => {
     const roleEntry = user?.roles?.find((r) =>
       ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"].includes(r.roleName),
@@ -124,11 +207,39 @@ function LeaveRequestsPage() {
     setPage(1);
   }
 
+  function clearFilters() {
+    setClassId("");
+    setStartDate("");
+    setEndDate("");
+    setSearchInput("");
+    setSearchTerm("");
+    setPage(1);
+  }
+
   function handleDecisionDone() {
     setDecision(null);
     setDetailId(null);
     setRefreshKey((k) => k + 1);
   }
+
+  function exportCsv() {
+    const items = data?.items ?? [];
+    if (!items.length) return;
+    const head = ["Học sinh", "Mã HS", "Lớp", "Loại nghỉ", "Từ ngày", "Đến ngày", "Trạng thái", "Ngày nộp"];
+    const rows = items.map((r) => [
+      r.studentName ?? "", r.studentCode ?? "", r.className ?? "", r.leaveType ?? "",
+      r.startDate ?? "", r.endDate ?? "", STATUS_PILL[r.status]?.label ?? r.status ?? "", r.createdAt ?? "",
+    ]);
+    const csv = [head, ...rows].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = "danh-sach-don-nghi.csv"; a.click(); URL.revokeObjectURL(url);
+  }
+
+  const summaryCards = [
+    { label: "ĐƠN ĐANG CHỜ", value: pad2(counts.PENDING),  caption: "Cần bạn phê duyệt", iconName: "hourglass_empty", accent: C.primaryContainer },
+    { label: "ĐÃ DUYỆT",     value: pad2(counts.APPROVED), caption: null,                iconName: "fact_check",      accent: C.secondary },
+    { label: "TỪ CHỐI",      value: pad2(counts.REJECTED), caption: null,                iconName: "cancel",          accent: C.error },
+  ];
 
   return (
     <DashboardShell
@@ -137,245 +248,323 @@ function LeaveRequestsPage() {
       sidebarFooterLabel="Đơn chờ duyệt"
       sidebarFooterValue={String(counts.PENDING)}
     >
-      {/* Page header */}
-      <section
-        className="mb-6 rounded-2xl p-5 shadow-sm sm:p-6"
-        style={{ border: "1px solid #FFE7D6", backgroundColor: "#fff" }}
-      >
-        <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: "#F27123" }}>
-          Giáo viên
-        </p>
-        <h1 className="mb-1 text-2xl font-bold sm:text-3xl" style={{ color: "#0F2747" }}>
-          Đơn xin nghỉ phép
-        </h1>
-        <p className="text-sm text-slate-500">
-          Xem xét, duyệt hoặc từ chối đơn xin nghỉ của học sinh trong lớp phụ trách.
-        </p>
-      </section>
-
-      {/* Status tabs */}
-      <div className="mb-5 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
-        {STATUS_TABS.map(({ key, label, icon: Icon, countKey }) => (
+      <div className="flex flex-col gap-6">
+        {/* Header section (Stitch) */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-semibold" style={{ color: C.onSurface }}>
+            Quản lý đơn nghỉ
+          </h2>
           <button
-            key={key}
             type="button"
-            onClick={() => changeStatus(key)}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition"
-            style={
-              activeStatus === key
-                ? { backgroundColor: "#F27123", color: "#fff" }
-                : { color: "#64748B" }
-            }
+            onClick={exportCsv}
+            disabled={!data?.items?.length}
+            className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+            style={{ backgroundColor: C.primaryContainer }}
           >
-            <Icon size={15} />
-            <span className="hidden sm:inline">{label}</span>
-            <span
-              className="rounded-full px-1.5 py-0.5 text-xs font-bold"
-              style={
-                activeStatus === key
-                  ? { backgroundColor: "rgba(255,255,255,0.25)", color: "#fff" }
-                  : { backgroundColor: "#FFF7F2", color: "#F27123" }
-              }
-            >
-              {counts[countKey]}
-            </span>
+            <Ms name="file_download" className="!text-[18px]" /> Xuất danh sách
           </button>
-        ))}
-      </div>
+        </div>
 
-      {/* Filters */}
-      <div className="mb-5 flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Lớp</label>
-          <select
+        {/* Summary bento grid (Stitch) */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+          {summaryCards.map((card) => (
+            <SummaryCard key={card.label} {...card} />
+          ))}
+          <SummaryCard
+            label="TỔNG SỐ ĐƠN"
+            value={pad2(totalRequests)}
+            caption={`Tỷ lệ hoàn thành ${processedRate}%`}
+            iconName="event_busy"
+            accent={C.deepBlue}
+          >
+            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full" style={{ backgroundColor: C.surfaceHigh }}>
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${processedRate}%`, backgroundColor: C.tertiary }}
+              />
+            </div>
+          </SummaryCard>
+        </div>
+
+        {/* Filters card (Stitch) */}
+        <div
+          className="flex flex-wrap items-center gap-4 rounded-[2rem] bg-white p-4"
+          style={{ boxShadow: CARD_SHADOW }}
+        >
+          <div className="flex items-center gap-2 rounded-xl px-3 py-1.5" style={{ backgroundColor: "#EEEEEE" }}>
+            <Ms name="filter_list" className="!text-[18px]" style={{ color: C.onSurfaceVariant }} />
+            <span className="text-xs font-bold" style={{ color: C.onSurface }}>Bộ lọc:</span>
+          </div>
+
+          <PrettySelect
             value={classId}
             onChange={(e) => { setClassId(e.target.value); resetToFirstPage(); }}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]"
+            className="cursor-pointer rounded-full border bg-white px-4 py-2 text-sm outline-none focus:ring-1"
+            style={{ borderColor: C.outlineVariant, color: C.onSurface }}
           >
-            <option value="">Tất cả lớp</option>
+            <option value="">Tất cả các lớp</option>
             {classes.map((c) => (
               <option key={c.classId} value={c.classId}>{c.className}</option>
             ))}
-          </select>
-        </div>
+          </PrettySelect>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Từ ngày</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => { setStartDate(e.target.value); resetToFirstPage(); }}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]"
-          />
-        </div>
+          <PrettySelect
+            value={activeStatus}
+            onChange={(e) => changeStatus(e.target.value)}
+            className="cursor-pointer rounded-full border bg-white px-4 py-2 text-sm outline-none focus:ring-1"
+            style={{ borderColor: C.outlineVariant, color: C.onSurface }}
+          >
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s.key} value={s.key}>{s.label}</option>
+            ))}
+          </PrettySelect>
 
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Đến ngày</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => { setEndDate(e.target.value); resetToFirstPage(); }}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]"
-          />
-        </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              title="Từ ngày"
+              value={startDate}
+              onChange={(e) => { setStartDate(e.target.value); resetToFirstPage(); }}
+              className="rounded-full border bg-white px-4 py-2 text-sm outline-none focus:ring-1"
+              style={{ borderColor: C.outlineVariant, color: C.onSurface }}
+            />
+            <span className="text-sm" style={{ color: C.onSurfaceVariant }}>–</span>
+            <input
+              type="date"
+              title="Đến ngày"
+              value={endDate}
+              onChange={(e) => { setEndDate(e.target.value); resetToFirstPage(); }}
+              className="rounded-full border bg-white px-4 py-2 text-sm outline-none focus:ring-1"
+              style={{ borderColor: C.outlineVariant, color: C.onSurface }}
+            />
+          </div>
 
-        <form onSubmit={submitSearch} className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-slate-500">Tìm học sinh</label>
-          <div className="flex">
+          <form
+            onSubmit={submitSearch}
+            className="flex items-center overflow-hidden rounded-full border bg-white pl-4"
+            style={{ borderColor: C.outlineVariant }}
+          >
             <input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Tên hoặc mã học sinh..."
-              className="w-48 rounded-l-lg border border-r-0 border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]"
+              placeholder="Tìm kiếm đơn, học sinh..."
+              className="w-44 border-none bg-transparent py-2 text-sm outline-none"
+              style={{ color: C.onSurface }}
             />
             <button
               type="submit"
-              className="flex items-center rounded-r-lg px-3 text-white"
-              style={{ backgroundColor: "#08509F" }}
+              title="Tìm kiếm"
+              className="flex items-center rounded-full px-3 py-2 transition-colors hover:bg-[#EEEEEE]"
+              style={{ color: C.onSurfaceVariant }}
             >
-              <FiSearch size={15} />
+              <Ms name="search" className="!text-[18px]" />
             </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="ml-auto text-xs font-bold hover:underline"
+            style={{ color: C.primary }}
+          >
+            Xóa tất cả
+          </button>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div className="rounded-[2rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {error}
           </div>
-        </form>
-      </div>
+        )}
 
-      {/* Error */}
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {error}
-        </div>
-      )}
+        {/* Loading */}
+        {loading && (
+          <div className="space-y-2">
+            {[0, 1, 2, 3, 4].map((n) => (
+              <div key={n} className="h-14 animate-pulse rounded-[2rem] bg-slate-200/60" />
+            ))}
+          </div>
+        )}
 
-      {/* Loading */}
-      {loading && (
-        <div className="space-y-2">
-          {[0, 1, 2, 3, 4].map((n) => (
-            <div key={n} className="h-14 animate-pulse rounded-xl bg-slate-100" />
-          ))}
-        </div>
-      )}
-
-      {/* Table */}
-      {!loading && !error && (
-        <>
+        {/* Requests table (Stitch) */}
+        {!loading && !error && (
           <div
-            className="overflow-hidden rounded-2xl bg-white shadow-sm"
-            style={{ border: "1px solid #FFE7D6" }}
+            className="overflow-hidden rounded-[2rem] border bg-white"
+            style={{ borderColor: C.outlineVariant, boxShadow: CARD_SHADOW }}
           >
             {!data?.items?.length ? (
               <p className="p-10 text-center text-sm text-slate-400">
                 Không có đơn xin nghỉ nào{activeStatus === "PENDING" ? " đang chờ duyệt" : ""}.
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead>
-                    <tr
-                      className="border-b text-left"
-                      style={{ borderColor: "#FFE7D6", backgroundColor: "#FFF7F2" }}
-                    >
-                      {TABLE_COLS.map((col, i) => (
-                        <th
-                          key={i}
-                          className="px-4 py-3 text-xs font-bold uppercase tracking-wider"
-                          style={{ color: "#F27123" }}
-                        >
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.items.map((row, idx) => (
-                      <tr
-                        key={row.leaveRequestId}
-                        className="border-b last:border-b-0 transition hover:bg-[#FFF7F2]"
-                        style={{
-                          borderColor: "#FFF7F2",
-                          backgroundColor: idx % 2 === 1 ? "#FAFAFA" : "#fff",
-                        }}
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2.5">
-                            <div
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                              style={{ backgroundColor: "#08509F" }}
-                            >
-                              {row.studentAvatar ? (
-                                <img src={row.studentAvatar} alt={row.studentName} className="h-8 w-8 rounded-full object-cover" />
-                              ) : (
-                                row.studentName?.[0]?.toUpperCase() ?? "?"
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="truncate text-sm font-medium text-[#0F2747]">
-                                {row.studentName}
-                              </div>
-                              <div className="text-xs text-slate-400">{row.studentCode}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">{row.className ?? "—"}</td>
-                        <td className="px-4 py-3 text-slate-600">{leaveTypeLabel(row.leaveType)}</td>
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-                          {row.startDate}
-                          {row.endDate && row.endDate !== row.startDate && (
-                            <div className="text-xs text-slate-400">→ {row.endDate}</div>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-slate-500">{row.createdAt}</td>
-                        <td className="px-4 py-3">
-                          <StatusBadge status={row.status} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => setDetailId(row.leaveRequestId)}
-                            className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition"
-                            style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="text-white" style={{ backgroundColor: C.deepBlue }}>
+                      <tr>
+                        {TABLE_COLS.map((col) => (
+                          <th
+                            key={col.label}
+                            className={`px-6 py-4 text-xs font-medium uppercase tracking-wider ${col.align}`}
                           >
-                            <FiEye size={12} />
-                            Chi tiết
-                          </button>
-                        </td>
+                            {col.label}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y" style={{ borderColor: C.outlineVariant }}>
+                      {data.items.map((row) => {
+                        const typeMeta = leaveTypeMeta(row.leaveType);
+                        const periods  = formatLeavePeriods(row.startDate, row.endDate);
+                        return (
+                          <tr
+                            key={row.leaveRequestId}
+                            onClick={() => setDetailId(row.leaveRequestId)}
+                            className="group cursor-pointer transition-colors hover:bg-[#F3F3F3]"
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                {row.studentAvatar ? (
+                                  <img
+                                    src={row.studentAvatar}
+                                    alt={row.studentName}
+                                    className="h-8 w-8 shrink-0 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                                    style={{ backgroundColor: C.surfaceHigh, color: C.onSurfaceVariant }}
+                                  >
+                                    {row.studentName?.[0]?.toUpperCase() ?? "?"}
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-bold" style={{ color: C.onSurface }}>
+                                    {row.studentName}
+                                  </p>
+                                  <p className="text-xs" style={{ color: C.onSurfaceVariant }}>
+                                    ID: {row.studentCode ?? "—"}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 text-sm" style={{ color: C.onSurfaceVariant }}>
+                              {row.className ?? "—"}
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className="flex items-center gap-1.5 text-sm" style={{ color: C.onSurface }}>
+                                <Ms name={typeMeta.icon} className="!text-[16px]" style={{ color: typeMeta.color }} />
+                                {leaveTypeLabel(row.leaveType)}
+                              </span>
+                            </td>
+                            <td className="whitespace-nowrap px-6 py-4">
+                              <p className="text-sm font-medium" style={{ color: C.onSurface }}>
+                                {formatLeaveDateRange(row.startDate, row.endDate)}
+                              </p>
+                              {periods && (
+                                <p className="text-xs" style={{ color: C.onSurfaceVariant }}>{periods}</p>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <StatusBadge status={row.status} />
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              {row.status === "PENDING" ? (
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    title="Duyệt đơn"
+                                    onClick={(e) => { e.stopPropagation(); setDecision({ request: row, type: "APPROVE" }); }}
+                                    className="rounded-full p-2 transition-colors hover:bg-[#225DAD]/10"
+                                    style={{ color: C.secondary }}
+                                  >
+                                    <Ms name="check_circle" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Từ chối"
+                                    onClick={(e) => { e.stopPropagation(); setDecision({ request: row, type: "REJECT" }); }}
+                                    className="rounded-full p-2 transition-colors hover:bg-[#BA1A1A]/10"
+                                    style={{ color: C.error }}
+                                  >
+                                    <Ms name="cancel" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  title="Xem chi tiết"
+                                  onClick={(e) => { e.stopPropagation(); setDetailId(row.leaveRequestId); }}
+                                  className="rounded-full p-2 transition-colors hover:bg-[#EEEEEE]"
+                                  style={{ color: C.onSurfaceVariant }}
+                                >
+                                  <Ms name="more_vert" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Footer: count + pagination (Stitch) */}
+                {pagination && (
+                  <div
+                    className="flex flex-wrap items-center justify-between gap-3 border-t p-4"
+                    style={{ borderColor: C.outlineVariant, backgroundColor: C.surface }}
+                  >
+                    <p className="text-xs" style={{ color: C.onSurfaceVariant }}>
+                      Hiển thị {(page - 1) * pagination.limit + 1} đến{" "}
+                      {Math.min(page * pagination.limit, pagination.total)} trong số {pagination.total} đơn
+                    </p>
+                    {pagination.totalPages > 1 && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          disabled={page === 1}
+                          className="flex items-center rounded-full border px-3 py-1 transition-colors hover:bg-[#EEEEEE] disabled:opacity-50"
+                          style={{ borderColor: C.outlineVariant, color: C.onSurface }}
+                        >
+                          <Ms name="chevron_left" className="!text-[18px]" />
+                        </button>
+                        {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            onClick={() => setPage(n)}
+                            className="rounded-full px-3 py-1 text-xs font-bold transition-colors"
+                            style={
+                              n === page
+                                ? { backgroundColor: C.primaryContainer, color: "#fff" }
+                                : { border: `1px solid ${C.outlineVariant}`, color: C.onSurface }
+                            }
+                          >
+                            {n}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                          disabled={page >= pagination.totalPages}
+                          className="flex items-center rounded-full border px-3 py-1 transition-colors hover:bg-[#EEEEEE] disabled:opacity-50"
+                          style={{ borderColor: C.outlineVariant, color: C.onSurface }}
+                        >
+                          <Ms name="chevron_right" className="!text-[18px]" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
-
-          {/* Pagination */}
-          {pagination && pagination.totalPages > 1 && (
-            <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
-              <span>
-                {(page - 1) * pagination.limit + 1}–
-                {Math.min(page * pagination.limit, pagination.total)} trong {pagination.total} đơn
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium disabled:opacity-40 hover:bg-slate-50"
-                >
-                  Trước
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
-                  disabled={page >= pagination.totalPages}
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium disabled:opacity-40 hover:bg-slate-50"
-                >
-                  Sau
-                </button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
+        )}
+      </div>
 
       {/* Detail drawer */}
       {detailId && (

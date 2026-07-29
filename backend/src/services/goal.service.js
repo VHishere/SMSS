@@ -8,9 +8,17 @@ function httpError(message, statusCode) {
   return err;
 }
 
-function validateBase({ title, goalType }) {
+function todayStr() {
+  const p = (n) => String(n).padStart(2, "0");
+  const d = new Date();
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function validateBase({ title, goalType, targetDate }) {
   if (!title || !title.trim()) throw httpError("Tiêu đề mục tiêu là bắt buộc", 400);
   if (!goalType || !GOAL_TYPES.includes(goalType)) throw httpError("Loại mục tiêu không hợp lệ", 400);
+  if (!targetDate) throw httpError("Hạn hoàn thành là bắt buộc", 400);
+  if (String(targetDate).slice(0, 10) < todayStr()) throw httpError("Hạn hoàn thành phải từ hôm nay trở đi", 400);
 }
 
 function notif(recipients, title, content) {
@@ -39,7 +47,9 @@ async function createGoal({ actorUserId, studentId, payload }) {
 async function updateGoal({ actorUserId, goalId, payload }) {
   const goal = await goalModel.findById(goalId);
   if (!goal) throw httpError("Không tìm thấy mục tiêu", 404);
-  if (goal.status === "ARCHIVED") throw httpError("Mục tiêu đã lưu trữ, không thể chỉnh sửa", 409);
+  if (!["OPEN", "IN_PROGRESS"].includes(goal.status)) {
+    throw httpError("Mục tiêu đã kết thúc hoặc lưu trữ, không thể chỉnh sửa", 409);
+  }
 
   validateBase(payload);
 
@@ -105,7 +115,9 @@ async function updateProgress({ actorUserId, goalId, payload }) {
 async function evaluateGoal({ actorUserId, goalId, payload }) {
   const goal = await goalModel.findById(goalId);
   if (!goal) throw httpError("Không tìm thấy mục tiêu", 404);
-  if (goal.status === "ARCHIVED") throw httpError("Mục tiêu đã lưu trữ", 409);
+  if (!["OPEN", "IN_PROGRESS"].includes(goal.status)) {
+    throw httpError("Mục tiêu đã được đánh giá hoặc lưu trữ", 409);
+  }
 
   if (!["COMPLETED", "FAILED"].includes(payload.status)) {
     throw httpError("Kết quả đánh giá không hợp lệ", 400);

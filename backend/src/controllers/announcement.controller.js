@@ -1,6 +1,7 @@
 const teacherModel      = require("../models/teacher.model");
 const announcementModel = require("../models/announcement.model");
 const announcementService = require("../services/announcement.service");
+const studentProfileModel = require("../models/studentProfile.model");
 
 async function resolveTeacher(userId) {
   const profile = await teacherModel.findProfileByUserId(userId);
@@ -104,4 +105,101 @@ async function getReceipts(req, res) {
   }
 }
 
-module.exports = { list, create, update, publish, pin, archive, getReceipts };
+// ── Admin (school-wide, no homeroom/ownership restriction) ─────────────────
+
+// GET /admin/announcements/meta — every class + a deduped grade list, for the composer's scope picker
+async function getMeta(_req, res) {
+  try {
+    const classes = await studentProfileModel.findAllClasses();
+    const gradeMap = new Map();
+    for (const c of classes) {
+      if (!gradeMap.has(c.gradeId)) gradeMap.set(c.gradeId, { gradeId: c.gradeId, gradeName: c.gradeName });
+    }
+    return res.json({ success: true, data: { classes, grades: [...gradeMap.values()] } });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy dữ liệu khởi tạo");
+  }
+}
+
+// GET /admin/announcements — every announcement school-wide, not just admin's own
+async function listAdmin(req, res) {
+  try {
+    const { status, page = "1", limit = "20" } = req.query;
+    const parsedPage = Math.max(1, parseInt(page, 10));
+    const parsedLimit = Math.min(50, Math.max(1, parseInt(limit, 10)));
+    const { total, rows } = await announcementModel.findAll({ status, page: parsedPage, limit: parsedLimit });
+    return res.json({
+      success: true,
+      data: { items: rows, pagination: { total, page: parsedPage, limit: parsedLimit, totalPages: Math.ceil(total / parsedLimit) } },
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy danh sách thông báo");
+  }
+}
+
+async function createAdmin(req, res) {
+  try {
+    const result = await announcementService.createAnnouncementAdmin({ actorUserId: req.user.userId, payload: req.body });
+    return res.status(201).json({ success: true, message: "Đã lưu thông báo", data: result });
+  } catch (error) {
+    return handleError(res, error, "Không thể tạo thông báo");
+  }
+}
+
+async function updateAdmin(req, res) {
+  try {
+    const announcementId = parseInt(req.params.announcementId, 10);
+    const result = await announcementService.updateAnnouncementAdmin({ announcementId, payload: req.body });
+    return res.json({ success: true, message: "Cập nhật thành công", data: result });
+  } catch (error) {
+    return handleError(res, error, "Không thể cập nhật thông báo");
+  }
+}
+
+async function publishAdmin(req, res) {
+  try {
+    const announcementId = parseInt(req.params.announcementId, 10);
+    const result = await announcementService.publishAnnouncementAdmin({ announcementId });
+    return res.json({ success: true, message: `Đã phát hành tới ${result.sent} người`, data: result });
+  } catch (error) {
+    return handleError(res, error, "Không thể phát hành thông báo");
+  }
+}
+
+async function pinAdmin(req, res) {
+  try {
+    const announcementId = parseInt(req.params.announcementId, 10);
+    const result = await announcementService.setPinnedAdmin({ announcementId, isPinned: Boolean(req.body.isPinned) });
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    return handleError(res, error, "Không thể ghim thông báo");
+  }
+}
+
+async function archiveAdmin(req, res) {
+  try {
+    const announcementId = parseInt(req.params.announcementId, 10);
+    const result = await announcementService.archiveAnnouncementAdmin({ announcementId });
+    return res.json({ success: true, message: "Đã lưu trữ thông báo", data: result });
+  } catch (error) {
+    return handleError(res, error, "Không thể lưu trữ thông báo");
+  }
+}
+
+async function getReceiptsAdmin(req, res) {
+  try {
+    const announcementId = parseInt(req.params.announcementId, 10);
+    const existing = await announcementModel.findById(announcementId);
+    if (!existing) return res.status(404).json({ success: false, message: "Không tìm thấy thông báo" });
+
+    const data = await announcementModel.findReadReceipts(announcementId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy tình trạng đã đọc");
+  }
+}
+
+module.exports = {
+  list, create, update, publish, pin, archive, getReceipts,
+  getMeta, listAdmin, createAdmin, updateAdmin, publishAdmin, pinAdmin, archiveAdmin, getReceiptsAdmin,
+};

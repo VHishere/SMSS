@@ -1,7 +1,38 @@
 import { useEffect, useState } from "react";
-import { FiClock, FiExternalLink, FiX } from "react-icons/fi";
 
 import { homeworkApi } from "../../api/client";
+
+// FSchool Stitch design — grading panel (homework-grading screen)
+const C = {
+  onSurface: "#1A1C1C",
+  muted: "#584238",
+  border: "#DFC0B2",
+  primary: "#9F4200",
+  orange: "#F27123",
+  deepBlue: "#00458E",
+  error: "#BA1A1A",
+  surfaceLow: "#F3F3F3",
+  surfaceHigh: "#E8E8E8",
+};
+
+function Ms({ name, className = "", style }) {
+  return (
+    <span className={`material-symbols-outlined ${className}`} style={style}>
+      {name}
+    </span>
+  );
+}
+
+const QUICK_TAGS = ["Bố cục tốt", "Cần bổ sung dẫn chứng", "Phân tích sâu sắc"];
+
+function scoreColor(value, maxScore) {
+  const s = Number(value);
+  if (!Number.isFinite(s)) return C.onSurface;
+  const ratio = maxScore > 0 ? s / maxScore : 0;
+  if (ratio >= 0.8) return C.deepBlue;
+  if (ratio < 0.5) return C.error;
+  return C.primary;
+}
 
 function GradeSubmissionModal({ submission, maxScore, onClose, onSaved }) {
   const [score,    setScore]    = useState(submission.score ?? "");
@@ -50,128 +81,201 @@ function GradeSubmissionModal({ submission, maxScore, onClose, onSaved }) {
     }
   }
 
-  const inputCls =
-    "w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]";
+  function addTag(tag) {
+    setFeedback((cur) => (cur ? `${cur}\n- ${tag}` : `- ${tag}`));
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div
-        className="flex max-h-[90vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-xl"
-        style={{ border: "1px solid #FFE7D6" }}
+        className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl bg-white shadow-xl"
+        style={{ border: `1px solid ${C.border}` }}
       >
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #FFE7D6" }}>
-          <div>
-            <h3 className="text-base font-bold" style={{ color: "#0F2747" }}>Chấm điểm bài nộp</h3>
-            <p className="text-xs text-slate-500">{submission.studentName} · {submission.studentCode}</p>
-          </div>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <FiX size={20} />
+        {/* Header */}
+        <div
+          className="flex items-center justify-between border-b px-6 py-4"
+          style={{ borderColor: C.border, backgroundColor: "rgba(0,69,142,0.05)" }}
+        >
+          <h3
+            className="flex items-center gap-2 text-sm font-semibold uppercase tracking-widest"
+            style={{ color: C.muted }}
+          >
+            <Ms name="edit_square" className="!text-[20px]" /> Chấm điểm &amp; Nhận xét
+          </h3>
+          <button type="button" onClick={onClose} className="rounded-full p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600">
+            <Ms name="close" className="!text-[20px]" />
           </button>
         </div>
 
-        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
-          {/* Submission content */}
-          <div className="rounded-xl px-3 py-3" style={{ backgroundColor: "#FFF7F2", border: "1px solid #FFE7D6" }}>
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Nội dung nộp</p>
-            <p className="text-sm text-slate-700">{submission.content || "—"}</p>
-            {submission.fileUrl && (
-              <a
-                href={submission.fileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium"
-                style={{ color: "#08509F" }}
-              >
-                <FiExternalLink size={12} />
-                Xem tệp đã nộp
-              </a>
-            )}
-            {submission.isLate && (
-              <p className="mt-2 inline-block rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}>
-                Nộp muộn
-              </p>
-            )}
-          </div>
+        <div className="grid flex-1 grid-cols-1 gap-0 overflow-y-auto lg:grid-cols-2">
+          {/* Left: student + submission content */}
+          <div className="space-y-4 border-b p-6 lg:border-b-0 lg:border-r" style={{ borderColor: C.border }}>
+            {/* Student header */}
+            <div className="flex items-center gap-4 rounded-xl border p-3" style={{ borderColor: C.border }}>
+              {submission.studentAvatar ? (
+                <img src={submission.studentAvatar} alt={submission.studentName} className="h-12 w-12 rounded-xl object-cover shadow-md" />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl text-base font-bold text-white shadow-md" style={{ backgroundColor: C.deepBlue }}>
+                  {submission.studentName?.[0]?.toUpperCase() ?? "?"}
+                </div>
+              )}
+              <div className="min-w-0">
+                <h4 className="truncate text-base font-semibold" style={{ color: C.onSurface }}>{submission.studentName}</h4>
+                <div className="mt-0.5 flex flex-wrap gap-3 text-xs" style={{ color: C.muted }}>
+                  <span className="flex items-center gap-1"><Ms name="badge" className="!text-[13px]" /> {submission.studentCode}</span>
+                  {submission.submitTime && (
+                    <span className="flex items-center gap-1"><Ms name="schedule" className="!text-[13px]" /> {submission.submitTime}</span>
+                  )}
+                </div>
+              </div>
+              {submission.isLate && (
+                <span className="ml-auto shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase" style={{ backgroundColor: "#FFDAD6", color: "#93000A" }}>
+                  Nộp muộn
+                </span>
+              )}
+            </div>
 
-          {/* Score */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-600">
-              Điểm (tối đa {maxScore}) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min="0"
-              max={maxScore}
-              step="0.25"
-              value={score}
-              onChange={(e) => setScore(e.target.value)}
-              className={inputCls}
-            />
-          </div>
-
-          {/* Feedback */}
-          <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-600">Nhận xét</label>
-            <textarea
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              rows={3}
-              placeholder="Nhận xét cho học sinh..."
-              className={`${inputCls} resize-none`}
-            />
-          </div>
-
-          {errorMsg && (
-            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{errorMsg}</p>
-          )}
-
-          {/* Grade history */}
-          {!logLoading && log.length > 0 && (
+            {/* Submission content */}
             <div>
-              <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                <FiClock size={12} />
-                Lịch sử chấm điểm
-              </p>
-              <div className="space-y-2">
-                {log.map((entry) => (
-                  <div key={entry.gradeLogId} className="rounded-lg px-3 py-2 text-xs" style={{ backgroundColor: "#F8FAFC" }}>
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium" style={{ color: "#0F2747" }}>
-                        {entry.action === "REGRADE" ? "Chấm lại" : "Chấm điểm"}
-                        {entry.oldScore !== null && (
-                          <span className="ml-1 text-slate-400">{entry.oldScore} → </span>
-                        )}
-                        <span style={{ color: "#16A34A" }}>{entry.newScore}</span>
-                      </span>
-                      <span className="text-slate-400">{entry.createdAt}</span>
-                    </div>
-                    {entry.feedback && <p className="mt-1 text-slate-500">{entry.feedback}</p>}
-                    <p className="mt-0.5 text-slate-400">bởi {entry.graderName}</p>
-                  </div>
-                ))}
+              <h4 className="mb-2 text-base font-semibold" style={{ color: C.onSurface }}>Bài làm của học sinh</h4>
+              <div
+                className="max-h-64 overflow-y-auto whitespace-pre-line rounded-xl border p-4 text-sm leading-relaxed"
+                style={{ borderColor: C.border, backgroundColor: C.surfaceLow, color: C.muted }}
+              >
+                {submission.content || "Không có nội dung văn bản."}
               </div>
             </div>
-          )}
-        </div>
 
-        <div className="flex gap-3 px-6 py-4" style={{ borderTop: "1px solid #FFE7D6" }}>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"
-          >
-            Hủy
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={saving}
-            className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white transition disabled:opacity-50"
-            style={{ backgroundColor: "#16A34A" }}
-          >
-            {saving ? "Đang lưu..." : "Lưu điểm"}
-          </button>
+            {/* Attachment */}
+            {submission.fileUrl && (
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider" style={{ color: C.muted }}>Tệp đính kèm</p>
+                <a
+                  href={submission.fileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="group flex items-center gap-4 rounded-xl border p-3 transition-colors hover:bg-[#E8E8E8]"
+                  style={{ borderColor: C.border, backgroundColor: C.surfaceLow, textDecoration: "none" }}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg" style={{ backgroundColor: "rgba(255,218,214,0.4)", color: C.error }}>
+                    <Ms name="picture_as_pdf" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold" style={{ color: C.onSurface }}>Bài nộp của {submission.studentName}</p>
+                    <p className="text-xs" style={{ color: C.muted }}>Nhấn để mở tệp</p>
+                  </div>
+                  <Ms name="download" className="opacity-0 transition-opacity group-hover:opacity-100" style={{ color: C.muted }} />
+                </a>
+              </div>
+            )}
+
+            {/* Grade history */}
+            {!logLoading && log.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider" style={{ color: C.muted }}>Lịch sử chấm điểm</p>
+                <div className="space-y-2">
+                  {log.map((entry) => (
+                    <div key={entry.gradeLogId} className="flex items-center justify-between rounded-lg border border-transparent p-2 text-xs transition-all hover:border-[#DFC0B2]" style={{ backgroundColor: C.surfaceLow }}>
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.action === "REGRADE" ? C.tertiary ?? "#4A5F82" : C.primary }} />
+                        <span style={{ color: C.onSurface }}>
+                          {entry.action === "REGRADE" ? "Chấm lại" : "Chấm điểm"}
+                          {entry.oldScore !== null && <span className="text-slate-400"> {entry.oldScore} →</span>}
+                          <span className="font-bold" style={{ color: C.deepBlue }}> {entry.newScore}</span>
+                          <span className="text-slate-400"> · {entry.graderName}</span>
+                        </span>
+                      </div>
+                      <span className="text-slate-400">{entry.createdAt}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: grading panel (Stitch) */}
+          <div className="flex flex-col">
+            <div className="flex-1 space-y-5 p-6">
+              {/* Score input */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider" style={{ color: C.muted }}>
+                  Điểm (thang 0-{maxScore})
+                </label>
+                <div className="flex items-end gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max={maxScore}
+                    step="0.25"
+                    value={score}
+                    onChange={(e) => setScore(e.target.value)}
+                    className="w-full rounded-xl border-2 px-4 py-2 text-center text-5xl font-bold outline-none transition-all focus:border-[#9F4200]"
+                    style={{ borderColor: C.border, backgroundColor: C.surfaceLow, color: scoreColor(score, maxScore) }}
+                  />
+                  <span className="mb-2 shrink-0 text-3xl font-semibold" style={{ color: C.muted }}>/ {maxScore}</span>
+                </div>
+              </div>
+
+              {/* Feedback */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider" style={{ color: C.muted }}>
+                  Nhận xét của giáo viên
+                </label>
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  rows={7}
+                  placeholder="Viết phản hồi chi tiết cho học sinh tại đây..."
+                  className="w-full resize-none rounded-xl border p-4 text-sm outline-none transition-all focus:border-[#9F4200]"
+                  style={{ borderColor: C.border, backgroundColor: C.surfaceLow, color: C.onSurface }}
+                />
+              </div>
+
+              {/* Quick feedback tags */}
+              <div className="flex flex-wrap gap-2">
+                {QUICK_TAGS.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => addTag(tag)}
+                    className="rounded-full px-3 py-1 text-xs transition-colors hover:text-white"
+                    style={{ backgroundColor: C.surfaceHigh, color: C.muted }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = C.orange; e.currentTarget.style.color = "#fff"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = C.surfaceHigh; e.currentTarget.style.color = C.muted; }}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+
+              {errorMsg && (
+                <p className="rounded-xl px-3 py-2 text-xs font-medium" style={{ backgroundColor: "#FFDAD6", color: "#93000A" }}>{errorMsg}</p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="space-y-3 border-t p-6" style={{ borderColor: C.border, backgroundColor: C.surfaceLow }}>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                className="flex w-full items-center justify-center gap-2 rounded-full py-3.5 font-bold text-white shadow-lg transition-all hover:shadow-xl active:scale-95 disabled:opacity-50"
+                style={{ backgroundColor: C.orange }}
+              >
+                <Ms name={saving ? "sync" : "save"} className={saving ? "animate-spin" : ""} />
+                {saving ? "Đang lưu..." : "Lưu & công bố điểm"}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={saving}
+                className="w-full rounded-full border py-3 font-bold transition-all hover:bg-white disabled:opacity-50"
+                style={{ borderColor: C.border, color: C.muted, backgroundColor: "transparent" }}
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

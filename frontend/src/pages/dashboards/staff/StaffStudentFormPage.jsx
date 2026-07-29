@@ -2,8 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { staffApi } from "../../../api/client";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  cancelLinkClass,
+  inputClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const emptyForm = {
   studentCode: "",
@@ -92,11 +97,10 @@ function StaffStudentFormPage() {
     <>
       <StaffPageHeader
         title={isEdit ? "Chỉnh sửa học sinh" : "Thêm học sinh mới"}
-        description="Nhập thông tin hồ sơ học sinh và phân lớp"
         action={
           <Link
             to={isEdit ? `/staff/students/${id}` : "/staff/students"}
-            className="rounded-xl border border-[#08509F] px-4 py-2 text-sm font-semibold text-[#08509F] no-underline"
+            className={cancelLinkClass}
           >
             Hủy
           </Link>
@@ -113,6 +117,7 @@ function StaffStudentFormPage() {
         title="Thông tin học sinh"
         onSubmit={handleSubmit}
         loading={saving}
+        footer={isEdit ? "Cập nhật hồ sơ học sinh." : "Sau khi tạo, hệ thống sẽ mở trang chi tiết học sinh."}
       >
         <StaffField label="Mã học sinh">
           <input
@@ -155,7 +160,7 @@ function StaffStudentFormPage() {
           />
         </StaffField>
         <StaffField label="Giới tính">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.gender}
             onChange={handleChange("gender")}
@@ -163,10 +168,10 @@ function StaffStudentFormPage() {
             <option value="MALE">Nam</option>
             <option value="FEMALE">Nữ</option>
             <option value="OTHER">Khác</option>
-          </select>
+          </PrettySelect>
         </StaffField>
         <StaffField label="Lớp" className="md:col-span-2">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.classId}
             onChange={handleChange("classId")}
@@ -177,7 +182,7 @@ function StaffStudentFormPage() {
                 {item.className} · {item.gradeName} · {item.schoolYearName}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
         <StaffField label="Địa chỉ" className="md:col-span-2">
           <input
@@ -188,14 +193,14 @@ function StaffStudentFormPage() {
         </StaffField>
         {isEdit && (
           <StaffField label="Trạng thái">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.status}
               onChange={handleChange("status")}
             >
               <option value="ACTIVE">Đang học</option>
               <option value="INACTIVE">Ngưng học</option>
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
       </StaffFormCard>

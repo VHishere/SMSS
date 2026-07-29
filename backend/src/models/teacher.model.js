@@ -28,8 +28,9 @@ async function findProfileByUserId(userId) {
        g.grade_name         AS gradeName,
        sy.school_year_id    AS schoolYearId,
        sy.year_name         AS schoolYearName,
-       tc.role_in_class     AS roleInClass,
-       COUNT(ce.student_id) AS studentCount
+       CASE WHEN MAX(tc.role_in_class = 'HOMEROOM_TEACHER') = 1
+            THEN 'HOMEROOM_TEACHER' ELSE 'SUBJECT_TEACHER' END AS roleInClass,
+       COUNT(DISTINCT ce.student_id) AS studentCount
      FROM teacher_class tc
      INNER JOIN school_class sc
        ON sc.class_id = tc.class_id
@@ -45,10 +46,9 @@ async function findProfileByUserId(userId) {
      WHERE tc.teacher_id = ?
      GROUP BY
        sc.class_id, sc.class_name, sc.room_name,
-       g.grade_name, sy.school_year_id, sy.year_name,
-       tc.role_in_class
+       g.grade_name, sy.school_year_id, sy.year_name
      ORDER BY
-       CASE tc.role_in_class WHEN 'HOMEROOM_TEACHER' THEN 0 ELSE 1 END ASC,
+       MAX(tc.role_in_class = 'HOMEROOM_TEACHER') DESC,
        sc.class_name ASC`,
     [teacher.teacherId],
   );
@@ -241,6 +241,73 @@ async function findParentEngagementRate(classId) {
   };
 }
 
+// Feed "Cảnh báo học sinh" cho Trung tâm thông báo của GVCN — gộp 3 loại cảnh báo
+// (học lực / hạnh kiểm / chuyên cần) của học sinh thuộc lớp chủ nhiệm.
+async function findStudentAlertFeed(teacherId) {
+  const homeroomJoin = `
+    INNER JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+    INNER JOIN teacher_class tc ON tc.class_id = ce.class_id AND tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
+    INNER JOIN school_class sc ON sc.class_id = ce.class_id`;
+
+  const [academic] = await pool.query(
+    `SELECT aw.warning_id AS warningId, 'ACADEMIC' AS source, aw.warning_type AS warningType,
+            aw.note, aw.status, aw.created_at AS ts, s.student_id AS studentId,
+            s.student_code AS studentCode, ua.full_name AS studentName, sc.class_name AS className
+     FROM academic_warning aw
+     INNER JOIN student s ON s.student_id = aw.student_id
+     INNER JOIN user_account ua ON ua.user_id = s.user_id
+     ${homeroomJoin}
+     ORDER BY aw.created_at DESC LIMIT 30`,
+    [teacherId],
+  );
+  const [behaviour] = await pool.query(
+    `SELECT bw.warning_id AS warningId, 'BEHAVIOUR' AS source, bw.warning_type AS warningType,
+            bw.note, bw.status, bw.created_at AS ts, s.student_id AS studentId,
+            s.student_code AS studentCode, ua.full_name AS studentName, sc.class_name AS className
+     FROM behavior_warning bw
+     INNER JOIN student s ON s.student_id = bw.student_id
+     INNER JOIN user_account ua ON ua.user_id = s.user_id
+     ${homeroomJoin}
+     ORDER BY bw.created_at DESC LIMIT 30`,
+    [teacherId],
+  );
+  const [attendance] = await pool.query(
+    `SELECT aw.warning_id AS warningId, 'ATTENDANCE' AS source, 'ABSENCE_RISK' AS warningType,
+            aw.note, aw.status, aw.created_at AS ts, s.student_id AS studentId,
+            s.student_code AS studentCode, ua.full_name AS studentName, sc.class_name AS className
+     FROM attendance_warning aw
+     INNER JOIN student s ON s.student_id = aw.student_id
+     INNER JOIN user_account ua ON ua.user_id = s.user_id
+     ${homeroomJoin}
+     ORDER BY aw.created_at DESC LIMIT 30`,
+    [teacherId],
+  );
+
+  return [...academic, ...behaviour, ...attendance]
+    .map((r) => ({ ...r, createdAt: r.ts }))
+    .sort((a, b) => new Date(b.ts) - new Date(a.ts));
+}
+
+// Feed "Thông báo nhà trường" — bảng tin của (các) lớp chủ nhiệm: mọi thông báo
+// đã phát hành gửi tới lớp GV chủ nhiệm (kể cả thông báo do nhân sự/BGH đăng).
+async function findHomeroomAnnouncements(teacherId) {
+  const [rows] = await pool.query(
+    `SELECT a.announcement_id AS announcementId, a.title, a.content, a.audience,
+            a.is_pinned AS isPinned, a.published_at AS ts, sc.class_name AS className,
+            ua.full_name AS createdByName
+     FROM announcement a
+     INNER JOIN teacher_class tc ON tc.class_id = a.class_id
+       AND tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
+     INNER JOIN school_class sc ON sc.class_id = a.class_id
+     INNER JOIN user_account ua ON ua.user_id = a.created_by
+     WHERE a.status = 'PUBLISHED'
+     ORDER BY a.is_pinned DESC, a.published_at DESC
+     LIMIT 30`,
+    [teacherId],
+  );
+  return rows.map((r) => ({ ...r, createdAt: r.ts }));
+}
+
 module.exports = {
   findProfileByUserId,
   findTodayAttendanceSummary,
@@ -248,4 +315,6 @@ module.exports = {
   findPendingLeaveRequestCount,
   findAtRiskStudents,
   findParentEngagementRate,
+  findStudentAlertFeed,
+  findHomeroomAnnouncements,
 };

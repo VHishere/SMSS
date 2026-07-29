@@ -1,29 +1,38 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FiBookOpen,
   FiCalendar,
+  FiCheckCircle,
+  FiEdit3,
   FiHome,
   FiMail,
+  FiMapPin,
   FiPhone,
+  FiSave,
   FiShield,
   FiUser,
   FiUsers,
+  FiX,
 } from "react-icons/fi";
 
-import DashboardShell from "../../components/templates/DashboardShell";
-import UserAvatar from "../../components/atoms/UserAvatar";
-import { dashboardNavigation } from "../../config/dashboardNavigation";
-import { useAuth } from "../../context/useAuth";
-import { useStudentProfile } from "../../hooks/useStudentProfile";
+import { studentApi } from "../../api/client";
+import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 function formatDate(value) {
-  if (!value) {
+  if (!value) return "Chưa cập nhật";
+
+  const date = new Date(String(value).replace(" ", "T"));
+
+  if (Number.isNaN(date.getTime())) {
     return "Chưa cập nhật";
   }
 
-  return new Intl.DateTimeFormat("vi-VN").format(
-    new Date(value),
-  );
+  return new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
 }
 
 function genderLabel(value) {
@@ -36,234 +45,771 @@ function genderLabel(value) {
   return labels[value] || "Chưa cập nhật";
 }
 
-function InfoCard({ icon: Icon, label, value }) {
-  return (
-    <div className="rounded-2xl border border-orange-100 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-[#FFF7F2] text-[#F27123]">
-        <Icon size={20} />
-      </div>
+function relationshipLabel(value) {
+  const labels = {
+    FATHER: "Bố",
+    MOTHER: "Mẹ",
+    GUARDIAN: "Người giám hộ",
+    OTHER: "Khác",
+  };
 
-      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+  return labels[String(value || "").toUpperCase()] || value || "Chưa cập nhật";
+}
+
+function studentStatusMeta(status) {
+  const normalized = String(status || "").toUpperCase();
+
+  if (normalized === "ACTIVE") {
+    return {
+      label: "Đang học",
+      className: "bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  if (normalized === "GRADUATED") {
+    return {
+      label: "Đã tốt nghiệp",
+      className: "bg-blue-50 text-blue-700",
+    };
+  }
+
+  if (normalized === "SUSPENDED") {
+    return {
+      label: "Tạm dừng",
+      className: "bg-amber-50 text-amber-700",
+    };
+  }
+
+  return {
+    label: "Chưa cập nhật",
+    className: "bg-slate-100 text-slate-600",
+  };
+}
+
+function initials(value) {
+  return String(value || "HS")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(-2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+}
+
+function InfoField({
+  label,
+  value,
+  fullWidth = false,
+}) {
+  return (
+    <div className={fullWidth ? "sm:col-span-2" : ""}>
+      <p className="mb-1 text-[10px] font-extrabold uppercase tracking-wide text-slate-400">
         {label}
       </p>
 
-      <p className="mb-0 text-base font-bold text-[#0F2747]">
+      <p className="mb-0 text-sm font-bold leading-6 text-[#0F2747]">
         {value || "Chưa cập nhật"}
       </p>
     </div>
   );
 }
 
-function DetailRow({ label, value }) {
+function SectionCard({
+  icon: Icon,
+  title,
+  action,
+  children,
+  className = "",
+}) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 py-3 last:border-b-0">
-      <span className="text-sm font-medium text-slate-500">
-        {label}
+    <section
+      className={`
+        rounded-3xl border card-border bg-white
+        p-5 shadow-sm
+        ${className}
+      `}
+    >
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h3 className="mb-0 flex items-center gap-2 text-base font-extrabold text-[#0F2747]">
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[#0F4C8A]">
+            <Icon size={15} />
+          </span>
+          {title}
+        </h3>
+
+        {action}
+      </div>
+
+      {children}
+    </section>
+  );
+}
+
+function ContactRow({
+  icon: Icon,
+  label,
+  value,
+  href,
+}) {
+  const content = (
+    <>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-50 text-[#0F4C8A]">
+        <Icon size={15} />
       </span>
 
-      <span className="text-right text-sm font-bold text-[#0F2747]">
-        {value || "Chưa cập nhật"}
+      <span className="min-w-0">
+        <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+          {label}
+        </span>
+
+        <span className="block truncate text-xs font-extrabold text-[#0F2747]">
+          {value || "Chưa cập nhật"}
+        </span>
       </span>
+    </>
+  );
+
+  if (href && value) {
+    return (
+      <a
+        href={href}
+        className="flex items-center gap-3 rounded-xl px-2 py-2.5 no-underline transition hover:bg-slate-50"
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-xl px-2 py-2.5">
+      {content}
+    </div>
+  );
+}
+
+function ParentCard({
+  parent,
+}) {
+  return (
+    <article className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="mb-1 truncate text-sm font-extrabold text-[#0F2747]">
+            {parent.fullName || "Chưa cập nhật"}
+          </p>
+
+          <p className="mb-0 text-[10px] font-bold uppercase tracking-wide text-[#F27123]">
+            {relationshipLabel(parent.relationship)}
+          </p>
+        </div>
+
+        {parent.isPrimary ? (
+          <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-extrabold text-emerald-700">
+            Liên hệ chính
+          </span>
+        ) : null}
+      </div>
+
+      <div className="space-y-2">
+        <p className="mb-0 flex items-center gap-2 text-xs text-slate-600">
+          <FiPhone className="shrink-0 text-[#0F4C8A]" />
+          <span className="truncate">{parent.phone || "Chưa cập nhật"}</span>
+        </p>
+
+        <p className="mb-0 flex items-center gap-2 text-xs text-slate-600">
+          <FiMail className="shrink-0 text-[#0F4C8A]" />
+          <span className="truncate">{parent.email || "Chưa cập nhật"}</span>
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function EditProfileModal({
+  profile,
+  saving,
+  error,
+  onClose,
+  onSubmit,
+}) {
+  const [form, setForm] = useState({
+    fullName: profile?.fullName || "",
+    phone: profile?.phone || "",
+    dateOfBirth: profile?.dateOfBirth || "",
+    gender: profile?.gender || "OTHER",
+    address: profile?.address || "",
+  });
+
+  function updateField(name, value) {
+    setForm((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  }
+
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    onSubmit(form);
+  }
+
+  const inputClass =
+    "h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 hover:border-slate-300 hover:bg-white focus:border-orange-300 focus:bg-white focus:ring-2 focus:ring-orange-100";
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+      <button
+        type="button"
+        aria-label="Đóng hộp thoại"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+      />
+
+      <form
+        onSubmit={handleSubmit}
+        className="relative z-10 max-h-[calc(100vh-48px)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-3">
+          <div>
+            <h3 className="mb-1 text-lg font-black text-[#0F2747]">
+              Chỉnh sửa hồ sơ cá nhân
+            </h3>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-slate-50 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+          >
+            <FiX size={18} />
+          </button>
+        </div>
+
+        <div className="px-6 py-6">
+          {error ? (
+            <p className="mb-5 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-extrabold text-[#0F2747]">
+                Họ và tên
+              </span>
+
+              <input
+                value={form.fullName}
+                disabled
+                title="Học sinh tạm thời không được phép thay đổi họ và tên."
+                className={`${inputClass} cursor-not-allowed bg-slate-100 text-slate-500 opacity-80`}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-extrabold text-[#0F2747]">
+                Số điện thoại
+              </span>
+
+              <input
+                value={form.phone}
+                onChange={(event) =>
+                  updateField("phone", event.target.value)
+                }
+                placeholder="Nhập số điện thoại"
+                className={inputClass}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-extrabold text-[#0F2747]">
+                Ngày sinh
+              </span>
+
+              <input
+                type="date"
+                value={form.dateOfBirth}
+                onChange={(event) =>
+                  updateField("dateOfBirth", event.target.value)
+                }
+                className={inputClass}
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-sm font-extrabold text-[#0F2747]">
+                Giới tính
+              </span>
+
+              <PrettySelect
+                value={form.gender}
+                onChange={(event) =>
+                  updateField("gender", event.target.value)
+                }
+                className={inputClass}
+              >
+                <option value="MALE">Nam</option>
+                <option value="FEMALE">Nữ</option>
+                <option value="OTHER">Khác</option>
+              </PrettySelect>
+            </label>
+
+            <label className="block sm:col-span-2">
+              <span className="mb-2 block text-sm font-extrabold text-[#0F2747]">
+                Địa chỉ
+              </span>
+
+              <textarea
+                rows={3}
+                value={form.address}
+                onChange={(event) =>
+                  updateField("address", event.target.value)
+                }
+                placeholder="Nhập địa chỉ hiện tại"
+                className={`${inputClass} h-auto min-h-[100px] resize-y py-3`}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="h-11 rounded-xl border border-slate-200 bg-white px-6 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
+          >
+            Hủy
+          </button>
+
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#F27123] px-7 text-sm font-extrabold text-white transition hover:bg-[#d95f17] disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            <FiSave />
+            {saving ? "Đang lưu..." : "Lưu thay đổi"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
 
 function StudentProfile() {
-  const { user } = useAuth();
-  const {
-    data: profile,
-    loading,
-    error,
-  } = useStudentProfile();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  const headerUser = useMemo(() => {
-    const studentRole = user?.roles?.find(
-      (role) => role.roleName === "STUDENT",
-    );
+  async function loadProfile() {
+    setLoading(true);
+    setError("");
 
-    return {
-      name:
-        profile?.fullName ||
-        user?.fullName ||
-        user?.username ||
-        "Học sinh",
-      role: studentRole?.description || "Học sinh",
-      avatar: profile?.avatar || user?.avatar || "",
-    };
-  }, [profile, user]);
+    try {
+      const response = await studentApi.getMyProfile();
+      setProfile(response.data);
+    } catch (requestError) {
+      setError(requestError.message || "Không thể tải hồ sơ học sinh.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  async function handleUpdateProfile(form) {
+    setSaving(true);
+    setError("");
+    setSuccessMessage("");
+
+    try {
+      const response = await studentApi.updateMyProfile({
+        ...form,
+        fullName: profile.fullName,
+      });
+
+      setProfile(response.data);
+      setShowEditModal(false);
+      setSuccessMessage(
+        response.message || "Đã cập nhật thông tin cá nhân.",
+      );
+    } catch (requestError) {
+      setError(requestError.message || "Không thể cập nhật hồ sơ.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const status = studentStatusMeta(profile?.studentStatus);
+
+  const primaryParent = useMemo(
+    () =>
+      profile?.parents?.find((parent) => parent.isPrimary) ||
+      profile?.parents?.[0] ||
+      null,
+    [profile],
+  );
 
   return (
-    <DashboardShell
-      user={headerUser}
-      menuItems={dashboardNavigation.STUDENT}
-      sidebarFooterLabel="Năm học hiện tại"
-      sidebarFooterValue={
-        profile?.schoolYearName || "Chưa cập nhật"
-      }
-    >
-      <section className="mb-6 overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-6 lg:px-8">
-          <div className="flex items-center gap-5">
-            <UserAvatar
-              name={profile?.fullName || user?.fullName || "Học sinh"}
-              src={profile?.avatar || user?.avatar}
-              size="lg"
-            />
+    <StudentDashboardShell context={profile}>
+      <div className="mb-4 flex items-center gap-2 text-xs text-slate-500">
+        <span>Trang chủ</span>
+        <span>/</span>
+        <span className="font-bold text-[#0F2747]">Hồ sơ cá nhân</span>
+      </div>
 
-            <div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#F27123]">
-                Hồ sơ học sinh
-              </p>
-
-              <h1 className="mb-2 text-3xl font-bold text-[#0F2747]">
-                {profile?.fullName || user?.fullName || "Học sinh"}
-              </h1>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {loading && (
-        <div className="rounded-2xl border border-orange-100 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+      {loading ? (
+        <div className="rounded-3xl border card-border bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
           Đang tải hồ sơ học sinh...
         </div>
-      )}
+      ) : null}
 
-      {error && (
+      {!loading && error && !profile ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">
-          Không tải được hồ sơ học sinh: {error}
+          {error}
         </div>
-      )}
+      ) : null}
 
-      {!loading && !error && profile && (
+      {!loading && profile ? (
         <>
-
-          <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <div className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm xl:col-span-2">
-              <h3 className="mb-4 text-base font-bold text-[#0F2747]">
-                Thông tin cá nhân
-              </h3>
-
-              <DetailRow
-                label="Họ và tên"
-                value={profile.fullName}
-              />
-
-              <DetailRow
-                label="Mã Học Sinh"
-                value={profile.studentCode}
-              />
-
-              <DetailRow
-                label="Lớp"
-                value={profile.className}
-              />
-
-              <DetailRow
-                label="Email"
-                value={profile.email}
-              />
-
-              <DetailRow
-                label="Số điện thoại"
-                value={profile.phone}
-              />
-
-              <DetailRow
-                label="Ngày sinh"
-                value={formatDate(profile.dateOfBirth)}
-              />
-
-              <DetailRow
-                label="Giới tính"
-                value={genderLabel(profile.gender)}
-              />
-
-              <DetailRow
-                label="Địa chỉ"
-                value={profile.address}
-              />
-
+          {successMessage ? (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+              <FiCheckCircle />
+              {successMessage}
             </div>
+          ) : null}
 
-            <div className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
-              <h3 className="mb-4 text-base font-bold text-[#0F2747]">
-                Giáo viên chủ nhiệm
-              </h3>
+          <section className="relative mb-4 overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
+            <div className="absolute right-0 top-0 h-32 w-44 rounded-bl-[100px] bg-slate-50" />
 
-              <div className="rounded-2xl bg-[#FFF7F2] p-4">
-                <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#F27123]">
-                  <FiUser size={20} />
+            <div className="relative flex flex-col gap-5 p-5 sm:flex-row sm:items-center">
+              <div className="relative shrink-0">
+                <div className="grid h-28 w-28 place-items-center overflow-hidden rounded-2xl border-4 border-white bg-blue-50 text-2xl font-black text-[#0F4C8A] shadow-md">
+                  {profile.avatar ? (
+                    <img
+                      src={profile.avatar}
+                      alt={profile.fullName || "Ảnh học sinh"}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    initials(profile.fullName)
+                  )}
                 </div>
 
-                <p className="mb-1 text-base font-bold text-[#0F2747]">
-                  {profile.homeroomTeacherName || "Chưa cập nhật"}
-                </p>
 
-                <p className="mb-1 flex items-center gap-2 text-sm text-slate-600">
-                  <FiMail size={15} />
-                  {profile.homeroomTeacherEmail || "Chưa cập nhật"}
-                </p>
-
-                {/* <p className="mb-0 flex items-center gap-2 text-sm text-slate-600">
-                  <FiPhone size={15} />
-                  {profile.homeroomTeacherPhone || "Chưa cập nhật"}
-                </p> */}
               </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <h1 className="mb-0 text-2xl font-black text-[#0F2747]">
+                    {profile.fullName}
+                  </h1>
+
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold ${status.className}`}>
+                    {status.label}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
+                  <p className="mb-0 inline-flex items-center gap-2 text-sm text-slate-500">
+                    <FiUser
+                      className="shrink-0 text-[#F27123]"
+                      size={16}
+                    />
+
+                    <span className="font-semibold">
+                      Mã học sinh:
+                    </span>
+
+                    <strong className="font-extrabold text-[#0F2747]">
+                      {profile.studentCode || "Chưa cập nhật"}
+                    </strong>
+                  </p>
+
+                  <p className="mb-0 inline-flex items-center gap-2 text-sm text-slate-500">
+                    <FiBookOpen
+                      className="shrink-0 text-[#F27123]"
+                      size={16}
+                    />
+
+                    <span className="font-semibold">
+                      Lớp:
+                    </span>
+
+                    <strong className="font-extrabold text-[#0F2747]">
+                      {profile.className || "Chưa cập nhật"}
+                    </strong>
+                  </p>
+
+                  <p className="mb-0 inline-flex items-center gap-2 text-sm text-slate-500">
+                    <FiMapPin
+                      className="shrink-0 text-[#F27123]"
+                      size={16}
+                    />
+
+                    <span className="font-semibold">
+                      Khối:
+                    </span>
+
+                    <strong className="font-extrabold text-[#0F2747]">
+                      {profile.gradeName || "Chưa cập nhật"}
+                    </strong>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowEditModal(true)}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 self-start rounded-full bg-[#F27123] px-5 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#d95f17] sm:self-auto"
+              >
+                <FiEdit3 />
+                Chỉnh sửa
+              </button>
             </div>
           </section>
 
-          <section className="mt-6 rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
-            <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-[#08509F]">
-                <FiUsers size={19} />
-              </div>
-
-              <div>
-                <h3 className="mb-1 text-base font-bold text-[#0F2747]">
-                  Phụ huynh liên hệ
-                </h3>
-
-                <p className="mb-0 text-sm text-slate-500">
-                  Danh sách phụ huynh được liên kết với học sinh.
-                </p>
-              </div>
-            </div>
-
-            {profile.parents?.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                {profile.parents.map((parent) => (
-                  <div
-                    key={parent.parentId}
-                    className="rounded-2xl border border-slate-100 bg-slate-50 p-4"
+          <div className="space-y-4">
+            <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+              <div className="min-w-0">
+              <SectionCard
+                icon={FiUser}
+                title="Thông tin cá nhân"
+                action={
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(true)}
+                    className="text-xs font-bold text-[#0F4C8A] transition hover:text-[#F27123]"
                   >
-                    <p className="mb-1 text-base font-bold text-[#0F2747]">
-                      {parent.fullName}
-                    </p>
+                    Chỉnh sửa
+                  </button>
+                }
+              >
+                <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+                  <InfoField label="Họ và tên" value={profile.fullName} />
+                  <InfoField
+                    label="Ngày sinh"
+                    value={formatDate(profile.dateOfBirth)}
+                  />
+                  <InfoField
+                    label="Giới tính"
+                    value={genderLabel(profile.gender)}
+                  />
+                  <InfoField
+                    label="Tình trạng"
+                    value={status.label}
+                  />
+                  <InfoField
+                    label="Địa chỉ"
+                    value={profile.address}
+                    fullWidth
+                  />
+                </div>
+              </SectionCard>
+              </div>
 
-                    <p className="mb-1 text-sm text-slate-600">
-                      Quan hệ: {parent.relationship || "Chưa cập nhật"}
-                    </p>
+              <aside className="min-w-0">
+              <SectionCard
+                icon={FiPhone}
+                title="Liên hệ"
+              >
+                <div className="space-y-1">
+                  <ContactRow
+                    icon={FiPhone}
+                    label="Số điện thoại"
+                    value={profile.phone}
+                    href={
+                      profile.phone
+                        ? `tel:${profile.phone}`
+                        : undefined
+                    }
+                  />
 
-                    <p className="mb-1 text-sm text-slate-600">
-                      Email: {parent.email || "Chưa cập nhật"}
-                    </p>
+                  <ContactRow
+                    icon={FiMail}
+                    label="Email"
+                    value={profile.email}
+                    href={
+                      profile.email
+                        ? `mailto:${profile.email}`
+                        : undefined
+                    }
+                  />
 
-                    <p className="mb-0 text-sm text-slate-600">
-                      SĐT: {parent.phone || "Chưa cập nhật"}
-                    </p>
+                  <ContactRow
+                    icon={FiMapPin}
+                    label="Địa chỉ"
+                    value={profile.address}
+                  />
+                </div>
+              </SectionCard>
+              </aside>
+            </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <SectionCard
+                  icon={FiBookOpen}
+                  title="Thông tin học tập"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
+                      <span className="text-sm font-medium text-slate-500">
+                        Lớp học
+                      </span>
+
+                      <strong className="text-right text-sm text-[#0F2747]">
+                        {profile.className || "Chưa cập nhật"}
+                      </strong>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
+                      <span className="text-sm font-medium text-slate-500">
+                        Khối
+                      </span>
+
+                      <strong className="text-right text-sm text-[#0F2747]">
+                        {profile.gradeName || "Chưa cập nhật"}
+                      </strong>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
+                      <span className="text-sm font-medium text-slate-500">
+                        Phòng học
+                      </span>
+
+                      <strong className="text-right text-sm text-[#0F2747]">
+                        {profile.roomName || "Chưa cập nhật"}
+                      </strong>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-3">
+                      <span className="text-sm font-medium text-slate-500">
+                        Năm học
+                      </span>
+
+                      <strong className="text-right text-sm text-[#0F2747]">
+                        {profile.schoolYearName || "Chưa cập nhật"}
+                      </strong>
+                    </div>
                   </div>
-                ))}
+
+                  <div className="mt-4 border-slate-100 pt-3">
+                    <h4 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#0F2747]">
+                      <FiShield className="text-[#F27123]" />
+                      Giáo viên chủ nhiệm
+                    </h4>
+
+                    <div className="rounded-xl bg-blue-50 p-4">
+                      <div className="mb-3 flex items-center gap-3">
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0F4C8A] text-sm font-black text-white">
+                          {initials(profile.homeroomTeacherName || "GV")}
+                        </span>
+
+                        <div className="min-w-0">
+                          <p className="mb-0 truncate text-sm font-extrabold text-[#0F2747]">
+                            {profile.homeroomTeacherName || "Chưa cập nhật"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 border-t border-blue-100 pt-3">
+                        <p className="mb-0 flex items-center gap-2 text-xs text-blue-800">
+                          <FiPhone className="shrink-0" />
+                          <span className="truncate">
+                            {profile.homeroomTeacherPhone || "Chưa cập nhật"}
+                          </span>
+                        </p>
+
+                        <p className="mb-0 flex items-center gap-2 text-xs text-blue-800">
+                          <FiMail className="shrink-0" />
+                          <span className="truncate">
+                            {profile.homeroomTeacherEmail || "Chưa cập nhật"}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </SectionCard>
+
+                <SectionCard
+                  icon={FiUsers}
+                  title="Thông tin gia đình"
+                >
+                  {profile.parents?.length > 0 ? (
+                    <div className="space-y-3">
+                      {profile.parents.map((parent) => (
+                        <ParentCard
+                          key={parent.parentId}
+                          parent={parent}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                      <FiUsers
+                        className="mx-auto mb-2 text-slate-300"
+                        size={22}
+                      />
+
+                      <p className="mb-0 text-xs text-slate-500">
+                        Chưa có thông tin phụ huynh.
+                      </p>
+                    </div>
+                  )}
+
+                  {primaryParent ? (
+                    <div className="mt-4 pt-3">
+                      <h4 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#0F2747]">
+                        <FiHome className="text-[#F27123]" />
+                        Liên hệ khẩn cấp
+                      </h4>
+
+                      <div className="rounded-xl border border-red-100 bg-red-50 p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="mb-1 truncate text-sm font-extrabold text-red-800">
+                              {primaryParent.fullName || "Chưa cập nhật"}
+                            </p>
+
+                            <p className="mb-0 text-[10px] font-bold uppercase tracking-wide text-red-500">
+                              {relationshipLabel(primaryParent.relationship)}
+                            </p>
+                          </div>
+
+                          <p className="mb-0 flex shrink-0 items-center gap-2 text-sm font-semibold text-red-700">
+                            <FiPhone />
+                            {primaryParent.phone || "Chưa cập nhật"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </SectionCard>
               </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                Chưa có thông tin phụ huynh.
-              </div>
-            )}
-          </section>
+          </div>
+
+          {showEditModal ? (
+            <EditProfileModal
+              profile={profile}
+              saving={saving}
+              error={error}
+              onClose={() => {
+                if (!saving) {
+                  setShowEditModal(false);
+                  setError("");
+                }
+              }}
+              onSubmit={handleUpdateProfile}
+            />
+          ) : null}
         </>
-      )}
-    </DashboardShell>
+      ) : null}
+    </StudentDashboardShell>
   );
 }
 

@@ -23,27 +23,61 @@ async function notify(receivers, title, content, eventId) {
   );
 }
 
+// actor.isAdmin bypasses ownership entirely — admin manages every event
+// school-wide, not just ones it personally created.
 async function ensureOwner(eventId, actor) {
   const event = await eventModel.findById(eventId);
   if (!event) throw httpError("Không tìm thấy sự kiện", 404);
-  if (event.createdBy !== actor.userId) throw httpError("Bạn không có quyền với sự kiện này", 403);
+  if (!actor.isAdmin && event.createdBy !== actor.userId) throw httpError("Bạn không có quyền với sự kiện này", 403);
   return event;
 }
 
+// Read-only visibility: same rule findEvents() uses (created by me OR my
+// class OR school-wide), broader than ensureOwner's "created by me" check —
+// a teacher can legitimately see (but not necessarily edit) events they
+// didn't create. Admin always has full visibility.
+async function ensureVisible(eventId, actor) {
+  const event = await eventModel.findById(eventId);
+  if (!event) throw httpError("Không tìm thấy sự kiện", 404);
+  if (actor.isAdmin || event.createdBy === actor.userId || event.classId == null) return event;
+  const classes = await eventModel.findTeacherClasses(actor.teacherId);
+  if (classes.some((c) => c.classId === event.classId)) return event;
+  throw httpError("Bạn không có quyền xem sự kiện này", 403);
+}
+
 async function validateClassScope(actor, classId) {
-  if (!classId) return; // school-wide allowed
+  if (!classId || actor.isAdmin) return; // school-wide allowed; admin may assign any class
   const ok = await eventModel.isTeacherForClass(actor.teacherId, classId);
   if (!ok) throw httpError("Bạn không phụ trách lớp này", 403);
+}
+
+const EVENT_TYPES = ["WORKSHOP", "CLUB", "COMPETITION", "FIELD_TRIP", "SPORT", "CULTURE", "SEMINAR", "MUSIC", "SUPPORT_CLASS", "OTHER"];
+const EVENT_CATEGORIES = ["ACADEMIC", "PARENT", "SCHOOL", "CLASS", "SPORTS", "FIELD_TRIP", "COMPETITION", "COMMUNITY"];
+
+function validateEventPayload(payload) {
+  if (!payload.title || !payload.title.trim()) throw httpError("Tiêu đề sự kiện là bắt buộc", 400);
+  if (!payload.eventType || !EVENT_TYPES.includes(payload.eventType)) throw httpError("Vui lòng chọn loại sự kiện hợp lệ", 400);
+  if (!payload.category || !EVENT_CATEGORIES.includes(payload.category)) throw httpError("Vui lòng chọn danh mục hợp lệ", 400);
+  if (!payload.startDate) throw httpError("Thời gian bắt đầu là bắt buộc", 400);
+  if (!payload.organizer || !payload.organizer.trim()) throw httpError("Đơn vị/người tổ chức là bắt buộc", 400);
+  if (payload.endDate && new Date(payload.endDate).getTime() <= new Date(payload.startDate).getTime()) {
+    throw httpError("Thời gian kết thúc phải sau thời gian bắt đầu", 400);
+  }
+  if (payload.capacity != null && payload.capacity !== "" && Number(payload.capacity) <= 0) {
+    throw httpError("Sức chứa phải lớn hơn 0", 400);
+  }
 }
 
 // ── Event lifecycle ───────────────────────────────────────────────────────────
 
 async function createEvent({ actor, payload }) {
-  if (!payload.title || !payload.title.trim()) throw httpError("Tiêu đề sự kiện là bắt buộc", 400);
-  if (!payload.startDate) throw httpError("Thời gian sự kiện là bắt buộc", 400);
-  if (!payload.organizer || !payload.organizer.trim()) throw httpError("Đơn vị/người tổ chức là bắt buộc", 400);
+  validateEventPayload(payload);
 
   await validateClassScope(actor, payload.classId ?? null);
+
+  if (payload.capacity && Array.isArray(payload.participants) && payload.participants.length > Number(payload.capacity)) {
+    throw httpError(`Số người tham dự ban đầu vượt sức chứa (${payload.capacity})`, 400);
+  }
 
   const eventId = await eventModel.createEvent({
     title: payload.title.trim(),
@@ -75,9 +109,7 @@ async function createEvent({ actor, payload }) {
 async function updateEvent({ actor, eventId, payload }) {
   const event = await ensureOwner(eventId, actor);
   if (["CANCELLED", "ARCHIVED"].includes(event.status)) throw httpError("Sự kiện đã đóng, không thể sửa", 409);
-  if (!payload.title || !payload.title.trim()) throw httpError("Tiêu đề là bắt buộc", 400);
-  if (!payload.startDate) throw httpError("Thời gian là bắt buộc", 400);
-  if (!payload.organizer || !payload.organizer.trim()) throw httpError("Người tổ chức là bắt buộc", 400);
+  validateEventPayload(payload);
 
   await validateClassScope(actor, payload.classId ?? null);
 
@@ -142,8 +174,15 @@ async function sendReminder({ actor, eventId }) {
 // ── Participants & attendance ─────────────────────────────────────────────────
 
 async function addParticipants({ actor, eventId, participants }) {
-  await ensureOwner(eventId, actor);
+  const event = await ensureOwner(eventId, actor);
   if (!Array.isArray(participants) || participants.length === 0) throw httpError("Không có người để thêm", 400);
+
+  if (event.capacity) {
+    const current = await eventModel.findParticipants(eventId);
+    if (current.length + participants.length > event.capacity) {
+      throw httpError(`Vượt sức chứa sự kiện (${event.capacity}). Hiện đã có ${current.length} người.`, 400);
+    }
+  }
 
   await eventModel.addParticipants(eventId, participants, actor.userId);
   await eventModel.log(eventId, "ADD_PARTICIPANT", `Thêm ${participants.length} người tham dự`, actor.userId);
@@ -185,7 +224,7 @@ async function saveOutcome({ actor, eventId, payload }) {
 // ── Detail aggregate ──────────────────────────────────────────────────────────
 
 async function getDetail({ actor, eventId }) {
-  const event = await ensureOwner(eventId, actor);
+  const event = await ensureVisible(eventId, actor);
   const [participants, documents, logs] = await Promise.all([
     eventModel.findParticipants(eventId),
     eventModel.findDocuments(eventId),

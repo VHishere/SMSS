@@ -7,7 +7,7 @@ function StudentSectionCard({
   return (
     <section
       className="
-        rounded-2xl border border-orange-100
+        rounded-3xl border card-border
         bg-white p-6 shadow-sm
       "
     >

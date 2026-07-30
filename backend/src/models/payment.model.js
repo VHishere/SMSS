@@ -111,7 +111,7 @@ async function listFeeAssignmentsForParent(userId, filters = {}) {
         AND ce.status = 'ACTIVE'
       LEFT JOIN school_class sc ON sc.class_id = ce.class_id
       WHERE ${conditions.join(" AND ")}
-      ORDER BY fp.due_date DESC, fa.fee_assignment_id DESC
+      ORDER BY dueDate DESC, feeAssignmentId DESC
     `,
     params,
   );

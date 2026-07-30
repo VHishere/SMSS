@@ -58,6 +58,7 @@ router.get(
   "/me/students/:studentId/feedback",
   authenticate,
   authorize("PARENT"),
+  ensureParentOwnsStudent,
   parentController.getStudentLessonFeedback,
 );
 

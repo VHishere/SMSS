@@ -27,6 +27,31 @@ async function resolveStudentContext(userId) {
   return studentModel.findStudentContextByUserId(userId);
 }
 
+function formatDateInVietnam(date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function parsePositiveInteger(value, fallback = null) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function isValidIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
 async function getMyProfile(req, res) {
   try {
     const student = await studentModel.findProfileByUserId(
@@ -118,7 +143,7 @@ async function getMyHomeworkDetail(req, res) {
 
     const homeworkId = parseInt(req.params.homeworkId, 10);
 
-    if (!Number.isInteger(homeworkId)) {
+    if (!Number.isInteger(homeworkId) || homeworkId <= 0) {
       return res.status(400).json({
         success: false,
         message: "Mã bài tập không hợp lệ",
@@ -166,7 +191,7 @@ async function submitMyHomework(req, res) {
 
     const homeworkId = parseInt(req.params.homeworkId, 10);
 
-    if (!Number.isInteger(homeworkId)) {
+    if (!Number.isInteger(homeworkId) || homeworkId <= 0) {
       return res.status(400).json({
         success: false,
         message: "Mã bài tập không hợp lệ",
@@ -262,8 +287,8 @@ async function getMyAttendanceHistory(req, res) {
       limit = "30",
     } = req.query;
 
-    const parsedPage = Math.max(1, parseInt(page, 10));
-    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
+    const parsedPage = parsePositiveInteger(page, 1);
+    const parsedLimit = Math.min(100, parsePositiveInteger(limit, 30));
 
     const { total, rows } = await attendanceModel.findHistoryByStudentId(
       context.studentId,
@@ -311,10 +336,9 @@ async function getMyAttendanceAnalytics(req, res) {
     }
 
     const now = new Date();
-    const defaultEnd = now.toISOString().split("T")[0];
-    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      .toISOString()
-      .split("T")[0];
+    const defaultEnd = formatDateInVietnam(now);
+    const vietnamParts = defaultEnd.split("-").map(Number);
+    const defaultStart = `${vietnamParts[0]}-${String(vietnamParts[1]).padStart(2, "0")}-01`;
 
     const startDate = req.query.startDate || defaultStart;
     const endDate = req.query.endDate || defaultEnd;
@@ -519,7 +543,10 @@ async function assertMyGoal(req, res, goalId) {
 
 async function updateMyGoalProgress(req, res) {
   try {
-    const goalId = parseInt(req.params.goalId, 10);
+    const goalId = parsePositiveInteger(req.params.goalId);
+    if (!goalId) {
+      return res.status(400).json({ success: false, message: "Mã mục tiêu không hợp lệ" });
+    }
     const goal = await assertMyGoal(req, res, goalId);
 
     if (!goal) {
@@ -548,7 +575,10 @@ async function updateMyGoalProgress(req, res) {
 
 async function getMyGoalLog(req, res) {
   try {
-    const goalId = parseInt(req.params.goalId, 10);
+    const goalId = parsePositiveInteger(req.params.goalId);
+    if (!goalId) {
+      return res.status(400).json({ success: false, message: "Mã mục tiêu không hợp lệ" });
+    }
     const goal = await assertMyGoal(req, res, goalId);
 
     if (!goal) {
@@ -639,45 +669,36 @@ async function getMyEventDetail(req, res) {
 async function registerMyEvent(req, res) {
   try {
     const eventId = parseInt(req.params.eventId, 10);
-    const resolved = await studentModel.findEventForStudent(
-      req.user.userId,
-      eventId,
-    );
 
-    if (!resolved) {
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Mã sự kiện không hợp lệ",
+      });
+    }
+
+    const context = await resolveStudentContext(req.user.userId);
+    if (!context) {
       return res.status(404).json({
         success: false,
-        message: "Không tìm thấy sự kiện hoặc bạn không có quyền đăng ký",
+        message: "Không tìm thấy hồ sơ học sinh",
       });
     }
 
-    const { context, event } = resolved;
-
-    if (!["ACTIVE", "PUBLISHED", "SCHEDULED"].includes(event.status)) {
-      return res.status(409).json({
-        success: false,
-        message: "Sự kiện hiện không mở đăng ký",
-      });
-    }
-
-    if (event.capacity && event.registeredCount >= event.capacity) {
-      return res.status(409).json({
-        success: false,
-        message: "Sự kiện đã đủ số lượng đăng ký",
-      });
-    }
-
-    await studentModel.registerEvent({
+    const registration = await studentModel.registerEvent({
       userId: req.user.userId,
       studentId: context.studentId,
       eventId,
     });
 
-    return res.status(201).json({
+    return res.status(registration.alreadyRegistered ? 200 : 201).json({
       success: true,
-      message: "Đã đăng ký sự kiện",
+      message: registration.alreadyRegistered
+        ? "Bạn đã đăng ký sự kiện này"
+        : "Đã đăng ký sự kiện",
       data: {
         eventId,
+        registrationId: registration.registrationId,
       },
     });
   } catch (error) {
@@ -714,7 +735,10 @@ async function getMyNotifications(req, res) {
 
 async function markMyNotificationRead(req, res) {
   try {
-    const notificationId = parseInt(req.params.notificationId, 10);
+    const notificationId = parsePositiveInteger(req.params.notificationId);
+    if (!notificationId) {
+      return res.status(400).json({ success: false, message: "Mã thông báo không hợp lệ" });
+    }
 
     const affectedRows = await studentModel.markNotificationRead(
       req.user.userId,
@@ -880,29 +904,51 @@ async function updateMyProfile(req, res) {
       });
     }
 
-    const allowedGenders = ["MALE", "FEMALE", "OTHER"];
+    const phone = String(req.body.phone || "").trim();
+    const dateOfBirth = String(req.body.dateOfBirth || "").trim();
+    const gender = String(req.body.gender || "").toUpperCase();
+    const address = String(req.body.address || "").trim();
+    const allowedGenders = new Set(["MALE", "FEMALE", "OTHER"]);
 
-    const payload = {
-      fullName: String(req.body.fullName || "").trim(),
-      phone: String(req.body.phone || "").trim(),
-      avatar: req.file?.cloudinaryUrl || currentProfile.avatar || null,
-      dateOfBirth: req.body.dateOfBirth || null,
-      gender: allowedGenders.includes(req.body.gender)
-        ? req.body.gender
-        : "OTHER",
-      address: String(req.body.address || "").trim(),
-    };
-
-    if (!payload.fullName) {
+    if (phone && !/^0\d{9}$/.test(phone)) {
       return res.status(400).json({
         success: false,
-        message: "Họ và tên không được để trống",
+        message: "Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng 0",
       });
+    }
+
+    if (!allowedGenders.has(gender)) {
+      return res.status(400).json({
+        success: false,
+        message: "Giới tính không hợp lệ",
+      });
+    }
+
+    if (address.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: "Địa chỉ không được vượt quá 500 ký tự",
+      });
+    }
+
+    if (dateOfBirth) {
+      const today = formatDateInVietnam(new Date());
+      if (!isValidIsoDate(dateOfBirth) || dateOfBirth > today) {
+        return res.status(400).json({
+          success: false,
+          message: "Ngày sinh không hợp lệ hoặc nằm trong tương lai",
+        });
+      }
     }
 
     const updatedProfile = await studentModel.updateProfileByUserId(
       req.user.userId,
-      payload,
+      {
+        phone,
+        dateOfBirth: dateOfBirth || null,
+        gender,
+        address,
+      },
     );
 
     return res.json({
@@ -911,6 +957,10 @@ async function updateMyProfile(req, res) {
       data: updatedProfile,
     });
   } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      error.statusCode = 409;
+      error.message = "Số điện thoại đã được tài khoản khác sử dụng";
+    }
     return handleError(
       res,
       error,
@@ -930,11 +980,8 @@ async function searchMyMessages(req, res) {
       });
     }
 
-    const page = Math.max(1, parseInt(req.query.page || "1", 10));
-    const limit = Math.min(
-      50,
-      Math.max(1, parseInt(req.query.limit || "20", 10)),
-    );
+    const page = parsePositiveInteger(req.query.page, 1);
+    const limit = Math.min(50, parsePositiveInteger(req.query.limit, 20));
 
     const items = await commModel.searchMessages(req.user.userId, {
       keyword,
@@ -987,28 +1034,62 @@ async function submitMySurvey(req, res) {
   try {
     const surveyId = parseInt(req.params.surveyId, 10);
     const { score, comment } = req.body;
+    const normalizedComment = String(comment || "").trim();
     const numScore = score == null || score === "" ? null : Number(score);
+
+    if (!Number.isInteger(surveyId) || surveyId <= 0) {
+      return res.status(400).json({ success: false, message: "Mã khảo sát không hợp lệ" });
+    }
+
     if (numScore !== null && (!Number.isInteger(numScore) || numScore < 1 || numScore > 5)) {
       return res.status(400).json({ success: false, message: "Điểm đánh giá phải từ 1 đến 5" });
     }
-    const context = await resolveStudentContext(req.user.userId);
-    if (!context) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ học sinh" });
 
-    const survey = await feedbackModel.findSurveyById(surveyId);
-    if (!survey || survey.status !== "OPEN") {
-      return res.status(404).json({ success: false, message: "Khảo sát không tồn tại hoặc đã đóng" });
+    if (numScore === null && !normalizedComment) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng chọn điểm hoặc nhập nhận xét",
+      });
     }
+
+    if (normalizedComment.length > 2000) {
+      return res.status(400).json({
+        success: false,
+        message: "Nhận xét không được vượt quá 2000 ký tự",
+      });
+    }
+
+    const context = await resolveStudentContext(req.user.userId);
+    if (!context) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ học sinh" });
+    }
+
+    const eligible = await feedbackModel.canStudentSubmitSurvey(
+      surveyId,
+      context.studentId,
+    );
+    if (!eligible) {
+      return res.status(404).json({
+        success: false,
+        message: "Khảo sát không tồn tại, đã đóng hoặc không dành cho lớp của bạn",
+      });
+    }
+
     try {
       await feedbackModel.submitSurveyResponse({
-        surveyId, studentId: context.studentId, score: numScore, comment: (comment || "").trim() || null,
+        surveyId,
+        studentId: context.studentId,
+        score: numScore,
+        comment: normalizedComment || null,
       });
-    } catch (e) {
-      if (e.code === "ER_DUP_ENTRY") {
+    } catch (error) {
+      if (error.code === "ER_DUP_ENTRY") {
         return res.status(409).json({ success: false, message: "Bạn đã gửi đánh giá cho khảo sát này rồi" });
       }
-      throw e;
+      throw error;
     }
-    return res.json({ success: true, message: "Đã gửi đánh giá (ẩn danh). Cảm ơn bạn!" });
+
+    return res.json({ success: true, message: "Đã gửi đánh giá ẩn danh. Cảm ơn bạn!" });
   } catch (error) {
     return handleError(res, error, "Không thể gửi đánh giá");
   }

@@ -592,23 +592,16 @@ export const studentApi = {
     );
   },
 
-  updateMyProfile: (body) => {
-    const formData = new FormData();
-
-    formData.append("fullName", body.fullName || "");
-    formData.append("phone", body.phone || "");
-    formData.append("dateOfBirth", body.dateOfBirth || "");
-    formData.append("gender", body.gender || "OTHER");
-    formData.append("address", body.address || "");
-
-    if (body.avatarFile) {
-      formData.append("avatar", body.avatarFile);
-    }
-
-    return uploadRequest("/students/me", formData, {
+  updateMyProfile: (body) =>
+    request("/students/me", {
       method: "PATCH",
-    });
-  },
+      body: JSON.stringify({
+        phone: body.phone || "",
+        dateOfBirth: body.dateOfBirth || "",
+        gender: body.gender || "OTHER",
+        address: body.address || "",
+      }),
+    }),
 
   searchMessageHistory: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();

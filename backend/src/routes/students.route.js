@@ -10,7 +10,6 @@ const {
 } = require("../middleware/auth.middleware");
 
 const {
-  profileAvatarUpload,
   homeworkFileUpload,
   messageFileUpload,
 } = require("../middleware/upload.middleware");
@@ -215,7 +214,6 @@ router.patch(
 router.patch(
   "/me",
   ...studentOnly,
-  profileAvatarUpload,
   studentController.updateMyProfile,
 );
 

@@ -30,7 +30,6 @@ const paymentMethodLabels = {
   CASH: "Tiền mặt",
   BANK_TRANSFER: "Chuyển khoản",
   CARD: "Thẻ",
-  ZALOPAY: "ZaloPay",
   OTHER: "Khác",
 };
 
@@ -288,7 +287,6 @@ function StaffFeeDetailPage() {
                     <option value="CASH">Tiền mặt</option>
                     <option value="BANK_TRANSFER">Chuyển khoản</option>
                     <option value="CARD">Thẻ</option>
-                    <option value="ZALOPAY">ZaloPay</option>
                     <option value="OTHER">Khác</option>
                   </PrettySelect>
                 </label>

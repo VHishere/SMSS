@@ -205,6 +205,7 @@ function ZaloPayPanel({ feeAssignmentId, onPaid }) {
   const [status, setStatus] = useState(null); // null | PENDING | SUCCESS | FAILED
   const [error, setError] = useState("");
   const pollRef = useRef(null);
+  const pollStartedAtRef = useRef(null);
 
   useEffect(() => {
     return () => clearInterval(pollRef.current);
@@ -213,22 +214,31 @@ function ZaloPayPanel({ feeAssignmentId, onPaid }) {
   function stopPolling() {
     clearInterval(pollRef.current);
     pollRef.current = null;
+    pollStartedAtRef.current = null;
   }
 
   function startPolling(appTransId) {
     stopPolling();
+    pollStartedAtRef.current = Date.now();
     pollRef.current = setInterval(async () => {
+      if (Date.now() - pollStartedAtRef.current >= 15 * 60 * 1000) {
+        setStatus("TIMEOUT");
+        stopPolling();
+        return;
+      }
+
       try {
         const res = await parentApi.getZaloPayOrderStatus(feeAssignmentId, appTransId);
         setStatus(res.data.status);
         if (res.data.status === "SUCCESS") {
           stopPolling();
           onPaid?.();
-        } else if (res.data.status === "FAILED") {
+        } else if (["FAILED", "CANCELLED", "EXPIRED"].includes(res.data.status)) {
+          setError(res.data.errorMessage || "Giao dịch không thành công.");
           stopPolling();
         }
-      } catch {
-        // transient network hiccup — keep polling until it succeeds or times out
+      } catch (requestError) {
+        setError(requestError.message || "Tạm thời chưa kiểm tra được trạng thái giao dịch.");
       }
     }, 3000);
   }
@@ -285,7 +295,11 @@ function ZaloPayPanel({ feeAssignmentId, onPaid }) {
   return (
     <div className="flex flex-col items-center gap-4">
       <div className="flex flex-col items-center gap-2 rounded-2xl border p-4" style={{ borderColor: C.outlineVariant }}>
-        <QRCodeSVG value={order.qrCode} size={200} />
+        {order.qrCode ? (
+          <QRCodeSVG value={order.qrCode} size={200} />
+        ) : (
+          <Ms name="account_balance_wallet" className="!text-[96px]!" style={{ color: C.secondary }} />
+        )}
         <span className="text-xs font-semibold" style={{ color: C.onSurfaceVariant }}>
           Quét bằng ZaloPay hoặc app ngân hàng NAPAS
         </span>
@@ -303,8 +317,12 @@ function ZaloPayPanel({ feeAssignmentId, onPaid }) {
       </a>
 
       <div className="flex items-center gap-2 text-xs" style={{ color: C.onSurfaceVariant }}>
-        {status === "FAILED" ? (
-          <span className="font-semibold" style={{ color: C.error }}>Giao dịch thất bại hoặc đã hết hạn.</span>
+        {["FAILED", "CANCELLED", "EXPIRED", "TIMEOUT"].includes(status) ? (
+          <span className="font-semibold" style={{ color: C.error }}>
+            {status === "TIMEOUT"
+              ? "Chưa nhận được xác nhận sau 15 phút."
+              : error || "Giao dịch thất bại hoặc đã hết hạn."}
+          </span>
         ) : (
           <>
             <span className="h-2 w-2 animate-pulse rounded-full" style={{ backgroundColor: C.secondary }} />
@@ -313,10 +331,10 @@ function ZaloPayPanel({ feeAssignmentId, onPaid }) {
         )}
       </div>
 
-      {status === "FAILED" && (
+      {["FAILED", "CANCELLED", "EXPIRED", "TIMEOUT"].includes(status) && (
         <button
           type="button"
-          onClick={() => { setOrder(null); setStatus(null); }}
+          onClick={() => { setOrder(null); setStatus(null); setError(""); }}
           className="text-xs font-bold hover:underline"
           style={{ color: C.primary }}
         >
@@ -354,6 +372,7 @@ function FeeDetailModal({ feeAssignmentId, onClose, onChanged }) {
 
   function load() {
     setLoading(true);
+    setError("");
     parentApi
       .getFeeDetail(feeAssignmentId)
       .then((res) => setDetail(res.data))

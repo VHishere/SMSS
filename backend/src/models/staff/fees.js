@@ -1,12 +1,32 @@
 const { pool } = require("../../config/db");
 
 const PLAN_STATUSES = new Set(["DRAFT", "PUBLISHED", "LOCKED", "CANCELLED"]);
-const ASSIGNMENT_STATUSES = new Set(["UNPAID", "PARTIAL", "PAID", "OVERDUE", "WAIVED"]);
+const ASSIGNMENT_STATUSES = new Set(["UNPAID", "PARTIAL", "PAID", "WAIVED"]);
 const SCOPES = new Set(["STUDENT", "CLASS", "GRADE", "SCHOOL"]);
+const MANUAL_PAYMENT_METHODS = new Set([
+  "CASH",
+  "BANK_TRANSFER",
+  "CARD",
+  "OTHER",
+]);
+
+const EFFECTIVE_STATUS_SQL = `
+  CASE
+    WHEN fa.status IN ('UNPAID', 'PARTIAL') AND fp.due_date < DATE(UTC_TIMESTAMP() + INTERVAL 7 HOUR)
+      THEN 'OVERDUE'
+    ELSE fa.status
+  END
+`;
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function createHttpError(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
 }
 
 function normalizeAssignment(row) {
@@ -21,21 +41,6 @@ function normalizeAssignment(row) {
     paidAmount,
     remainingAmount: Math.max(finalAmount - paidAmount, 0),
   };
-}
-
-function getAssignmentStatus(finalAmount, paidAmount, dueDate, currentStatus) {
-  if (currentStatus === "WAIVED") return "WAIVED";
-  if (paidAmount >= finalAmount) return "PAID";
-  if (paidAmount > 0) return "PARTIAL";
-
-  if (dueDate) {
-    const due = new Date(`${dueDate}T23:59:59`);
-    if (!Number.isNaN(due.getTime()) && due < new Date()) {
-      return "OVERDUE";
-    }
-  }
-
-  return "UNPAID";
 }
 
 async function listFeePlans(filters = {}) {
@@ -53,8 +58,9 @@ async function listFeePlans(filters = {}) {
   }
 
   if (filters.search) {
-    conditions.push("(fp.title LIKE ? OR fp.fee_type LIKE ?)");
-    params.push(`%${filters.search}%`, `%${filters.search}%`);
+    conditions.push("(fp.title LIKE ? OR fc.name LIKE ? OR fc.code LIKE ?)");
+    const search = `%${filters.search}%`;
+    params.push(search, search, search);
   }
 
   const [rows] = await pool.query(
@@ -65,8 +71,11 @@ async function listFeePlans(filters = {}) {
         sy.year_name AS schoolYearName,
         fp.semester_id AS semesterId,
         sem.semester_name AS semesterName,
+        fp.fee_category_id AS feeCategoryId,
+        fc.code AS feeCategoryCode,
+        fc.name AS feeType,
+        fp.fee_rate_id AS feeRateId,
         fp.title,
-        fp.fee_type AS feeType,
         fp.amount,
         DATE_FORMAT(fp.due_date, '%Y-%m-%d') AS dueDate,
         fp.scope_type AS scopeType,
@@ -78,12 +87,24 @@ async function listFeePlans(filters = {}) {
         COALESCE(SUM(fa.paid_amount), 0) AS paidAmount,
         COALESCE(SUM(fa.final_amount - fa.paid_amount), 0) AS remainingAmount
       FROM fee_plan fp
-      INNER JOIN school_year sy ON sy.school_year_id = fp.school_year_id
-      LEFT JOIN semester sem ON sem.semester_id = fp.semester_id
-      LEFT JOIN user_account creator ON creator.user_id = fp.created_by
-      LEFT JOIN fee_assignment fa ON fa.fee_plan_id = fp.fee_plan_id
+      INNER JOIN fee_category fc
+        ON fc.fee_category_id = fp.fee_category_id
+      INNER JOIN school_year sy
+        ON sy.school_year_id = fp.school_year_id
+      LEFT JOIN semester sem
+        ON sem.semester_id = fp.semester_id
+      LEFT JOIN user_account creator
+        ON creator.user_id = fp.created_by
+      LEFT JOIN fee_assignment fa
+        ON fa.fee_plan_id = fp.fee_plan_id
       WHERE ${conditions.join(" AND ")}
-      GROUP BY fp.fee_plan_id
+      GROUP BY
+        fp.fee_plan_id,
+        sy.year_name,
+        sem.semester_name,
+        fc.code,
+        fc.name,
+        creator.full_name
       ORDER BY fp.created_at DESC, fp.fee_plan_id DESC
     `,
     params,
@@ -92,6 +113,7 @@ async function listFeePlans(filters = {}) {
   return rows.map((row) => ({
     ...row,
     amount: toNumber(row.amount),
+    studentCount: Number(row.studentCount || 0),
     totalAmount: toNumber(row.totalAmount),
     paidAmount: toNumber(row.paidAmount),
     remainingAmount: toNumber(row.remainingAmount),
@@ -107,20 +129,36 @@ async function getFeePlanById(feePlanId) {
         sy.year_name AS schoolYearName,
         fp.semester_id AS semesterId,
         sem.semester_name AS semesterName,
+        fp.fee_category_id AS feeCategoryId,
+        fc.code AS feeCategoryCode,
+        fc.name AS feeType,
+        fp.fee_rate_id AS feeRateId,
         fp.title,
-        fp.fee_type AS feeType,
         fp.amount,
         DATE_FORMAT(fp.due_date, '%Y-%m-%d') AS dueDate,
         fp.description,
         fp.scope_type AS scopeType,
-        fp.scope_ref_id AS scopeRefId,
+        fp.scope_student_id AS scopeStudentId,
+        fp.scope_class_id AS scopeClassId,
+        fp.scope_grade_id AS scopeGradeId,
+        CASE fp.scope_type
+          WHEN 'STUDENT' THEN fp.scope_student_id
+          WHEN 'CLASS' THEN fp.scope_class_id
+          WHEN 'GRADE' THEN fp.scope_grade_id
+          ELSE NULL
+        END AS scopeRefId,
         fp.status,
         fp.created_at AS createdAt,
         creator.full_name AS createdByName
       FROM fee_plan fp
-      INNER JOIN school_year sy ON sy.school_year_id = fp.school_year_id
-      LEFT JOIN semester sem ON sem.semester_id = fp.semester_id
-      LEFT JOIN user_account creator ON creator.user_id = fp.created_by
+      INNER JOIN fee_category fc
+        ON fc.fee_category_id = fp.fee_category_id
+      INNER JOIN school_year sy
+        ON sy.school_year_id = fp.school_year_id
+      LEFT JOIN semester sem
+        ON sem.semester_id = fp.semester_id
+      LEFT JOIN user_account creator
+        ON creator.user_id = fp.created_by
       WHERE fp.fee_plan_id = ?
       LIMIT 1
     `,
@@ -143,16 +181,30 @@ async function getFeePlanById(feePlanId) {
         fa.discount_amount AS discountAmount,
         fa.final_amount AS finalAmount,
         fa.paid_amount AS paidAmount,
-        fa.status,
+        ${EFFECTIVE_STATUS_SQL} AS status,
+        fa.status AS paymentStatus,
+        fa.is_waived AS isWaived,
+        fa.waived_reason AS waivedReason,
         fa.assigned_at AS assignedAt
       FROM fee_assignment fa
-      INNER JOIN student s ON s.student_id = fa.student_id
-      INNER JOIN user_account student_user ON student_user.user_id = s.user_id
+      INNER JOIN fee_plan fp
+        ON fp.fee_plan_id = fa.fee_plan_id
+      INNER JOIN student s
+        ON s.student_id = fa.student_id
+      INNER JOIN user_account student_user
+        ON student_user.user_id = s.user_id
       LEFT JOIN class_enrollment ce
         ON ce.student_id = s.student_id
         AND ce.status = 'ACTIVE'
-      LEFT JOIN school_class sc ON sc.class_id = ce.class_id
-      LEFT JOIN grade g ON g.grade_id = sc.grade_id
+        AND ce.class_id IN (
+          SELECT sc2.class_id
+          FROM school_class sc2
+          WHERE sc2.school_year_id = fp.school_year_id
+        )
+      LEFT JOIN school_class sc
+        ON sc.class_id = ce.class_id
+      LEFT JOIN grade g
+        ON g.grade_id = sc.grade_id
       WHERE fa.fee_plan_id = ?
       ORDER BY g.grade_id, sc.class_name, s.student_code
     `,
@@ -164,25 +216,37 @@ async function getFeePlanById(feePlanId) {
       SELECT
         fpmt.payment_id AS paymentId,
         fpmt.fee_assignment_id AS feeAssignmentId,
+        fpmt.payment_transaction_id AS paymentTransactionId,
         fpmt.amount,
-        DATE_FORMAT(fpmt.payment_date, '%Y-%m-%d') AS paymentDate,
+        DATE_FORMAT(fpmt.payment_date, '%Y-%m-%d %H:%i:%s') AS paymentDate,
         fpmt.payment_method AS paymentMethod,
         fpmt.transaction_code AS transactionCode,
         fpmt.note,
         recorder.full_name AS recordedByName,
         fpmt.created_at AS createdAt
       FROM fee_payment fpmt
-      LEFT JOIN user_account recorder ON recorder.user_id = fpmt.recorded_by
-      INNER JOIN fee_assignment fa ON fa.fee_assignment_id = fpmt.fee_assignment_id
+      LEFT JOIN user_account recorder
+        ON recorder.user_id = fpmt.recorded_by
+      INNER JOIN fee_assignment fa
+        ON fa.fee_assignment_id = fpmt.fee_assignment_id
       WHERE fa.fee_plan_id = ?
-      ORDER BY fpmt.created_at DESC
+      ORDER BY fpmt.payment_date DESC, fpmt.payment_id DESC
     `,
     [feePlanId],
   );
 
-  const normalizedAssignments = assignments.map(normalizeAssignment);
-  const totalAmount = normalizedAssignments.reduce((sum, row) => sum + row.finalAmount, 0);
-  const paidAmount = normalizedAssignments.reduce((sum, row) => sum + row.paidAmount, 0);
+  const normalizedAssignments = assignments.map((row) => ({
+    ...normalizeAssignment(row),
+    isWaived: Boolean(row.isWaived),
+  }));
+  const totalAmount = normalizedAssignments.reduce(
+    (sum, row) => sum + row.finalAmount,
+    0,
+  );
+  const paidAmount = normalizedAssignments.reduce(
+    (sum, row) => sum + row.paidAmount,
+    0,
+  );
 
   return {
     ...plan,
@@ -199,47 +263,35 @@ async function findFeeTargetStudents(data, connection = pool) {
   const scope = data.scopeType || "CLASS";
 
   if (!SCOPES.has(scope)) {
-    const error = new Error("Phạm vi áp dụng không hợp lệ");
-    error.statusCode = 400;
-    throw error;
+    throw createHttpError("Phạm vi áp dụng không hợp lệ");
   }
 
-  const conditions = ["s.status = 'ACTIVE'", "ce.status = 'ACTIVE'", "sc.status = 'ACTIVE'"];
-  const params = [];
+  const conditions = [
+    "s.status = 'ACTIVE'",
+    "ce.status = 'ACTIVE'",
+    "sc.status = 'ACTIVE'",
+    "sc.school_year_id = ?",
+  ];
+  const params = [data.schoolYearId];
 
   if (scope === "STUDENT") {
     if (!data.studentId) {
-      const error = new Error("Vui lòng chọn học sinh");
-      error.statusCode = 400;
-      throw error;
+      throw createHttpError("Vui lòng chọn học sinh");
     }
     conditions.push("s.student_id = ?");
     params.push(data.studentId);
   } else if (scope === "CLASS") {
     if (!data.classId) {
-      const error = new Error("Vui lòng chọn lớp");
-      error.statusCode = 400;
-      throw error;
+      throw createHttpError("Vui lòng chọn lớp");
     }
     conditions.push("sc.class_id = ?");
     params.push(data.classId);
   } else if (scope === "GRADE") {
-    if (!data.schoolYearId || !data.gradeId) {
-      const error = new Error("Vui lòng chọn năm học và khối");
-      error.statusCode = 400;
-      throw error;
+    if (!data.gradeId) {
+      throw createHttpError("Vui lòng chọn khối");
     }
-    conditions.push("sc.school_year_id = ?");
     conditions.push("sc.grade_id = ?");
-    params.push(data.schoolYearId, data.gradeId);
-  } else if (scope === "SCHOOL") {
-    if (!data.schoolYearId) {
-      const error = new Error("Vui lòng chọn năm học");
-      error.statusCode = 400;
-      throw error;
-    }
-    conditions.push("sc.school_year_id = ?");
-    params.push(data.schoolYearId);
+    params.push(data.gradeId);
   }
 
   const [rows] = await connection.query(
@@ -251,9 +303,12 @@ async function findFeeTargetStudents(data, connection = pool) {
         sc.class_id AS classId,
         sc.class_name AS className
       FROM student s
-      INNER JOIN user_account student_user ON student_user.user_id = s.user_id
-      INNER JOIN class_enrollment ce ON ce.student_id = s.student_id
-      INNER JOIN school_class sc ON sc.class_id = ce.class_id
+      INNER JOIN user_account student_user
+        ON student_user.user_id = s.user_id
+      INNER JOIN class_enrollment ce
+        ON ce.student_id = s.student_id
+      INNER JOIN school_class sc
+        ON sc.class_id = ce.class_id
       WHERE ${conditions.join(" AND ")}
       ORDER BY sc.class_name, s.student_code
     `,
@@ -261,38 +316,125 @@ async function findFeeTargetStudents(data, connection = pool) {
   );
 
   if (!rows.length) {
-    const error = new Error("Không có học sinh phù hợp để tạo khoản học phí");
-    error.statusCode = 404;
-    throw error;
+    throw createHttpError(
+      "Không có học sinh phù hợp để tạo khoản học phí",
+      404,
+    );
   }
 
   return rows;
 }
 
-function getScopeRefId(data) {
-  if (data.scopeType === "STUDENT") return data.studentId;
-  if (data.scopeType === "CLASS") return data.classId;
-  if (data.scopeType === "GRADE") return data.gradeId;
-  return null;
+async function resolveFeeCategoryId(data, connection = pool) {
+  if (data.feeCategoryId) {
+    const [[category]] = await connection.query(
+      `
+        SELECT fee_category_id AS feeCategoryId
+        FROM fee_category
+        WHERE fee_category_id = ?
+          AND status = 'ACTIVE'
+        LIMIT 1
+      `,
+      [data.feeCategoryId],
+    );
+
+    if (!category) {
+      throw createHttpError("Loại phí không tồn tại hoặc đã ngừng sử dụng");
+    }
+    return category.feeCategoryId;
+  }
+
+  const legacyValue = String(data.feeType || "Học phí").trim();
+  const legacyAliases = {
+    "Bán trú": "BOARDING",
+    "Xe đưa đón": "SCHOOL_BUS",
+    "Hoạt động ngoại khóa": "ACTIVITY",
+    Khác: "OTHER",
+  };
+  const code = legacyAliases[legacyValue] || legacyValue;
+
+  const [[category]] = await connection.query(
+    `
+      SELECT fee_category_id AS feeCategoryId
+      FROM fee_category
+      WHERE status = 'ACTIVE'
+        AND (code = ? OR name = ?)
+      ORDER BY (code = ?) DESC
+      LIMIT 1
+    `,
+    [code, legacyValue, code],
+  );
+
+  if (!category) {
+    throw createHttpError("Không tìm thấy loại phí phù hợp");
+  }
+
+  return category.feeCategoryId;
+}
+
+async function validateAcademicReferences(data, connection = pool) {
+  if (data.semesterId) {
+    const [[semester]] = await connection.query(
+      `
+        SELECT semester_id
+        FROM semester
+        WHERE semester_id = ?
+          AND school_year_id = ?
+        LIMIT 1
+      `,
+      [data.semesterId, data.schoolYearId],
+    );
+
+    if (!semester) {
+      throw createHttpError("Học kỳ không thuộc năm học đã chọn");
+    }
+  }
+}
+
+function getScopeColumns(data, scopeType) {
+  return {
+    scopeStudentId: scopeType === "STUDENT" ? data.studentId : null,
+    scopeClassId: scopeType === "CLASS" ? data.classId : null,
+    scopeGradeId: scopeType === "GRADE" ? data.gradeId : null,
+  };
 }
 
 async function createFeePlan(data, createdBy) {
-  const amount = toNumber(data.amount);
-  const discountAmount = toNumber(data.discountAmount);
-  const finalAmount = Math.max(amount - discountAmount, 0);
+  const amount = toNumber(data.amount, NaN);
+  const discountAmount = toNumber(data.discountAmount, 0);
   const status = data.status || "PUBLISHED";
   const scopeType = data.scopeType || "CLASS";
+  const title = String(data.title || "").trim();
 
-  if (!data.title || !data.schoolYearId || !amount || !data.dueDate) {
-    const error = new Error("Vui lòng nhập tên khoản phí, năm học, số tiền và hạn đóng");
-    error.statusCode = 400;
-    throw error;
+  if (!title || !data.schoolYearId || !data.dueDate) {
+    throw createHttpError(
+      "Vui lòng nhập tên khoản phí, năm học, số tiền và hạn đóng",
+    );
+  }
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw createHttpError("Số tiền phải lớn hơn 0");
+  }
+
+  if (
+    !Number.isFinite(discountAmount)
+    || discountAmount < 0
+    || discountAmount > amount
+  ) {
+    throw createHttpError("Số tiền giảm trừ không hợp lệ");
   }
 
   if (!PLAN_STATUSES.has(status)) {
-    const error = new Error("Trạng thái khoản phí không hợp lệ");
-    error.statusCode = 400;
-    throw error;
+    throw createHttpError("Trạng thái khoản phí không hợp lệ");
+  }
+
+  if (!SCOPES.has(scopeType)) {
+    throw createHttpError("Phạm vi áp dụng không hợp lệ");
+  }
+
+  const dueDate = new Date(`${data.dueDate}T00:00:00`);
+  if (Number.isNaN(dueDate.getTime())) {
+    throw createHttpError("Hạn đóng không hợp lệ");
   }
 
   const connection = await pool.getConnection();
@@ -300,32 +442,47 @@ async function createFeePlan(data, createdBy) {
   try {
     await connection.beginTransaction();
 
+    await validateAcademicReferences(data, connection);
+    const feeCategoryId = await resolveFeeCategoryId(data, connection);
     const targetStudents = await findFeeTargetStudents(
-      {
-        ...data,
-        scopeType,
-      },
+      { ...data, scopeType },
       connection,
     );
+    const scope = getScopeColumns(data, scopeType);
 
     const [planResult] = await connection.query(
       `
         INSERT INTO fee_plan (
-          school_year_id, semester_id, title, fee_type, amount,
-          due_date, description, scope_type, scope_ref_id, status, created_by
+          school_year_id,
+          semester_id,
+          fee_category_id,
+          fee_rate_id,
+          title,
+          amount,
+          due_date,
+          description,
+          scope_type,
+          scope_student_id,
+          scope_class_id,
+          scope_grade_id,
+          status,
+          created_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         data.schoolYearId,
         data.semesterId || null,
-        data.title.trim(),
-        data.feeType || "Học phí",
+        feeCategoryId,
+        data.feeRateId || null,
+        title,
         amount,
         data.dueDate,
-        data.description || null,
+        String(data.description || "").trim() || null,
         scopeType,
-        getScopeRefId({ ...data, scopeType }),
+        scope.scopeStudentId || null,
+        scope.scopeClassId || null,
+        scope.scopeGradeId || null,
         status,
         createdBy || null,
       ],
@@ -334,8 +491,10 @@ async function createFeePlan(data, createdBy) {
     await connection.query(
       `
         INSERT INTO fee_assignment (
-          fee_plan_id, student_id, amount, discount_amount,
-          final_amount, paid_amount, status
+          fee_plan_id,
+          student_id,
+          amount,
+          discount_amount
         )
         VALUES ?
       `,
@@ -345,9 +504,6 @@ async function createFeePlan(data, createdBy) {
           student.studentId,
           amount,
           discountAmount,
-          finalAmount,
-          0,
-          getAssignmentStatus(finalAmount, 0, data.dueDate),
         ]),
       ],
     );
@@ -364,9 +520,7 @@ async function createFeePlan(data, createdBy) {
 
 async function updateFeePlanStatus(feePlanId, status) {
   if (!PLAN_STATUSES.has(status)) {
-    const error = new Error("Trạng thái khoản phí không hợp lệ");
-    error.statusCode = 400;
-    throw error;
+    throw createHttpError("Trạng thái khoản phí không hợp lệ");
   }
 
   const [result] = await pool.query(
@@ -375,21 +529,24 @@ async function updateFeePlanStatus(feePlanId, status) {
   );
 
   if (result.affectedRows === 0) {
-    const error = new Error("Không tìm thấy khoản học phí");
-    error.statusCode = 404;
-    throw error;
+    throw createHttpError("Không tìm thấy khoản học phí", 404);
   }
 
   return getFeePlanById(feePlanId);
 }
 
 async function recordFeePayment(feePlanId, assignmentId, data, recordedBy) {
-  const paymentAmount = toNumber(data.amount);
+  const paymentAmount = toNumber(data.amount, NaN);
+  const paymentMethod = String(data.paymentMethod || "CASH").toUpperCase();
 
-  if (!paymentAmount || paymentAmount <= 0) {
-    const error = new Error("Số tiền thanh toán phải lớn hơn 0");
-    error.statusCode = 400;
-    throw error;
+  if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+    throw createHttpError("Số tiền thanh toán phải lớn hơn 0");
+  }
+
+  if (!MANUAL_PAYMENT_METHODS.has(paymentMethod)) {
+    throw createHttpError(
+      "ZaloPay/VietQR trực tuyến phải được ghi nhận qua giao dịch và callback, không nhập tay",
+    );
   }
 
   const connection = await pool.getConnection();
@@ -403,76 +560,69 @@ async function recordFeePayment(feePlanId, assignmentId, data, recordedBy) {
           fa.fee_assignment_id AS feeAssignmentId,
           fa.final_amount AS finalAmount,
           fa.paid_amount AS paidAmount,
-          fa.status,
-          DATE_FORMAT(fp.due_date, '%Y-%m-%d') AS dueDate
+          fa.status
         FROM fee_assignment fa
-        INNER JOIN fee_plan fp ON fp.fee_plan_id = fa.fee_plan_id
         WHERE fa.fee_assignment_id = ?
           AND fa.fee_plan_id = ?
         LIMIT 1
+        FOR UPDATE
       `,
       [assignmentId, feePlanId],
     );
 
     const assignment = assignments[0];
     if (!assignment) {
-      const error = new Error("Không tìm thấy công nợ học phí của học sinh");
-      error.statusCode = 404;
-      throw error;
+      throw createHttpError(
+        "Không tìm thấy công nợ học phí của học sinh",
+        404,
+      );
     }
 
     if (!ASSIGNMENT_STATUSES.has(assignment.status)) {
-      const error = new Error("Trạng thái công nợ không hợp lệ");
-      error.statusCode = 400;
-      throw error;
+      throw createHttpError("Trạng thái công nợ không hợp lệ");
     }
 
-    const finalAmount = toNumber(assignment.finalAmount);
-    const paidAmount = toNumber(assignment.paidAmount);
-    const remaining = Math.max(finalAmount - paidAmount, 0);
+    if (assignment.status === "WAIVED") {
+      throw createHttpError("Khoản phí đã được miễn, không thể ghi nhận thanh toán");
+    }
+
+    const remaining = Math.max(
+      toNumber(assignment.finalAmount) - toNumber(assignment.paidAmount),
+      0,
+    );
 
     if (paymentAmount > remaining) {
-      const error = new Error("Số tiền thanh toán vượt quá số tiền còn phải đóng");
-      error.statusCode = 400;
-      throw error;
+      throw createHttpError(
+        "Số tiền thanh toán vượt quá số tiền còn phải đóng",
+      );
     }
-
-    const newPaidAmount = paidAmount + paymentAmount;
-    const newStatus = getAssignmentStatus(
-      finalAmount,
-      newPaidAmount,
-      assignment.dueDate,
-      assignment.status,
-    );
 
     await connection.query(
       `
         INSERT INTO fee_payment (
-          fee_assignment_id, amount, payment_date, payment_method,
-          transaction_code, note, recorded_by
+          fee_assignment_id,
+          payment_transaction_id,
+          amount,
+          payment_date,
+          payment_method,
+          transaction_code,
+          note,
+          recorded_by
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, NULL, ?, ?, ?, ?, ?, ?)
       `,
       [
         assignmentId,
         paymentAmount,
         data.paymentDate || new Date(),
-        data.paymentMethod || "CASH",
-        data.transactionCode || null,
-        data.note || null,
+        paymentMethod,
+        String(data.transactionCode || "").trim() || null,
+        String(data.note || "").trim() || null,
         recordedBy || null,
       ],
     );
 
-    await connection.query(
-      `
-        UPDATE fee_assignment
-        SET paid_amount = ?, status = ?
-        WHERE fee_assignment_id = ?
-      `,
-      [newPaidAmount, newStatus, assignmentId],
-    );
-
+    // paid_amount và status được trigger trong DB cập nhật từ fee_payment.
     await connection.commit();
     return getFeePlanById(feePlanId);
   } catch (error) {
@@ -483,38 +633,9 @@ async function recordFeePayment(feePlanId, assignmentId, data, recordedBy) {
   }
 }
 
-async function refreshFeeAssignmentStatuses(feePlanId) {
-  const [assignments] = await pool.query(
-    `
-      SELECT
-        fa.fee_assignment_id AS feeAssignmentId,
-        fa.final_amount AS finalAmount,
-        fa.paid_amount AS paidAmount,
-        fa.status,
-        DATE_FORMAT(fp.due_date, '%Y-%m-%d') AS dueDate
-      FROM fee_assignment fa
-      INNER JOIN fee_plan fp ON fp.fee_plan_id = fa.fee_plan_id
-      WHERE fa.fee_plan_id = ?
-    `,
-    [feePlanId],
-  );
-
-  await Promise.all(
-    assignments.map((assignment) => {
-      const nextStatus = getAssignmentStatus(
-        toNumber(assignment.finalAmount),
-        toNumber(assignment.paidAmount),
-        assignment.dueDate,
-        assignment.status,
-      );
-
-      if (nextStatus === assignment.status) return null;
-      return pool.query(
-        "UPDATE fee_assignment SET status = ? WHERE fee_assignment_id = ?",
-        [nextStatus, assignment.feeAssignmentId],
-      );
-    }),
-  );
+// status của fee_assignment là generated column; OVERDUE chỉ là trạng thái hiển thị.
+async function refreshFeeAssignmentStatuses(_feePlanId) {
+  return 0;
 }
 
 module.exports = {

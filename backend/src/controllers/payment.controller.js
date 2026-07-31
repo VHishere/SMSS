@@ -1,5 +1,4 @@
 const paymentModel = require("../models/payment.model");
-const staffFeesModel = require("../models/staff/fees");
 const vietqrService = require("../services/vietqr.service");
 const zalopayService = require("../services/zalopay.service");
 
@@ -16,13 +15,21 @@ function notFound(res, message = "Không tìm thấy khoản phí hoặc bạn k
 }
 
 const PAYABLE_PLAN_STATUSES = new Set(["PUBLISHED", "LOCKED"]);
+const ZALOPAY_ORDER_TTL_MS = 15 * 60 * 1000;
 
-// A cancelled (or still-draft) fee plan no longer needs to be paid — block
-// online payment creation for it even if the assignment itself still shows
-// a remaining balance.
+function assertPositiveIntegerId(value, message) {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) {
+    const error = new Error(message);
+    error.statusCode = 400;
+    throw error;
+  }
+  return id;
+}
+
 function assertPayable(assignment) {
   if (!PAYABLE_PLAN_STATUSES.has(assignment.planStatus)) {
-    const error = new Error("Khoản phí này đã bị hủy hoặc chưa công bố, không cần thanh toán");
+    const error = new Error("Khoản phí này đã bị hủy hoặc chưa công bố, không thể thanh toán");
     error.statusCode = 409;
     throw error;
   }
@@ -32,8 +39,6 @@ function assertPayable(assignment) {
     throw error;
   }
 }
-
-// ── Parent: read-only fee views ────────────────────────────────────────────
 
 async function getMyFees(req, res) {
   try {
@@ -49,25 +54,34 @@ async function getMyFees(req, res) {
 
 async function getMyFeeDetail(req, res) {
   try {
-    const feeAssignmentId = Number(req.params.feeAssignmentId);
-    const assignment = await paymentModel.findFeeAssignmentForParent(req.user.userId, feeAssignmentId);
+    const feeAssignmentId = assertPositiveIntegerId(
+      req.params.feeAssignmentId,
+      "Mã khoản phí không hợp lệ",
+    );
+    const assignment = await paymentModel.findFeeAssignmentForParent(
+      req.user.userId,
+      feeAssignmentId,
+    );
 
     if (!assignment) return notFound(res);
 
     const payments = await paymentModel.listPaymentsForAssignment(feeAssignmentId);
-
     return res.json({ success: true, data: { ...assignment, payments } });
   } catch (error) {
     return handleError(res, error, "Không thể tải chi tiết khoản phí");
   }
 }
 
-// ── VietQR: stateless QR generation (bank transfer, confirmed by staff) ────
-
 async function createVietQrPayment(req, res) {
   try {
-    const feeAssignmentId = Number(req.params.feeAssignmentId);
-    const assignment = await paymentModel.findFeeAssignmentForParent(req.user.userId, feeAssignmentId);
+    const feeAssignmentId = assertPositiveIntegerId(
+      req.params.feeAssignmentId,
+      "Mã khoản phí không hợp lệ",
+    );
+    const assignment = await paymentModel.findFeeAssignmentForParent(
+      req.user.userId,
+      feeAssignmentId,
+    );
 
     if (!assignment) return notFound(res);
     assertPayable(assignment);
@@ -84,81 +98,151 @@ async function createVietQrPayment(req, res) {
   }
 }
 
-// ── ZaloPay: online order creation + status polling + webhook callback ────
-
 async function createZaloPayOrder(req, res) {
+  let appTransId = null;
+
   try {
-    const feeAssignmentId = Number(req.params.feeAssignmentId);
-    const assignment = await paymentModel.findFeeAssignmentForParent(req.user.userId, feeAssignmentId);
+    const feeAssignmentId = assertPositiveIntegerId(
+      req.params.feeAssignmentId,
+      "Mã khoản phí không hợp lệ",
+    );
+    const assignment = await paymentModel.findFeeAssignmentForParent(
+      req.user.userId,
+      feeAssignmentId,
+    );
 
     if (!assignment) return notFound(res);
     assertPayable(assignment);
 
-    const { appTransId, amount, result } = await zalopayService.createOrder({
+    const reusable = await paymentModel.findReusablePendingTransaction(feeAssignmentId);
+    if (reusable && reusable.amount === assignment.remainingAmount) {
+      return res.json({
+        success: true,
+        data: {
+          appTransId: reusable.appTransId,
+          amount: reusable.amount,
+          orderUrl: reusable.orderUrl,
+          qrCode: reusable.qrCode,
+          reused: true,
+        },
+      });
+    }
+
+    appTransId = zalopayService.generateAppTransId();
+    const order = zalopayService.buildOrder({
+      appTransId,
       amount: assignment.remainingAmount,
       description: `Thanh toan hoc phi ${assignment.title} - ${assignment.studentCode}`,
       feeAssignmentId,
       userId: req.user.userId,
     });
 
-    if (Number(result.return_code) !== 1) {
-      return res.status(502).json({
-        success: false,
-        message: result.return_message || "Không thể khởi tạo đơn thanh toán ZaloPay",
-      });
-    }
-
     await paymentModel.createPaymentTransaction({
       feeAssignmentId,
       provider: "ZALOPAY",
       appTransId,
-      amount,
+      amount: order.amount,
+      rawRequest: order,
+      expiredAt: new Date(Date.now() + ZALOPAY_ORDER_TTL_MS),
+      createdBy: req.user.userId,
+    });
+
+    const result = await zalopayService.submitOrder(order);
+
+    if (Number(result.return_code) !== 1) {
+      await paymentModel.markPaymentTransactionStatus(appTransId, {
+        status: "FAILED",
+        rawResponse: result,
+        errorCode: result.sub_return_code || result.return_code,
+        errorMessage: result.sub_return_message || result.return_message,
+      });
+
+      return res.status(502).json({
+        success: false,
+        message: result.sub_return_message
+          || result.return_message
+          || "Không thể khởi tạo đơn thanh toán ZaloPay",
+      });
+    }
+
+    await paymentModel.updatePaymentTransactionOrder(appTransId, {
       orderUrl: result.order_url,
       qrCode: result.qr_code,
       rawResponse: result,
-      createdBy: req.user.userId,
     });
 
     return res.status(201).json({
       success: true,
       data: {
         appTransId,
-        amount,
+        amount: order.amount,
         orderUrl: result.order_url,
         qrCode: result.qr_code,
+        reused: false,
       },
     });
   } catch (error) {
+    if (appTransId) {
+      try {
+        // Callback có thể đến trước khi request tạo đơn nhận được response.
+        // Không ghi đè SUCCESS thành FAILED trong trường hợp đó.
+        const latestTransaction = await paymentModel.findPaymentTransactionByAppTransId(appTransId);
+        if (latestTransaction?.status === "SUCCESS") {
+          return res.status(201).json({
+            success: true,
+            data: {
+              appTransId,
+              amount: latestTransaction.amount,
+              orderUrl: latestTransaction.orderUrl,
+              qrCode: latestTransaction.qrCode,
+              status: "SUCCESS",
+              reused: false,
+            },
+          });
+        }
+
+        await paymentModel.markPaymentTransactionStatus(appTransId, {
+          status: "FAILED",
+          errorCode: error.code || "ZALOPAY_REQUEST_ERROR",
+          errorMessage: error.message,
+        });
+      } catch (markError) {
+        console.error("Không thể cập nhật giao dịch ZaloPay lỗi:", markError);
+      }
+    }
     return handleError(res, error, "Không thể tạo đơn thanh toán ZaloPay");
   }
 }
 
-async function applyConfirmedPayment(transaction, { zpTransId, note }) {
-  await staffFeesModel.recordFeePayment(
-    transaction.feePlanId,
-    transaction.feeAssignmentId,
-    {
-      amount: transaction.amount,
-      paymentDate: new Date(),
-      paymentMethod: "ZALOPAY",
-      transactionCode: zpTransId || transaction.appTransId,
-      note: note || "Thanh toán trực tuyến qua ZaloPay",
-    },
-    null,
-  );
-
-  await paymentModel.markPaymentTransactionStatus(transaction.appTransId, {
-    status: "SUCCESS",
-    zpTransId,
+async function applyConfirmedPayment(transaction, {
+  providerTransactionId,
+  amount,
+  rawResponse,
+  note,
+  paidAt,
+}) {
+  return paymentModel.confirmZaloPayPayment({
+    appTransId: transaction.appTransId,
+    providerTransactionId,
+    amount,
+    rawResponse,
+    note,
+    paidAt,
   });
 }
 
 async function getZaloPayOrderStatus(req, res) {
   try {
-    const feeAssignmentId = Number(req.params.feeAssignmentId);
+    const feeAssignmentId = assertPositiveIntegerId(
+      req.params.feeAssignmentId,
+      "Mã khoản phí không hợp lệ",
+    );
     const { appTransId } = req.params;
 
-    const assignment = await paymentModel.findFeeAssignmentForParent(req.user.userId, feeAssignmentId);
+    const assignment = await paymentModel.findFeeAssignmentForParent(
+      req.user.userId,
+      feeAssignmentId,
+    );
     if (!assignment) return notFound(res);
 
     const transaction = await paymentModel.findPaymentTransactionByAppTransId(appTransId);
@@ -167,34 +251,62 @@ async function getZaloPayOrderStatus(req, res) {
     }
 
     if (transaction.status !== "PENDING") {
-      return res.json({ success: true, data: { status: transaction.status, amount: transaction.amount } });
+      return res.json({
+        success: true,
+        data: {
+          status: transaction.status,
+          amount: transaction.amount,
+          errorMessage: transaction.errorMessage || null,
+        },
+      });
     }
 
-    // Local status is still pending — actively ask ZaloPay in case the
-    // server-to-server callback never reached us (common in local/dev setups).
     const result = await zalopayService.queryOrder(appTransId);
     const returnCode = Number(result.return_code);
 
     if (returnCode === 1) {
       await applyConfirmedPayment(transaction, {
-        zpTransId: result.zp_trans_id ? String(result.zp_trans_id) : null,
+        providerTransactionId: result.zp_trans_id
+          ? String(result.zp_trans_id)
+          : null,
+        amount: result.amount == null ? transaction.amount : Number(result.amount),
+        rawResponse: result,
         note: "Thanh toán trực tuyến qua ZaloPay (tra cứu trạng thái)",
       });
-      return res.json({ success: true, data: { status: "SUCCESS", amount: transaction.amount } });
+
+      return res.json({
+        success: true,
+        data: { status: "SUCCESS", amount: transaction.amount },
+      });
     }
 
     if (returnCode === 2) {
-      await paymentModel.markPaymentTransactionStatus(appTransId, { status: "FAILED", rawResponse: result });
-      return res.json({ success: true, data: { status: "FAILED", amount: transaction.amount } });
+      await paymentModel.markPaymentTransactionStatus(appTransId, {
+        status: "FAILED",
+        rawResponse: result,
+        errorCode: result.sub_return_code || result.return_code,
+        errorMessage: result.sub_return_message || result.return_message,
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          status: "FAILED",
+          amount: transaction.amount,
+          errorMessage: result.sub_return_message || result.return_message || null,
+        },
+      });
     }
 
-    return res.json({ success: true, data: { status: "PENDING", amount: transaction.amount } });
+    return res.json({
+      success: true,
+      data: { status: "PENDING", amount: transaction.amount },
+    });
   } catch (error) {
     return handleError(res, error, "Không thể kiểm tra trạng thái thanh toán");
   }
 }
 
-// Public webhook — ZaloPay calls this server-to-server, no user auth.
 async function zalopayCallback(req, res) {
   try {
     const { data, mac } = req.body || {};
@@ -203,21 +315,34 @@ async function zalopayCallback(req, res) {
       return res.json({ return_code: -1, return_message: "mac not equal" });
     }
 
-    const payload = JSON.parse(data);
-    const appTransId = payload.app_trans_id;
+    let payload;
+    try {
+      payload = JSON.parse(data);
+    } catch (_error) {
+      return res.json({ return_code: 0, return_message: "invalid data" });
+    }
 
+    if (!zalopayService.isExpectedAppId(payload.app_id)) {
+      return res.json({ return_code: -1, return_message: "app_id not equal" });
+    }
+
+    const appTransId = String(payload.app_trans_id || "");
     const transaction = await paymentModel.findPaymentTransactionByAppTransId(appTransId);
 
     if (!transaction) {
       console.error("ZaloPay callback: unknown app_trans_id", appTransId);
-      return res.json({ return_code: 1, return_message: "success" });
+      return res.json({ return_code: 0, return_message: "transaction not found" });
     }
 
-    if (transaction.status === "PENDING") {
-      await applyConfirmedPayment(transaction, {
-        zpTransId: payload.zp_trans_id ? String(payload.zp_trans_id) : null,
-      });
-    }
+    await applyConfirmedPayment(transaction, {
+      providerTransactionId: payload.zp_trans_id
+        ? String(payload.zp_trans_id)
+        : null,
+      amount: payload.amount == null ? transaction.amount : Number(payload.amount),
+      rawResponse: payload,
+      note: "Thanh toán trực tuyến qua ZaloPay (callback)",
+      paidAt: payload.server_time ? new Date(Number(payload.server_time)) : new Date(),
+    });
 
     return res.json({ return_code: 1, return_message: "success" });
   } catch (error) {

@@ -13,7 +13,7 @@ import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const initialForm = {
   title: "",
-  feeType: "Học phí",
+  feeCategoryId: "",
   schoolYearId: "",
   semesterId: "",
   amount: "",
@@ -36,6 +36,7 @@ function StaffFeeFormPage() {
     grades: [],
     classes: [],
     students: [],
+    feeCategories: [],
   });
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
@@ -51,6 +52,8 @@ function StaffFeeFormPage() {
         setForm((prev) => ({
           ...prev,
           schoolYearId: queryYearId || activeYearId || "",
+          feeCategoryId:
+            prev.feeCategoryId || res.data.feeCategories?.[0]?.feeCategoryId || "",
         }));
       })
       .catch((err) => setError(err.message));
@@ -164,14 +167,16 @@ function StaffFeeFormPage() {
         <StaffField label="Loại phí">
           <PrettySelect
             className={inputClass}
-            value={form.feeType}
-            onChange={(event) => setField("feeType", event.target.value)}
+            value={form.feeCategoryId}
+            onChange={(event) => setField("feeCategoryId", event.target.value)}
+            required
           >
-            <option value="Học phí">Học phí</option>
-            <option value="Bán trú">Bán trú</option>
-            <option value="Xe đưa đón">Xe đưa đón</option>
-            <option value="Hoạt động ngoại khóa">Hoạt động ngoại khóa</option>
-            <option value="Khác">Khác</option>
+            <option value="">Chọn loại phí</option>
+            {lookups.feeCategories?.map((category) => (
+              <option key={category.feeCategoryId} value={category.feeCategoryId}>
+                {category.name}
+              </option>
+            ))}
           </PrettySelect>
         </StaffField>
 
@@ -209,7 +214,7 @@ function StaffFeeFormPage() {
         <StaffField label="Số tiền">
           <input
             type="number"
-            min="0"
+            min="1"
             step="1000"
             className={inputClass}
             value={form.amount}

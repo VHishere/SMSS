@@ -288,7 +288,7 @@ function RateFormModal({ rate, category, lookups, onClose, onSaved }) {
             Số tiền
             <input
               type="number"
-              min="0"
+              min="1"
               step="1000"
               className={inputClass}
               value={form.amount}

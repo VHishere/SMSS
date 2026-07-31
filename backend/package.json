@@ -13,7 +13,8 @@
     "migrate:announcement-grade": "node src/scripts/migrate-announcement-grade.js",
     "migrate:behaviour-categories": "node src/scripts/migrate-behaviour-categories.js",
     "migrate:conversation-admin-type": "node src/scripts/migrate-conversation-admin-type.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:regression": "node --test tests/payment-student-regression.test.js"
   },
   "keywords": [],
   "author": "",

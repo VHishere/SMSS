@@ -316,7 +316,11 @@ function EditProfileModal({
                 onChange={(event) =>
                   updateField("phone", event.target.value)
                 }
-                placeholder="Nhập số điện thoại"
+                placeholder="VD: 0912345678"
+                inputMode="numeric"
+                maxLength={10}
+                pattern="0[0-9]{9}"
+                title="Số điện thoại gồm đúng 10 chữ số và bắt đầu bằng 0"
                 className={inputClass}
               />
             </label>
@@ -423,6 +427,18 @@ function StudentProfile() {
   }, []);
 
   async function handleUpdateProfile(form) {
+    const phone = String(form.phone || "").trim();
+
+    if (phone && !/^0\d{9}$/.test(phone)) {
+      setError("Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng 0.");
+      return;
+    }
+
+    if (String(form.address || "").trim().length > 500) {
+      setError("Địa chỉ không được vượt quá 500 ký tự.");
+      return;
+    }
+
     setSaving(true);
     setError("");
     setSuccessMessage("");
@@ -430,7 +446,7 @@ function StudentProfile() {
     try {
       const response = await studentApi.updateMyProfile({
         ...form,
-        fullName: profile.fullName,
+        phone,
       });
 
       setProfile(response.data);

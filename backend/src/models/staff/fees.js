@@ -372,6 +372,38 @@ async function resolveFeeCategoryId(data, connection = pool) {
   return category.feeCategoryId;
 }
 
+async function resolveFeeRate(feeRateId, data, connection = pool) {
+  const [[rate]] = await connection.query(
+    `
+      SELECT
+        fee_rate_id AS feeRateId,
+        fee_category_id AS feeCategoryId,
+        school_year_id AS schoolYearId,
+        semester_id AS semesterId,
+        amount
+      FROM fee_rate
+      WHERE fee_rate_id = ?
+        AND status = 'ACTIVE'
+      LIMIT 1
+    `,
+    [feeRateId],
+  );
+
+  if (!rate) {
+    throw createHttpError("Mức thu không tồn tại hoặc đã ngừng sử dụng");
+  }
+
+  if (String(rate.schoolYearId) !== String(data.schoolYearId)) {
+    throw createHttpError("Mức thu không thuộc năm học đã chọn");
+  }
+
+  if (rate.semesterId != null && String(rate.semesterId) !== String(data.semesterId || "")) {
+    throw createHttpError("Mức thu không thuộc học kỳ đã chọn");
+  }
+
+  return { feeCategoryId: rate.feeCategoryId, amount: toNumber(rate.amount) };
+}
+
 async function validateAcademicReferences(data, connection = pool) {
   if (data.semesterId) {
     const [[semester]] = await connection.query(
@@ -400,7 +432,6 @@ function getScopeColumns(data, scopeType) {
 }
 
 async function createFeePlan(data, createdBy) {
-  const amount = toNumber(data.amount, NaN);
   const discountAmount = toNumber(data.discountAmount, 0);
   const status = data.status || "PUBLISHED";
   const scopeType = data.scopeType || "CLASS";
@@ -410,18 +441,6 @@ async function createFeePlan(data, createdBy) {
     throw createHttpError(
       "Vui lòng nhập tên khoản phí, năm học, số tiền và hạn đóng",
     );
-  }
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw createHttpError("Số tiền phải lớn hơn 0");
-  }
-
-  if (
-    !Number.isFinite(discountAmount)
-    || discountAmount < 0
-    || discountAmount > amount
-  ) {
-    throw createHttpError("Số tiền giảm trừ không hợp lệ");
   }
 
   if (!PLAN_STATUSES.has(status)) {
@@ -443,7 +462,32 @@ async function createFeePlan(data, createdBy) {
     await connection.beginTransaction();
 
     await validateAcademicReferences(data, connection);
-    const feeCategoryId = await resolveFeeCategoryId(data, connection);
+
+    // Nếu chọn mức thu đã cấu hình (fee_rate), số tiền và loại phí lấy từ
+    // đó — không cho nhập tay lệch khỏi mức thu đã công bố.
+    let feeCategoryId;
+    let amount;
+    if (data.feeRateId) {
+      const rate = await resolveFeeRate(data.feeRateId, data, connection);
+      feeCategoryId = rate.feeCategoryId;
+      amount = rate.amount;
+    } else {
+      feeCategoryId = await resolveFeeCategoryId(data, connection);
+      amount = toNumber(data.amount, NaN);
+    }
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw createHttpError("Số tiền phải lớn hơn 0");
+    }
+
+    if (
+      !Number.isFinite(discountAmount)
+      || discountAmount < 0
+      || discountAmount > amount
+    ) {
+      throw createHttpError("Số tiền giảm trừ không hợp lệ");
+    }
+
     const targetStudents = await findFeeTargetStudents(
       { ...data, scopeType },
       connection,

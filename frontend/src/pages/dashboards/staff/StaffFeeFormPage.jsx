@@ -14,6 +14,7 @@ import PrettySelect from "../../../components/molecules/PrettySelect";
 const initialForm = {
   title: "",
   feeCategoryId: "",
+  feeRateId: "",
   schoolYearId: "",
   semesterId: "",
   amount: "",
@@ -37,6 +38,7 @@ function StaffFeeFormPage() {
     classes: [],
     students: [],
     feeCategories: [],
+    feeRates: [],
   });
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
@@ -58,6 +60,14 @@ function StaffFeeFormPage() {
       })
       .catch((err) => setError(err.message));
   }, [searchParams]);
+
+  const filteredFeeRates = useMemo(
+    () =>
+      lookups.feeRates?.filter(
+        (rate) => !form.schoolYearId || String(rate.schoolYearId) === String(form.schoolYearId),
+      ) || [],
+    [lookups.feeRates, form.schoolYearId],
+  );
 
   const filteredSemesters = useMemo(
     () =>
@@ -94,6 +104,7 @@ function StaffFeeFormPage() {
         next.semesterId = "";
         next.classId = "";
         next.gradeId = "";
+        next.feeRateId = "";
       }
 
       if (field === "gradeId") {
@@ -107,6 +118,26 @@ function StaffFeeFormPage() {
       }
 
       return next;
+    });
+  };
+
+  const selectFeeRate = (feeRateId) => {
+    setForm((prev) => {
+      if (!feeRateId) {
+        return { ...prev, feeRateId: "" };
+      }
+
+      const rate = lookups.feeRates?.find(
+        (item) => String(item.feeRateId) === String(feeRateId),
+      );
+      if (!rate) return prev;
+
+      return {
+        ...prev,
+        feeRateId,
+        feeCategoryId: rate.feeCategoryId,
+        amount: String(rate.amount),
+      };
     });
   };
 
@@ -164,11 +195,29 @@ function StaffFeeFormPage() {
           />
         </StaffField>
 
+        <StaffField label="Mức thu đã cấu hình" className="md:col-span-2">
+          <PrettySelect
+            className={inputClass}
+            value={form.feeRateId}
+            onChange={(event) => selectFeeRate(event.target.value)}
+          >
+            <option value="">Nhập tay (không dùng mức thu có sẵn)</option>
+            {filteredFeeRates.map((rate) => (
+              <option key={rate.feeRateId} value={rate.feeRateId}>
+                {rate.feeCategoryName} · {rate.amount.toLocaleString("vi-VN")}đ
+                {rate.gradeName ? ` · Khối ${rate.gradeName}` : ""}
+                {rate.className ? ` · Lớp ${rate.className}` : ""}
+              </option>
+            ))}
+          </PrettySelect>
+        </StaffField>
+
         <StaffField label="Loại phí">
           <PrettySelect
             className={inputClass}
             value={form.feeCategoryId}
             onChange={(event) => setField("feeCategoryId", event.target.value)}
+            disabled={Boolean(form.feeRateId)}
             required
           >
             <option value="">Chọn loại phí</option>
@@ -219,6 +268,8 @@ function StaffFeeFormPage() {
             className={inputClass}
             value={form.amount}
             onChange={(event) => setField("amount", event.target.value)}
+            disabled={Boolean(form.feeRateId)}
+            title={form.feeRateId ? "Số tiền lấy theo mức thu đã chọn ở trên" : undefined}
             required
           />
         </StaffField>

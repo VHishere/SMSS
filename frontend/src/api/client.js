@@ -115,6 +115,8 @@ export const adminApi = {
     return request(`/admin/users${qs ? `?${qs}` : ""}`);
   },
 
+  getUserStats: () => request("/admin/users/stats"),
+
   setUserStatus: (userId, status) =>
     request(`/admin/users/${userId}/status`, {
       method: "PUT",

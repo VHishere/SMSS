@@ -26,10 +26,9 @@ async function getMeta(req, res) {
     const profile = await resolveTeacher(req.user.userId);
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
-    const [classes, semesters, violationTypes, meritCategories, violationCategories] = await Promise.all([
+    const [classes, semesters, meritCategories, violationCategories] = await Promise.all([
       behaviourModel.findTeacherClasses(profile.teacherId),
       behaviourModel.findSemesters(),
-      behaviourModel.findViolationTypes(),
       behaviourModel.findCategories({ behaviorType: "POSITIVE", status: "ACTIVE" }),
       behaviourModel.findCategories({ behaviorType: "VIOLATION", status: "ACTIVE" }),
     ]);
@@ -41,7 +40,6 @@ async function getMeta(req, res) {
         semesters,
         meritCategories: meritCategories.map(toPickerOption),
         violationCategories: violationCategories.map(toPickerOption),
-        violationTypes,      // [{ code, name, affectsConduct }]
         conductGrades:       CONDUCT_GRADES, // 5 mức: Tốt/Khá/Trung bình/Yếu/Kém
       },
     });
@@ -283,10 +281,9 @@ async function updateWarning(req, res) {
 // GET /admin/behaviour/meta — every class school-wide + semesters + config
 async function getMetaAdmin(_req, res) {
   try {
-    const [classes, semesters, violationTypes, meritCategories, violationCategories] = await Promise.all([
+    const [classes, semesters, meritCategories, violationCategories] = await Promise.all([
       studentProfileModel.findAllClasses(),
       behaviourModel.findSemesters(),
-      behaviourModel.findViolationTypes(),
       behaviourModel.findCategories({ behaviorType: "POSITIVE", status: "ACTIVE" }),
       behaviourModel.findCategories({ behaviorType: "VIOLATION", status: "ACTIVE" }),
     ]);
@@ -298,7 +295,6 @@ async function getMetaAdmin(_req, res) {
         semesters,
         meritCategories: meritCategories.map(toPickerOption),
         violationCategories: violationCategories.map(toPickerOption),
-        violationTypes,
         conductGrades: CONDUCT_GRADES,
       },
     });

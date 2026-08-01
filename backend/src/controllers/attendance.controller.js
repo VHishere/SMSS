@@ -7,45 +7,6 @@ function handleAdminError(res, error, fallback) {
   return res.status(500).json({ success: false, message: fallback });
 }
 
-async function getStudentAttendanceStats(req, res) {
-  try {
-    const studentId = parseInt(req.params.studentId, 10);
-
-    const { startDate, endDate, context } = req.query;
-
-    const rawStats = await attendanceModel.findStatsByStudentId(studentId, {
-      startDate,
-      endDate,
-      context,
-    });
-
-    const byType = {};
-    const byContext = {};
-    let total = 0;
-
-    for (const row of rawStats) {
-      const count = Number(row.count);
-      total += count;
-
-      byType[row.typeName] = (byType[row.typeName] || 0) + count;
-
-      if (!byContext[row.context]) byContext[row.context] = {};
-      byContext[row.context][row.typeName] = (byContext[row.context][row.typeName] || 0) + count;
-    }
-
-    return res.json({
-      success: true,
-      data: { total, byType, byContext },
-    });
-  } catch (error) {
-    console.error("getStudentAttendanceStats error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Không thể lấy thống kê điểm danh",
-    });
-  }
-}
-
 async function getStudentAttendanceHistory(req, res) {
   try {
     const studentId = parseInt(req.params.studentId, 10);
@@ -405,7 +366,6 @@ async function generateWarnings(req, res) {
 }
 
 module.exports = {
-  getStudentAttendanceStats,
   getStudentAttendanceHistory,
   getStudentAttendanceAnalytics,
   getMeta,

@@ -11,11 +11,15 @@ function handleError(res, error, fallbackMessage) {
     });
   }
 
-  return res.status(error.statusCode || 500).json({
-    success: false,
-    message: error.message || fallbackMessage,
-    details: error.details,
-  });
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({
+      success: false,
+      message: error.message,
+      details: error.details,
+    });
+  }
+
+  return res.status(500).json({ success: false, message: fallbackMessage });
 }
 
 async function getOverview(_req, res) {

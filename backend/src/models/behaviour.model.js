@@ -54,15 +54,6 @@ async function isHomeroomOfStudent(teacherId, studentId) {
   return Boolean(row);
 }
 
-// Danh mục loại vi phạm chuẩn (kèm cờ có ảnh hưởng hạnh kiểm) cho bộ chọn khi ghi vi phạm.
-async function findViolationTypes() {
-  const [rows] = await pool.query(
-    `SELECT code, name, affects_conduct AS affectsConduct
-     FROM violation_type WHERE is_active = 1 ORDER BY affects_conduct DESC, name ASC`,
-  );
-  return rows.map((r) => ({ ...r, affectsConduct: Boolean(r.affectsConduct) }));
-}
-
 // ── Merit/violation category catalog (mức độ cộng/trừ) ─────────────────────────
 // Shared by teacher (picker in the record composer) and admin (manages the
 // catalog itself — code/label/points/affects-conduct-default).
@@ -645,7 +636,6 @@ module.exports = {
   isTeacherForClass,
   isTeacherForStudent,
   isHomeroomOfStudent,
-  findViolationTypes,
   findCategories,
   findCategoryByCode,
   createCategory,

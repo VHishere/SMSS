@@ -44,7 +44,7 @@ function Ms({ name, className = "", style, fill = false }) {
 function AdminOverviewPage() {
   const navigate = useNavigate();
 
-  const [users, setUsers] = useState([]);
+  const [userStats, setUserStats] = useState({ total: 0, ACTIVE: 0, LOCKED: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -60,9 +60,9 @@ function AdminOverviewPage() {
     let mounted = true;
 
     adminApi
-      .getUsers({})
+      .getUserStats()
       .then((response) => {
-        if (mounted) setUsers(response.data || []);
+        if (mounted) setUserStats(response.data);
       })
       .catch((err) => {
         if (mounted) setError(err.message);
@@ -114,12 +114,11 @@ function AdminOverviewPage() {
     };
   }, []);
 
-  const stats = useMemo(() => {
-    const total = users.length;
-    const active = users.filter((u) => u.status === "ACTIVE").length;
-    const locked = users.filter((u) => u.status === "LOCKED").length;
-    return { total, active, locked };
-  }, [users]);
+  const stats = useMemo(() => ({
+    total: userStats.total || 0,
+    active: userStats.ACTIVE || 0,
+    locked: userStats.LOCKED || 0,
+  }), [userStats]);
 
   return (
     <div className="space-y-6">

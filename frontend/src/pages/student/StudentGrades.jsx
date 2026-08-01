@@ -324,7 +324,7 @@ function StudentGrades() {
           <PrettySelect
             value={activeSemesterId}
             onChange={(event) => setSelectedSemesterId(event.target.value)}
-            className="h-11 min-w-[220px] rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0F2747] outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
+            className="h-11 min-w-55 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-[#0F2747] outline-none transition focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
           >
             {semesterOptions.map((semester) => (
               <option key={semester.key} value={semester.key}>
@@ -425,7 +425,7 @@ function StudentGrades() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="min-w-[760px] w-full border-collapse text-left">
+                  <table className="min-w-190 w-full border-collapse text-left">
                     <thead className="bg-slate-50 text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
                       <tr>
                         <th className="px-5 py-3">Môn học</th>

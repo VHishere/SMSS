@@ -394,44 +394,150 @@ async function submitPeriodAttendance(req, res) {
 const FEEDBACK_RATINGS = ["GOOD", "NORMAL", "NEEDS_IMPROVEMENT"];
 async function submitPeriodFeedback(req, res) {
   try {
-    const timetableId = parseInt(req.params.timetableId, 10);
+    const timetableId = Number.parseInt(req.params.timetableId, 10);
     const { date, items } = req.body;
+
+    if (!Number.isInteger(timetableId) || timetableId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Mã tiết học không hợp lệ",
+      });
+    }
+
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({ success: false, message: "Ngày không hợp lệ (YYYY-MM-DD)" });
+      return res.status(400).json({
+        success: false,
+        message: "Ngày không hợp lệ (YYYY-MM-DD)",
+      });
     }
-    if (!Array.isArray(items)) {
-      return res.status(400).json({ success: false, message: "Danh sách nhận xét không hợp lệ" });
+
+    const pad = (value) => String(value).padStart(2, "0");
+    const now = new Date();
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+    if (date > today) {
+      return res.status(400).json({
+        success: false,
+        message: "Không thể nhận xét cho ngày trong tương lai",
+      });
     }
-    for (const it of items) {
-      if (it.rating && !FEEDBACK_RATINGS.includes(it.rating)) {
-        return res.status(400).json({ success: false, message: "Mức nhận xét không hợp lệ" });
-      }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Danh sách nhận xét không được rỗng",
+      });
     }
 
     const profile = await teacherModel.findProfileByUserId(req.user.userId);
-    if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy hồ sơ giáo viên",
+      });
+    }
 
     const period = await attendanceModel.resolveEffectivePeriod(timetableId, date);
-    if (!period) return res.status(404).json({ success: false, message: "Không tìm thấy tiết học" });
+    if (!period) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy tiết học",
+      });
+    }
+
     if (period.effectiveTeacherId !== profile.teacherId) {
-      return res.status(403).json({ success: false, message: "Bạn không phụ trách tiết này" });
+      return res.status(403).json({
+        success: false,
+        message: "Bạn không phụ trách tiết này",
+      });
     }
 
-    const clean = items
-      .filter((it) => it.studentId && (it.rating || (it.content && it.content.trim())))
-      .map((it) => ({
-        studentId: parseInt(it.studentId, 10),
-        rating: it.rating || null,
-        content: (it.content || "").trim() || null,
-      }));
-
-    if (clean.length) {
-      await feedbackModel.bulkUpsertLessonFeedback({ timetableId, teacherId: profile.teacherId, date, items: clean });
+    if (period.cancelled) {
+      return res.status(409).json({
+        success: false,
+        message: "Không thể nhận xét cho tiết học đã bị hủy",
+      });
     }
-    return res.json({ success: true, message: `Đã lưu nhận xét ${clean.length} học sinh` });
+
+    const enrolledStudents = await attendanceModel.findEnrolledStudents(
+      period.classId,
+    );
+    const enrolledStudentIds = new Set(
+      enrolledStudents.map((student) => Number(student.studentId)),
+    );
+    const submittedStudentIds = new Set();
+    const clean = [];
+
+    for (const item of items) {
+      const studentId = Number.parseInt(item.studentId, 10);
+      const rating = item.rating ? String(item.rating).trim() : null;
+      const content = String(item.content || "").trim() || null;
+
+      if (!Number.isInteger(studentId) || studentId <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Mã học sinh trong danh sách nhận xét không hợp lệ",
+        });
+      }
+
+      if (!enrolledStudentIds.has(studentId)) {
+        return res.status(403).json({
+          success: false,
+          message: "Danh sách có học sinh không thuộc lớp của tiết học",
+        });
+      }
+
+      if (submittedStudentIds.has(studentId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Danh sách nhận xét có học sinh bị trùng",
+        });
+      }
+      submittedStudentIds.add(studentId);
+
+      if (rating && !FEEDBACK_RATINGS.includes(rating)) {
+        return res.status(400).json({
+          success: false,
+          message: "Mức nhận xét không hợp lệ",
+        });
+      }
+
+      if (content && content.length > 2000) {
+        return res.status(400).json({
+          success: false,
+          message: "Nội dung nhận xét không được vượt quá 2000 ký tự",
+        });
+      }
+
+      if (rating || content) {
+        clean.push({ studentId, rating, content });
+      }
+    }
+
+    if (clean.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Chưa nhập nhận xét nào",
+      });
+    }
+
+    await feedbackModel.bulkUpsertLessonFeedback({
+      timetableId,
+      teacherId: profile.teacherId,
+      date,
+      items: clean,
+    });
+
+    return res.json({
+      success: true,
+      message: `Đã lưu nhận xét ${clean.length} học sinh`,
+    });
   } catch (error) {
     console.error("submitPeriodFeedback error:", error);
-    return res.status(500).json({ success: false, message: "Không thể lưu nhận xét" });
+    return res.status(500).json({
+      success: false,
+      message: "Không thể lưu nhận xét",
+    });
   }
 }
 

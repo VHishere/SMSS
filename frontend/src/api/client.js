@@ -626,6 +626,12 @@ export const studentApi = {
     return request(`/students/me/attendance/analytics${qs ? `?${qs}` : ""}`);
   },
 
+  getMyLeaveRequests: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/leave-requests${qs ? `?${qs}` : ""}`);
+  },
+
   getMyBehaviour: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
 
@@ -640,18 +646,6 @@ export const studentApi = {
 
     return request(`/students/me/goals${qs ? `?${qs}` : ""}`);
   },
-
-  createMyGoal: (body) =>
-    request("/students/me/goals", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  updateMyGoalProgress: (goalId, body) =>
-    request(`/students/me/goals/${goalId}/progress`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    }),
 
   getMyGoalLog: (goalId) =>
     request(`/students/me/goals/${goalId}/log`),

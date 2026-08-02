@@ -19,6 +19,14 @@ import { studentApi } from "../../api/client";
 import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
 import PrettySelect from "../../components/molecules/PrettySelect";
 
+function getTodayInputValue() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+  const day = String(today.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function formatDate(value) {
   if (!value) return "Chưa cập nhật";
 
@@ -314,7 +322,10 @@ function EditProfileModal({
               <input
                 value={form.phone}
                 onChange={(event) =>
-                  updateField("phone", event.target.value)
+                  updateField(
+                    "phone",
+                    event.target.value.replace(/\D/g, "").slice(0, 10),
+                  )
                 }
                 placeholder="VD: 0912345678"
                 inputMode="numeric"
@@ -333,6 +344,7 @@ function EditProfileModal({
               <input
                 type="date"
                 value={form.dateOfBirth}
+                max={getTodayInputValue()}
                 onChange={(event) =>
                   updateField("dateOfBirth", event.target.value)
                 }
@@ -366,12 +378,16 @@ function EditProfileModal({
               <textarea
                 rows={3}
                 value={form.address}
+                maxLength={500}
                 onChange={(event) =>
                   updateField("address", event.target.value)
                 }
                 placeholder="Nhập địa chỉ hiện tại"
                 className={`${inputClass} h-auto min-h-[100px] resize-y py-3`}
               />
+              <span className="mt-1 block text-right text-xs text-slate-400">
+                {form.address.length}/500
+              </span>
             </label>
           </div>
         </div>
@@ -436,6 +452,11 @@ function StudentProfile() {
 
     if (String(form.address || "").trim().length > 500) {
       setError("Địa chỉ không được vượt quá 500 ký tự.");
+      return;
+    }
+
+    if (form.dateOfBirth && form.dateOfBirth > getTodayInputValue()) {
+      setError("Ngày sinh không được nằm trong tương lai.");
       return;
     }
 

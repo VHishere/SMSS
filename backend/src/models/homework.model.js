@@ -782,6 +782,8 @@ async function submitStudentSubmission({
          h.homework_id AS homeworkId,
          h.title,
          h.status,
+         h.due_date AS dueDate,
+         (h.due_date < NOW()) AS isOverdue,
          h.teacher_id AS teacherId,
          t.user_id AS teacherUserId
        FROM homework h
@@ -804,6 +806,12 @@ async function submitStudentSubmission({
 
     if (!["OPEN", "PUBLISHED", "ACTIVE"].includes(homework.status)) {
       const error = new Error("Bài tập hiện không mở để nộp bài");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (Boolean(homework.isOverdue)) {
+      const error = new Error("Bài tập đã quá hạn nộp");
       error.statusCode = 409;
       throw error;
     }

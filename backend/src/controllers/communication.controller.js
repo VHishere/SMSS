@@ -30,6 +30,16 @@ async function resolveTeacher(userId) {
   };
 }
 
+function parsePositiveInteger(value, fallback, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback;
+  }
+
+  return Math.min(parsed, max);
+}
+
 function handleError(res, error, fallback) {
   if (error.statusCode) {
     return res
@@ -144,18 +154,8 @@ async function listConversations(req, res) {
       limit = "20",
     } = req.query;
 
-    const parsedPage = Math.max(
-      1,
-      Number.parseInt(page, 10),
-    );
-
-    const parsedLimit = Math.min(
-      50,
-      Math.max(
-        1,
-        Number.parseInt(limit, 10),
-      ),
-    );
+    const parsedPage = parsePositiveInteger(page, 1);
+    const parsedLimit = parsePositiveInteger(limit, 20, 50);
 
     const items =
       await commModel.findConversations(
@@ -276,27 +276,29 @@ async function createGroup(req, res) {
 
 async function getThread(req, res) {
   try {
-    const conversationId =
-      Number.parseInt(
-        req.params.conversationId,
-        10,
-      );
+    const conversationId = Number.parseInt(
+      req.params.conversationId,
+      10,
+    );
+
+    if (!Number.isInteger(conversationId) || conversationId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cuộc trò chuyện không hợp lệ",
+      });
+    }
 
     const {
       page = "1",
       limit = "50",
     } = req.query;
 
-    const data =
-      await commService.getThread({
-        userId: req.user.userId,
-        conversationId,
-        page: Number.parseInt(page, 10),
-        limit: Math.min(
-          100,
-          Number.parseInt(limit, 10),
-        ),
-      });
+    const data = await commService.getThread({
+      userId: req.user.userId,
+      conversationId,
+      page: parsePositiveInteger(page, 1),
+      limit: parsePositiveInteger(limit, 50, 100),
+    });
 
     emitReadReceipt({
       conversationId,
@@ -329,6 +331,13 @@ async function sendMessage(req, res) {
         req.params.conversationId,
         10,
       );
+
+    if (!Number.isInteger(conversationId) || conversationId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cuộc trò chuyện không hợp lệ",
+      });
+    }
 
     const {
       messageType,
@@ -443,6 +452,20 @@ async function archiveConversation(
         10,
       );
 
+    if (!Number.isInteger(conversationId) || conversationId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cuộc trò chuyện không hợp lệ",
+      });
+    }
+
+    if (typeof req.body.archived !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "Trạng thái lưu trữ không hợp lệ",
+      });
+    }
+
     const allowed =
       await commModel.isParticipant(
         conversationId,
@@ -460,7 +483,7 @@ async function archiveConversation(
     await commModel.setArchived(
       conversationId,
       req.user.userId,
-      Boolean(req.body.archived),
+      req.body.archived,
     );
 
     return res.json({

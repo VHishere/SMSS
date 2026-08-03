@@ -52,11 +52,11 @@ async function submitScores({ teacherId, actorUserId, payload }) {
 
   if (clean.length === 0) throw httpError("Không có điểm hợp lệ để lưu", 400);
 
-  // Notifications to each scored student + their parents
+  // Notifications to each scored student + their parents — batched (2 query thay vì N).
   const notifications = [];
+  const recipientsMap = await academicModel.findRecipientsForStudents(clean.map((r) => r.studentId));
   for (const r of clean) {
-    const recipients = await academicModel.findStudentRecipients(r.studentId);
-    for (const receiverId of recipients) {
+    for (const receiverId of recipientsMap.get(r.studentId) || []) {
       notifications.push({
         receiverId,
         title:   "Điểm mới được cập nhật",

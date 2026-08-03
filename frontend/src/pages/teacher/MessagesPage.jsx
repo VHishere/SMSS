@@ -175,6 +175,14 @@ function appendUniqueMessage(
 function MessagesPage() {
   const { user } = useAuth();
 
+  // GVQN thuần dùng chung màn chat này (route /supervisor/messages) — chỉ khác
+  // sidebar (nav GVQN) và không có chức năng tạo nhóm lớp.
+  const roleNames = (user?.roles ?? []).map((r) => r.roleName);
+  const isSupervisorOnly =
+    roleNames.includes("DORM_SUPERVISOR") &&
+    !roleNames.includes("HOMEROOM_TEACHER") &&
+    !roleNames.includes("SUBJECT_TEACHER");
+
   const [
     contacts,
     setContacts,
@@ -997,7 +1005,7 @@ function MessagesPage() {
   return (
     <DashboardShell
       user={headerUser}
-      menuItems={dashboardNavigation.TEACHER}
+      menuItems={isSupervisorOnly ? dashboardNavigation.SUPERVISOR : dashboardNavigation.TEACHER}
       sidebarFooterLabel="Tin chưa đọc"
       sidebarFooterValue={String(stats.unreadMessages)}
     >
@@ -1024,6 +1032,7 @@ function MessagesPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {!isSupervisorOnly && (
           <button
             type="button"
             onClick={() => setShowGroup(true)}
@@ -1032,6 +1041,7 @@ function MessagesPage() {
             <FiUsers size={15} />
             Tạo nhóm
           </button>
+          )}
 
           <button
             type="button"

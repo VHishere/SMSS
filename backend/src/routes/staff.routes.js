@@ -344,4 +344,28 @@ router.put(
   staffController.updateStudySession,
 );
 
+// ── Thông báo của tài khoản staff (bảng notification chung, is_read thật) ────
+// Chỉ STAFF (không mở cho ADMIN) vì đây là hộp thư của chính người đăng nhập —
+// admin đã có /admin/me/notifications riêng.
+router.get(
+  "/me/notifications",
+  authenticate,
+  authorize("STAFF"),
+  staffController.getMyNotifications,
+);
+
+router.patch(
+  "/me/notifications/read-all",
+  authenticate,
+  authorize("STAFF"),
+  staffController.markAllMyNotificationsRead,
+);
+
+router.patch(
+  "/me/notifications/:notificationId/read",
+  authenticate,
+  authorize("STAFF"),
+  staffController.markMyNotificationRead,
+);
+
 module.exports = router;

@@ -1298,7 +1298,7 @@ function NewConversationModal({
                     key={group.conversationId}
                     type="button"
                     onClick={() => onOpenGroup(group)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
+                    className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
                   >
                     <ConversationAvatar name={group.title} tone="green" />
 
@@ -1340,7 +1340,7 @@ function NewConversationModal({
                     }
                     type="button"
                     onClick={() => onStartTeacher(teacher)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
+                    className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
                   >
                     <ConversationAvatar
                       name={teacher.teacherName}

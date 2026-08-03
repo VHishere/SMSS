@@ -14,7 +14,7 @@ const ROLE_DASHBOARD = {
     STAFF: '/staff',
     HOMEROOM_TEACHER: '/teacher',
     SUBJECT_TEACHER: '/teacher',
-    DORM_SUPERVISOR: '/teacher',
+    DORM_SUPERVISOR: '/supervisor',
     PARENT: '/parent',
     STUDENT: '/student'
 };

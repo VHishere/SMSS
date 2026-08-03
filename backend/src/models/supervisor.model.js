@@ -577,9 +577,68 @@ async function findAreaContacts(areaIds) {
   return rows;
 }
 
+// ── Danh bạ cho CHAT (kèm user_id để bắt đầu hội thoại) — scope theo khu ───────
+async function findAreaMessageStudents(areaIds) {
+  if (!areaIds.length) return [];
+  const ph = areaIds.map(() => "?").join(",");
+  const [rows] = await pool.query(
+    `SELECT DISTINCT s.user_id AS studentUserId, s.student_id AS studentId,
+            ua.full_name AS studentName, s.student_code AS studentCode, sc.class_name AS className
+     FROM student_area saa
+     JOIN student s ON s.student_id = saa.student_id
+     JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
+     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+     WHERE saa.area_id IN (${ph})
+     ORDER BY ua.full_name`,
+    areaIds,
+  );
+  return rows;
+}
+
+async function findAreaMessageParents(areaIds) {
+  if (!areaIds.length) return [];
+  const ph = areaIds.map(() => "?").join(",");
+  const [rows] = await pool.query(
+    `SELECT DISTINCT ppu.user_id AS parentUserId, ppu.full_name AS parentName,
+            s.student_id AS studentId, stu.full_name AS studentName,
+            sc.class_name AS className, spr.relationship, spr.is_primary AS isPrimary
+     FROM student_area saa
+     JOIN student s ON s.student_id = saa.student_id
+     JOIN user_account stu ON stu.user_id = s.user_id
+     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+     JOIN student_parent spr ON spr.student_id = s.student_id
+     JOIN parent_profile pp ON pp.parent_id = spr.parent_id
+     JOIN user_account ppu ON ppu.user_id = pp.user_id AND ppu.status = 'ACTIVE'
+     WHERE saa.area_id IN (${ph})
+     ORDER BY stu.full_name, spr.is_primary DESC`,
+    areaIds,
+  );
+  return rows;
+}
+
+// Phụ huynh (theo user_id) có con thuộc khu GVQN — chống nhắn ngoài khu.
+async function parentInArea(areaIds, parentUserId) {
+  if (!areaIds.length) return false;
+  const ph = areaIds.map(() => "?").join(",");
+  const [[row]] = await pool.query(
+    `SELECT 1 AS ok
+     FROM student_area saa
+     JOIN student_parent spr ON spr.student_id = saa.student_id
+     JOIN parent_profile pp ON pp.parent_id = spr.parent_id
+     WHERE pp.user_id = ? AND saa.area_id IN (${ph}) LIMIT 1`,
+    [parentUserId, ...areaIds],
+  );
+  return Boolean(row);
+}
+
 module.exports = {
   SHIFTS,
   dbToday,
+  findAreaMessageStudents,
+  findAreaMessageParents,
+  parentInArea,
   dbUpcomingSaturday,
   findWeekendRegistrations,
   setWeekendStatus,

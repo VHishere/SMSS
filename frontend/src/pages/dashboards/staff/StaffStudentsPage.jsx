@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { FiEye } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
@@ -13,9 +13,11 @@ const filterSelectClass =
   "h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] px-4 text-sm font-medium text-[#1A1C1C] outline-none transition hover:border-[#F27123] focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20 lg:w-44";
 
 function StaffStudentsPage() {
+  const [searchParams] = useSearchParams();
   const [students, setStudents] = useState([]);
   const [lookups, setLookups] = useState(null);
-  const [search, setSearch] = useState("");
+  // Khởi tạo từ ?search= (ô tìm kiếm trên header điều hướng tới đây kèm từ khóa).
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ gradeId: "", classId: "" });

@@ -1,4 +1,5 @@
 const { pool } = require("../config/db");
+const notificationModel = require("./notification.model");
 
 const EFFECTIVE_STATUS_SQL = `
   CASE
@@ -535,6 +536,27 @@ async function confirmZaloPayPayment({
         note || "Thanh toán trực tuyến qua ZaloPay",
       ],
     );
+
+    // Báo hộp thư giáo vụ: có phụ huynh vừa nộp tiền trực tuyến (đối soát/thu chi).
+    // Đặt SAU nhánh idempotency ở trên nên chỉ bắn 1 lần cho mỗi giao dịch, và nằm
+    // trong cùng transaction nên rollback thì không còn thông báo.
+    const [[payer]] = await connection.query(
+      `SELECT ua.full_name AS studentName, fp.title AS feeTitle
+       FROM fee_assignment fa
+       INNER JOIN student s ON s.student_id = fa.student_id
+       INNER JOIN user_account ua ON ua.user_id = s.user_id
+       INNER JOIN fee_plan fp ON fp.fee_plan_id = fa.fee_plan_id
+       WHERE fa.fee_assignment_id = ?`,
+      [transaction.feeAssignmentId],
+    );
+    await notificationModel.notifyAllStaff(connection, {
+      title: "Thanh toán học phí trực tuyến",
+      content: `${payer?.studentName ?? "Học sinh"} vừa thanh toán ${expectedAmount.toLocaleString("vi-VN")}đ`
+        + `${payer?.feeTitle ? ` cho khoản "${payer.feeTitle}"` : ""} qua ZaloPay.`,
+      type: "SYSTEM",
+      relatedType: "FEE_ASSIGNMENT",
+      relatedId: transaction.feeAssignmentId,
+    });
 
     await connection.commit();
 

@@ -1,5 +1,52 @@
 ﻿const staffModel = require("../models/staff");
 const feedbackModel = require("../models/feedback.model");
+const notificationModel = require("../models/notification.model");
+
+// ── Thông báo của tài khoản STAFF ────────────────────────────────────────────
+// Dùng bảng `notification` chung (receiver_id + is_read thật) như student/parent/
+// admin — không phải feed dẫn xuất. Nguồn hiện có: tin nhắn (type MESSAGE) và bất
+// kỳ thông báo nào được gửi tới user_id này.
+// Lỗi xử lý cục bộ (không dùng handleError chung vì hàm đó trả nguyên error.message
+// ra client — tránh rò rỉ chi tiết hệ thống).
+async function getMyNotifications(req, res) {
+  try {
+    const data = await notificationModel.findByUserId(req.user.userId, {
+      limit: req.query.limit,
+      unreadOnly: req.query.unreadOnly,
+    });
+    return res.json({ success: true, data });
+  } catch (error) {
+    console.error("staff.getMyNotifications error:", error);
+    return res.status(500).json({ success: false, message: "Không thể tải thông báo" });
+  }
+}
+
+async function markMyNotificationRead(req, res) {
+  try {
+    const notificationId = parseInt(req.params.notificationId, 10);
+    if (Number.isNaN(notificationId)) {
+      return res.status(400).json({ success: false, message: "Mã thông báo không hợp lệ" });
+    }
+    const affectedRows = await notificationModel.markRead(req.user.userId, notificationId);
+    if (affectedRows === 0) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy thông báo" });
+    }
+    return res.json({ success: true, message: "Đã đánh dấu thông báo là đã đọc" });
+  } catch (error) {
+    console.error("staff.markMyNotificationRead error:", error);
+    return res.status(500).json({ success: false, message: "Không thể cập nhật thông báo" });
+  }
+}
+
+async function markAllMyNotificationsRead(req, res) {
+  try {
+    await notificationModel.markAllRead(req.user.userId);
+    return res.json({ success: true, message: "Đã đánh dấu tất cả thông báo là đã đọc" });
+  } catch (error) {
+    console.error("staff.markAllMyNotificationsRead error:", error);
+    return res.status(500).json({ success: false, message: "Không thể cập nhật thông báo" });
+  }
+}
 
 function handleError(res, error, fallbackMessage) {
   console.error(fallbackMessage, error);
@@ -551,6 +598,9 @@ async function getTeacherSurveyAggregate(req, res) {
 }
 
 module.exports = {
+  getMyNotifications,
+  markMyNotificationRead,
+  markAllMyNotificationsRead,
   getOverview,
   getLookups,
   listTeacherSurveys,

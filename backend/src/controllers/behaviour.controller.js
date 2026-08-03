@@ -269,6 +269,12 @@ async function updateWarning(req, res) {
     const profile = await resolveTeacher(req.user.userId);
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
+    // Ownership: cảnh báo nề nếp thuộc HS lớp GV này chủ nhiệm (chống IDOR sửa lớp khác).
+    const warning = await behaviourModel.findWarningById(warningId);
+    if (!warning) return res.status(404).json({ success: false, message: "Không tìm thấy cảnh báo" });
+    const allowed = await behaviourModel.isHomeroomOfStudent(profile.teacherId, warning.studentId);
+    if (!allowed) return res.status(403).json({ success: false, message: "Bạn không chủ nhiệm học sinh này" });
+
     const result = await behaviourService.updateWarning({ warningId, payload: req.body });
     return res.json({ success: true, message: "Cập nhật cảnh báo thành công", data: result });
   } catch (error) {
@@ -428,7 +434,7 @@ async function getWarningsAdmin(req, res) {
     const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
 
     const { total, rows } = await behaviourModel.findWarnings({
-      classId, semesterId, status, page: parsedPage, limit: parsedLimit,
+      classId, semesterId, status, teacherId: profile.teacherId, page: parsedPage, limit: parsedLimit,
     });
 
     return res.json({

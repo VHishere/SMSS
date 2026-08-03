@@ -7,6 +7,9 @@ const commModel = require(
 const commService = require(
   "../services/communication.service",
 );
+const supervisorModel = require(
+  "../models/supervisor.model",
+);
 const { pool } = require("../config/db");
 
 const {
@@ -38,6 +41,65 @@ function parsePositiveInteger(value, fallback, max = Number.MAX_SAFE_INTEGER) {
   }
 
   return Math.min(parsed, max);
+}
+
+// ── GVQN thuần: danh bạ + hội thoại theo KHU nội trú (không có hồ sơ teacher) ──
+async function resolveSupervisorAreas(userId) {
+  const sup = await supervisorModel.findByUserId(userId);
+  if (!sup) return null;
+  const areaIds = await supervisorModel.findAreaIds(sup.supervisorId);
+  return { sup, areaIds };
+}
+
+async function getSupervisorContacts(userId) {
+  const ctx = await resolveSupervisorAreas(userId);
+  if (!ctx) return { students: [], parents: [], classes: [] };
+  const [students, parents] = await Promise.all([
+    supervisorModel.findAreaMessageStudents(ctx.areaIds),
+    supervisorModel.findAreaMessageParents(ctx.areaIds),
+  ]);
+  return { students, parents, classes: [] };
+}
+
+function svErr(message, statusCode) {
+  return Object.assign(new Error(message), { statusCode });
+}
+
+// Bắt đầu 1-1 với PH/HS thuộc khu GVQN — validate theo khu, tái dùng bảng
+// conversation chung (type PARENT_TEACHER / TEACHER_STUDENT) để list/thread khớp.
+async function startSupervisorConversation(userId, target) {
+  const { kind, userId: otherUserId, studentId } = target;
+  if (!otherUserId) throw svErr("Thiếu người nhận", 400);
+
+  const ctx = await resolveSupervisorAreas(userId);
+  if (!ctx) throw svErr("Không tìm thấy hồ sơ quản nhiệm", 404);
+
+  if (kind === "PARENT") {
+    const ok = await supervisorModel.parentInArea(ctx.areaIds, otherUserId);
+    if (!ok) throw svErr("Bạn không thể nhắn tin với phụ huynh này", 403);
+  } else if (kind === "STUDENT") {
+    if (!studentId) throw svErr("Thiếu học sinh", 400);
+    const ok = await supervisorModel.studentInArea(ctx.areaIds, studentId);
+    if (!ok) throw svErr("Bạn không thể nhắn tin với học sinh này", 403);
+  } else {
+    throw svErr("Loại liên hệ không hợp lệ", 400);
+  }
+
+  const type = kind === "PARENT" ? "PARENT_TEACHER" : "TEACHER_STUDENT";
+  const existing = await commModel.findDirectConversation(type, userId, otherUserId, studentId ?? null);
+  if (existing) return { conversationId: existing, created: false };
+
+  const conversationId = await commModel.createConversation({
+    type,
+    title: null,
+    studentId: studentId ?? null,
+    createdBy: userId,
+    participants: [
+      { userId, role: "TEACHER" },
+      { userId: otherUserId, role: kind === "PARENT" ? "PARENT" : "STUDENT" },
+    ],
+  });
+  return { conversationId, created: true };
 }
 
 function handleError(res, error, fallback) {
@@ -97,6 +159,11 @@ async function getContacts(req, res) {
     );
 
     if (!teacher) {
+      // GVQN thuần: danh bạ theo KHU nội trú (không có hồ sơ teacher).
+      if ((req.user.roles || []).includes("DORM_SUPERVISOR")) {
+        const data = await getSupervisorContacts(req.user.userId);
+        return res.json({ success: true, data });
+      }
       return res.status(404).json({
         success: false,
         message:
@@ -191,6 +258,17 @@ async function startConversation(req, res) {
     );
 
     if (!teacher) {
+      // GVQN thuần: bắt đầu hội thoại với PH/HS thuộc khu (validate theo khu).
+      if ((req.user.roles || []).includes("DORM_SUPERVISOR")) {
+        const result = await startSupervisorConversation(req.user.userId, {
+          kind: req.body.kind,
+          userId: Number(req.body.userId),
+          studentId: req.body.studentId ? Number(req.body.studentId) : null,
+        });
+        return res
+          .status(result.created ? 201 : 200)
+          .json({ success: true, data: result });
+      }
       return res.status(404).json({
         success: false,
         message:

@@ -23,6 +23,10 @@ router.post("/attendance/bulk", ...guard, supervisorController.submitBulkAttenda
 router.get("/logbook", ...guard, supervisorController.getLogbook);
 router.post("/logbook", ...guard, supervisorController.createLogEntry);
 
+// Thông báo GVQN (chuông): đơn nghỉ chờ duyệt + việc trực còn tồn
+router.get("/notifications", ...guard, supervisorController.getNotifications);
+router.post("/notifications/read", ...guard, supervisorController.markNotificationRead);
+
 // Duyệt nghỉ 2 cấp (GVCN → GVQN)
 router.get("/leave-requests", ...guard, supervisorController.getLeaveRequests);
 router.post("/leave-requests/:id/decide", ...guard, supervisorController.decideLeaveRequest);

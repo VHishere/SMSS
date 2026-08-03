@@ -557,13 +557,22 @@ async function upsertWarning(w) {
 }
 
 async function findWarnings(filters = {}) {
-  const { semesterId, classId, status, page = 1, limit = 20 } = filters;
+  const { semesterId, classId, status, teacherId, page = 1, limit = 20 } = filters;
   const offset = (page - 1) * limit;
   const params = [];
   let where = "1=1";
   if (semesterId) { where += " AND w.semester_id = ?"; params.push(parseInt(semesterId, 10)); }
   if (status)     { where += " AND w.status = ?";      params.push(status); }
   if (classId)    { where += " AND ce.class_id = ?";   params.push(parseInt(classId, 10)); }
+  // Giới hạn theo GVCN: chỉ cảnh báo của HS thuộc lớp giáo viên này chủ nhiệm.
+  // Admin không truyền teacherId → xem toàn trường.
+  if (teacherId) {
+    where += ` AND w.student_id IN (
+      SELECT ce2.student_id FROM class_enrollment ce2
+      INNER JOIN teacher_class tc ON tc.class_id = ce2.class_id
+      WHERE tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER' AND ce2.status = 'ACTIVE')`;
+    params.push(parseInt(teacherId, 10));
+  }
 
   const [[{ total }]] = await pool.query(
     `SELECT COUNT(*) AS total

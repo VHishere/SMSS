@@ -246,7 +246,13 @@ function GradebookTab({ classId, subjectId, semesterId, scoreTypes, subjectName 
       const avg = weightedAvg(r, scoreTypes);
       return [s.studentName, s.studentCode, ...scoreTypes.map((t) => r[t.key] ?? ""), avg ?? "", band(avg)?.label ?? "", r.comment ?? ""];
     });
-    const csv = [head, ...rows].map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    // Chống CSV/formula injection: ô bắt đầu bằng = + - @ (hoặc tab/CR) → prefix ' để Excel coi là text.
+    const csvCell = (c) => {
+      const s = String(c ?? "");
+      const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
+    const csv = [head, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a"); a.href = url; a.download = `so-diem-${subjectName ?? subjectId}.csv`; a.click(); URL.revokeObjectURL(url);
   }

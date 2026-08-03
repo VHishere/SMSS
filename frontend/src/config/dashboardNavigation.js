@@ -228,6 +228,12 @@ export const dashboardNavigation = {
       icon: FiEdit3,
       ms: "rate_review",
     },
+    {
+      label: "Tin nhắn",
+      path: "/staff/messages",
+      icon: FiMessageSquare,
+      ms: "chat",
+    },
   ],
 
   TEACHER: [

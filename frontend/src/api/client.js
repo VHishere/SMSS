@@ -1952,6 +1952,60 @@ export const staffApi = {
 
   getLookups: () => request("/staff/lookups"),
 
+  getMessagesDashboard: () => request("/staff/communication/dashboard"),
+
+  getMessageContacts: () => request("/staff/communication/contacts"),
+
+  searchMessageHistory: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/communication/search${qs ? `?${qs}` : ""}`);
+  },
+
+  listConversations: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/communication/conversations${qs ? `?${qs}` : ""}`);
+  },
+
+  startConversation: (userId) =>
+    request("/staff/communication/conversations", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }),
+
+  uploadMessageFile: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return uploadRequest("/staff/communication/upload", formData);
+  },
+
+  getThread: (conversationId, params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/communication/conversations/${conversationId}${qs ? `?${qs}` : ""}`);
+  },
+
+  sendMessage: (conversationId, body) =>
+    request(`/staff/communication/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  deleteMessage: (messageId) =>
+    request(`/staff/communication/messages/${messageId}`, {
+      method: "DELETE",
+    }),
+
+  archiveConversation: (conversationId, archived) =>
+    request(`/staff/communication/conversations/${conversationId}/archive`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived }),
+    }),
+
   // Khảo sát đánh giá giáo viên (ẩn danh)
   listTeacherSurveys: () => request("/staff/surveys"),
   createTeacherSurvey: (body) =>

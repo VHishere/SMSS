@@ -79,6 +79,19 @@ async function isStaffOrTeacher(userId) {
   return Boolean(row);
 }
 
+async function isAdminOrTeacher(userId) {
+  const [[row]] = await pool.query(
+    `SELECT 1 AS ok
+     FROM user_role ur
+     INNER JOIN role r ON r.role_id = ur.role_id
+     INNER JOIN user_account ua ON ua.user_id = ur.user_id AND ua.status = 'ACTIVE'
+     WHERE ur.user_id = ? AND r.role_name IN ('ADMIN', ?, ?, ?)
+     LIMIT 1`,
+    [userId, ...TEACHER_ROLE_NAMES],
+  );
+  return Boolean(row);
+}
+
 // ── Contacts for composing ────────────────────────────────────────────────────
 
 // Admin's contacts picker — every active STAFF/TEACHER user school-wide.
@@ -97,6 +110,27 @@ async function findStaffTeacherContacts() {
      GROUP BY ua.user_id, ua.full_name, ua.email, ua.avatar
      ORDER BY ua.full_name ASC`,
     TEACHER_ROLE_NAMES,
+  );
+  return rows.map((r) => ({ ...r, roleNames: r.roleNames ? r.roleNames.split(",") : [] }));
+}
+
+async function findAdminTeacherContacts(excludeUserId) {
+  const [rows] = await pool.query(
+    `SELECT
+       ua.user_id AS userId,
+       ua.full_name AS fullName,
+       ua.email,
+       ua.avatar,
+       GROUP_CONCAT(DISTINCT r.role_name ORDER BY r.role_name) AS roleNames
+     FROM user_account ua
+     INNER JOIN user_role ur ON ur.user_id = ua.user_id
+     INNER JOIN role r ON r.role_id = ur.role_id
+     WHERE ua.status = 'ACTIVE'
+       AND ua.user_id <> ?
+       AND r.role_name IN ('ADMIN', ?, ?, ?)
+     GROUP BY ua.user_id, ua.full_name, ua.email, ua.avatar
+     ORDER BY ua.full_name ASC`,
+    [excludeUserId, ...TEACHER_ROLE_NAMES],
   );
   return rows.map((r) => ({ ...r, roleNames: r.roleNames ? r.roleNames.split(",") : [] }));
 }
@@ -943,7 +977,9 @@ module.exports = {
   findClassMemberUserIds,
   findScopedMemberUserIds,
   isStaffOrTeacher,
+  isAdminOrTeacher,
   findStaffTeacherContacts,
+  findAdminTeacherContacts,
   findConversations,
   findConversationMeta,
   findParticipants,

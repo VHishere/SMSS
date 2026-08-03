@@ -13,7 +13,7 @@ import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const initialForm = {
   title: "",
-  feeType: "Học phí",
+  feeCategoryId: "",
   schoolYearId: "",
   semesterId: "",
   amount: "",
@@ -36,6 +36,7 @@ function StaffFeeFormPage() {
     grades: [],
     classes: [],
     students: [],
+    feeCategories: [],
   });
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
@@ -48,8 +49,10 @@ function StaffFeeFormPage() {
         setLookups(res.data);
         const queryYearId = searchParams.get("schoolYearId");
         const activeYearId = res.data.schoolYears?.find((item) => item.isActive)?.schoolYearId;
+        const defaultCategoryId = res.data.feeCategories?.[0]?.feeCategoryId || "";
         setForm((prev) => ({
           ...prev,
+          feeCategoryId: defaultCategoryId,
           schoolYearId: queryYearId || activeYearId || "",
         }));
       })
@@ -74,14 +77,10 @@ function StaffFeeFormPage() {
     [lookups.classes, form.schoolYearId, form.gradeId],
   );
 
-  const filteredStudents = useMemo(() => {
-    if (!form.classId) return lookups.students || [];
-    const selectedClass = lookups.classes?.find(
-      (item) => String(item.classId) === String(form.classId),
-    );
-    if (!selectedClass) return lookups.students || [];
-    return lookups.students || [];
-  }, [lookups.classes, lookups.students, form.classId]);
+  const filteredStudents = useMemo(
+    () => lookups.students || [],
+    [lookups.students],
+  );
 
   const setField = (field, value) => {
     setForm((prev) => {
@@ -128,10 +127,7 @@ function StaffFeeFormPage() {
       <StaffPageHeader
         title="Tạo khoản học phí"
         action={
-          <Link
-            to="/staff/fees"
-            className={cancelLinkClass}
-          >
+          <Link to="/staff/fees" className={cancelLinkClass}>
             <FiArrowLeft size={16} />
             Quay lại
           </Link>
@@ -164,14 +160,16 @@ function StaffFeeFormPage() {
         <StaffField label="Loại phí">
           <PrettySelect
             className={inputClass}
-            value={form.feeType}
-            onChange={(event) => setField("feeType", event.target.value)}
+            value={form.feeCategoryId}
+            onChange={(event) => setField("feeCategoryId", event.target.value)}
+            required
           >
-            <option value="Học phí">Học phí</option>
-            <option value="Bán trú">Bán trú</option>
-            <option value="Xe đưa đón">Xe đưa đón</option>
-            <option value="Hoạt động ngoại khóa">Hoạt động ngoại khóa</option>
-            <option value="Khác">Khác</option>
+            <option value="">Chọn loại phí</option>
+            {lookups.feeCategories?.map((category) => (
+              <option key={category.feeCategoryId} value={category.feeCategoryId}>
+                {category.name}
+              </option>
+            ))}
           </PrettySelect>
         </StaffField>
 

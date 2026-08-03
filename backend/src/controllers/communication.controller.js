@@ -595,6 +595,91 @@ async function startConversationAdmin(req, res) {
   }
 }
 
+async function getContactsStaff(req, res) {
+  try {
+    const rows = await commModel.findAdminTeacherContacts(req.user.userId);
+    const isAdmin = (row) => row.roleNames.includes("ADMIN");
+    return res.json({
+      success: true,
+      data: {
+        admins: rows.filter(isAdmin),
+        teachers: rows.filter((row) => !isAdmin(row)),
+      },
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể lấy danh bạ");
+  }
+}
+
+async function startConversationStaff(req, res) {
+  try {
+    const targetUserId = Number(req.body.userId);
+    if (!targetUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu người nhận",
+      });
+    }
+
+    if (Number(targetUserId) === Number(req.user.userId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Không thể tự nhắn tin cho chính mình",
+      });
+    }
+
+    const ok = await commModel.isAdminOrTeacher(targetUserId);
+    if (!ok) {
+      return res.status(404).json({
+        success: false,
+        message: "Staff chỉ có thể nhắn tin với admin hoặc giáo viên",
+      });
+    }
+
+    const existing = await commModel.findAnyDirectConversation(
+      "ADMIN_DIRECT",
+      req.user.userId,
+      targetUserId,
+    );
+    if (existing) {
+      return res.json({
+        success: true,
+        data: {
+          conversationId: existing,
+          created: false,
+        },
+      });
+    }
+
+    const conversationId = await commModel.createConversation({
+      type: "ADMIN_DIRECT",
+      title: null,
+      studentId: null,
+      createdBy: req.user.userId,
+      participants: [
+        {
+          userId: req.user.userId,
+          role: "STAFF",
+        },
+        {
+          userId: targetUserId,
+          role: "MEMBER",
+        },
+      ],
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        conversationId,
+        created: true,
+      },
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể bắt đầu trò chuyện");
+  }
+}
+
 // GET /admin/communication/search?keyword=&archived=
 async function searchMessages(req, res) {
   try {
@@ -626,5 +711,7 @@ module.exports = {
   uploadFile,
   getContactsAdmin,
   startConversationAdmin,
+  getContactsStaff,
+  startConversationStaff,
   searchMessages,
 };

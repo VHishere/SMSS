@@ -20,6 +20,10 @@ import LoadingState from "../../components/atoms/LoadingState";
 import EmptyState from "../../components/molecules/EmptyState";
 import { useAuth } from "../../context/useAuth";
 import { useAdminThread } from "../../hooks/useAdminMessages";
+import {
+  emitSocketWithAck,
+  getChatSocket,
+} from "../../socket/chatSocket";
 
 function getInitials(name) {
   if (!name) return "?";
@@ -104,6 +108,14 @@ function MessageBubble({ message, isMine }) {
   );
 }
 
+function appendUniqueMessage(messages = [], message) {
+  if (!message?.messageId) return messages;
+  const exists = messages.some(
+    (item) => Number(item.messageId) === Number(message.messageId),
+  );
+  return exists ? messages : [...messages, message];
+}
+
 function SelectedFilePreview({ file, onClear }) {
   if (!file) return null;
 
@@ -120,7 +132,14 @@ function SelectedFilePreview({ file, onClear }) {
   );
 }
 
-function ThreadPanel({ conversationId, selectedConversation, archived, onSent, onArchiveChanged }) {
+function ThreadPanel({
+  api,
+  conversationId,
+  selectedConversation,
+  archived,
+  onSent,
+  onArchiveChanged,
+}) {
   const { user } = useAuth();
   const fileInputRef = useRef(null);
 
@@ -130,9 +149,10 @@ function ThreadPanel({ conversationId, selectedConversation, archived, onSent, o
   const [submitting, setSubmitting] = useState(false);
   const [sendError, setSendError] = useState("");
 
-  const { data, loading, error } = useAdminThread(conversationId, refreshKey);
+  const { data, loading, error } = useAdminThread(conversationId, refreshKey, api);
+  const [liveMessages, setLiveMessages] = useState([]);
 
-  const messages = data?.messages || [];
+  const messages = liveMessages.length ? liveMessages : data?.messages || [];
   const participants = data?.participants || [];
   const meta = data?.meta;
 
@@ -145,6 +165,60 @@ function ThreadPanel({ conversationId, selectedConversation, archived, onSent, o
     otherParticipant?.fullName ||
     "Cuộc trò chuyện";
 
+  useEffect(() => {
+    setLiveMessages(data?.messages || []);
+  }, [data?.messages]);
+
+  useEffect(() => {
+    if (!conversationId) return undefined;
+
+    const socket = getChatSocket();
+
+    const joinConversation = () => {
+      socket.emit("conversation:join", { conversationId });
+    };
+
+    const handleNewMessage = (message) => {
+      if (Number(message.conversationId) !== Number(conversationId)) return;
+
+      setLiveMessages((current) => appendUniqueMessage(current, message));
+
+      if (Number(message.senderId) !== Number(user?.userId)) {
+        emitSocketWithAck("conversation:read", { conversationId }).catch(() => {});
+      }
+    };
+
+    const handleDeleted = ({ conversationId: deletedConversationId, messageId }) => {
+      if (Number(deletedConversationId) !== Number(conversationId)) return;
+
+      setLiveMessages((current) =>
+        current.map((message) =>
+          Number(message.messageId) === Number(messageId)
+            ? {
+                ...message,
+                isDeleted: true,
+                content: null,
+                fileUrl: null,
+              }
+            : message,
+        ),
+      );
+    };
+
+    socket.on("connect", joinConversation);
+    socket.on("message:new", handleNewMessage);
+    socket.on("message:deleted", handleDeleted);
+
+    joinConversation();
+
+    return () => {
+      socket.emit("conversation:leave", { conversationId });
+      socket.off("connect", joinConversation);
+      socket.off("message:new", handleNewMessage);
+      socket.off("message:deleted", handleDeleted);
+    };
+  }, [conversationId, user?.userId]);
+
   async function sendMessage(event) {
     event.preventDefault();
     if (!conversationId || (!content.trim() && !selectedFile)) return;
@@ -154,15 +228,15 @@ function ThreadPanel({ conversationId, selectedConversation, archived, onSent, o
 
     try {
       if (selectedFile) {
-        const uploadResponse = await adminApi.uploadMessageFile(selectedFile);
+        const uploadResponse = await api.uploadMessageFile(selectedFile);
         const uploaded = uploadResponse.data;
-        await adminApi.sendMessage(conversationId, {
+        await api.sendMessage(conversationId, {
           messageType: uploaded.messageType,
           content: content.trim() || uploaded.fileName,
           fileUrl: uploaded.fileUrl,
         });
       } else {
-        await adminApi.sendMessage(conversationId, { messageType: "TEXT", content: content.trim() });
+        await api.sendMessage(conversationId, { messageType: "TEXT", content: content.trim() });
       }
 
       setContent("");
@@ -178,7 +252,7 @@ function ThreadPanel({ conversationId, selectedConversation, archived, onSent, o
   }
 
   async function handleArchive() {
-    await adminApi.archiveConversation(conversationId, !archived);
+    await api.archiveConversation(conversationId, !archived);
     onArchiveChanged();
   }
 
@@ -264,10 +338,13 @@ function ThreadPanel({ conversationId, selectedConversation, archived, onSent, o
 }
 
 function ContactRow({ contact, onClick }) {
-  const isStaffOnly = contact.roleNames.length === 1 && contact.roleNames[0] === "STAFF";
-  const roleLabel = isStaffOnly
+  const roles = contact.roleNames || [];
+  const isStaffOnly = roles.length === 1 && roles[0] === "STAFF";
+  const roleLabel = roles.includes("ADMIN")
+    ? "Quản trị viên"
+    : isStaffOnly
     ? "Nhân viên"
-    : contact.roleNames.includes("HOMEROOM_TEACHER")
+    : roles.includes("HOMEROOM_TEACHER")
       ? "Giáo viên chủ nhiệm"
       : "Giáo viên bộ môn";
 
@@ -282,7 +359,12 @@ function ContactRow({ contact, onClick }) {
   );
 }
 
-function AdminMessages() {
+function AdminMessages({
+  api = adminApi,
+  staffSectionLabel = "Nhân viên",
+  teacherSectionLabel = "Giáo viên",
+  contactSearchPlaceholder = "Tìm nhân viên, giáo viên...",
+}) {
   const [contacts, setContacts] = useState(null);
   const [conversations, setConversations] = useState([]);
 
@@ -301,15 +383,18 @@ function AdminMessages() {
   const [searchResults, setSearchResults] = useState([]);
   const [searchingMessages, setSearchingMessages] = useState(false);
   const [messageSearchError, setMessageSearchError] = useState("");
+  const updateRefreshTimerRef = useRef(null);
 
   async function loadData() {
-    setLoading(true);
+    if (!contacts && conversations.length === 0) {
+      setLoading(true);
+    }
     setError("");
 
     try {
       const [contactsResponse, conversationsResponse] = await Promise.all([
-        adminApi.getMessageContacts(),
-        adminApi.listConversations({ archived: showArchived, search: conversationSearch }),
+        api.getMessageContacts(),
+        api.listConversations({ archived: showArchived, search: conversationSearch }),
       ]);
 
       setContacts(contactsResponse.data);
@@ -325,11 +410,11 @@ function AdminMessages() {
     const timer = setTimeout(loadData, 0);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey, showArchived, conversationSearch]);
+  }, [api, refreshKey, showArchived, conversationSearch]);
 
   const filteredStaff = useMemo(() => {
     const keyword = contactSearch.trim().toLowerCase();
-    const staff = contacts?.staff || [];
+    const staff = contacts?.staff || contacts?.admins || [];
     if (!keyword) return staff;
     return staff.filter((c) => `${c.fullName} ${c.email || ""}`.toLowerCase().includes(keyword));
   }, [contacts, contactSearch]);
@@ -343,7 +428,7 @@ function AdminMessages() {
 
   async function startContactConversation(contact) {
     try {
-      const response = await adminApi.startConversation(contact.userId);
+      const response = await api.startConversation(contact.userId);
       const conversation = {
         conversationId: response.data.conversationId,
         conversationType: "ADMIN_DIRECT",
@@ -372,7 +457,7 @@ function AdminMessages() {
     setMessageSearchError("");
 
     try {
-      const response = await adminApi.searchMessageHistory({ keyword, archived: showArchived });
+      const response = await api.searchMessageHistory({ keyword, archived: showArchived });
       setSearchResults(response.data.items || []);
     } catch (requestError) {
       setMessageSearchError(requestError.message);
@@ -389,12 +474,39 @@ function AdminMessages() {
     refresh();
   }
 
+  useEffect(() => {
+    const socket = getChatSocket();
+
+    const handleConversationUpdated = (payload = {}) => {
+      if (payload.reason === "READ") return;
+
+      if (updateRefreshTimerRef.current) {
+        clearTimeout(updateRefreshTimerRef.current);
+      }
+
+      updateRefreshTimerRef.current = setTimeout(() => {
+        refresh();
+      }, 300);
+    };
+
+    socket.on("conversation:updated", handleConversationUpdated);
+
+    return () => {
+      if (updateRefreshTimerRef.current) {
+        clearTimeout(updateRefreshTimerRef.current);
+      }
+      socket.off("conversation:updated", handleConversationUpdated);
+    };
+  }, []);
+
+  const hasLoadedData = Boolean(contacts) || conversations.length > 0;
+
   return (
     <>
       {loading && <LoadingState label="Đang tải tin nhắn..." />}
       {!loading && error && <ErrorAlert error={`Không tải được tin nhắn: ${error}`} />}
 
-      {!loading && !error && (
+      {(!loading || hasLoadedData) && (
         <section className="grid gap-5 xl:grid-cols-[380px_1fr]">
           <aside className="min-h-162.5 overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
             <div className="border-b border-orange-100 px-5 py-5">
@@ -502,23 +614,23 @@ function AdminMessages() {
                     <input
                       value={contactSearch}
                       onChange={(event) => setContactSearch(event.target.value)}
-                      placeholder="Tìm nhân viên, giáo viên..."
+                      placeholder={contactSearchPlaceholder}
                       className="h-11 w-full rounded-full border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-[#0F2747] outline-none transition focus:border-[#F27123] focus:bg-white focus:ring-4 focus:ring-orange-100"
                     />
                   </div>
 
-                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">Nhân viên</p>
+                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">{staffSectionLabel}</p>
                   <div className="mb-5 space-y-2">
                     {filteredStaff.length > 0 ? filteredStaff.map((contact) => (
                       <ContactRow key={contact.userId} contact={contact} onClick={() => startContactConversation(contact)} />
-                    )) : <p className="mb-0 text-sm text-slate-500">Không tìm thấy nhân viên.</p>}
+                    )) : <p className="mb-0 text-sm text-slate-500">Không tìm thấy {staffSectionLabel.toLowerCase()}.</p>}
                   </div>
 
-                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">Giáo viên</p>
+                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">{teacherSectionLabel}</p>
                   <div className="space-y-2">
                     {filteredTeachers.length > 0 ? filteredTeachers.map((contact) => (
                       <ContactRow key={contact.userId} contact={contact} onClick={() => startContactConversation(contact)} />
-                    )) : <p className="mb-0 text-sm text-slate-500">Không tìm thấy giáo viên.</p>}
+                    )) : <p className="mb-0 text-sm text-slate-500">Không tìm thấy {teacherSectionLabel.toLowerCase()}.</p>}
                   </div>
                 </div>
               )}
@@ -526,6 +638,7 @@ function AdminMessages() {
           </aside>
 
           <ThreadPanel
+            api={api}
             conversationId={activeConversationId}
             selectedConversation={selectedConversation}
             archived={showArchived}

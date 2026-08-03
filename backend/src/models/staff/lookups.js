@@ -88,6 +88,18 @@ async function getLookups() {
     `,
   );
 
+  const [feeCategories] = await pool.query(
+    `
+      SELECT
+        fee_category_id AS feeCategoryId,
+        name,
+        description
+      FROM fee_category
+      WHERE status = 'ACTIVE'
+      ORDER BY name
+    `,
+  );
+
   return {
     classes,
     subjects,
@@ -99,6 +111,7 @@ async function getLookups() {
     })),
     grades,
     teachers,
+    feeCategories,
   };
 }
 

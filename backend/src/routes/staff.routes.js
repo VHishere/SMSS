@@ -1,13 +1,17 @@
 const express = require("express");
 
 const staffController = require("../controllers/staff.controller");
+const communicationController = require("../controllers/communication.controller");
 
 const {
   authenticate,
   authorize,
 } = require("../middleware/auth.middleware");
 
-const { profileAvatarUpload } = require("../middleware/upload.middleware");
+const {
+  messageFileUpload,
+  profileAvatarUpload,
+} = require("../middleware/upload.middleware");
 
 const router = express.Router();
 
@@ -25,6 +29,77 @@ router.get(
   authenticate,
   authorize(...staffRoles),
   staffController.getLookups,
+);
+
+router.get(
+  "/communication/dashboard",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.getDashboard,
+);
+
+router.get(
+  "/communication/contacts",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.getContactsStaff,
+);
+
+router.get(
+  "/communication/search",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.searchMessages,
+);
+
+router.get(
+  "/communication/conversations",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.listConversations,
+);
+
+router.post(
+  "/communication/conversations",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.startConversationStaff,
+);
+
+router.post(
+  "/communication/upload",
+  authenticate,
+  authorize(...staffRoles),
+  messageFileUpload,
+  communicationController.uploadFile,
+);
+
+router.get(
+  "/communication/conversations/:conversationId",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.getThread,
+);
+
+router.post(
+  "/communication/conversations/:conversationId/messages",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.sendMessage,
+);
+
+router.delete(
+  "/communication/messages/:messageId",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.deleteMessage,
+);
+
+router.patch(
+  "/communication/conversations/:conversationId/archive",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.archiveConversation,
 );
 
 // Khảo sát đánh giá giáo viên (HS → GV, ẩn danh) — quản lý tạo + xem tổng hợp

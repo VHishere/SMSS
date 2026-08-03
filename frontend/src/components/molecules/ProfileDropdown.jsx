@@ -1,9 +1,6 @@
 import { forwardRef } from "react";
-
 import Dropdown from "react-bootstrap/Dropdown";
-
 import { useNavigate } from "react-router-dom";
-
 import {
   FiChevronDown,
   FiLogOut,
@@ -11,10 +8,7 @@ import {
   FiUser,
 } from "react-icons/fi";
 
-import {
-  useAuth,
-} from "../../context/useAuth";
-
+import { useAuth } from "../../context/useAuth";
 import UserAvatar from "../atoms/UserAvatar";
 
 const ProfileToggle = forwardRef(
@@ -27,8 +21,6 @@ const ProfileToggle = forwardRef(
     ref,
   ) {
     if (variant === "stitch") {
-      // FSchool Teacher Portal (Stitch design):
-      // right-aligned name + uppercase role, avatar with orange ring
       return (
         <button
           ref={ref}
@@ -113,9 +105,20 @@ function ProfileDropdown({ user, variant = "default" }) {
   const canViewStudentProfile =
     roleNames.includes("STUDENT");
 
+  const canViewStaffProfile =
+    roleNames.includes("STAFF") || roleNames.includes("ADMIN");
+
+  const canViewProfile =
+    canViewStudentProfile || canViewStaffProfile;
+
   const handleViewProfile = () => {
     if (canViewStudentProfile) {
       navigate("/student/profile");
+      return;
+    }
+
+    if (canViewStaffProfile) {
+      navigate("/staff/profile");
     }
   };
 
@@ -155,7 +158,7 @@ function ProfileDropdown({ user, variant = "default" }) {
         <Dropdown.Item
           as="button"
           onClick={handleViewProfile}
-          disabled={!canViewStudentProfile}
+          disabled={!canViewProfile}
           className="
             flex items-center gap-3
             rounded-lg px-3 py-2

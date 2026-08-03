@@ -62,6 +62,7 @@ function StaffFeesPage() {
   }, []);
 
   useEffect(() => {
+    setLoading(true);
     staffApi
       .getFeePlans(filters)
       .then((res) => {

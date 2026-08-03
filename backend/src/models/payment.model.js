@@ -51,7 +51,9 @@ async function listFeeAssignmentsForParent(userId, filters = {}) {
         fa.assigned_at       AS assignedAt,
 
         fp.title,
-        fp.fee_type          AS feeType,
+        fc.name              AS feeType,
+        fp.fee_category_id   AS feeCategoryId,
+        fc.name              AS feeCategoryName,
         DATE_FORMAT(fp.due_date, '%Y-%m-%d') AS dueDate,
         fp.status             AS planStatus,
         sy.year_name          AS schoolYearName,
@@ -69,6 +71,7 @@ async function listFeeAssignmentsForParent(userId, filters = {}) {
       INNER JOIN user_account student_user ON student_user.user_id = s.user_id
       INNER JOIN fee_assignment fa ON fa.student_id = s.student_id
       INNER JOIN fee_plan fp ON fp.fee_plan_id = fa.fee_plan_id
+      INNER JOIN fee_category fc ON fc.fee_category_id = fp.fee_category_id
       INNER JOIN school_year sy ON sy.school_year_id = fp.school_year_id
       LEFT JOIN semester sem ON sem.semester_id = fp.semester_id
       LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
@@ -98,7 +101,9 @@ async function findFeeAssignmentForParent(userId, feeAssignmentId) {
         fa.assigned_at       AS assignedAt,
 
         fp.title,
-        fp.fee_type          AS feeType,
+        fc.name              AS feeType,
+        fp.fee_category_id   AS feeCategoryId,
+        fc.name              AS feeCategoryName,
         fp.description,
         DATE_FORMAT(fp.due_date, '%Y-%m-%d') AS dueDate,
         fp.status             AS planStatus,
@@ -117,6 +122,7 @@ async function findFeeAssignmentForParent(userId, feeAssignmentId) {
       INNER JOIN user_account student_user ON student_user.user_id = s.user_id
       INNER JOIN fee_assignment fa ON fa.student_id = s.student_id
       INNER JOIN fee_plan fp ON fp.fee_plan_id = fa.fee_plan_id
+      INNER JOIN fee_category fc ON fc.fee_category_id = fp.fee_category_id
       INNER JOIN school_year sy ON sy.school_year_id = fp.school_year_id
       LEFT JOIN semester sem ON sem.semester_id = fp.semester_id
       LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'

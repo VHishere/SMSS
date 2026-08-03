@@ -55,6 +55,8 @@ import StaffTimetableCreatePage from "./pages/dashboards/staff/StaffTimetableCre
 import StaffFeesPage from "./pages/dashboards/staff/StaffFeesPage";
 import StaffFeeFormPage from "./pages/dashboards/staff/StaffFeeFormPage";
 import StaffFeeDetailPage from "./pages/dashboards/staff/StaffFeeDetailPage";
+import StaffProfilePage from "./pages/dashboards/staff/StaffProfilePage";
+import StaffMessagesPage from "./pages/dashboards/staff/StaffMessagesPage";
 
 import StudentProfile from "./pages/student/StudentProfile";
 import StudentTimetable from "./pages/student/StudentTimetable";
@@ -182,6 +184,7 @@ function App() {
             }
           >
             <Route index element={<StaffOverviewPage />} />
+            <Route path="profile" element={<StaffProfilePage />} />
             <Route path="students" element={<StaffStudentsPage />} />
             <Route path="students/new" element={<StaffStudentFormPage />} />
             <Route path="students/:id" element={<StaffStudentDetailPage />} />
@@ -201,6 +204,7 @@ function App() {
             <Route path="fees" element={<StaffFeesPage />} />
             <Route path="fees/new" element={<StaffFeeFormPage />} />
             <Route path="fees/:id" element={<StaffFeeDetailPage />} />
+            <Route path="messages" element={<StaffMessagesPage />} />
             <Route path="school-years" element={<StaffSchoolYearsPage />} />
             <Route path="classes" element={<StaffClassesPage />} />
             <Route path="classes/:id" element={<StaffClassDetailPage />} />

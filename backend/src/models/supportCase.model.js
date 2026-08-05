@@ -1,4 +1,7 @@
 const { pool } = require("../config/db");
+const notificationModel = require("./notification.model");
+
+const SEVERITY_LABEL = { HIGH: "Nghiêm trọng", MEDIUM: "Trung bình", LOW: "Nhẹ" };
 
 async function createCase(c) {
   const conn = await pool.getConnection();
@@ -14,6 +17,29 @@ async function createCase(c) {
       `INSERT INTO support_case_update (case_id, note, new_status, author_id) VALUES (?, ?, 'OPEN', ?)`,
       [caseId, c.description ? c.description : "Mở ca hỗ trợ", c.openedBy],
     );
+
+    // Báo hộp thư giáo vụ: ca hỗ trợ mới cần phối hợp xử lý (chạy trong cùng
+    // transaction → rollback thì không để lại thông báo "ma").
+    const [[student]] = await conn.query(
+      `SELECT ua.full_name AS studentName, sc.class_name AS className
+       FROM student s
+       INNER JOIN user_account ua ON ua.user_id = s.user_id
+       LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+       LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+       WHERE s.student_id = ?`,
+      [c.studentId],
+    );
+    const who = student
+      ? `${student.studentName}${student.className ? ` (${student.className})` : ""}`
+      : `Học sinh #${c.studentId}`;
+    await notificationModel.notifyAllStaff(conn, {
+      title: `Ca hỗ trợ mới: ${c.title}`,
+      content: `${who} — mức độ ${SEVERITY_LABEL[c.severity] ?? c.severity}. Vui lòng phối hợp theo dõi.`,
+      type: "SUPPORT",
+      relatedType: "SUPPORT_CASE",
+      relatedId: caseId,
+    });
+
     await conn.commit();
     return caseId;
   } catch (err) {

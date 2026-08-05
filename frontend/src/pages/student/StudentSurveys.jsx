@@ -38,6 +38,9 @@ const EMPTY_FORM = {
   improvement: "",
 };
 
+const MAX_SURVEY_TEXT_LENGTH = 800;
+const MAX_SURVEY_COMMENT_LENGTH = 2000;
+
 function StarRating({ value, onChange, label }) {
   return (
     <div>
@@ -155,6 +158,12 @@ function SurveyForm({ survey, onSubmitted }) {
         ? `Đề xuất cải thiện: ${form.improvement.trim()}`
         : "",
     ].filter(Boolean);
+    const normalizedComment = commentLines.join("\n");
+
+    if (normalizedComment.length > MAX_SURVEY_COMMENT_LENGTH) {
+      setError("Nội dung góp ý quá dài, vui lòng rút gọn trước khi gửi.");
+      return;
+    }
 
     setSaving(true);
     setError("");
@@ -162,7 +171,7 @@ function SurveyForm({ survey, onSubmitted }) {
     try {
       await studentApi.submitMySurvey(survey.surveyId, {
         score: averageScore,
-        comment: commentLines.join("\n"),
+        comment: normalizedComment,
       });
       onSubmitted();
     } catch (requestError) {
@@ -275,11 +284,15 @@ function SurveyForm({ survey, onSubmitted }) {
               </span>
               <textarea
                 value={form.liked}
+                maxLength={MAX_SURVEY_TEXT_LENGTH}
                 onChange={(event) => updateField("liked", event.target.value)}
                 rows={3}
                 placeholder="Nhập ý kiến của bạn..."
                 className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-xs leading-5 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
               />
+              <span className="mt-1 block text-right text-[10px] text-slate-400">
+                {form.liked.length}/{MAX_SURVEY_TEXT_LENGTH}
+              </span>
             </label>
 
             <label className="block">
@@ -288,11 +301,15 @@ function SurveyForm({ survey, onSubmitted }) {
               </span>
               <textarea
                 value={form.improvement}
+                maxLength={MAX_SURVEY_TEXT_LENGTH}
                 onChange={(event) => updateField("improvement", event.target.value)}
                 rows={3}
                 placeholder="Nhập đề xuất của bạn..."
                 className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-xs leading-5 text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:ring-2 focus:ring-orange-100"
               />
+              <span className="mt-1 block text-right text-[10px] text-slate-400">
+                {form.improvement.length}/{MAX_SURVEY_TEXT_LENGTH}
+              </span>
             </label>
           </div>
         </section>

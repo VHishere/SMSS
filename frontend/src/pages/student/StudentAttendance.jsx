@@ -7,7 +7,6 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiClock,
-  FiDownload,
   FiFileText,
   FiHome,
   FiInfo,
@@ -548,6 +547,7 @@ function RecentLeaveRequestCard({
 
 function AttendanceTable({
   items,
+  selectedDate,
 }) {
   const [subjectFilter, setSubjectFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -591,8 +591,11 @@ function AttendanceTable({
       <div className="flex flex-col gap-4 border-b border-slate-100 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="mb-1 text-sm font-extrabold text-[#0F2747]">
-            Lịch sử điểm danh
+            Điểm danh ngày {formatDate(selectedDate)}
           </h2>
+          <p className="mb-0 text-xs text-slate-500">
+            Chọn một ngày trên lịch để xem các bản ghi tương ứng.
+          </p>
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -917,7 +920,11 @@ function StudentAttendance() {
             </aside>
           </section>
 
-          <AttendanceTable items={items} />
+          <AttendanceTable
+            key={selectedDate}
+            items={selectedRecords}
+            selectedDate={selectedDate}
+          />
         </>
       )}
     </StudentDashboardShell>

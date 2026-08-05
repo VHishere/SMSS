@@ -56,7 +56,10 @@ async function findProfileByUserId(userId) {
       LEFT JOIN teacher_class htc
         ON htc.class_id = sc.class_id
         AND htc.role_in_class = 'HOMEROOM_TEACHER'
-        AND htc.end_date IS NULL
+        AND (
+          htc.end_date IS NULL
+          OR htc.end_date >= CURDATE()
+        )
 
       LEFT JOIN teacher ht
         ON ht.teacher_id = htc.teacher_id
@@ -112,9 +115,7 @@ async function findProfileByUserId(userId) {
 
 async function updateProfileByUserId(userId, payload) {
   const {
-    fullName,
     phone,
-    avatar,
     dateOfBirth,
     gender,
     address,
@@ -125,25 +126,37 @@ async function updateProfileByUserId(userId, payload) {
   try {
     await conn.beginTransaction();
 
-    await conn.query(
+    if (phone) {
+      const [[existingPhone]] = await conn.query(
+        `
+          SELECT user_id
+          FROM user_account
+          WHERE phone = ?
+            AND user_id <> ?
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [phone, userId],
+      );
+
+      if (existingPhone) {
+        const error = new Error("Số điện thoại đã được tài khoản khác sử dụng");
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+
+    const [userResult] = await conn.query(
       `
         UPDATE user_account
-        SET
-          full_name = ?,
-          phone = ?,
-          avatar = ?
+        SET phone = ?
         WHERE user_id = ?
           AND status = 'ACTIVE'
       `,
-      [
-        fullName,
-        phone || null,
-        avatar || null,
-        userId,
-      ],
+      [phone || null, userId],
     );
 
-    await conn.query(
+    const [studentResult] = await conn.query(
       `
         UPDATE student
         SET
@@ -155,14 +168,19 @@ async function updateProfileByUserId(userId, payload) {
       `,
       [
         dateOfBirth || null,
-        gender || "OTHER",
+        gender,
         address || null,
         userId,
       ],
     );
 
-    await conn.commit();
+    if (userResult.affectedRows === 0 || studentResult.affectedRows === 0) {
+      const error = new Error("Không tìm thấy hồ sơ học sinh đang hoạt động");
+      error.statusCode = 404;
+      throw error;
+    }
 
+    await conn.commit();
     return findProfileByUserId(userId);
   } catch (error) {
     await conn.rollback();
@@ -855,6 +873,7 @@ async function findBehaviourByUserId(userId, filters = {}) {
       LEFT JOIN user_account ua
         ON ua.user_id = ce.evaluated_by
       WHERE ce.student_id = ?
+        AND ce.status = 'APPROVED'
         ${conductClause}
       ORDER BY sy.start_date DESC, sm.start_date DESC, ce.evaluation_id DESC
       LIMIT 1
@@ -916,6 +935,7 @@ async function findEventsByUserId(userId, filters = {}) {
         e.capacity,
         e.outcome,
         e.status,
+        (e.start_date IS NOT NULL AND e.start_date <= NOW()) AS hasStarted,
         sc.class_name AS className,
         er.registration_id AS registrationId,
         er.attend_status AS attendStatus,
@@ -946,6 +966,7 @@ async function findEventsByUserId(userId, filters = {}) {
     events: events.map((event) => ({
       ...event,
       registeredCount: Number(event.registeredCount || 0),
+      hasStarted: Boolean(event.hasStarted),
       isRegistered:
         Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
     })),
@@ -1016,6 +1037,7 @@ async function findEventDetailByUserId(userId, eventId) {
         e.capacity,
         e.outcome,
         e.status,
+        (e.start_date IS NOT NULL AND e.start_date <= NOW()) AS hasStarted,
         e.class_id AS classId,
         sc.class_name AS className,
         er.registration_id AS registrationId,
@@ -1081,6 +1103,7 @@ async function findEventDetailByUserId(userId, eventId) {
     event: {
       ...event,
       registeredCount: Number(event.registeredCount || 0),
+      hasStarted: Boolean(event.hasStarted),
       isRegistered:
         Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
     },
@@ -1089,18 +1112,118 @@ async function findEventDetailByUserId(userId, eventId) {
 }
 
 async function registerEvent({ userId, studentId, eventId }) {
-  const [result] = await pool.query(
-    `
-      INSERT INTO event_registration
-        (event_id, user_id, participant_type, student_id, registered_by, attend_status)
-      VALUES (?, ?, 'STUDENT', ?, ?, 'REGISTERED')
-      ON DUPLICATE KEY UPDATE
-        attend_status = 'REGISTERED'
-    `,
-    [eventId, userId, studentId, userId],
-  );
+  const connection = await pool.getConnection();
 
-  return result.insertId;
+  try {
+    await connection.beginTransaction();
+
+    const [[event]] = await connection.query(
+      `
+        SELECT
+          e.event_id AS eventId,
+          e.status,
+          e.capacity,
+          (e.start_date IS NOT NULL AND e.start_date <= NOW()) AS hasStarted,
+          existing.registration_id AS registrationId,
+          existing.attend_status AS attendStatus
+        FROM event e
+        INNER JOIN class_enrollment ce
+          ON ce.student_id = ?
+          AND ce.status = 'ACTIVE'
+        INNER JOIN school_class sc
+          ON sc.class_id = ce.class_id
+          AND sc.status = 'ACTIVE'
+        LEFT JOIN event_registration existing
+          ON existing.event_id = e.event_id
+          AND existing.user_id = ?
+        WHERE e.event_id = ?
+          AND (e.class_id IS NULL OR e.class_id = ce.class_id)
+        ORDER BY sc.school_year_id DESC
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [studentId, userId, eventId],
+    );
+
+    if (!event) {
+      const error = new Error("Không tìm thấy sự kiện hoặc bạn không có quyền đăng ký");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (!["ACTIVE", "PUBLISHED", "SCHEDULED"].includes(event.status)) {
+      const error = new Error("Sự kiện hiện không mở đăng ký");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (event.registrationId && event.attendStatus !== "CANCELLED") {
+      await connection.commit();
+      return {
+        registrationId: event.registrationId,
+        alreadyRegistered: true,
+      };
+    }
+
+    if (Boolean(event.hasStarted)) {
+      const error = new Error("Sự kiện đã bắt đầu, không thể đăng ký");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (event.capacity) {
+      const [[countRow]] = await connection.query(
+        `
+          SELECT COUNT(*) AS registeredCount
+          FROM event_registration
+          WHERE event_id = ?
+            AND COALESCE(attend_status, 'REGISTERED') <> 'CANCELLED'
+        `,
+        [eventId],
+      );
+
+      if (Number(countRow.registeredCount || 0) >= Number(event.capacity)) {
+        const error = new Error("Sự kiện đã đủ số lượng đăng ký");
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+
+    let registrationId = event.registrationId;
+
+    if (registrationId) {
+      await connection.query(
+        `
+          UPDATE event_registration
+          SET attend_status = 'REGISTERED',
+              participant_type = 'STUDENT',
+              student_id = ?,
+              registered_by = ?,
+              register_date = NOW()
+          WHERE registration_id = ?
+        `,
+        [studentId, userId, registrationId],
+      );
+    } else {
+      const [result] = await connection.query(
+        `
+          INSERT INTO event_registration
+            (event_id, user_id, participant_type, student_id, registered_by, attend_status)
+          VALUES (?, ?, 'STUDENT', ?, ?, 'REGISTERED')
+        `,
+        [eventId, userId, studentId, userId],
+      );
+      registrationId = result.insertId;
+    }
+
+    await connection.commit();
+    return { registrationId, alreadyRegistered: false };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function findNotificationsByUserId(userId, filters = {}) {

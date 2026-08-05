@@ -18,10 +18,14 @@ function handleError(res, error, fallbackMessage) {
     });
   }
 
-  return res.status(error.statusCode || 500).json({
-    success: false,
-    message: error.message || fallbackMessage,
-  });
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({
+      success: false,
+      message: error.message,
+    });
+  }
+
+  return res.status(500).json({ success: false, message: fallbackMessage });
 }
 
 async function getUsers(req, res) {
@@ -32,6 +36,8 @@ async function getUsers(req, res) {
       status = "",
       dateFrom = "",
       dateTo = "",
+      page = "1",
+      limit = "20",
     } = req.query;
 
     const data = await adminModel.listUsers({
@@ -40,11 +46,22 @@ async function getUsers(req, res) {
       status,
       dateFrom,
       dateTo,
+      page,
+      limit,
     });
 
     return res.json({ success: true, data });
   } catch (error) {
     return handleError(res, error, "Không thể tải danh sách tài khoản");
+  }
+}
+
+async function getUserStats(_req, res) {
+  try {
+    const data = await adminModel.getUserStatusCounts();
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể tải thống kê tài khoản");
   }
 }
 
@@ -375,6 +392,7 @@ async function getFeesDashboard(_req, res) {
 
 module.exports = {
   getUsers,
+  getUserStats,
   updateUserStatus,
   getRoles,
   getUserDetail,

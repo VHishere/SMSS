@@ -9,6 +9,55 @@ import {
   FiUploadCloud,
 } from "react-icons/fi";
 
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_LINK_LENGTH = 500;
+const ALLOWED_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".zip",
+  ".txt",
+  ".csv",
+]);
+const FILE_ACCEPT = [...ALLOWED_EXTENSIONS].join(",");
+
+function getFileExtension(fileName = "") {
+  const lastDot = fileName.lastIndexOf(".");
+  return lastDot >= 0 ? fileName.slice(lastDot).toLowerCase() : "";
+}
+
+function validateFile(file) {
+  if (!file) return "";
+
+  if (file.size > MAX_FILE_SIZE) {
+    return "Tệp bài làm không được vượt quá 20 MB.";
+  }
+
+  if (!ALLOWED_EXTENSIONS.has(getFileExtension(file.name))) {
+    return "Chỉ hỗ trợ ảnh, PDF, Word, Excel, PowerPoint, ZIP, TXT hoặc CSV.";
+  }
+
+  return "";
+}
+
+function isValidHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function formatFileSize(size) {
   if (!size) return "";
 
@@ -39,6 +88,17 @@ function StudentHomeworkSubmitPanel({
   function selectFile(selectedFile) {
     if (!selectedFile) return;
 
+    const validationError = validateFile(selectedFile);
+    if (validationError) {
+      setFile(null);
+      setError(validationError);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
+    }
+
     setFile(selectedFile);
     setError("");
   }
@@ -67,10 +127,28 @@ function StudentHomeworkSubmitPanel({
       return;
     }
 
-    if (!file && !link.trim()) {
+    const normalizedLink = link.trim();
+
+    if (!file && !normalizedLink) {
       setError(
         "Vui lòng chọn tệp hoặc nhập đường dẫn bài làm.",
       );
+      return;
+    }
+
+    if (normalizedLink.length > MAX_LINK_LENGTH) {
+      setError("Đường dẫn bài làm không được vượt quá 500 ký tự.");
+      return;
+    }
+
+    if (normalizedLink && !isValidHttpUrl(normalizedLink)) {
+      setError("Đường dẫn phải bắt đầu bằng http:// hoặc https://.");
+      return;
+    }
+
+    const fileError = validateFile(file);
+    if (fileError) {
+      setError(fileError);
       return;
     }
 
@@ -79,7 +157,7 @@ function StudentHomeworkSubmitPanel({
 
     try {
       await onSubmit({
-        content: link.trim(),
+        content: normalizedLink,
         file,
       });
 
@@ -143,6 +221,7 @@ function StudentHomeworkSubmitPanel({
       <input
         ref={fileInputRef}
         type="file"
+        accept={FILE_ACCEPT}
         disabled={disabled || submitting}
         className="hidden"
         onChange={(event) =>
@@ -256,6 +335,7 @@ function StudentHomeworkSubmitPanel({
         <input
           type="url"
           value={link}
+          maxLength={MAX_LINK_LENGTH}
           disabled={disabled || submitting}
           onChange={(event) => {
             setLink(event.target.value);

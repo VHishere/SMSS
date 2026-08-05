@@ -58,15 +58,8 @@ router.get(
   "/me/students/:studentId/feedback",
   authenticate,
   authorize("PARENT"),
-  parentController.getStudentLessonFeedback,
-);
-
-router.get(
-  "/me/students/:studentId/attendance/stats",
-  authenticate,
-  authorize("PARENT"),
   ensureParentOwnsStudent,
-  attendanceController.getStudentAttendanceStats,
+  parentController.getStudentLessonFeedback,
 );
 
 router.get(

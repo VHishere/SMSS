@@ -38,6 +38,7 @@ import StaffStudentsPage from "./pages/dashboards/staff/StaffStudentsPage";
 import StaffParentsPage from "./pages/dashboards/staff/StaffParentsPage";
 import StaffReportsPage from "./pages/dashboards/staff/StaffReportsPage";
 import StaffSurveysPage from "./pages/dashboards/staff/StaffSurveysPage";
+import StaffNotificationsPage from "./pages/dashboards/staff/StaffNotificationsPage";
 import StaffSchoolYearsPage from "./pages/dashboards/staff/StaffSchoolYearsPage";
 import StaffClassesPage from "./pages/dashboards/staff/StaffClassesPage";
 import StaffClassDetailPage from "./pages/dashboards/staff/StaffClassDetailPage";
@@ -118,14 +119,12 @@ import SupervisionLog from "./pages/supervisor/SupervisionLog";
 import SupervisorLeave from "./pages/supervisor/SupervisorLeave";
 import SupervisorWeekend from "./pages/supervisor/SupervisorWeekend";
 import SupervisorSupport from "./pages/supervisor/SupervisorSupport";
-import SupervisorContacts from "./pages/supervisor/SupervisorContacts";
 
 import "./App.css";
 
 const TEACHER_ROLES = [
   "HOMEROOM_TEACHER",
   "SUBJECT_TEACHER",
-  "DORM_SUPERVISOR",
 ];
 
 const SUPERVISOR_ROLES = ["DORM_SUPERVISOR"];
@@ -185,6 +184,7 @@ function App() {
           >
             <Route index element={<StaffOverviewPage />} />
             <Route path="profile" element={<StaffProfilePage />} />
+            <Route path="notifications" element={<StaffNotificationsPage />} />
             <Route path="students" element={<StaffStudentsPage />} />
             <Route path="students/new" element={<StaffStudentFormPage />} />
             <Route path="students/:id" element={<StaffStudentDetailPage />} />
@@ -679,7 +679,7 @@ function App() {
           <Route path="/supervisor/leave-approvals" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorLeave /></ProtectedRoute>} />
           <Route path="/supervisor/weekend" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorWeekend /></ProtectedRoute>} />
           <Route path="/supervisor/support" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorSupport /></ProtectedRoute>} />
-          <Route path="/supervisor/messages" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorContacts /></ProtectedRoute>} />
+          <Route path="/supervisor/messages" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><MessagesPage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

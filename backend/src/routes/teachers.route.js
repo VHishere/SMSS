@@ -49,6 +49,14 @@ router.get(
   teacherController.getNotifications,
 );
 
+// Đánh dấu 1 mục trong feed thông báo là đã đọc (notification_read_state)
+router.post(
+  "/notifications/read",
+  authenticate,
+  authorize(...TEACHER_ROLES),
+  teacherController.markNotificationRead,
+);
+
 // ── Attendance: điểm danh theo tiết (per-period) ──────────────────────────────
 
 router.get(

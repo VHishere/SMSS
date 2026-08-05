@@ -411,7 +411,7 @@ async function findEnrolledStudents(classId) {
 // ── Score history ─────────────────────────────────────────────────────────────
 
 async function findScoreLog(filters = {}) {
-  const { studentId, subjectId, semesterId, page = 1, limit = 20 } = filters;
+  const { studentId, subjectId, semesterId, teacherId, page = 1, limit = 20 } = filters;
   const offset = (page - 1) * limit;
   const params = [];
   let where = "1=1";
@@ -419,6 +419,15 @@ async function findScoreLog(filters = {}) {
   if (studentId)  { where += " AND l.student_id = ?";  params.push(parseInt(studentId, 10)); }
   if (subjectId)  { where += " AND l.subject_id = ?";  params.push(parseInt(subjectId, 10)); }
   if (semesterId) { where += " AND l.semester_id = ?"; params.push(parseInt(semesterId, 10)); }
+  // Giới hạn theo giáo viên: chỉ log điểm của HS thuộc lớp GV này dạy (chống rò rỉ chéo lớp).
+  // Admin không truyền teacherId → không áp điều kiện này (xem toàn trường).
+  if (teacherId) {
+    where += ` AND l.student_id IN (
+      SELECT ce.student_id FROM class_enrollment ce
+      INNER JOIN teacher_class tc ON tc.class_id = ce.class_id
+      WHERE tc.teacher_id = ? AND ce.status = 'ACTIVE')`;
+    params.push(parseInt(teacherId, 10));
+  }
 
   const [[{ total }]] = await pool.query(
     `SELECT COUNT(*) AS total FROM academic_result_log l WHERE ${where}`,
@@ -473,7 +482,7 @@ async function upsertWarning(conn, w) {
 }
 
 async function findWarnings(filters = {}) {
-  const { semesterId, classId, status, page = 1, limit = 20 } = filters;
+  const { semesterId, classId, status, teacherId, page = 1, limit = 20 } = filters;
   const offset = (page - 1) * limit;
   const params = [];
   let where = "1=1";
@@ -481,6 +490,15 @@ async function findWarnings(filters = {}) {
   if (semesterId) { where += " AND w.semester_id = ?"; params.push(parseInt(semesterId, 10)); }
   if (status)     { where += " AND w.status = ?";      params.push(status); }
   if (classId)    { where += " AND ce.class_id = ?";   params.push(parseInt(classId, 10)); }
+  // Giới hạn theo giáo viên: chỉ cảnh báo của HS thuộc lớp GV này dạy.
+  // Admin không truyền teacherId → xem toàn trường.
+  if (teacherId) {
+    where += ` AND w.student_id IN (
+      SELECT ce2.student_id FROM class_enrollment ce2
+      INNER JOIN teacher_class tc ON tc.class_id = ce2.class_id
+      WHERE tc.teacher_id = ? AND ce2.status = 'ACTIVE')`;
+    params.push(parseInt(teacherId, 10));
+  }
 
   const [[{ total }]] = await pool.query(
     `SELECT COUNT(*) AS total
@@ -576,6 +594,34 @@ async function findStudentRecipients(studentId) {
   return [...new Set(ids)];
 }
 
+// Batched recipients cho NHIỀU học sinh (2 query thay vì N) — dùng khi gửi thông
+// báo hàng loạt (nhập điểm cả lớp). Trả Map<studentId, userId[]> (HS + phụ huynh).
+async function findRecipientsForStudents(studentIds) {
+  if (!studentIds.length) return new Map();
+  const ph = studentIds.map(() => "?").join(",");
+  const [students] = await pool.query(
+    `SELECT student_id AS studentId, user_id AS userId FROM student WHERE student_id IN (${ph})`,
+    studentIds,
+  );
+  const [parents] = await pool.query(
+    `SELECT sp.student_id AS studentId, pp.user_id AS userId
+     FROM student_parent sp
+     INNER JOIN parent_profile pp ON pp.parent_id = sp.parent_id
+     INNER JOIN user_account ua ON ua.user_id = pp.user_id AND ua.status = 'ACTIVE'
+     WHERE sp.student_id IN (${ph})`,
+    studentIds,
+  );
+  const map = new Map();
+  for (const s of students) map.set(s.studentId, new Set([s.userId]));
+  for (const p of parents) {
+    if (!map.has(p.studentId)) map.set(p.studentId, new Set());
+    map.get(p.studentId).add(p.userId);
+  }
+  const out = new Map();
+  for (const [sid, set] of map) out.set(sid, [...set]);
+  return out;
+}
+
 module.exports = {
   findTeachingAssignments,
   isTeacherAssigned,
@@ -598,4 +644,5 @@ module.exports = {
   findWarningById,
   updateWarningIntervention,
   findStudentRecipients,
+  findRecipientsForStudents,
 };

@@ -54,13 +54,24 @@ async function isHomeroomOfStudent(teacherId, studentId) {
   return Boolean(row);
 }
 
-// Danh mục loại vi phạm chuẩn (kèm cờ có ảnh hưởng hạnh kiểm) cho bộ chọn khi ghi vi phạm.
+// Giữ response cũ cho frontend nhưng lấy dữ liệu từ bảng chuẩn behaviour_category.
+// DB hiện tại không còn bảng violation_type.
 async function findViolationTypes() {
   const [rows] = await pool.query(
-    `SELECT code, name, affects_conduct AS affectsConduct
-     FROM violation_type WHERE is_active = 1 ORDER BY affects_conduct DESC, name ASC`,
+    `SELECT
+       code,
+       label AS name,
+       affects_conduct_default AS affectsConduct
+     FROM behaviour_category
+     WHERE behavior_type = 'VIOLATION'
+       AND status = 'ACTIVE'
+     ORDER BY affects_conduct_default DESC, label ASC`,
   );
-  return rows.map((r) => ({ ...r, affectsConduct: Boolean(r.affectsConduct) }));
+
+  return rows.map((row) => ({
+    ...row,
+    affectsConduct: Boolean(row.affectsConduct),
+  }));
 }
 
 // ── Merit/violation category catalog (mức độ cộng/trừ) ─────────────────────────
@@ -546,13 +557,22 @@ async function upsertWarning(w) {
 }
 
 async function findWarnings(filters = {}) {
-  const { semesterId, classId, status, page = 1, limit = 20 } = filters;
+  const { semesterId, classId, status, teacherId, page = 1, limit = 20 } = filters;
   const offset = (page - 1) * limit;
   const params = [];
   let where = "1=1";
   if (semesterId) { where += " AND w.semester_id = ?"; params.push(parseInt(semesterId, 10)); }
   if (status)     { where += " AND w.status = ?";      params.push(status); }
   if (classId)    { where += " AND ce.class_id = ?";   params.push(parseInt(classId, 10)); }
+  // Giới hạn theo GVCN: chỉ cảnh báo của HS thuộc lớp giáo viên này chủ nhiệm.
+  // Admin không truyền teacherId → xem toàn trường.
+  if (teacherId) {
+    where += ` AND w.student_id IN (
+      SELECT ce2.student_id FROM class_enrollment ce2
+      INNER JOIN teacher_class tc ON tc.class_id = ce2.class_id
+      WHERE tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER' AND ce2.status = 'ACTIVE')`;
+    params.push(parseInt(teacherId, 10));
+  }
 
   const [[{ total }]] = await pool.query(
     `SELECT COUNT(*) AS total

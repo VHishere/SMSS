@@ -6,6 +6,18 @@ function httpError(message, statusCode) {
   return err;
 }
 
+const MAX_MESSAGE_LENGTH = 5000;
+const MAX_FILE_URL_LENGTH = 500;
+
+function isValidHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 const { pool } = require("../config/db");
 async function notify(receivers, title, content, conversationId) {
   if (!receivers.length) return;
@@ -83,31 +95,68 @@ async function createGroup({ teacher, title, classId, audience }) {
 // ── Send message ──────────────────────────────────────────────────────────────
 
 async function sendMessage({ userId, conversationId, messageType, content, fileUrl }) {
-  const ok = await commModel.isParticipant(conversationId, userId);
+  const parsedConversationId = Number.parseInt(conversationId, 10);
+  if (!Number.isInteger(parsedConversationId) || parsedConversationId <= 0) {
+    throw httpError("Cuộc trò chuyện không hợp lệ", 400);
+  }
+
+  const ok = await commModel.isParticipant(parsedConversationId, userId);
   if (!ok) throw httpError("Bạn không thuộc cuộc trò chuyện này", 403);
 
-  const type = ["TEXT", "FILE", "IMAGE"].includes(messageType) ? messageType : "TEXT";
-  if (type === "TEXT" && (!content || !content.trim())) throw httpError("Nội dung tin nhắn trống", 400);
-  if ((type === "FILE" || type === "IMAGE") && !fileUrl) throw httpError("Thiếu tệp đính kèm", 400);
+  const type = ["TEXT", "FILE", "IMAGE"].includes(messageType)
+    ? messageType
+    : "TEXT";
+  const normalizedContent = String(content || "").trim();
+  const normalizedFileUrl = String(fileUrl || "").trim();
+
+  if (normalizedContent.length > MAX_MESSAGE_LENGTH) {
+    throw httpError(`Tin nhắn không được vượt quá ${MAX_MESSAGE_LENGTH} ký tự`, 400);
+  }
+
+  if (type === "TEXT" && !normalizedContent) {
+    throw httpError("Nội dung tin nhắn trống", 400);
+  }
+
+  if (type === "FILE" || type === "IMAGE") {
+    if (!normalizedFileUrl) {
+      throw httpError("Thiếu tệp đính kèm", 400);
+    }
+
+    if (
+      normalizedFileUrl.length > MAX_FILE_URL_LENGTH ||
+      !isValidHttpUrl(normalizedFileUrl)
+    ) {
+      throw httpError("Đường dẫn tệp đính kèm không hợp lệ", 400);
+    }
+  }
 
   const msg = await commModel.insertMessage({
-    conversationId, senderId: userId, messageType: type,
-    content: content ? content.trim() : null, fileUrl: fileUrl ?? null,
+    conversationId: parsedConversationId,
+    senderId: userId,
+    messageType: type,
+    content: normalizedContent || null,
+    fileUrl: normalizedFileUrl || null,
   });
 
-  // Mark the sender's own read pointer up-to-date, then notify others.
-  await commModel.markRead(conversationId, userId);
+  await commModel.markRead(parsedConversationId, userId);
 
   try {
-    const participants = await commModel.findParticipants(conversationId);
-    const meta = await commModel.findConversationMeta(conversationId);
+    const participants = await commModel.findParticipants(parsedConversationId);
+    const meta = await commModel.findConversationMeta(parsedConversationId);
     const sender = participants.find((p) => p.userId === userId);
-    const receivers = participants.filter((p) => p.userId !== userId).map((p) => p.userId);
-    const preview = type === "TEXT" ? (content || "").slice(0, 80) : "[Tệp đính kèm]";
-    const title = meta?.conversationType === "GROUP" ? `Tin nhắn nhóm: ${meta.title}` : `Tin nhắn từ ${sender?.fullName ?? "giáo viên"}`;
-    await notify(receivers, title, preview, conversationId);
-  } catch (e) {
-    console.error("sendMessage notification (non-critical):", e);
+    const receivers = participants
+      .filter((p) => p.userId !== userId)
+      .map((p) => p.userId);
+    const preview = type === "TEXT"
+      ? normalizedContent.slice(0, 80)
+      : "[Tệp đính kèm]";
+    const title = meta?.conversationType === "GROUP"
+      ? `Tin nhắn nhóm: ${meta.title}`
+      : `Tin nhắn từ ${sender?.fullName ?? "giáo viên"}`;
+
+    await notify(receivers, title, preview, parsedConversationId);
+  } catch (error) {
+    console.error("sendMessage notification (non-critical):", error);
   }
 
   return msg;

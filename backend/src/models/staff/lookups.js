@@ -92,11 +92,36 @@ async function getLookups() {
     `
       SELECT
         fee_category_id AS feeCategoryId,
+        code,
         name,
         description
       FROM fee_category
       WHERE status = 'ACTIVE'
-      ORDER BY name
+      ORDER BY fee_category_id
+    `,
+  );
+
+  const [feeRates] = await pool.query(
+    `
+      SELECT
+        fr.fee_rate_id AS feeRateId,
+        fr.fee_category_id AS feeCategoryId,
+        fc.name AS feeCategoryName,
+        fr.school_year_id AS schoolYearId,
+        fr.semester_id AS semesterId,
+        fr.scope_type AS scopeType,
+        fr.grade_id AS gradeId,
+        g.grade_name AS gradeName,
+        fr.class_id AS classId,
+        sc.class_name AS className,
+        fr.amount,
+        fr.billing_cycle AS billingCycle
+      FROM fee_rate fr
+      INNER JOIN fee_category fc ON fc.fee_category_id = fr.fee_category_id
+      LEFT JOIN grade g ON g.grade_id = fr.grade_id
+      LEFT JOIN school_class sc ON sc.class_id = fr.class_id
+      WHERE fr.status = 'ACTIVE'
+      ORDER BY fc.name, fr.created_at DESC
     `,
   );
 
@@ -112,6 +137,7 @@ async function getLookups() {
     grades,
     teachers,
     feeCategories,
+    feeRates: feeRates.map((row) => ({ ...row, amount: Number(row.amount) })),
   };
 }
 

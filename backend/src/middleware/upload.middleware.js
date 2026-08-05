@@ -1,3 +1,4 @@
+const path = require("path");
 const { Readable } = require("stream");
 const multer = require("multer");
 const cloudinary = require("../config/cloudinary");
@@ -49,6 +50,39 @@ const FILE_MIMES = [
   "text/csv",
 ];
 
+const SAFE_DOCUMENT_MIMES = [
+  ...IMAGE_MIMES,
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/zip",
+  "application/x-zip-compressed",
+  "text/plain",
+  "text/csv",
+];
+
+const SAFE_DOCUMENT_EXTENSIONS = [
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".zip",
+  ".txt",
+  ".csv",
+];
+
 function uploadBufferToCloudinary(buffer, options) {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(
@@ -71,6 +105,7 @@ function createCloudinaryUpload({
   fieldName = "file",
   folder = "uploads",
   allowedMimes = FILE_MIMES,
+  allowedExtensions = null,
   maxSizeMB = 20,
   resourceType = "auto",
 }) {
@@ -80,7 +115,11 @@ function createCloudinaryUpload({
       fileSize: maxSizeMB * 1024 * 1024,
     },
     fileFilter: (req, file, cb) => {
-      if (!allowedMimes.includes(file.mimetype)) {
+      const extension = path.extname(file.originalname || "").toLowerCase();
+      const validMime = allowedMimes.includes(file.mimetype);
+      const validExtension = !allowedExtensions || allowedExtensions.includes(extension);
+
+      if (!validMime || !validExtension) {
         cb(new Error("Định dạng file không được hỗ trợ"));
         return;
       }
@@ -143,8 +182,9 @@ const profileAvatarUpload = createCloudinaryUpload({
 const homeworkFileUpload = createCloudinaryUpload({
   fieldName: "file",
   folder: "homework",
-  allowedMimes: FILE_MIMES,
-  maxSizeMB: 50,
+  allowedMimes: SAFE_DOCUMENT_MIMES,
+  allowedExtensions: SAFE_DOCUMENT_EXTENSIONS,
+  maxSizeMB: 20,
   resourceType: "auto",
 });
 
@@ -153,6 +193,15 @@ const messageFileUpload = createCloudinaryUpload({
   folder: "messages",
   allowedMimes: FILE_MIMES,
   maxSizeMB: 50,
+  resourceType: "auto",
+});
+
+const studentMessageFileUpload = createCloudinaryUpload({
+  fieldName: "file",
+  folder: "messages/student",
+  allowedMimes: SAFE_DOCUMENT_MIMES,
+  allowedExtensions: SAFE_DOCUMENT_EXTENSIONS,
+  maxSizeMB: 20,
   resourceType: "auto",
 });
 
@@ -176,6 +225,7 @@ module.exports = {
   profileAvatarUpload,
   homeworkFileUpload,
   messageFileUpload,
+  studentMessageFileUpload,
   eventFileUpload,
   handleUpload,
 };

@@ -45,13 +45,13 @@ function NewConversationModal({ contacts, onClose, onStarted }) {
         </div>
 
         <div className="px-6 pt-4">
-          <div className="mb-3 flex gap-1 rounded-xl border border-[#DFC0B2] p-1">
-            <button type="button" onClick={() => setTab("PARENT")} className="flex-1 rounded-lg py-2 text-sm font-medium transition"
+          <div className="mb-3 flex gap-1 rounded-full border border-[#DFC0B2] p-1">
+            <button type="button" onClick={() => setTab("PARENT")} className="flex-1 rounded-full py-2 text-sm font-medium transition"
               style={tab === "PARENT" ? { backgroundColor: "#225DAD", color: "#fff" } : { color: "#64748B" }}>Phụ huynh</button>
-            <button type="button" onClick={() => setTab("STUDENT")} className="flex-1 rounded-lg py-2 text-sm font-medium transition"
+            <button type="button" onClick={() => setTab("STUDENT")} className="flex-1 rounded-full py-2 text-sm font-medium transition"
               style={tab === "STUDENT" ? { backgroundColor: "#225DAD", color: "#fff" } : { color: "#64748B" }}>Học sinh</button>
           </div>
-          <div className="mb-3 flex items-center rounded-lg border border-[#DFC0B2] px-2.5">
+          <div className="mb-3 flex items-center rounded-full border border-[#DFC0B2] px-3">
             <Ms name="search" className="text-slate-400 !text-[15px]" />
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Tìm tên..." className="w-full px-2 py-2 text-sm outline-none" />
           </div>
@@ -62,12 +62,12 @@ function NewConversationModal({ contacts, onClose, onStarted }) {
           {list.length === 0 ? (
             <p className="py-6 text-center text-sm text-slate-400">Không tìm thấy liên hệ.</p>
           ) : (
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-[5px]">
               {tab === "PARENT"
                 ? list.map((p) => (
                     <button key={`${p.parentUserId}-${p.studentId}`} type="button" disabled={busy}
                       onClick={() => start({ kind: "PARENT", userId: p.parentUserId, studentId: p.studentId })}
-                      className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition hover:bg-[#F3F3F3] disabled:opacity-50" style={{ border: "1px solid #DFC0B2" }}>
+                      className="flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left transition hover:bg-[#F3F3F3] disabled:opacity-50" style={{ border: "1px solid #DFC0B2" }}>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-[#1A1C1C]">{p.parentName}</p>
                         <p className="text-xs text-slate-400">{p.relationship ?? "PH"} của {p.studentName} · {p.className}</p>
@@ -77,7 +77,7 @@ function NewConversationModal({ contacts, onClose, onStarted }) {
                 : list.map((s) => (
                     <button key={s.studentId} type="button" disabled={busy}
                       onClick={() => start({ kind: "STUDENT", userId: s.studentUserId, studentId: s.studentId })}
-                      className="flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition hover:bg-[#F3F3F3] disabled:opacity-50" style={{ border: "1px solid #DFC0B2" }}>
+                      className="flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left transition hover:bg-[#F3F3F3] disabled:opacity-50" style={{ border: "1px solid #DFC0B2" }}>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-[#1A1C1C]">{s.studentName}</p>
                         <p className="text-xs text-slate-400">{s.studentCode} · {s.className}</p>

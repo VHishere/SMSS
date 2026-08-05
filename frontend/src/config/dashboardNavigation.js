@@ -234,6 +234,12 @@ export const dashboardNavigation = {
       icon: FiMessageSquare,
       ms: "chat",
     },
+    {
+      label: "Thông báo",
+      path: "/staff/notifications",
+      icon: FiBell,
+      ms: "notifications",
+    },
   ],
 
   TEACHER: [

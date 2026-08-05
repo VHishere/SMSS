@@ -5,14 +5,11 @@ import {
   FiCheckCircle,
   FiClock,
   FiFlag,
-  FiPlus,
   FiShield,
   FiTarget,
   FiUser,
-  FiX,
 } from "react-icons/fi";
 
-import { studentApi } from "../../api/client";
 import ErrorAlert from "../../components/atoms/ErrorAlert";
 import LoadingState from "../../components/atoms/LoadingState";
 import EmptyState from "../../components/molecules/EmptyState";
@@ -113,319 +110,6 @@ function getDeadlineMeta(value) {
   };
 }
 
-function GoalCreateModal({ types, onClose, onCreated }) {
-  const [form, setForm] = useState({
-    goalType: types[0]?.key || "ACADEMIC",
-    title: "",
-    description: "",
-    targetDate: "",
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
-
-  function updateField(field, value) {
-    setForm((current) => ({
-      ...current,
-      [field]: value,
-    }));
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setSubmitting(true);
-    setError("");
-
-    try {
-      await studentApi.createMyGoal(form);
-      onCreated();
-    } catch (requestError) {
-      setError(requestError.message || "Không thể tạo mục tiêu.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div
-      className="
-        fixed inset-0 z-[80] flex items-center justify-center
-        bg-slate-950/50 px-4 py-2 backdrop-blur-sm
-      "
-    >
-      <button
-        type="button"
-        aria-label="Đóng hộp thoại"
-        className="absolute inset-0 cursor-default"
-        onClick={onClose}
-      />
-
-      <form
-        onSubmit={handleSubmit}
-        className="
-          relative z-10 max-h-[calc(100vh-48px)] w-full max-w-2xl
-          overflow-y-auto rounded-3xl border border-slate-200
-          bg-white shadow-2xl
-        "
-      >
-        {/* Header */}
-        <div
-          className="
-            flex items-start justify-between gap-4
-            border-b border-slate-100 px-6 py-3 sm:px-7
-          "
-        >
-          <div className="flex min-w-0 items-start gap-4">
-            <span
-              className="
-                grid h-12 w-12 shrink-0 place-items-center
-                rounded-2xl bg-orange-50 text-[#F27123]
-              "
-            >
-              <FiTarget size={22} />
-            </span>
-
-            <div className="min-w-0">
-              <h2 className="mb-1 text-xl font-black text-[#0F2747] sm:text-2xl">
-                Thiết lập mục tiêu mới
-              </h2>
-              <p className="mb-0 text-sm leading-6 text-slate-500">
-                Tạo mục tiêu rõ ràng để theo dõi trong học kỳ.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Đóng"
-            className="
-              grid h-10 w-10 shrink-0 place-items-center rounded-full
-              bg-slate-50 text-slate-400 transition
-              hover:bg-slate-100 hover:text-slate-700
-            "
-          >
-            <FiX size={18} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-3 sm:px-7">
-          {error && (
-            <p
-              className="
-                mb-5 rounded-xl border border-red-100 bg-red-50
-                px-4 py-3 text-sm font-medium text-red-600
-              "
-            >
-              {error}
-            </p>
-          )}
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            {/* Loại mục tiêu */}
-            <div className="min-w-0">
-              <label
-                htmlFor="goal-type"
-                className=" block text-sm font-extrabold text-[#0F2747]"
-              >
-                Loại mục tiêu
-              </label>
-
-              <div className="relative">
-                <FiBookOpen
-                  className="
-                    pointer-events-none absolute left-3.5 top-1/2
-                    -translate-y-1/2 text-[#0F4C8A]
-                  "
-                  size={16}
-                />
-
-                <PrettySelect
-                  id="goal-type"
-                  value={form.goalType}
-                  onChange={(event) =>
-                    updateField("goalType", event.target.value)
-                  }
-                  className="
-                    h-12 w-full cursor-pointer rounded-xl
-                    border border-slate-200 bg-slate-50
-                    pl-10 pr-10 text-sm font-semibold text-slate-700
-                    outline-none transition
-                    hover:border-slate-300 hover:bg-white
-                    focus:border-orange-300 focus:bg-white
-                    focus:ring-2 focus:ring-orange-100
-                  "
-                >
-                  {types.map((type) => (
-                    <option key={type.key} value={type.key}>
-                      {type.label}
-                    </option>
-                  ))}
-                </PrettySelect>
-              </div>
-            </div>
-
-            {/* Thời hạn */}
-            <div className="min-w-0">
-              <label
-                htmlFor="goal-deadline"
-                className=" block text-sm font-extrabold text-[#0F2747]"
-              >
-                Thời hạn
-              </label>
-
-              <div className="relative">
-                <FiCalendar
-                  className="
-                    pointer-events-none absolute left-3.5 top-1/2
-                    -translate-y-1/2 text-[#F27123]
-                  "
-                  size={16}
-                />
-
-                <input
-                  id="goal-deadline"
-                  type="date"
-                  value={form.targetDate}
-                  onChange={(event) =>
-                    updateField("targetDate", event.target.value)
-                  }
-                  className="
-                    h-12 w-full rounded-xl border border-slate-200
-                    bg-slate-50 pl-10 pr-3 text-sm font-semibold
-                    text-slate-700 outline-none transition
-                    hover:border-slate-300 hover:bg-white
-                    focus:border-orange-300 focus:bg-white
-                    focus:ring-2 focus:ring-orange-100
-                  "
-                />
-              </div>
-            </div>
-
-            {/* Tên mục tiêu */}
-            <div className="min-w-0 sm:col-span-2">
-              <label
-                htmlFor="goal-title"
-                className="mb-2 block text-sm font-extrabold text-[#0F2747]"
-              >
-                Tên mục tiêu
-                <span className="ml-1 text-red-500">*</span>
-              </label>
-
-              <div className="relative">
-                <FiFlag
-                  className="
-                    pointer-events-none absolute left-3.5 top-1/2
-                    -translate-y-1/2 text-[#F27123]
-                  "
-                  size={16}
-                />
-
-                <input
-                  id="goal-title"
-                  required
-                  maxLength={200}
-                  value={form.title}
-                  onChange={(event) =>
-                    updateField("title", event.target.value)
-                  }
-                  placeholder="Ví dụ: Đạt điểm Toán trên 8.5"
-                  className="
-                    h-12 w-full rounded-xl border border-slate-200
-                    bg-slate-50 pl-10 pr-4 text-sm text-slate-700
-                    outline-none transition placeholder:text-slate-400
-                    hover:border-slate-300 hover:bg-white
-                    focus:border-orange-300 focus:bg-white
-                    focus:ring-2 focus:ring-orange-100
-                  "
-                />
-              </div>
-
-              <p className="mb-0 mt-1.5 text-xs text-slate-400">
-                Nên đặt tên ngắn gọn, cụ thể và có thể đo lường.
-              </p>
-            </div>
-
-            {/* Mô tả */}
-            <div className="min-w-0 sm:col-span-2">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <label
-                  htmlFor="goal-description"
-                  className="block text-sm font-extrabold text-[#0F2747]"
-                >
-                  Mô tả
-                </label>
-
-                <span className="text-xs text-slate-400">
-                  {form.description.length}/500
-                </span>
-              </div>
-
-              <textarea
-                id="goal-description"
-                rows={5}
-                maxLength={500}
-                value={form.description}
-                onChange={(event) =>
-                  updateField("description", event.target.value)
-                }
-                placeholder="Mô tả nội dung, kế hoạch thực hiện và kết quả bạn muốn đạt được..."
-                className="
-                  min-h-[130px] w-full resize-y rounded-xl
-                  border border-slate-200 bg-slate-50
-                  px-4 py-3 text-sm leading-6 text-slate-700
-                  outline-none transition placeholder:text-slate-400
-                  hover:border-slate-300 hover:bg-white
-                  focus:border-orange-300 focus:bg-white
-                  focus:ring-2 focus:ring-orange-100
-                "
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div
-          className="
-            flex flex-col-reverse gap-3 border-t border-slate-100
-            bg-slate-50/70 px-6 py-4 sm:flex-row sm:justify-end sm:px-7
-          "
-        >
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className="
-              h-11 rounded-xl border border-slate-200 bg-white
-              px-6 text-sm font-bold text-slate-600 transition
-              hover:border-slate-300 hover:bg-slate-50
-              disabled:cursor-not-allowed disabled:opacity-60
-            "
-          >
-            Hủy
-          </button>
-
-          <button
-            type="submit"
-            disabled={submitting || !form.title.trim()}
-            className="
-              inline-flex h-11 items-center justify-center gap-2
-              rounded-xl bg-[#F27123] px-7
-              text-sm font-extrabold text-white shadow-sm transition
-              hover:-translate-y-0.5 hover:bg-[#d95f17]
-              disabled:cursor-not-allowed disabled:bg-slate-300
-              disabled:shadow-none
-            "
-          >
-            <FiPlus size={17} />
-            {submitting ? "Đang tạo mục tiêu..." : "Tạo mục tiêu"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
 function GoalCard({ goal, typeLabel }) {
   const type = TYPE_META[goal.goalType] || {
     label: typeLabel || goal.goalType || "Mục tiêu",
@@ -493,13 +177,7 @@ function StudentGoals() {
     status: "",
     goalType: "",
   });
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-
-  const { data, types, loading, error } = useStudentSelfGoals(
-    filters,
-    refreshKey,
-  );
+  const { data, types, loading, error } = useStudentSelfGoals(filters);
 
   const goals = data?.goals || [];
 
@@ -536,14 +214,6 @@ function StudentGoals() {
     [goals],
   );
 
-  function refresh() {
-    setRefreshKey((key) => key + 1);
-  }
-
-  function handleCreated() {
-    setShowCreateModal(false);
-    refresh();
-  }
 
   return (
     <StudentDashboardShell context={data?.context}>
@@ -663,7 +333,7 @@ function StudentGoals() {
             {goals.length === 0 ? (
               <EmptyState
                 title="Chưa có mục tiêu phù hợp"
-                description="Thử đổi bộ lọc hoặc tạo một mục tiêu mới."
+                description="Thử đổi bộ lọc để xem các mục tiêu khác."
               />
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
@@ -674,22 +344,6 @@ function StudentGoals() {
                     typeLabel={typeMap[goal.goalType]}
                   />
                 ))}
-
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(true)}
-                  className="flex min-h-[210px] flex-col items-center justify-center rounded-3xl border border-dashed card-border bg-white p-5 text-center transition hover:card-border hover:bg-orange-50/40"
-                >
-                  <span className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-slate-100 text-[#0F4C8A]">
-                    <FiPlus />
-                  </span>
-                  <strong className="text-sm text-[#0F2747]">
-                    Thêm mục tiêu mới
-                  </strong>
-                  <span className="mt-1 text-xs text-slate-500">
-                    Thiết lập mục tiêu cho học tập hoặc rèn luyện.
-                  </span>
-                </button>
               </div>
             )}
           </section>
@@ -781,17 +435,6 @@ function StudentGoals() {
             </section>
           </aside>
         </div>
-      )}
-
-      {showCreateModal && (
-        <GoalCreateModal
-          types={types.length ? types : Object.entries(TYPE_META).map(([key, value]) => ({
-            key,
-            label: value.label,
-          }))}
-          onClose={() => setShowCreateModal(false)}
-          onCreated={handleCreated}
-        />
       )}
     </StudentDashboardShell>
   );

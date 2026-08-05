@@ -3,10 +3,53 @@ const { pool } = require("../../config/db");
 const CATEGORY_STATUSES = new Set(["ACTIVE", "INACTIVE"]);
 const RATE_STATUSES = new Set(["ACTIVE", "INACTIVE"]);
 const BILLING_CYCLES = new Set(["ONE_TIME", "MONTHLY", "PER_SEMESTER", "PER_YEAR"]);
+const RATE_SCOPES = new Set(["SCHOOL", "GRADE", "CLASS"]);
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeCategoryCode(value) {
+  const code = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "D")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 50);
+
+  return code || `FEE_${Date.now()}`;
+}
+
+function resolveRateScope(data) {
+  const requestedScope = String(data.scopeType || "").toUpperCase();
+  const scopeType = RATE_SCOPES.has(requestedScope)
+    ? requestedScope
+    : data.classId
+      ? "CLASS"
+      : data.gradeId
+        ? "GRADE"
+        : "SCHOOL";
+
+  if (scopeType === "CLASS" && !data.classId) {
+    const error = new Error("Vui lòng chọn lớp cho mức thu theo lớp");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (scopeType === "GRADE" && !data.gradeId) {
+    const error = new Error("Vui lòng chọn khối cho mức thu theo khối");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return {
+    scopeType,
+    gradeId: scopeType === "GRADE" ? data.gradeId : null,
+    classId: scopeType === "CLASS" ? data.classId : null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -31,6 +74,7 @@ async function listFeeCategories(filters = {}) {
     `
       SELECT
         fc.fee_category_id AS feeCategoryId,
+        fc.code,
         fc.name,
         fc.description,
         fc.status,
@@ -55,6 +99,7 @@ async function getFeeCategoryById(feeCategoryId) {
     `
       SELECT
         fc.fee_category_id AS feeCategoryId,
+        fc.code,
         fc.name,
         fc.description,
         fc.status,
@@ -78,13 +123,17 @@ async function createFeeCategory(data, createdBy) {
     throw error;
   }
 
+  const name = data.name.trim();
+  const code = normalizeCategoryCode(data.code || name);
+
   const [result] = await pool.query(
     `
-      INSERT INTO fee_category (name, description, status, created_by)
-      VALUES (?, ?, ?, ?)
+      INSERT INTO fee_category (code, name, description, status, created_by)
+      VALUES (?, ?, ?, ?, ?)
     `,
     [
-      data.name.trim(),
+      code,
+      name,
       data.description || null,
       CATEGORY_STATUSES.has(data.status) ? data.status : "ACTIVE",
       createdBy || null,
@@ -101,13 +150,25 @@ async function updateFeeCategory(feeCategoryId, data) {
     throw error;
   }
 
+  const current = await getFeeCategoryById(feeCategoryId);
+  if (!current) {
+    const error = new Error("Không tìm thấy loại phí");
+    error.statusCode = 404;
+    throw error;
+  }
+
   const [result] = await pool.query(
     `
       UPDATE fee_category
-      SET name = ?, description = ?
+      SET code = ?, name = ?, description = ?
       WHERE fee_category_id = ?
     `,
-    [data.name.trim(), data.description || null, feeCategoryId],
+    [
+      data.code ? normalizeCategoryCode(data.code) : current.code,
+      data.name.trim(),
+      data.description || null,
+      feeCategoryId,
+    ],
   );
 
   if (result.affectedRows === 0) {
@@ -197,6 +258,7 @@ async function listFeeRates(filters = {}) {
         g.grade_name AS gradeName,
         fr.class_id AS classId,
         sc.class_name AS className,
+        fr.scope_type AS scopeType,
         fr.amount,
         fr.billing_cycle AS billingCycle,
         fr.status,
@@ -233,6 +295,7 @@ async function getFeeRateById(feeRateId) {
         g.grade_name AS gradeName,
         fr.class_id AS classId,
         sc.class_name AS className,
+        fr.scope_type AS scopeType,
         fr.amount,
         fr.billing_cycle AS billingCycle,
         fr.status,
@@ -270,8 +333,8 @@ function validateRatePayload(data) {
   }
 
   const amount = toNumber(data.amount, -1);
-  if (amount < 0) {
-    const error = new Error("Số tiền không hợp lệ");
+  if (amount <= 0) {
+    const error = new Error("Số tiền phải lớn hơn 0");
     error.statusCode = 400;
     throw error;
   }
@@ -283,26 +346,87 @@ function validateRatePayload(data) {
     throw error;
   }
 
-  return { amount, billingCycle };
+  const scope = resolveRateScope(data);
+  return { amount, billingCycle, ...scope };
+}
+
+async function validateRateReferences(data, scope, connection = pool) {
+  const [[schoolYear]] = await connection.query(
+    "SELECT school_year_id FROM school_year WHERE school_year_id = ? LIMIT 1",
+    [data.schoolYearId],
+  );
+  if (!schoolYear) {
+    const error = new Error("Năm học không tồn tại");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (data.semesterId) {
+    const [[semester]] = await connection.query(
+      `
+        SELECT semester_id
+        FROM semester
+        WHERE semester_id = ? AND school_year_id = ?
+        LIMIT 1
+      `,
+      [data.semesterId, data.schoolYearId],
+    );
+    if (!semester) {
+      const error = new Error("Học kỳ không thuộc năm học đã chọn");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  if (scope.scopeType === "GRADE") {
+    const [[grade]] = await connection.query(
+      "SELECT grade_id FROM grade WHERE grade_id = ? LIMIT 1",
+      [scope.gradeId],
+    );
+    if (!grade) {
+      const error = new Error("Khối học không tồn tại");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  if (scope.scopeType === "CLASS") {
+    const [[schoolClass]] = await connection.query(
+      `
+        SELECT class_id
+        FROM school_class
+        WHERE class_id = ? AND school_year_id = ?
+        LIMIT 1
+      `,
+      [scope.classId, data.schoolYearId],
+    );
+    if (!schoolClass) {
+      const error = new Error("Lớp không thuộc năm học đã chọn");
+      error.statusCode = 400;
+      throw error;
+    }
+  }
 }
 
 async function createFeeRate(data, createdBy) {
-  const { amount, billingCycle } = validateRatePayload(data);
+  const { amount, billingCycle, scopeType, gradeId, classId } = validateRatePayload(data);
+  await validateRateReferences(data, { scopeType, gradeId, classId });
 
   const [result] = await pool.query(
     `
       INSERT INTO fee_rate (
-        fee_category_id, school_year_id, semester_id, grade_id, class_id,
+        fee_category_id, school_year_id, semester_id, scope_type, grade_id, class_id,
         amount, billing_cycle, status, created_by
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       data.feeCategoryId,
       data.schoolYearId,
       data.semesterId || null,
-      data.gradeId || null,
-      data.classId || null,
+      scopeType,
+      gradeId,
+      classId,
       amount,
       billingCycle,
       RATE_STATUSES.has(data.status) ? data.status : "ACTIVE",
@@ -314,21 +438,23 @@ async function createFeeRate(data, createdBy) {
 }
 
 async function updateFeeRate(feeRateId, data) {
-  const { amount, billingCycle } = validateRatePayload(data);
+  const { amount, billingCycle, scopeType, gradeId, classId } = validateRatePayload(data);
+  await validateRateReferences(data, { scopeType, gradeId, classId });
 
   const [result] = await pool.query(
     `
       UPDATE fee_rate
       SET fee_category_id = ?, school_year_id = ?, semester_id = ?,
-          grade_id = ?, class_id = ?, amount = ?, billing_cycle = ?
+          scope_type = ?, grade_id = ?, class_id = ?, amount = ?, billing_cycle = ?
       WHERE fee_rate_id = ?
     `,
     [
       data.feeCategoryId,
       data.schoolYearId,
       data.semesterId || null,
-      data.gradeId || null,
-      data.classId || null,
+      scopeType,
+      gradeId,
+      classId,
       amount,
       billingCycle,
       feeRateId,
@@ -374,7 +500,13 @@ async function getFeeSummary() {
     SELECT
       COALESCE(SUM(fa.paid_amount), 0) AS totalCollected,
       COALESCE(SUM(fa.final_amount - fa.paid_amount), 0) AS totalOutstanding,
-      SUM(CASE WHEN fa.status = 'OVERDUE' THEN 1 ELSE 0 END) AS overdueCount,
+      SUM(
+        CASE
+          WHEN fa.status IN ('UNPAID', 'PARTIAL')
+            AND fp.due_date < DATE(UTC_TIMESTAMP() + INTERVAL 7 HOUR)
+          THEN 1 ELSE 0
+        END
+      ) AS overdueCount,
       SUM(CASE WHEN fa.status IN ('UNPAID', 'PARTIAL') THEN 1 ELSE 0 END) AS unpaidCount,
       COUNT(*) AS totalAssignments
     FROM fee_assignment fa

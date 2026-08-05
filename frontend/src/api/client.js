@@ -9,6 +9,16 @@ function getAuthToken() {
   );
 }
 
+// Báo cho badge chuông ở header refetch NGAY khi có thao tác đọc thông báo.
+// Header (DashboardHeader) và trang thông báo là 2 cây component tách biệt, không
+// chia sẻ state — dùng window event để đồng bộ số chưa đọc tức thời (không phải
+// đợi chuyển trang). Xem listener trong DashboardHeader → NotificationDropdown.
+function emitNotificationsChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("notifications:changed"));
+  }
+}
+
 async function request(
   path,
   options = {},
@@ -114,6 +124,8 @@ export const adminApi = {
     const qs = new URLSearchParams(cleanParams(params)).toString();
     return request(`/admin/users${qs ? `?${qs}` : ""}`);
   },
+
+  getUserStats: () => request("/admin/users/stats"),
 
   setUserStatus: (userId, status) =>
     request(`/admin/users/${userId}/status`, {
@@ -374,12 +386,12 @@ export const adminApi = {
   markNotificationRead: (notificationId) =>
     request(`/admin/me/notifications/${notificationId}/read`, {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   markAllNotificationsRead: () =>
     request("/admin/me/notifications/read-all", {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   // Announcements (soạn thông báo) — school-wide / grade-wide / class-wide
   getAnnouncementsMeta: () => request("/admin/announcements/meta"),
@@ -592,23 +604,16 @@ export const studentApi = {
     );
   },
 
-  updateMyProfile: (body) => {
-    const formData = new FormData();
-
-    formData.append("fullName", body.fullName || "");
-    formData.append("phone", body.phone || "");
-    formData.append("dateOfBirth", body.dateOfBirth || "");
-    formData.append("gender", body.gender || "OTHER");
-    formData.append("address", body.address || "");
-
-    if (body.avatarFile) {
-      formData.append("avatar", body.avatarFile);
-    }
-
-    return uploadRequest("/students/me", formData, {
+  updateMyProfile: (body) =>
+    request("/students/me", {
       method: "PATCH",
-    });
-  },
+      body: JSON.stringify({
+        phone: body.phone || "",
+        dateOfBirth: body.dateOfBirth || "",
+        gender: body.gender || "OTHER",
+        address: body.address || "",
+      }),
+    }),
 
   searchMessageHistory: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
@@ -631,6 +636,12 @@ export const studentApi = {
     return request(`/students/me/attendance/analytics${qs ? `?${qs}` : ""}`);
   },
 
+  getMyLeaveRequests: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/leave-requests${qs ? `?${qs}` : ""}`);
+  },
+
   getMyBehaviour: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
 
@@ -645,18 +656,6 @@ export const studentApi = {
 
     return request(`/students/me/goals${qs ? `?${qs}` : ""}`);
   },
-
-  createMyGoal: (body) =>
-    request("/students/me/goals", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  updateMyGoalProgress: (goalId, body) =>
-    request(`/students/me/goals/${goalId}/progress`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    }),
 
   getMyGoalLog: (goalId) =>
     request(`/students/me/goals/${goalId}/log`),
@@ -684,12 +683,12 @@ export const studentApi = {
   markNotificationRead: (notificationId) =>
     request(`/students/me/notifications/${notificationId}/read`, {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   markAllNotificationsRead: () =>
     request("/students/me/notifications/read-all", {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   getMessageContacts: () =>
     request("/students/me/communication/contacts"),
@@ -747,6 +746,13 @@ export const teacherApi = {
   // Trung tâm thông báo GVCN (thông báo lớp + cảnh báo HS + việc cần xử lý)
   getNotifications: () =>
     request("/teachers/notifications"),
+
+  // Đánh dấu 1 mục trong feed là đã đọc (lưu DB notification_read_state)
+  markNotificationRead: (key) =>
+    request("/teachers/notifications/read", {
+      method: "POST",
+      body: JSON.stringify({ key }),
+    }),
 
   // Điểm danh theo tiết (per-period)
   getMyPeriods: (date) =>
@@ -1865,12 +1871,12 @@ export const parentApi = {
   markNotificationRead: (notificationId) =>
     request(`/parents/me/notifications/${notificationId}/read`, {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   markAllNotificationsRead: () =>
     request("/parents/me/notifications/read-all", {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   getStudentNotificationFeed: (studentId) =>
     request(`/parents/me/students/${studentId}/notifications/feed`),
@@ -2005,6 +2011,21 @@ export const staffApi = {
       method: "PATCH",
       body: JSON.stringify({ archived }),
     }),
+  // Thông báo (bảng notification chung — is_read thật, giống student/parent/admin)
+  getMyNotifications: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/staff/me/notifications${qs ? `?${qs}` : ""}`);
+  },
+
+  markNotificationRead: (notificationId) =>
+    request(`/staff/me/notifications/${notificationId}/read`, {
+      method: "PATCH",
+    }).then((res) => { emitNotificationsChanged(); return res; }),
+
+  markAllNotificationsRead: () =>
+    request("/staff/me/notifications/read-all", {
+      method: "PATCH",
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   // Khảo sát đánh giá giáo viên (ẩn danh)
   listTeacherSurveys: () => request("/staff/surveys"),
@@ -2238,6 +2259,15 @@ export const staffApi = {
 // ── Giáo viên Quản nhiệm (GVQN / DORM_SUPERVISOR) ────────────────────────────
 export const supervisorApi = {
   getDashboard: () => request("/supervisor/dashboard"),
+
+  getNotifications: () => request("/supervisor/notifications"),
+
+  // Đánh dấu 1 mục trong feed là đã đọc (lưu DB notification_read_state)
+  markNotificationRead: (key) =>
+    request("/supervisor/notifications/read", {
+      method: "POST",
+      body: JSON.stringify({ key }),
+    }),
 
   getAreas: () => request("/supervisor/areas"),
 

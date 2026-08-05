@@ -24,6 +24,13 @@ router.get(
   adminController.getUsers,
 );
 
+router.get(
+  "/users/stats",
+  authenticate,
+  authorize("ADMIN"),
+  adminController.getUserStats,
+);
+
 router.put(
   "/users/:id/status",
   authenticate,

@@ -4,6 +4,7 @@
 // =============================================================================
 const model = require("../models/supervisor.model");
 const supportCaseModel = require("../models/supportCase.model");
+const notificationModel = require("../models/notification.model");
 
 const VALID_SHIFTS = ["MORNING", "AFTERNOON", "EVENING", "NIGHT"];
 const VALID_TYPE_IDS = [1, 2, 3, 4, 5]; // attendance_type: PRESENT/LATE/EXCUSED/UNEXCUSED/EARLY_LEAVE
@@ -351,8 +352,66 @@ async function updateTaskStatus(req, res) {
   }
 }
 
+// ── GET /supervisor/notifications — feed thông báo cho GVQN (chuông) ──────────
+// Nguồn: đơn nghỉ đang chờ GVQN duyệt (GVCN đã duyệt, GVQN chưa xử lý) + việc
+// trực còn PENDING hôm nay. Trạng thái ĐÃ ĐỌC lấy từ notification_read_state
+// (bền theo tài khoản, không phụ thuộc trình duyệt).
+async function getNotifications(req, res) {
+  try {
+    const ctx = await resolve(req, res);
+    if (!ctx) return;
+    const { sup, areaIds } = ctx;
+    const date = await model.dbToday();
+    const [tasks, approvals, readKeys] = await Promise.all([
+      model.findTasks(sup.supervisorId, date),
+      model.findLeaveApprovals(areaIds, { limit: 20 }),
+      notificationModel.findReadFeedKeys(req.user.userId),
+    ]);
+    const pendingTasks = tasks.filter((t) => t.status === "PENDING");
+    const pendingApprovals = approvals.filter(
+      (a) => a.gvcnAction === "APPROVE" && !a.gvqnAction && a.status !== "CANCELLED",
+    );
+
+    const readSet = new Set(readKeys);
+    const unread =
+      pendingApprovals.filter((a) => !readSet.has(`lv-${a.id}`)).length +
+      pendingTasks.filter((t) => !readSet.has(`task-${t.taskId}`)).length;
+
+    return res.json({
+      success: true,
+      data: {
+        counts: { unread },
+        readKeys,
+        leaveApprovals: pendingApprovals,
+        tasks: pendingTasks,
+      },
+    });
+  } catch (error) {
+    console.error("supervisor.getNotifications error:", error);
+    return res.status(500).json({ success: false, message: "Không thể tải thông báo quản nhiệm" });
+  }
+}
+
+// ── POST /supervisor/notifications/read  body: { key } ───────────────────────
+// Đánh dấu 1 mục trong feed là đã đọc (ghi notification_read_state).
+async function markNotificationRead(req, res) {
+  try {
+    const key = String(req.body?.key || "").trim();
+    if (!key || key.length > 100) {
+      return res.status(400).json({ success: false, message: "Khoá thông báo không hợp lệ" });
+    }
+    await notificationModel.markFeedKeyRead(req.user.userId, key);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("supervisor.markNotificationRead error:", error);
+    return res.status(500).json({ success: false, message: "Không thể đánh dấu đã đọc" });
+  }
+}
+
 module.exports = {
   getDashboard,
+  getNotifications,
+  markNotificationRead,
   getAreas,
   getAttendance,
   submitBulkAttendance,

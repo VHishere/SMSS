@@ -26,10 +26,9 @@ async function getMeta(req, res) {
     const profile = await resolveTeacher(req.user.userId);
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
-    const [classes, semesters, violationTypes, meritCategories, violationCategories] = await Promise.all([
+    const [classes, semesters, meritCategories, violationCategories] = await Promise.all([
       behaviourModel.findTeacherClasses(profile.teacherId),
       behaviourModel.findSemesters(),
-      behaviourModel.findViolationTypes(),
       behaviourModel.findCategories({ behaviorType: "POSITIVE", status: "ACTIVE" }),
       behaviourModel.findCategories({ behaviorType: "VIOLATION", status: "ACTIVE" }),
     ]);
@@ -41,7 +40,6 @@ async function getMeta(req, res) {
         semesters,
         meritCategories: meritCategories.map(toPickerOption),
         violationCategories: violationCategories.map(toPickerOption),
-        violationTypes,      // [{ code, name, affectsConduct }]
         conductGrades:       CONDUCT_GRADES, // 5 mức: Tốt/Khá/Trung bình/Yếu/Kém
       },
     });
@@ -271,6 +269,12 @@ async function updateWarning(req, res) {
     const profile = await resolveTeacher(req.user.userId);
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
+    // Ownership: cảnh báo nề nếp thuộc HS lớp GV này chủ nhiệm (chống IDOR sửa lớp khác).
+    const warning = await behaviourModel.findWarningById(warningId);
+    if (!warning) return res.status(404).json({ success: false, message: "Không tìm thấy cảnh báo" });
+    const allowed = await behaviourModel.isHomeroomOfStudent(profile.teacherId, warning.studentId);
+    if (!allowed) return res.status(403).json({ success: false, message: "Bạn không chủ nhiệm học sinh này" });
+
     const result = await behaviourService.updateWarning({ warningId, payload: req.body });
     return res.json({ success: true, message: "Cập nhật cảnh báo thành công", data: result });
   } catch (error) {
@@ -283,10 +287,9 @@ async function updateWarning(req, res) {
 // GET /admin/behaviour/meta — every class school-wide + semesters + config
 async function getMetaAdmin(_req, res) {
   try {
-    const [classes, semesters, violationTypes, meritCategories, violationCategories] = await Promise.all([
+    const [classes, semesters, meritCategories, violationCategories] = await Promise.all([
       studentProfileModel.findAllClasses(),
       behaviourModel.findSemesters(),
-      behaviourModel.findViolationTypes(),
       behaviourModel.findCategories({ behaviorType: "POSITIVE", status: "ACTIVE" }),
       behaviourModel.findCategories({ behaviorType: "VIOLATION", status: "ACTIVE" }),
     ]);
@@ -298,7 +301,6 @@ async function getMetaAdmin(_req, res) {
         semesters,
         meritCategories: meritCategories.map(toPickerOption),
         violationCategories: violationCategories.map(toPickerOption),
-        violationTypes,
         conductGrades: CONDUCT_GRADES,
       },
     });
@@ -432,7 +434,7 @@ async function getWarningsAdmin(req, res) {
     const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
 
     const { total, rows } = await behaviourModel.findWarnings({
-      classId, semesterId, status, page: parsedPage, limit: parsedLimit,
+      classId, semesterId, status, teacherId: profile.teacherId, page: parsedPage, limit: parsedLimit,
     });
 
     return res.json({

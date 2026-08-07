@@ -153,7 +153,7 @@ export const dashboardNavigation = {
       ms: "celebration",
     },
     {
-      label: "Tin nhắn",
+      label: "Liên lạc",
       path: "/admin/messages",
       icon: FiMessageSquare,
       ms: "chat",
@@ -229,7 +229,7 @@ export const dashboardNavigation = {
       ms: "rate_review",
     },
     {
-      label: "Tin nhắn",
+      label: "Liên lạc",
       path: "/staff/messages",
       icon: FiMessageSquare,
       ms: "chat",
@@ -429,7 +429,7 @@ export const dashboardNavigation = {
       ms: "groups",
     },
     {
-      label: "Tin nhắn",
+      label: "Liên lạc",
       path: "/parent/messages",
       icon: FiMessageSquare,
       ms: "chat",

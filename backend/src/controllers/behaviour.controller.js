@@ -434,7 +434,7 @@ async function getWarningsAdmin(req, res) {
     const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
 
     const { total, rows } = await behaviourModel.findWarnings({
-      classId, semesterId, status, teacherId: profile.teacherId, page: parsedPage, limit: parsedLimit,
+      classId, semesterId, status, page: parsedPage, limit: parsedLimit,
     });
 
     return res.json({

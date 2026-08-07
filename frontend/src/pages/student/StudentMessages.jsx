@@ -1664,7 +1664,7 @@ function StudentMessages() {
                       key={filter.value}
                       type="button"
                       onClick={() => setConversationFilter(filter.value)}
-                      className={`min-h-8 rounded-full px-2 py-1 !text-[15px] transition sm:text-[10px] ${
+                      className={`flex min-h-11 items-center justify-center whitespace-normal break-words rounded-2xl px-1.5 py-1 text-center text-[10.5px] font-bold leading-tight transition ${
                         conversationFilter === filter.value
                           ? "bg-[#F27123] text-white"
                           : "bg-[#ECEDEF] text-slate-600 hover:bg-slate-200"

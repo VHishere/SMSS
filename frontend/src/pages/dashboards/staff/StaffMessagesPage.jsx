@@ -7,7 +7,6 @@ function StaffMessagesPage() {
       api={staffApi}
       staffSectionLabel="Admin"
       teacherSectionLabel="Giáo viên"
-      contactSearchPlaceholder="Tìm admin, giáo viên..."
     />
   );
 }

@@ -120,79 +120,14 @@ function SummaryCard({ label, value, caption, iconName, accent }) {
   );
 }
 
-function CopyField({ label, value }) {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    navigator.clipboard?.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }
-
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2" style={{ backgroundColor: C.surfaceLow }}>
-      <div className="min-w-0">
-        <p className="text-[11px] font-medium uppercase tracking-wider" style={{ color: C.onSurfaceVariant }}>{label}</p>
-        <p className="truncate text-sm font-semibold" style={{ color: C.onSurface }}>{value}</p>
-      </div>
-      <button
-        type="button"
-        onClick={handleCopy}
-        className="flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold transition"
-        style={{ backgroundColor: copied ? "rgba(5,150,105,0.15)" : "rgba(242,113,35,0.15)", color: copied ? "#059669" : C.primary }}
-      >
-        <Ms name={copied ? "check" : "content_copy"} className="!text-[14px]!" />
-        {copied ? "Đã chép" : "Sao chép"}
-      </button>
-    </div>
-  );
-}
-
 // ─── VietQR payment panel ──────────────────────────────────────────────────
 
-function VietQrPanel({ feeAssignmentId }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
-    parentApi
-      .createVietQrPayment(feeAssignmentId)
-      .then((res) => { if (isMounted) setData(res.data); })
-      .catch((err) => { if (isMounted) setError(err.message); })
-      .finally(() => { if (isMounted) setLoading(false); });
-    return () => { isMounted = false; };
-  }, [feeAssignmentId]);
-
-  if (loading) return <p className="py-6 text-center text-sm text-slate-400">Đang tạo mã VietQR...</p>;
-  if (error) return <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>;
-  if (!data) return null;
-
+function VietQrPanel() {
   return (
-    <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-      <div className="flex shrink-0 flex-col items-center gap-2 rounded-2xl border p-3" style={{ borderColor: C.outlineVariant }}>
-        <img src={data.qrImageUrl} alt="Mã VietQR" className="h-52 w-52 rounded-lg object-contain" />
-        <span className="text-xs font-semibold" style={{ color: C.onSurfaceVariant }}>Quét bằng app ngân hàng bất kỳ</span>
-      </div>
-
-      <div className="flex w-full flex-col gap-2">
-        <CopyField label="Ngân hàng (BIN)" value={data.bankBin} />
-        <CopyField label="Số tài khoản" value={data.accountNo} />
-        <CopyField label="Chủ tài khoản" value={data.accountName} />
-        <CopyField label="Số tiền" value={formatCurrency(data.amount)} />
-        <CopyField label="Nội dung chuyển khoản" value={data.addInfo} />
-
-        <div className="mt-2 flex items-start gap-2 rounded-lg px-3 py-2 text-xs" style={{ backgroundColor: "rgba(242,113,35,0.1)", color: C.primary }}>
-          <Ms name="info" className="!text-[16px]! mt-0.5 shrink-0" />
-          <span>
-            Sau khi chuyển khoản, nhà trường sẽ đối soát và xác nhận khoản đóng trong thời gian sớm nhất.
-            Vui lòng giữ đúng nội dung chuyển khoản để việc đối soát nhanh hơn.
-          </span>
-        </div>
-      </div>
+    <div className="rounded-3xl border border-dashed card-border bg-white p-10 text-center shadow-sm">
+      <p className="mb-0 text-sm font-medium text-slate-500">
+        Thanh toán qua VietQR đang được phát triển
+      </p>
     </div>
   );
 }
@@ -368,7 +303,7 @@ function FeeDetailModal({ feeAssignmentId, onClose, onChanged }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("vietqr");
+  const [tab, setTab] = useState("zalopay");
 
   function load() {
     setLoading(true);
@@ -441,7 +376,7 @@ function FeeDetailModal({ feeAssignmentId, onClose, onChanged }) {
               </div>
 
               {tab === "vietqr"
-                ? <VietQrPanel key={`vietqr-${feeAssignmentId}`} feeAssignmentId={feeAssignmentId} />
+                ? <VietQrPanel />
                 : <ZaloPayPanel key={`zalopay-${feeAssignmentId}`} feeAssignmentId={feeAssignmentId} onPaid={handlePaid} />}
             </div>
           )}

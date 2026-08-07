@@ -205,9 +205,11 @@ async function findInvitations(meetingId) {
 
 async function respondToInvitation(meetingId, userId, status) {
   const [result] = await pool.query(
-    `UPDATE meeting_invitation
-     SET status = ?, responded_at = NOW()
-     WHERE meeting_id = ? AND user_id = ? AND status IN ('SENT','PENDING')`,
+    `UPDATE meeting_invitation mi
+     INNER JOIN parent_meeting pm ON pm.meeting_id = mi.meeting_id
+     SET mi.status = ?, mi.responded_at = NOW()
+     WHERE mi.meeting_id = ? AND mi.user_id = ? AND mi.status IN ('SENT','PENDING')
+       AND pm.meeting_date > NOW()`,
     [status, meetingId, userId],
   );
   return result.affectedRows;

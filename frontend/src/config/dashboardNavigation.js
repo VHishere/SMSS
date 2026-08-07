@@ -93,6 +93,12 @@ export const dashboardNavigation = {
       end: true,
     },
     {
+      label: "Năm học",
+      path: "/admin/school-years",
+      icon: FiCalendar,
+      ms: "calendar_month",
+    },
+    {
       label: "Tài khoản",
       path: "/admin/users",
       icon: FiUsers,

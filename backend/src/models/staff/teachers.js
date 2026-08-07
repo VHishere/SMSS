@@ -1,9 +1,21 @@
 const { pool } = require("../../config/db");
 const { hashPassword } = require("../../utils/password");
+const {
+  assertUnique,
+  optionalText,
+  requireText,
+  validateCode,
+  validateEmail,
+  validateEnum,
+  validateOptionalPhone,
+  validatePassword,
+  validateUsername,
+} = require("./validation");
 
 const HOMEROOM_TEACHER_ROLE_ID = 3;
 const SUBJECT_TEACHER_ROLE_ID = 4;
 const TEACHER_ROLE_IDS = [HOMEROOM_TEACHER_ROLE_ID, SUBJECT_TEACHER_ROLE_ID];
+const USER_STATUSES = ["ACTIVE", "INACTIVE"];
 
 const teacherSelect = `
   SELECT
@@ -63,6 +75,20 @@ async function listTeachers(filters = "") {
       )
     `);
     params.push(normalized.gradeId);
+  }
+
+  if (normalized.schoolYearId) {
+    conditions.push(`
+      EXISTS (
+        SELECT 1
+        FROM teacher_class tc_filter
+        INNER JOIN school_class sc_filter ON sc_filter.class_id = tc_filter.class_id
+        WHERE tc_filter.teacher_id = t.teacher_id
+          AND sc_filter.school_year_id = ?
+          AND (tc_filter.end_date IS NULL OR tc_filter.end_date >= CURDATE())
+      )
+    `);
+    params.push(normalized.schoolYearId);
   }
 
   if (normalized.classId) {
@@ -160,17 +186,71 @@ async function syncTeacherRoles(connection, userId, isHomeroom) {
   }
 }
 
+async function validateTeacherPayload(
+  connection,
+  data,
+  { teacherId = null, userId = null } = {},
+) {
+  const teacherCode = validateCode(data.teacherCode, "mã giáo viên");
+  const fullName = requireText(data.fullName, "họ và tên giáo viên", 120);
+  const email = validateEmail(data.email);
+  const phone = validateOptionalPhone(data.phone);
+  const username = validateUsername(
+    data.username || teacherCode.toLowerCase().replace(/[^a-z0-9._-]/gi, ""),
+  );
+  const password = validatePassword(data.password);
+  const subjectSpecialize = optionalText(
+    data.subjectSpecialize,
+    "chuyên môn",
+    120,
+  );
+  const status = validateEnum(
+    data.status,
+    USER_STATUSES,
+    "trạng thái",
+    "ACTIVE",
+  );
+
+  await assertUnique(
+    connection,
+    "SELECT user_id FROM user_account WHERE username = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
+    [username, userId, userId],
+    "Tên đăng nhập đã tồn tại",
+  );
+  await assertUnique(
+    connection,
+    "SELECT user_id FROM user_account WHERE email = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
+    [email, userId, userId],
+    "Email đã được sử dụng",
+  );
+  await assertUnique(
+    connection,
+    "SELECT teacher_id FROM teacher WHERE teacher_code = ? AND (? IS NULL OR teacher_id <> ?) LIMIT 1",
+    [teacherCode, teacherId, teacherId],
+    "Mã giáo viên đã tồn tại",
+  );
+
+  return {
+    email,
+    fullName,
+    isHomeroom: Boolean(data.isHomeroom),
+    password,
+    phone,
+    status,
+    subjectSpecialize,
+    teacherCode,
+    username,
+  };
+}
+
 async function createTeacher(data) {
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
 
-    const username =
-      data.username ||
-      data.teacherCode.toLowerCase().replace(/[^a-z0-9]/gi, "");
-    const passwordHash = hashPassword(data.password);
-    const isHomeroom = Boolean(data.isHomeroom);
+    const payload = await validateTeacherPayload(connection, data);
+    const passwordHash = hashPassword(payload.password);
 
     const [userResult] = await connection.query(
       `
@@ -178,11 +258,11 @@ async function createTeacher(data) {
         VALUES (?, ?, ?, ?, ?, 'ACTIVE')
       `,
       [
-        username,
+        payload.username,
         passwordHash,
-        data.email,
-        data.fullName,
-        data.phone || null,
+        payload.email,
+        payload.fullName,
+        payload.phone,
       ],
     );
 
@@ -193,10 +273,10 @@ async function createTeacher(data) {
         INSERT INTO teacher (user_id, teacher_code, subject_specialize)
         VALUES (?, ?, ?)
       `,
-      [userId, data.teacherCode, data.subjectSpecialize || null],
+      [userId, payload.teacherCode, payload.subjectSpecialize],
     );
 
-    await syncTeacherRoles(connection, userId, isHomeroom);
+    await syncTeacherRoles(connection, userId, payload.isHomeroom);
 
     await connection.commit();
     return getTeacherById(teacherResult.insertId);
@@ -226,6 +306,10 @@ async function updateTeacher(teacherId, data) {
     }
 
     const userId = rows[0].userId;
+    const payload = await validateTeacherPayload(connection, data, {
+      teacherId,
+      userId,
+    });
 
     await connection.query(
       `
@@ -234,10 +318,10 @@ async function updateTeacher(teacherId, data) {
         WHERE user_id = ?
       `,
       [
-        data.fullName,
-        data.email,
-        data.phone || null,
-        data.status || "ACTIVE",
+        payload.fullName,
+        payload.email,
+        payload.phone,
+        payload.status,
         userId,
       ],
     );
@@ -248,11 +332,11 @@ async function updateTeacher(teacherId, data) {
         SET teacher_code = ?, subject_specialize = ?
         WHERE teacher_id = ?
       `,
-      [data.teacherCode, data.subjectSpecialize || null, teacherId],
+      [payload.teacherCode, payload.subjectSpecialize, teacherId],
     );
 
     if (data.isHomeroom !== undefined) {
-      await syncTeacherRoles(connection, userId, Boolean(data.isHomeroom));
+      await syncTeacherRoles(connection, userId, payload.isHomeroom);
     }
 
     await connection.commit();

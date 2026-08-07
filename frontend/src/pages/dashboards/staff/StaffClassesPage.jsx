@@ -11,35 +11,71 @@ import StaffFormCard, {
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import {
+  resolveStaffWorkingSchoolYear,
+  setStaffWorkingSchoolYearId,
+} from "../../../utils/staffSchoolYear";
 
 const filterSelectClass =
   "h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] px-4 text-sm font-medium text-[#1A1C1C] outline-none transition hover:border-[#F27123] focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20 lg:w-48";
 
+const emptyForm = {
+  className: "",
+  gradeId: "",
+  schoolYearId: "",
+  roomName: "",
+};
+
 function StaffClassesPage() {
   const [classes, setClasses] = useState([]);
   const [lookups, setLookups] = useState(null);
+  const [lookupsReady, setLookupsReady] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [filters, setFilters] = useState({ schoolYearId: "", gradeId: "" });
-  const [form, setForm] = useState({
-    className: "",
-    gradeId: "",
-    schoolYearId: "",
-    roomName: "",
-  });
+  const [form, setForm] = useState(emptyForm);
 
   useEffect(() => {
-    staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
+    staffApi
+      .getLookups()
+      .then((res) => {
+        const data = res.data || {};
+        const workingYear = resolveStaffWorkingSchoolYear(data.schoolYears || []);
+
+        setLookups(data);
+
+        if (workingYear) {
+          const workingYearId = String(workingYear.schoolYearId);
+          setFilters((prev) => ({
+            ...prev,
+            schoolYearId: prev.schoolYearId || workingYearId,
+          }));
+          setForm((prev) => ({
+            ...prev,
+            schoolYearId: prev.schoolYearId || workingYearId,
+          }));
+          setStaffWorkingSchoolYearId(workingYearId);
+        }
+
+        setLookupsReady(true);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLookupsReady(true);
+      });
   }, []);
 
   const loadClasses = () => {
     setLoading(true);
     staffApi
-      .getClasses(filters)
+      .getClasses({
+        schoolYearId: filters.schoolYearId,
+        gradeId: filters.gradeId,
+      })
       .then((res) => {
-        setClasses(res.data);
+        setClasses(res.data || []);
         setError("");
       })
       .catch((err) => setError(err.message))
@@ -47,18 +83,9 @@ function StaffClassesPage() {
   };
 
   useEffect(() => {
-    staffApi
-      .getClasses({
-        schoolYearId: filters.schoolYearId,
-        gradeId: filters.gradeId,
-      })
-      .then((res) => {
-        setClasses(res.data);
-        setError("");
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [filters.schoolYearId, filters.gradeId]);
+    if (!lookupsReady) return;
+    loadClasses();
+  }, [lookupsReady, filters.schoolYearId, filters.gradeId]);
 
   const rows = useMemo(
     () => classes.map((item) => ({ ...item, id: item.classId })),
@@ -77,7 +104,10 @@ function StaffClassesPage() {
       })
       .then(() => {
         setShowForm(false);
-        setForm({ className: "", gradeId: "", schoolYearId: "", roomName: "" });
+        setForm({
+          ...emptyForm,
+          schoolYearId: filters.schoolYearId || form.schoolYearId,
+        });
         loadClasses();
       })
       .catch((err) => setError(err.message))
@@ -89,9 +119,10 @@ function StaffClassesPage() {
       <PrettySelect
         className={filterSelectClass}
         value={filters.schoolYearId}
-        onChange={(event) =>
-          setFilters((prev) => ({ ...prev, schoolYearId: event.target.value }))
-        }
+        onChange={(event) => {
+          setStaffWorkingSchoolYearId(event.target.value);
+          setFilters((prev) => ({ ...prev, schoolYearId: event.target.value }));
+        }}
       >
         <option value="">Tất cả năm học</option>
         {lookups?.schoolYears?.map((year) => (
@@ -180,9 +211,10 @@ function StaffClassesPage() {
               <PrettySelect
                 className={inputClass}
                 value={form.schoolYearId}
-                onChange={(event) =>
+                onChange={(event) => {
+                  setStaffWorkingSchoolYearId(event.target.value);
                   setForm((prev) => ({ ...prev, schoolYearId: event.target.value }))
-                }
+                }}
                 required
               >
                 <option value="">Chọn năm học</option>

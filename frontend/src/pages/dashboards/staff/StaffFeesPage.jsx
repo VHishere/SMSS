@@ -7,6 +7,10 @@ import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import {
+  resolveStaffWorkingSchoolYear,
+  setStaffWorkingSchoolYearId,
+} from "../../../utils/staffSchoolYear";
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -43,8 +47,13 @@ function StaffFeesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const activeYearId = useMemo(
-    () => lookups.schoolYears?.find((item) => item.isActive)?.schoolYearId || "",
+  const workingYearId = useMemo(
+    () => filters.schoolYearId || "",
+    [filters.schoolYearId],
+  );
+
+  const fallbackWorkingYearId = useMemo(
+    () => resolveStaffWorkingSchoolYear(lookups.schoolYears || [])?.schoolYearId || "",
     [lookups.schoolYears],
   );
 
@@ -53,9 +62,13 @@ function StaffFeesPage() {
       .getLookups()
       .then((res) => {
         setLookups(res.data);
-        const active = res.data.schoolYears?.find((item) => item.isActive);
-        if (active) {
-          setFilters((prev) => ({ ...prev, schoolYearId: String(active.schoolYearId) }));
+        const workingYear = resolveStaffWorkingSchoolYear(
+          res.data.schoolYears || [],
+        );
+        if (workingYear) {
+          const selectedId = String(workingYear.schoolYearId);
+          setFilters((prev) => ({ ...prev, schoolYearId: selectedId }));
+          setStaffWorkingSchoolYearId(selectedId);
         }
       })
       .catch(() => {});
@@ -78,9 +91,10 @@ function StaffFeesPage() {
       <PrettySelect
         className="w-full rounded-xl border border-slate-200 bg-[#FFF7F2] px-3 py-2.5 text-sm text-[#0F2747] outline-none focus:border-[#F27123] focus:bg-white sm:w-auto"
         value={filters.schoolYearId}
-        onChange={(event) =>
-          setFilters((prev) => ({ ...prev, schoolYearId: event.target.value }))
-        }
+        onChange={(event) => {
+          setStaffWorkingSchoolYearId(event.target.value);
+          setFilters((prev) => ({ ...prev, schoolYearId: event.target.value }));
+        }}
       >
         <option value="">Tất cả năm học</option>
         {lookups.schoolYears?.map((year) => (
@@ -112,7 +126,11 @@ function StaffFeesPage() {
         title="Quản lý học phí"
         action={
           <Link
-            to={`/staff/fees/new${activeYearId ? `?schoolYearId=${activeYearId}` : ""}`}
+            to={`/staff/fees/new${
+              workingYearId || fallbackWorkingYearId
+                ? `?schoolYearId=${workingYearId || fallbackWorkingYearId}`
+                : ""
+            }`}
             className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline hover:bg-[#E55C0A] hover:text-white hover:no-underline sm:w-auto"
           >
             <FiPlus size={16} />

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { FiArrowLeft, FiPlus, FiTrash2 } from "react-icons/fi";
+import { FiArrowLeft, FiPlus } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
 import StaffFormCard, {
@@ -16,22 +16,10 @@ const ROLE_LABELS = {
   SUBJECT_TEACHER: "Giáo viên bộ môn",
 };
 
-const WEEK_DAYS = [
-  { value: 2, label: "Thứ 2" },
-  { value: 3, label: "Thứ 3" },
-  { value: 4, label: "Thứ 4" },
-  { value: 5, label: "Thứ 5" },
-  { value: 6, label: "Thứ 6" },
-  { value: 7, label: "Thứ 7" },
-];
-
-const PERIODS = Array.from({ length: 8 }, (_, index) => index + 1);
-
 function StaffClassDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [classInfo, setClassInfo] = useState(null);
-  const [timetable, setTimetable] = useState([]);
   const [lookups, setLookups] = useState(null);
   const [studentForm, setStudentForm] = useState({ studentId: "" });
   const [teacherForm, setTeacherForm] = useState({
@@ -45,13 +33,10 @@ function StaffClassDetailPage() {
 
   useEffect(() => {
     staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
-    Promise.all([
-      staffApi.getClass(id),
-      staffApi.getClassTimetable(id),
-    ])
-      .then(([classRes, timetableRes]) => {
-        setClassInfo(classRes.data);
-        setTimetable(timetableRes.data || []);
+    staffApi
+      .getClass(id)
+      .then((res) => {
+        setClassInfo(res.data);
         setError("");
       })
       .catch((err) => setError(err.message))
@@ -64,13 +49,72 @@ function StaffClassDetailPage() {
     return lookups.students.filter((student) => !enrolledIds.has(student.studentId));
   }, [classInfo, lookups]);
 
-  const timetableBySlot = useMemo(() => {
-    const slots = new Map();
-    timetable.forEach((lesson) => {
-      slots.set(`${lesson.dayOfWeek}-${lesson.periodNo}`, lesson);
+  const selectedTeacher = useMemo(
+    () =>
+      lookups?.teachers?.find(
+        (teacher) => String(teacher.teacherId) === String(teacherForm.teacherId),
+      ),
+    [lookups, teacherForm.teacherId],
+  );
+
+  const teacherSubjects = useMemo(() => {
+    if (!selectedTeacher) return lookups?.subjects || [];
+    if (!selectedTeacher.subjectIds?.length) return [];
+    const allowedIds = new Set(selectedTeacher.subjectIds.map(Number));
+    return (lookups?.subjects || []).filter((subject) =>
+      allowedIds.has(Number(subject.subjectId)),
+    );
+  }, [lookups, selectedTeacher]);
+
+  useEffect(() => {
+    if (teacherForm.roleInClass !== "SUBJECT_TEACHER") return;
+
+    if (!teacherForm.subjectId && teacherSubjects.length === 1) {
+      setTeacherForm((prev) => ({
+        ...prev,
+        subjectId: String(teacherSubjects[0].subjectId),
+      }));
+      return;
+    }
+
+    if (!teacherForm.subjectId) return;
+
+    const stillAllowed = teacherSubjects.some(
+      (subject) => String(subject.subjectId) === String(teacherForm.subjectId),
+    );
+    if (!stillAllowed) {
+      setTeacherForm((prev) => ({
+        ...prev,
+        subjectId:
+          teacherSubjects.length === 1 ? String(teacherSubjects[0].subjectId) : "",
+      }));
+    }
+  }, [teacherForm.roleInClass, teacherForm.subjectId, teacherSubjects]);
+
+  const updateTeacherForm = (field, value) => {
+    setTeacherForm((prev) => {
+      const next = { ...prev, [field]: value };
+      const teacherId = field === "teacherId" ? value : next.teacherId;
+      const roleInClass = field === "roleInClass" ? value : next.roleInClass;
+
+      if (field === "teacherId" || field === "roleInClass") {
+        const teacher = lookups?.teachers?.find(
+          (item) => String(item.teacherId) === String(teacherId),
+        );
+        const subjectIds = teacher?.subjectIds || [];
+
+        if (roleInClass !== "SUBJECT_TEACHER") {
+          next.subjectId = "";
+        } else if (subjectIds.length === 1) {
+          next.subjectId = String(subjectIds[0]);
+        } else if (!subjectIds.map(String).includes(String(next.subjectId))) {
+          next.subjectId = "";
+        }
+      }
+
+      return next;
     });
-    return slots;
-  }, [timetable]);
+  };
 
   const addLessonUrl = useMemo(() => {
     if (!classInfo) return "/staff/timetable/new";
@@ -140,15 +184,6 @@ function StaffClassDetailPage() {
       .catch((err) => setError(err.message));
   };
 
-  const handleDeleteLesson = (timetableId) => {
-    if (!window.confirm("Xóa tiết học này khỏi thời khóa biểu?")) return;
-
-    staffApi
-      .deleteClassTimetableLesson(id, timetableId)
-      .then((res) => setTimetable(res.data || []))
-      .catch((err) => setError(err.message));
-  };
-
   if (loading) {
     return <div className="py-10 text-center text-slate-500">Đang tải...</div>;
   }
@@ -195,26 +230,20 @@ function StaffClassDetailPage() {
           </Link>
         </div>
         <div className="grid gap-4 text-center sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Lớp</p>
-            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.className}</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Khối</p>
-            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.gradeName}</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Năm học</p>
-            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.schoolYearName}</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Phòng</p>
-            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.roomName || "—"}</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Sĩ số</p>
-            <p className="mb-0 font-bold text-[#F27123]">{classInfo.students?.length || 0}</p>
-          </div>
+          {[
+            ["Lớp", classInfo.className],
+            ["Khối", classInfo.gradeName],
+            ["Năm học", classInfo.schoolYearName],
+            ["Phòng", classInfo.roomName || "—"],
+            ["Sĩ số", classInfo.students?.length || 0],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl bg-slate-50 px-4 py-3">
+              <p className="mb-1 text-xs font-semibold uppercase text-slate-500">{label}</p>
+              <p className={`mb-0 font-bold ${label === "Sĩ số" ? "text-[#F27123]" : "text-[#0F2747]"}`}>
+                {value}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -252,12 +281,7 @@ function StaffClassDetailPage() {
             <PrettySelect
               className={inputClass}
               value={teacherForm.teacherId}
-              onChange={(event) =>
-                setTeacherForm((prev) => ({
-                  ...prev,
-                  teacherId: event.target.value,
-                }))
-              }
+              onChange={(event) => updateTeacherForm("teacherId", event.target.value)}
               required
             >
               <option value="">Chọn giáo viên</option>
@@ -272,13 +296,7 @@ function StaffClassDetailPage() {
             <PrettySelect
               className={inputClass}
               value={teacherForm.roleInClass}
-              onChange={(event) =>
-                setTeacherForm((prev) => ({
-                  ...prev,
-                  roleInClass: event.target.value,
-                  subjectId: "",
-                }))
-              }
+              onChange={(event) => updateTeacherForm("roleInClass", event.target.value)}
             >
               <option value="HOMEROOM_TEACHER">Giáo viên chủ nhiệm</option>
               <option value="SUBJECT_TEACHER">Giáo viên bộ môn</option>
@@ -298,69 +316,21 @@ function StaffClassDetailPage() {
                 required
               >
                 <option value="">Chọn môn</option>
-                {lookups?.subjects?.map((subject) => (
+                {teacherSubjects.map((subject) => (
                   <option key={subject.subjectId} value={subject.subjectId}>
                     {subject.subjectName}
                   </option>
                 ))}
               </PrettySelect>
+              {teacherForm.teacherId && teacherSubjects.length === 0 && (
+                <p className="mt-2 text-sm text-red-600">
+                  Giáo viên này chưa có chuyên môn hoặc phân công môn học.
+                </p>
+              )}
             </StaffField>
           )}
         </StaffFormCard>
       </div>
-
-      <section className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h2 className="mb-0 text-base font-bold text-[#0F2747]">Thời khóa biểu</h2>
-        </div>
-        <div className="overflow-x-auto p-4">
-          <table className="min-w-full table-fixed text-center text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="w-24 px-3 py-3 text-center">Tiết</th>
-                {WEEK_DAYS.map((day) => (
-                  <th key={day.value} className="min-w-40 px-3 py-3 text-center">
-                    {day.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {PERIODS.map((period) => (
-                <tr key={period} className="border-t border-slate-100 align-top">
-                  <td className="px-3 py-3 font-semibold text-[#0F2747]">Tiết {period}</td>
-                  {WEEK_DAYS.map((day) => {
-                    const lesson = timetableBySlot.get(`${day.value}-${period}`);
-
-                    return (
-                      <td key={day.value} className="px-3 py-3">
-                        {lesson ? (
-                          <div className="rounded-xl border border-slate-200 bg-white p-3">
-                            <p className="mb-1 font-semibold text-[#0F2747]">{lesson.subjectName}</p>
-                            <p className="mb-1 text-xs text-slate-500">{lesson.teacherName}</p>
-                            <p className="mb-3 text-xs text-slate-400">
-                              {lesson.roomName || classInfo.roomName || "Chưa có phòng"}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteLesson(lesson.timetableId)}
-                              className="inline-flex items-center justify-center rounded-lg border border-red-100 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
-                            >
-                              <FiTrash2 size={14} />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-300">Trống</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">

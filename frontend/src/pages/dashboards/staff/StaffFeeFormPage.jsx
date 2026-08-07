@@ -10,6 +10,10 @@ import StaffFormCard, {
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import {
+  resolveStaffWorkingSchoolYear,
+  setStaffWorkingSchoolYearId,
+} from "../../../utils/staffSchoolYear";
 
 const initialForm = {
   title: "",
@@ -50,10 +54,16 @@ function StaffFeeFormPage() {
       .then((res) => {
         setLookups(res.data);
         const queryYearId = searchParams.get("schoolYearId");
-        const activeYearId = res.data.schoolYears?.find((item) => item.isActive)?.schoolYearId;
+        const workingYearId =
+          queryYearId ||
+          resolveStaffWorkingSchoolYear(res.data.schoolYears || [])?.schoolYearId ||
+          "";
+        if (workingYearId) {
+          setStaffWorkingSchoolYearId(workingYearId);
+        }
         setForm((prev) => ({
           ...prev,
-          schoolYearId: queryYearId || activeYearId || "",
+          schoolYearId: workingYearId,
           feeCategoryId:
             prev.feeCategoryId || res.data.feeCategories?.[0]?.feeCategoryId || "",
         }));
@@ -97,6 +107,10 @@ function StaffFeeFormPage() {
   }, [lookups.classes, lookups.students, form.classId]);
 
   const setField = (field, value) => {
+    if (field === "schoolYearId") {
+      setStaffWorkingSchoolYearId(value);
+    }
+
     setForm((prev) => {
       const next = { ...prev, [field]: value };
 

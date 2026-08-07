@@ -12,6 +12,10 @@ import { staffApi } from "../../../api/client";
 import { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import {
+  resolveStaffWorkingSchoolYear,
+  setStaffWorkingSchoolYearId,
+} from "../../../utils/staffSchoolYear";
 
 const WEEK_DAYS = [
   { value: 2, label: "Thứ 2", offset: 0 },
@@ -56,6 +60,20 @@ function getMonday(value = new Date()) {
   return date;
 }
 
+function getSchoolYearFirstWeek(schoolYear) {
+  const startYear = Number(String(schoolYear?.yearName || "").slice(0, 4));
+
+  if (Number.isInteger(startYear) && startYear > 1900) {
+    return getMonday(new Date(startYear, 8, 15));
+  }
+
+  if (schoolYear?.startDate) {
+    return getMonday(schoolYear.startDate);
+  }
+
+  return getMonday();
+}
+
 function addDays(date, amount) {
   const next = new Date(date);
   next.setDate(next.getDate() + amount);
@@ -89,15 +107,19 @@ function StaffTimetablePage() {
       .then((res) => {
         setLookups(res.data);
         if (!filters.schoolYearId) {
-          const activeYear =
-            res.data.schoolYears?.find((year) => year.isActive) ||
-            res.data.schoolYears?.[0];
-          if (activeYear) {
+          const workingYear = resolveStaffWorkingSchoolYear(
+            res.data.schoolYears || [],
+          );
+          if (workingYear) {
+            const workingYearId = String(workingYear.schoolYearId);
             setFilters((prev) => ({
               ...prev,
-              schoolYearId: String(activeYear.schoolYearId),
+              schoolYearId: workingYearId,
             }));
+            setStaffWorkingSchoolYearId(workingYearId);
           }
+        } else {
+          setStaffWorkingSchoolYearId(filters.schoolYearId);
         }
       })
       .catch((err) => setError(err.message));
@@ -169,6 +191,12 @@ function StaffTimetablePage() {
     [filters.schoolYearId, lookups.schoolYears],
   );
 
+  useEffect(() => {
+    if (selectedYear) {
+      setWeekStart(getSchoolYearFirstWeek(selectedYear));
+    }
+  }, [selectedYear?.schoolYearId]);
+
   const weekDays = useMemo(
     () =>
       WEEK_DAYS.map((day) => ({
@@ -187,6 +215,10 @@ function StaffTimetablePage() {
   }, [timetable]);
 
   const updateFilter = (key, value) => {
+    if (key === "schoolYearId") {
+      setStaffWorkingSchoolYearId(value);
+    }
+
     setFilters((prev) => ({
       ...prev,
       [key]: value,

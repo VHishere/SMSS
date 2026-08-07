@@ -1,13 +1,28 @@
 const { pool } = require("../../config/db");
 const { hashPassword } = require("../../utils/password");
+const {
+  assertExists,
+  assertUnique,
+  cleanText,
+  requireText,
+  validateEmail,
+  validateEnum,
+  validateOptionalPhone,
+  validatePassword,
+  validatePositiveInt,
+  validateUsername,
+} = require("./validation");
 
 const PARENT_ROLE_ID = 6;
+const PARENT_RELATIONSHIPS = ["Father", "Mother", "Guardian"];
+const USER_STATUSES = ["ACTIVE", "INACTIVE"];
 
 async function listParents(filters = "") {
   const normalized =
     typeof filters === "string" ? { search: filters } : filters || {};
   const search = normalized.search || "";
   const keyword = `%${search.trim()}%`;
+  const joinParams = normalized.schoolYearId ? [normalized.schoolYearId] : [];
   const conditions = [
     `(
       ? = ''
@@ -18,7 +33,15 @@ async function listParents(filters = "") {
       OR s.student_code LIKE ?
     )`,
   ];
-  const params = [search.trim(), keyword, keyword, keyword, keyword, keyword];
+  const params = [
+    ...joinParams,
+    search.trim(),
+    keyword,
+    keyword,
+    keyword,
+    keyword,
+    keyword,
+  ];
 
   if (normalized.gradeId) {
     conditions.push("sc.grade_id = ?");
@@ -52,7 +75,9 @@ async function listParents(filters = "") {
       LEFT JOIN user_account su ON su.user_id = s.user_id
       LEFT JOIN class_enrollment ce
         ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-      LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+      LEFT JOIN school_class sc
+        ON sc.class_id = ce.class_id
+        ${normalized.schoolYearId ? "AND sc.school_year_id = ?" : ""}
       WHERE ${conditions.join(" AND ")}
       ORDER BY pp.parent_id
     `,
@@ -109,23 +134,100 @@ async function getParentById(parentId) {
   return { ...parent, students };
 }
 
+async function validateParentPayload(
+  connection,
+  data,
+  { parentId = null, userId = null } = {},
+) {
+  const fullName = requireText(data.fullName, "họ và tên phụ huynh", 120);
+  const email = validateEmail(data.email);
+  const phone = validateOptionalPhone(data.phone);
+  const generatedUsername = `ph.${email
+    .split("@")[0]
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(0, 20)}`;
+  const username = validateUsername(data.username || generatedUsername);
+  const password = validatePassword(data.password);
+  const relationship = validateEnum(
+    data.relationship,
+    PARENT_RELATIONSHIPS,
+    "quan hệ với học sinh",
+    "Guardian",
+  );
+  const linkRelationship = validateEnum(
+    data.linkRelationship || relationship,
+    PARENT_RELATIONSHIPS,
+    "quan hệ liên kết học sinh",
+    relationship,
+  );
+  const status = validateEnum(
+    data.status,
+    USER_STATUSES,
+    "trạng thái",
+    "ACTIVE",
+  );
+  const studentId = cleanText(data.studentId)
+    ? validatePositiveInt(data.studentId, "học sinh")
+    : null;
+
+  if (studentId) {
+    await assertExists(
+      connection,
+      "SELECT student_id FROM student WHERE student_id = ? AND status = 'ACTIVE' LIMIT 1",
+      [studentId],
+      "Không tìm thấy học sinh đang hoạt động",
+    );
+  }
+
+  await assertUnique(
+    connection,
+    "SELECT user_id FROM user_account WHERE username = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
+    [username, userId, userId],
+    "Tên đăng nhập đã tồn tại",
+  );
+  await assertUnique(
+    connection,
+    "SELECT user_id FROM user_account WHERE email = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
+    [email, userId, userId],
+    "Email đã được sử dụng",
+  );
+
+  return {
+    email,
+    fullName,
+    isPrimary: Boolean(data.isPrimary),
+    linkRelationship,
+    parentId,
+    password,
+    phone,
+    relationship,
+    status,
+    studentId,
+    username,
+  };
+}
+
 async function createParent(data) {
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
 
-    const username =
-      data.username ||
-      `ph.${data.email.split("@")[0].replace(/[^a-z0-9]/gi, "").slice(0, 20)}`;
-    const passwordHash = hashPassword(data.password);
+    const payload = await validateParentPayload(connection, data);
+    const passwordHash = hashPassword(payload.password);
 
     const [userResult] = await connection.query(
       `
         INSERT INTO user_account (username, password_hash, email, full_name, phone, status)
         VALUES (?, ?, ?, ?, ?, 'ACTIVE')
       `,
-      [username, passwordHash, data.email, data.fullName, data.phone || null],
+      [
+        payload.username,
+        passwordHash,
+        payload.email,
+        payload.fullName,
+        payload.phone,
+      ],
     );
 
     const userId = userResult.insertId;
@@ -135,7 +237,7 @@ async function createParent(data) {
         INSERT INTO parent_profile (user_id, relationship, is_primary)
         VALUES (?, ?, ?)
       `,
-      [userId, data.relationship || "Guardian", Boolean(data.isPrimary)],
+      [userId, payload.relationship, payload.isPrimary],
     );
 
     const parentId = parentResult.insertId;
@@ -145,17 +247,17 @@ async function createParent(data) {
       [userId, PARENT_ROLE_ID],
     );
 
-    if (data.studentId) {
+    if (payload.studentId) {
       await connection.query(
         `
           INSERT INTO student_parent (student_id, parent_id, relationship, is_primary)
           VALUES (?, ?, ?, ?)
         `,
         [
-          data.studentId,
+          payload.studentId,
           parentId,
-          data.linkRelationship || data.relationship || "Guardian",
-          Boolean(data.isPrimary),
+          payload.linkRelationship,
+          payload.isPrimary,
         ],
       );
     }
@@ -188,6 +290,10 @@ async function updateParent(parentId, data) {
     }
 
     const userId = rows[0].userId;
+    const payload = await validateParentPayload(connection, data, {
+      parentId,
+      userId,
+    });
 
     await connection.query(
       `
@@ -196,10 +302,10 @@ async function updateParent(parentId, data) {
         WHERE user_id = ?
       `,
       [
-        data.fullName,
-        data.email,
-        data.phone || null,
-        data.status || "ACTIVE",
+        payload.fullName,
+        payload.email,
+        payload.phone,
+        payload.status,
         userId,
       ],
     );
@@ -210,7 +316,7 @@ async function updateParent(parentId, data) {
         SET relationship = ?, is_primary = ?
         WHERE parent_id = ?
       `,
-      [data.relationship || "Guardian", Boolean(data.isPrimary), parentId],
+      [payload.relationship, payload.isPrimary, parentId],
     );
 
     if (data.studentId !== undefined) {
@@ -219,17 +325,17 @@ async function updateParent(parentId, data) {
         [parentId],
       );
 
-      if (data.studentId) {
+      if (payload.studentId) {
         await connection.query(
           `
             INSERT INTO student_parent (student_id, parent_id, relationship, is_primary)
             VALUES (?, ?, ?, ?)
           `,
           [
-            data.studentId,
+            payload.studentId,
             parentId,
-            data.linkRelationship || data.relationship || "Guardian",
-            Boolean(data.isPrimary),
+            payload.linkRelationship,
+            payload.isPrimary,
           ],
         );
       }

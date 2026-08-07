@@ -99,7 +99,69 @@ function StaffSurveysPage() {
     return () => { m = false; };
   }, [refresh]);
 
-  const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+  const selectedTeacher = useMemo(
+    () =>
+      (lookups.teachers ?? []).find(
+        (teacher) => String(teacher.teacherId) === String(form.teacherId),
+      ),
+    [form.teacherId, lookups.teachers],
+  );
+
+  const teacherSubjects = useMemo(() => {
+    if (!selectedTeacher?.subjectIds?.length) return lookups.subjects ?? [];
+    const allowedIds = new Set(selectedTeacher.subjectIds.map(Number));
+    return (lookups.subjects ?? []).filter((subject) =>
+      allowedIds.has(Number(subject.subjectId)),
+    );
+  }, [lookups.subjects, selectedTeacher]);
+
+  useEffect(() => {
+    if (!form.teacherId) return;
+
+    if (!form.subjectId && teacherSubjects.length === 1) {
+      setForm((prev) => ({
+        ...prev,
+        subjectId: String(teacherSubjects[0].subjectId),
+      }));
+      return;
+    }
+
+    if (!form.subjectId || !selectedTeacher?.subjectIds?.length) return;
+
+    const allowed = selectedTeacher.subjectIds
+      .map(String)
+      .includes(String(form.subjectId));
+
+    if (!allowed) {
+      setForm((prev) => ({
+        ...prev,
+        subjectId:
+          teacherSubjects.length === 1 ? String(teacherSubjects[0].subjectId) : "",
+      }));
+    }
+  }, [form.subjectId, form.teacherId, selectedTeacher, teacherSubjects]);
+
+  const set = (k) => (e) => {
+    const value = e.target.value;
+    setForm((prev) => {
+      const next = { ...prev, [k]: value };
+
+      if (k === "teacherId") {
+        const teacher = (lookups.teachers ?? []).find(
+          (item) => String(item.teacherId) === String(value),
+        );
+        const subjectIds = teacher?.subjectIds || [];
+
+        if (subjectIds.length === 1) {
+          next.subjectId = String(subjectIds[0]);
+        } else if (!subjectIds.map(String).includes(String(next.subjectId))) {
+          next.subjectId = "";
+        }
+      }
+
+      return next;
+    });
+  };
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -145,7 +207,7 @@ function StaffSurveysPage() {
           </PrettySelect>
           <PrettySelect className={inputCls} value={form.subjectId} onChange={set("subjectId")}>
             <option value="">— Môn (tùy chọn) —</option>
-            {(lookups.subjects ?? []).map((s) => <option key={s.subjectId} value={s.subjectId}>{s.subjectName}</option>)}
+            {teacherSubjects.map((s) => <option key={s.subjectId} value={s.subjectId}>{s.subjectName}</option>)}
           </PrettySelect>
           <PrettySelect className={inputCls} value={form.classId} onChange={set("classId")}>
             <option value="">— Lớp (tùy chọn, giới hạn HS) —</option>

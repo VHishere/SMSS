@@ -8,6 +8,7 @@ import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import { formatRelationship } from "../../../utils/formatters";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import { resolveStaffWorkingSchoolYear } from "../../../utils/staffSchoolYear";
 
 const filterSelectClass =
   "h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] px-4 text-sm font-medium text-[#1A1C1C] outline-none transition hover:border-[#F27123] focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20 lg:w-44";
@@ -24,12 +25,23 @@ function StaffParentsPage() {
     staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
   }, []);
 
+  const workingSchoolYear = useMemo(
+    () => resolveStaffWorkingSchoolYear(lookups?.schoolYears || []),
+    [lookups?.schoolYears],
+  );
+  const workingSchoolYearId = workingSchoolYear
+    ? String(workingSchoolYear.schoolYearId)
+    : "";
+
   useEffect(() => {
+    if (!lookups) return undefined;
+
     const timer = setTimeout(() => {
       setLoading(true);
       staffApi
         .getParents({
           search,
+          schoolYearId: workingSchoolYearId,
           gradeId: filters.gradeId,
           classId: filters.classId,
         })
@@ -42,7 +54,7 @@ function StaffParentsPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search, filters.gradeId, filters.classId]);
+  }, [search, filters.gradeId, filters.classId, lookups, workingSchoolYearId]);
 
   const rows = useMemo(
     () => parents.map((parent) => ({ ...parent, id: parent.parentId })),
@@ -52,9 +64,12 @@ function StaffParentsPage() {
   const filteredClasses = useMemo(
     () =>
       (lookups?.classes || []).filter(
-        (cls) => !filters.gradeId || String(cls.gradeId) === String(filters.gradeId),
+        (cls) =>
+          (!workingSchoolYearId ||
+            String(cls.schoolYearId) === String(workingSchoolYearId)) &&
+          (!filters.gradeId || String(cls.gradeId) === String(filters.gradeId)),
       ),
-    [filters.gradeId, lookups?.classes],
+    [filters.gradeId, lookups?.classes, workingSchoolYearId],
   );
 
   const filterToolbar = (
@@ -150,7 +165,11 @@ function StaffParentsPage() {
               </div>
             ),
           },
-          { key: "className", label: "Lớp" },
+          {
+            key: "className",
+            label: "Lớp",
+            render: (row) => row.className || "Chưa xếp lớp",
+          },
           { key: "phone", label: "Điện thoại" },
           {
             key: "isPrimary",

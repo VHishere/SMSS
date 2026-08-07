@@ -1,4 +1,51 @@
 const { pool } = require("../../config/db");
+const {
+  assertExists,
+  assertUnique,
+  cleanText,
+  createHttpError,
+  optionalText,
+  requireText,
+  validateEnum,
+  validatePositiveInt,
+} = require("./validation");
+
+const CLASS_STATUSES = ["ACTIVE", "INACTIVE"];
+const TEACHER_CLASS_ROLES = ["HOMEROOM_TEACHER", "SUBJECT_TEACHER"];
+
+async function validateClassPayload(connection, data, classId = null) {
+  const className = requireText(data.className, "tên lớp", 50);
+  const roomName = optionalText(data.roomName, "phòng học", 50);
+  const gradeId = validatePositiveInt(data.gradeId, "khối");
+  const schoolYearId = validatePositiveInt(data.schoolYearId, "năm học");
+  const status = validateEnum(
+    data.status,
+    CLASS_STATUSES,
+    "trạng thái lớp",
+    "ACTIVE",
+  );
+
+  await assertExists(
+    connection,
+    "SELECT grade_id FROM grade WHERE grade_id = ? AND status = 'ACTIVE' LIMIT 1",
+    [gradeId],
+    "Không tìm thấy khối đang hoạt động",
+  );
+  await assertExists(
+    connection,
+    "SELECT school_year_id FROM school_year WHERE school_year_id = ? LIMIT 1",
+    [schoolYearId],
+    "Không tìm thấy năm học",
+  );
+  await assertUnique(
+    connection,
+    "SELECT class_id FROM school_class WHERE school_year_id = ? AND class_name = ? AND (? IS NULL OR class_id <> ?) LIMIT 1",
+    [schoolYearId, className, classId, classId],
+    "Lớp học đã tồn tại trong năm học này",
+  );
+
+  return { className, gradeId, roomName, schoolYearId, status };
+}
 
 async function listClasses(filters = {}) {
   const conditions = ["sc.status = 'ACTIVE'"];
@@ -93,15 +140,24 @@ async function getClassById(classId) {
         tc.teacher_class_id AS teacherClassId,
         t.teacher_id AS teacherId,
         t.teacher_code AS teacherCode,
+        t.subject_specialize AS subjectSpecialize,
         ua.full_name AS fullName,
         tc.role_in_class AS roleInClass,
         sub.subject_id AS subjectId,
-        sub.subject_name AS subjectName,
+        COALESCE(sub.subject_name, specialize_subject.subject_name, t.subject_specialize) AS subjectName,
         DATE_FORMAT(tc.assign_date, '%d/%m/%Y') AS assignDate
       FROM teacher_class tc
       INNER JOIN teacher t ON t.teacher_id = tc.teacher_id
       INNER JOIN user_account ua ON ua.user_id = t.user_id
       LEFT JOIN subject sub ON sub.subject_id = tc.subject_id
+      LEFT JOIN subject specialize_subject
+        ON (
+          LOWER(specialize_subject.subject_name) = LOWER(t.subject_specialize)
+          OR LOWER(specialize_subject.subject_code) = LOWER(t.subject_specialize)
+          OR LOWER(specialize_subject.subject_name) LIKE CONCAT('%', LOWER(TRIM(t.subject_specialize)), '%')
+          OR LOWER(TRIM(t.subject_specialize)) LIKE CONCAT('%', LOWER(specialize_subject.subject_name), '%')
+        )
+        AND specialize_subject.status = 'ACTIVE'
       WHERE tc.class_id = ?
         AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
       ORDER BY tc.role_in_class, ua.full_name
@@ -113,29 +169,65 @@ async function getClassById(classId) {
 }
 
 async function createClass(data) {
-  const [result] = await pool.query(
-    `
-      INSERT INTO school_class (grade_id, school_year_id, class_name, room_name, status)
-      VALUES (?, ?, ?, ?, 'ACTIVE')
-    `,
-    [data.gradeId, data.schoolYearId, data.className, data.roomName || null],
-  );
+  const connection = await pool.getConnection();
 
-  return getClassById(result.insertId);
+  try {
+    await connection.beginTransaction();
+    const payload = await validateClassPayload(connection, data);
+
+    const [result] = await connection.query(
+      `
+        INSERT INTO school_class (grade_id, school_year_id, class_name, room_name, status)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+      [
+        payload.gradeId,
+        payload.schoolYearId,
+        payload.className,
+        payload.roomName,
+        payload.status,
+      ],
+    );
+
+    await connection.commit();
+    return getClassById(result.insertId);
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function updateClass(classId, data) {
-  const [result] = await pool.query(
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+    const current = await assertExists(
+      connection,
+      "SELECT school_year_id AS schoolYearId FROM school_class WHERE class_id = ? LIMIT 1",
+      [classId],
+      "Không tìm thấy lớp học",
+    );
+    const payload = await validateClassPayload(
+      connection,
+      { ...data, schoolYearId: data.schoolYearId || current.schoolYearId },
+      classId,
+    );
+
+    const [result] = await connection.query(
     `
       UPDATE school_class
-      SET class_name = ?, room_name = ?, grade_id = ?, status = ?
+      SET class_name = ?, room_name = ?, grade_id = ?, school_year_id = ?, status = ?
       WHERE class_id = ?
     `,
     [
-      data.className,
-      data.roomName || null,
-      data.gradeId,
-      data.status || "ACTIVE",
+      payload.className,
+      payload.roomName,
+      payload.gradeId,
+      payload.schoolYearId,
+      payload.status,
       classId,
     ],
   );
@@ -146,7 +238,14 @@ async function updateClass(classId, data) {
     throw error;
   }
 
-  return getClassById(classId);
+    await connection.commit();
+    return getClassById(classId);
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function enrollStudent(classId, studentId) {
@@ -154,6 +253,21 @@ async function enrollStudent(classId, studentId) {
 
   try {
     await connection.beginTransaction();
+    const normalizedClassId = validatePositiveInt(classId, "lớp học");
+    const normalizedStudentId = validatePositiveInt(studentId, "học sinh");
+
+    await assertExists(
+      connection,
+      "SELECT class_id FROM school_class WHERE class_id = ? AND status = 'ACTIVE' LIMIT 1",
+      [normalizedClassId],
+      "Không tìm thấy lớp học đang hoạt động",
+    );
+    await assertExists(
+      connection,
+      "SELECT student_id FROM student WHERE student_id = ? AND status = 'ACTIVE' LIMIT 1",
+      [normalizedStudentId],
+      "Không tìm thấy học sinh đang hoạt động",
+    );
 
     await connection.query(
       `
@@ -161,7 +275,7 @@ async function enrollStudent(classId, studentId) {
         SET status = 'INACTIVE'
         WHERE student_id = ? AND status = 'ACTIVE'
       `,
-      [studentId],
+      [normalizedStudentId],
     );
 
     await connection.query(
@@ -170,11 +284,11 @@ async function enrollStudent(classId, studentId) {
         VALUES (?, ?, CURDATE(), 'ACTIVE')
         ON DUPLICATE KEY UPDATE status = 'ACTIVE', enrollment_date = CURDATE()
       `,
-      [classId, studentId],
+      [normalizedClassId, normalizedStudentId],
     );
 
     await connection.commit();
-    return getClassById(classId);
+    return getClassById(normalizedClassId);
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -200,23 +314,99 @@ async function assignTeacher(classId, data) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    const normalizedClassId = validatePositiveInt(classId, "lớp học");
+    const teacherId = validatePositiveInt(data.teacherId, "giáo viên");
+    const roleInClass = validateEnum(
+      data.roleInClass,
+      TEACHER_CLASS_ROLES,
+      "vai trò giáo viên",
+      "SUBJECT_TEACHER",
+    );
+    const subjectId = cleanText(data.subjectId)
+      ? validatePositiveInt(data.subjectId, "môn học")
+      : null;
+
+    await assertExists(
+      conn,
+      "SELECT class_id FROM school_class WHERE class_id = ? AND status = 'ACTIVE' LIMIT 1",
+      [normalizedClassId],
+      "Không tìm thấy lớp học đang hoạt động",
+    );
+    await assertExists(
+      conn,
+      `SELECT t.teacher_id
+       FROM teacher t
+       INNER JOIN user_account ua ON ua.user_id = t.user_id
+       WHERE t.teacher_id = ? AND ua.status = 'ACTIVE'
+       LIMIT 1`,
+      [teacherId],
+      "Không tìm thấy giáo viên đang hoạt động",
+    );
+
+    if (roleInClass === "SUBJECT_TEACHER" && !subjectId) {
+      throw createHttpError("Vui lòng chọn môn học cho giáo viên bộ môn");
+    }
+
+    if (subjectId) {
+      await assertExists(
+        conn,
+        "SELECT subject_id FROM subject WHERE subject_id = ? AND status = 'ACTIVE' LIMIT 1",
+        [subjectId],
+        "Không tìm thấy môn học đang hoạt động",
+      );
+    }
+
+    if (subjectId) {
+      const canTeachSubject = await teacherCanTeachSubject(teacherId, subjectId);
+      if (!canTeachSubject) {
+        throw createHttpError("Giáo viên không đúng chuyên môn của môn học này");
+      }
+    }
+
+    if (roleInClass === "HOMEROOM_TEACHER") {
+      await assertUnique(
+        conn,
+        `SELECT teacher_class_id
+         FROM teacher_class
+         WHERE class_id = ?
+           AND role_in_class = 'HOMEROOM_TEACHER'
+           AND (end_date IS NULL OR end_date >= CURDATE())
+         LIMIT 1`,
+        [normalizedClassId],
+        "Lớp này đã có giáo viên chủ nhiệm",
+      );
+    }
+
+    await assertUnique(
+      conn,
+      `SELECT teacher_class_id
+       FROM teacher_class
+       WHERE class_id = ?
+         AND teacher_id = ?
+         AND role_in_class = ?
+         AND (subject_id <=> ?)
+         AND (end_date IS NULL OR end_date >= CURDATE())
+       LIMIT 1`,
+      [normalizedClassId, teacherId, roleInClass, subjectId],
+      "Phân công giáo viên đã tồn tại",
+    );
 
     await conn.query(
       `
         INSERT INTO teacher_class (class_id, teacher_id, subject_id, role_in_class, assign_date)
         VALUES (?, ?, ?, ?, CURDATE())
       `,
-      [classId, data.teacherId, data.subjectId || null, data.roleInClass],
+      [normalizedClassId, teacherId, subjectId, roleInClass],
     );
 
     // Đồng bộ role toàn cục (user_role) theo phân công — CHỈ THÊM, không gỡ —
     // để nav/routing khớp teacher_class (nguồn chân lý). role_id: 3=HOMEROOM, 4=SUBJECT.
     const [[teacher]] = await conn.query(
       "SELECT user_id AS userId FROM teacher WHERE teacher_id = ?",
-      [data.teacherId],
+      [teacherId],
     );
     if (teacher) {
-      const roleId = data.roleInClass === "HOMEROOM_TEACHER" ? 3 : 4;
+      const roleId = roleInClass === "HOMEROOM_TEACHER" ? 3 : 4;
       await conn.query(
         `INSERT INTO user_role (user_id, role_id)
          SELECT ?, ? FROM DUAL
@@ -378,6 +568,67 @@ async function findAssignedSubjectTeacher(classId, subjectId) {
   return rows[0]?.teacherId || null;
 }
 
+async function teacherCanTeachSubject(teacherId, subjectId) {
+  const [rows] = await pool.query(
+    `
+      SELECT 1 AS ok
+      FROM teacher t
+      INNER JOIN subject sub ON sub.subject_id = ?
+      WHERE t.teacher_id = ?
+        AND (
+          EXISTS (
+            SELECT 1
+            FROM teacher_class tc
+            WHERE tc.teacher_id = t.teacher_id
+              AND tc.subject_id = sub.subject_id
+              AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+          )
+          OR LOWER(TRIM(t.subject_specialize)) = LOWER(TRIM(sub.subject_name))
+          OR LOWER(TRIM(t.subject_specialize)) = LOWER(TRIM(sub.subject_code))
+          OR LOWER(TRIM(sub.subject_name)) LIKE CONCAT('%', LOWER(TRIM(t.subject_specialize)), '%')
+          OR LOWER(TRIM(t.subject_specialize)) LIKE CONCAT('%', LOWER(TRIM(sub.subject_name)), '%')
+        )
+      LIMIT 1
+    `,
+    [subjectId, teacherId],
+  );
+
+  return Boolean(rows[0]);
+}
+
+function normalizeTimetableConflictReason(reason) {
+  const text = String(reason || "");
+
+  if (
+    text.includes("phÃ¢n cÃ´ng giÃ¡o viÃªn") ||
+    text.includes("phân công giáo viên")
+  ) {
+    return "Lớp chưa được phân công giáo viên cho môn học này";
+  }
+
+  if (text.includes("không đúng chuyên môn")) {
+    return "Giáo viên không đúng chuyên môn của môn học này";
+  }
+
+  if (text.includes("cÃ³ ti") || text.includes("có tiết")) {
+    return "Lớp đã có tiết học ở ô này";
+  }
+
+  if (text.includes("chÆ°a") || text.includes("chưa")) {
+    return "Giáo viên chưa được phân công cho môn/lớp này";
+  }
+
+  if (text.includes("cÃ¹ng ti") || text.includes("cùng tiết")) {
+    return "Giáo viên đã được xếp cùng tiết cho lớp khác";
+  }
+
+  if (text.includes("GiÃ¡o viÃªn") || text.includes("Giáo viên")) {
+    return "Giáo viên đã có tiết ở lớp khác trong cùng thời điểm";
+  }
+
+  return "Không thể thêm lịch cho lớp này";
+}
+
 async function findTimetableTargetClasses(data) {
   const scope = data.scope || "CLASS";
   const conditions = ["sc.status = 'ACTIVE'"];
@@ -520,12 +771,28 @@ async function createTimetableLessons(data) {
     );
 
     if (!assignments[0]) {
+      if (teacherMode === "SELECTED_TEACHER") {
+        const canTeachSubject = await teacherCanTeachSubject(
+          teacherId,
+          subjectId,
+        );
+
+        if (!canTeachSubject) {
+          conflicts.push({
+            classId,
+            className: classItem.className,
+            reason: "Giáo viên không đúng chuyên môn của môn học này",
+          });
+          continue;
+        }
+      } else {
       conflicts.push({
         classId,
         className: classItem.className,
         reason: "Giáo viên chưa được phân công cho môn/lớp này",
       });
       continue;
+      }
     }
 
     const [teacherSlot] = await pool.query(
@@ -575,6 +842,19 @@ async function createTimetableLessons(data) {
   }
 
   if (conflicts.length) {
+    const normalizedConflicts = conflicts.map((item) => ({
+      ...item,
+      reason: normalizeTimetableConflictReason(item.reason),
+    }));
+    const error = createHttpError(
+      "Lịch học bị trùng hoặc chưa đủ phân công",
+      409,
+    );
+    error.details = normalizedConflicts;
+    throw error;
+  }
+
+  if (conflicts.length) {
     const error = new Error("Lịch học bị trùng hoặc chưa đủ phân công");
     error.statusCode = 409;
     error.details = conflicts;
@@ -587,26 +867,39 @@ async function createTimetableLessons(data) {
     throw error;
   }
 
-  await pool.query(
-    `
-      INSERT INTO timetable (
-        class_id, subject_id, teacher_id,
-        day_of_week, period_no, room_name, status
-      )
-      VALUES ?
-    `,
-    [
-      plannedLessons.map((lesson) => [
-        lesson.classId,
-        lesson.subjectId,
-        lesson.teacherId,
-        lesson.dayOfWeek,
-        lesson.periodNo,
-        lesson.roomName,
-        "ACTIVE",
-      ]),
-    ],
-  );
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    await connection.query(
+      `
+        INSERT INTO timetable (
+          class_id, subject_id, teacher_id,
+          day_of_week, period_no, room_name, status
+        )
+        VALUES ?
+      `,
+      [
+        plannedLessons.map((lesson) => [
+          lesson.classId,
+          lesson.subjectId,
+          lesson.teacherId,
+          lesson.dayOfWeek,
+          lesson.periodNo,
+          lesson.roomName,
+          "ACTIVE",
+        ]),
+      ],
+    );
+
+    await connection.commit();
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 
   return {
     createdCount: plannedLessons.length,

@@ -10,6 +10,10 @@ import StaffFormCard, {
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import {
+  resolveStaffWorkingSchoolYear,
+  setStaffWorkingSchoolYearId,
+} from "../../../utils/staffSchoolYear";
 
 const WEEK_DAYS = [
   { value: 2, label: "Thứ 2" },
@@ -34,6 +38,7 @@ const PERIODS = [
 function StaffTimetableCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const hasClassQuery = Boolean(searchParams.get("classId"));
   const [lookups, setLookups] = useState({
     schoolYears: [],
     grades: [],
@@ -42,14 +47,14 @@ function StaffTimetableCreatePage() {
   });
   const [classes, setClasses] = useState([]);
   const [form, setForm] = useState({
-    scope: searchParams.get("classId") ? "CLASS" : "GRADE",
+    scope: hasClassQuery ? "CLASS" : "GRADE",
     schoolYearId: searchParams.get("schoolYearId") || "",
     gradeId: searchParams.get("gradeId") || "",
     classId: searchParams.get("classId") || "",
     dayOfWeek: searchParams.get("dayOfWeek") || "2",
     periodNo: searchParams.get("periodNo") || "1",
     subjectId: "",
-    teacherMode: "ASSIGNED_TEACHER",
+    teacherMode: hasClassQuery ? "SELECTED_TEACHER" : "ASSIGNED_TEACHER",
     teacherId: "",
     roomName: "",
   });
@@ -63,15 +68,19 @@ function StaffTimetableCreatePage() {
       .then((res) => {
         setLookups(res.data);
         if (!form.schoolYearId) {
-          const activeYear =
-            res.data.schoolYears?.find((year) => year.isActive) ||
-            res.data.schoolYears?.[0];
-          if (activeYear) {
+          const workingYear = resolveStaffWorkingSchoolYear(
+            res.data.schoolYears || [],
+          );
+          if (workingYear) {
+            const workingYearId = String(workingYear.schoolYearId);
             setForm((prev) => ({
               ...prev,
-              schoolYearId: String(activeYear.schoolYearId),
+              schoolYearId: workingYearId,
             }));
+            setStaffWorkingSchoolYearId(workingYearId);
           }
+        } else {
+          setStaffWorkingSchoolYearId(form.schoolYearId);
         }
       })
       .catch((err) => setError(err.message));
@@ -115,16 +124,109 @@ function StaffTimetableCreatePage() {
     return selectedClass?.className || "Chưa chọn lớp";
   }, [classes, form.classId, form.scope]);
 
+  const subjectTeachers = useMemo(() => {
+    if (!form.subjectId) return lookups.teachers;
+    const selectedSubjectId = Number(form.subjectId);
+    return lookups.teachers.filter((teacher) =>
+      (teacher.subjectIds || []).includes(selectedSubjectId),
+    );
+  }, [form.subjectId, lookups.teachers]);
+
+  const selectedTeacher = useMemo(
+    () =>
+      lookups.teachers.find(
+        (teacher) => String(teacher.teacherId) === String(form.teacherId),
+      ),
+    [form.teacherId, lookups.teachers],
+  );
+
+  const teacherSubjectOptions = useMemo(() => {
+    if (!selectedTeacher?.subjectIds?.length) return lookups.subjects;
+    const allowedIds = new Set(selectedTeacher.subjectIds.map(Number));
+    return lookups.subjects.filter((subject) =>
+      allowedIds.has(Number(subject.subjectId)),
+    );
+  }, [lookups.subjects, selectedTeacher]);
+
+  useEffect(() => {
+    if (form.teacherMode !== "SELECTED_TEACHER" || !form.teacherId) return;
+    const stillAvailable = subjectTeachers.some(
+      (teacher) => String(teacher.teacherId) === String(form.teacherId),
+    );
+    if (!stillAvailable) {
+      setForm((prev) => ({ ...prev, teacherId: "" }));
+    }
+  }, [form.teacherId, form.teacherMode, subjectTeachers]);
+
+  useEffect(() => {
+    if (form.teacherMode !== "SELECTED_TEACHER" || !form.teacherId) return;
+
+    if (!form.subjectId && teacherSubjectOptions.length === 1) {
+      setForm((prev) => ({
+        ...prev,
+        subjectId: String(teacherSubjectOptions[0].subjectId),
+      }));
+      return;
+    }
+
+    if (!form.subjectId || !selectedTeacher?.subjectIds?.length) return;
+
+    const allowed = selectedTeacher.subjectIds
+      .map(String)
+      .includes(String(form.subjectId));
+
+    if (!allowed) {
+      setForm((prev) => ({
+        ...prev,
+        subjectId:
+          teacherSubjectOptions.length === 1
+            ? String(teacherSubjectOptions[0].subjectId)
+            : "",
+      }));
+    }
+  }, [
+    form.subjectId,
+    form.teacherId,
+    form.teacherMode,
+    selectedTeacher,
+    teacherSubjectOptions,
+  ]);
+
   const updateForm = (key, value) => {
-    setForm((prev) => ({
-      ...prev,
-      [key]: value,
-      ...(key === "schoolYearId" ? { gradeId: "", classId: "" } : {}),
-      ...(key === "gradeId" ? { classId: "" } : {}),
-      ...(key === "scope" && value !== "CLASS" ? { classId: "" } : {}),
-      ...(key === "scope" && value === "CLASS" ? { teacherMode: "SELECTED_TEACHER" } : {}),
-      ...(key === "scope" && value !== "CLASS" ? { teacherMode: "ASSIGNED_TEACHER" } : {}),
-    }));
+    if (key === "schoolYearId") {
+      setStaffWorkingSchoolYearId(value);
+    }
+
+    setForm((prev) => {
+      const next = {
+        ...prev,
+        [key]: value,
+        ...(key === "schoolYearId" ? { gradeId: "", classId: "" } : {}),
+        ...(key === "gradeId" ? { classId: "" } : {}),
+        ...(key === "scope" && value !== "CLASS" ? { classId: "" } : {}),
+        ...(key === "scope" && value === "CLASS"
+          ? { teacherMode: "SELECTED_TEACHER" }
+          : {}),
+        ...(key === "scope" && value !== "CLASS"
+          ? { teacherMode: "ASSIGNED_TEACHER", teacherId: "" }
+          : {}),
+      };
+
+      if (key === "teacherId") {
+        const teacher = lookups.teachers.find(
+          (item) => String(item.teacherId) === String(value),
+        );
+        const subjectIds = teacher?.subjectIds || [];
+
+        if (subjectIds.length === 1) {
+          next.subjectId = String(subjectIds[0]);
+        } else if (!subjectIds.map(String).includes(String(next.subjectId))) {
+          next.subjectId = "";
+        }
+      }
+
+      return next;
+    });
     setError("");
     setConflicts([]);
   };
@@ -174,10 +276,7 @@ function StaffTimetableCreatePage() {
       <StaffPageHeader
         title="Thêm lịch học"
         action={
-          <Link
-            to="/staff/timetable"
-            className={cancelLinkClass}
-          >
+          <Link to="/staff/timetable" className={cancelLinkClass}>
             <FiArrowLeft size={16} />
             Quay lại thời khóa biểu
           </Link>
@@ -316,12 +415,19 @@ function StaffTimetableCreatePage() {
             required
           >
             <option value="">Chọn môn học</option>
-            {lookups.subjects.map((subject) => (
+            {teacherSubjectOptions.map((subject) => (
               <option key={subject.subjectId} value={subject.subjectId}>
                 {subject.subjectName}
               </option>
             ))}
           </PrettySelect>
+          {form.teacherMode === "SELECTED_TEACHER" &&
+            form.teacherId &&
+            teacherSubjectOptions.length === 0 && (
+              <p className="mt-2 text-sm text-red-600">
+                Giáo viên này chưa có môn chuyên môn để xếp lịch.
+              </p>
+            )}
         </StaffField>
 
         <StaffField label="Cách chọn giáo viên">
@@ -346,12 +452,17 @@ function StaffTimetableCreatePage() {
               required
             >
               <option value="">Chọn giáo viên</option>
-              {lookups.teachers.map((teacher) => (
+              {subjectTeachers.map((teacher) => (
                 <option key={teacher.teacherId} value={teacher.teacherId}>
                   {teacher.fullName}
                 </option>
               ))}
             </PrettySelect>
+            {form.subjectId && subjectTeachers.length === 0 && (
+              <p className="mt-2 text-sm text-red-600">
+                Chưa có giáo viên nào được phân công dạy môn này.
+              </p>
+            )}
           </StaffField>
         )}
 

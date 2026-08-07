@@ -79,11 +79,26 @@ async function getLookups() {
       SELECT
         t.teacher_id AS teacherId,
         t.teacher_code AS teacherCode,
+        t.subject_specialize AS subjectSpecialize,
         ua.full_name AS fullName,
-        ua.email
+        ua.email,
+        GROUP_CONCAT(DISTINCT COALESCE(tc.subject_id, specialize_subject.subject_id)) AS subjectIds
       FROM teacher t
       INNER JOIN user_account ua ON ua.user_id = t.user_id
+      LEFT JOIN subject specialize_subject
+        ON (
+          LOWER(specialize_subject.subject_name) = LOWER(t.subject_specialize)
+          OR LOWER(specialize_subject.subject_code) = LOWER(t.subject_specialize)
+          OR LOWER(specialize_subject.subject_name) LIKE CONCAT('%', LOWER(TRIM(t.subject_specialize)), '%')
+          OR LOWER(TRIM(t.subject_specialize)) LIKE CONCAT('%', LOWER(specialize_subject.subject_name), '%')
+        )
+        AND specialize_subject.status = 'ACTIVE'
+      LEFT JOIN teacher_class tc
+        ON tc.teacher_id = t.teacher_id
+        AND tc.subject_id IS NOT NULL
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
       WHERE ua.status = 'ACTIVE'
+      GROUP BY t.teacher_id, t.teacher_code, t.subject_specialize, ua.full_name, ua.email
       ORDER BY ua.full_name
     `,
   );
@@ -135,7 +150,12 @@ async function getLookups() {
       isActive: Boolean(row.isActive),
     })),
     grades,
-    teachers,
+    teachers: teachers.map((row) => ({
+      ...row,
+      subjectIds: row.subjectIds
+        ? row.subjectIds.split(",").map((subjectId) => Number(subjectId))
+        : [],
+    })),
     feeCategories,
     feeRates: feeRates.map((row) => ({ ...row, amount: Number(row.amount) })),
   };

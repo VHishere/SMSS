@@ -55,7 +55,8 @@ function StaffTeachersPage() {
   const filteredClasses = useMemo(
     () =>
       (lookups?.classes || []).filter(
-        (cls) => !filters.gradeId || String(cls.gradeId) === String(filters.gradeId),
+        (cls) =>
+          (!filters.gradeId || String(cls.gradeId) === String(filters.gradeId)),
       ),
     [filters.gradeId, lookups?.classes],
   );

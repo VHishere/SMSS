@@ -1,9 +1,27 @@
 const { pool } = require("../../config/db");
 const { hashPassword } = require("../../utils/password");
+const {
+  assertExists,
+  assertUnique,
+  cleanText,
+  optionalText,
+  requireText,
+  validateCode,
+  validateDate,
+  validateEmail,
+  validateEnum,
+  validateOptionalPhone,
+  validatePassword,
+  validatePositiveInt,
+  validateUsername,
+} = require("./validation");
 
 const STUDENT_ROLE_ID = 7;
+const STUDENT_STATUSES = ["ACTIVE", "INACTIVE"];
+const STUDENT_GENDERS = ["MALE", "FEMALE", "OTHER"];
 
-const studentSelect = `
+function buildStudentSelect({ schoolYearId } = {}) {
+  return `
   SELECT
     s.student_id AS studentId,
     s.user_id AS userId,
@@ -18,7 +36,7 @@ const studentSelect = `
     s.gender,
     s.address,
     s.status,
-    ce.class_id AS classId,
+    sc.class_id AS classId,
     sc.class_name AS className,
     g.grade_name AS gradeName,
     sy.year_name AS schoolYearName
@@ -26,16 +44,20 @@ const studentSelect = `
   INNER JOIN user_account ua ON ua.user_id = s.user_id
   LEFT JOIN class_enrollment ce
     ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-  LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+  LEFT JOIN school_class sc
+    ON sc.class_id = ce.class_id
+    ${schoolYearId ? "AND sc.school_year_id = ?" : ""}
   LEFT JOIN grade g ON g.grade_id = sc.grade_id
   LEFT JOIN school_year sy ON sy.school_year_id = sc.school_year_id
 `;
+}
 
 async function listStudents(filters = "") {
   const normalized =
     typeof filters === "string" ? { search: filters } : filters || {};
   const search = normalized.search || "";
   const keyword = `%${search.trim()}%`;
+  const joinParams = normalized.schoolYearId ? [normalized.schoolYearId] : [];
   const conditions = [
     "s.status = 'ACTIVE'",
     `(
@@ -46,7 +68,14 @@ async function listStudents(filters = "") {
       OR sc.class_name LIKE ?
     )`,
   ];
-  const params = [search.trim(), keyword, keyword, keyword, keyword];
+  const params = [
+    ...joinParams,
+    search.trim(),
+    keyword,
+    keyword,
+    keyword,
+    keyword,
+  ];
 
   if (normalized.gradeId) {
     conditions.push("sc.grade_id = ?");
@@ -60,7 +89,7 @@ async function listStudents(filters = "") {
 
   const [rows] = await pool.query(
     `
-      ${studentSelect}
+      ${buildStudentSelect({ schoolYearId: normalized.schoolYearId })}
       WHERE ${conditions.join(" AND ")}
       ORDER BY s.student_id
     `,
@@ -72,7 +101,7 @@ async function listStudents(filters = "") {
 
 async function getStudentById(studentId) {
   const [rows] = await pool.query(
-    `${studentSelect} WHERE s.student_id = ? LIMIT 1`,
+    `${buildStudentSelect()} WHERE s.student_id = ? LIMIT 1`,
     [studentId],
   );
 
@@ -100,21 +129,102 @@ async function getStudentById(studentId) {
   return { ...student, parents };
 }
 
+async function validateStudentPayload(
+  connection,
+  data,
+  { studentId = null, userId = null } = {},
+) {
+  const studentCode = validateCode(data.studentCode, "mã học sinh");
+  const fullName = requireText(data.fullName, "họ và tên học sinh", 120);
+  const email = validateEmail(data.email);
+  const phone = validateOptionalPhone(data.phone);
+  const username = validateUsername(data.username || studentCode.toLowerCase());
+  const password = validatePassword(data.password);
+  const dateOfBirth = validateDate(data.dateOfBirth, "ngày sinh", {
+    notFuture: true,
+    minYear: 1990,
+  });
+  const gender = validateEnum(
+    data.gender,
+    STUDENT_GENDERS,
+    "giới tính",
+    "OTHER",
+  );
+  const status = validateEnum(
+    data.status,
+    STUDENT_STATUSES,
+    "trạng thái",
+    "ACTIVE",
+  );
+  const address = optionalText(data.address, "địa chỉ", 255);
+  const classId = cleanText(data.classId)
+    ? validatePositiveInt(data.classId, "lớp học")
+    : null;
+
+  if (classId) {
+    await assertExists(
+      connection,
+      "SELECT class_id FROM school_class WHERE class_id = ? AND status = 'ACTIVE' LIMIT 1",
+      [classId],
+      "Không tìm thấy lớp học đang hoạt động",
+    );
+  }
+
+  await assertUnique(
+    connection,
+    "SELECT user_id FROM user_account WHERE username = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
+    [username, userId, userId],
+    "Tên đăng nhập đã tồn tại",
+  );
+  await assertUnique(
+    connection,
+    "SELECT user_id FROM user_account WHERE email = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
+    [email, userId, userId],
+    "Email đã được sử dụng",
+  );
+  await assertUnique(
+    connection,
+    "SELECT student_id FROM student WHERE student_code = ? AND (? IS NULL OR student_id <> ?) LIMIT 1",
+    [studentCode, studentId, studentId],
+    "Mã học sinh đã tồn tại",
+  );
+
+  return {
+    address,
+    classId,
+    dateOfBirth,
+    email,
+    fullName,
+    gender,
+    password,
+    phone,
+    status,
+    studentCode,
+    username,
+  };
+}
+
 async function createStudent(data, actorUserId) {
   const connection = await pool.getConnection();
 
   try {
     await connection.beginTransaction();
 
-    const username = data.username || data.studentCode.toLowerCase();
-    const passwordHash = hashPassword(data.password);
+    const payload = await validateStudentPayload(connection, data);
+    const passwordHash = hashPassword(payload.password);
 
     const [userResult] = await connection.query(
       `
         INSERT INTO user_account (username, password_hash, email, full_name, phone, status)
         VALUES (?, ?, ?, ?, ?, 'ACTIVE')
       `,
-      [username, passwordHash, data.email, data.fullName, data.phone || null],
+      [
+        payload.username,
+        passwordHash,
+        payload.email,
+        payload.fullName,
+        payload.phone,
+      ],
     );
 
     const userId = userResult.insertId;
@@ -126,10 +236,10 @@ async function createStudent(data, actorUserId) {
       `,
       [
         userId,
-        data.studentCode,
-        data.dateOfBirth || null,
-        data.gender || "OTHER",
-        data.address || null,
+        payload.studentCode,
+        payload.dateOfBirth,
+        payload.gender,
+        payload.address,
       ],
     );
 
@@ -140,13 +250,13 @@ async function createStudent(data, actorUserId) {
       [userId, STUDENT_ROLE_ID],
     );
 
-    if (data.classId) {
+    if (payload.classId) {
       await connection.query(
         `
           INSERT INTO class_enrollment (class_id, student_id, enrollment_date, status)
           VALUES (?, ?, CURDATE(), 'ACTIVE')
         `,
-        [data.classId, studentId],
+        [payload.classId, studentId],
       );
     }
 
@@ -178,6 +288,10 @@ async function updateStudent(studentId, data) {
     }
 
     const userId = rows[0].userId;
+    const payload = await validateStudentPayload(connection, data, {
+      studentId,
+      userId,
+    });
 
     await connection.query(
       `
@@ -185,7 +299,7 @@ async function updateStudent(studentId, data) {
         SET full_name = ?, email = ?, phone = ?, updated_at = NOW()
         WHERE user_id = ?
       `,
-      [data.fullName, data.email, data.phone || null, userId],
+      [payload.fullName, payload.email, payload.phone, userId],
     );
 
     await connection.query(
@@ -195,11 +309,11 @@ async function updateStudent(studentId, data) {
         WHERE student_id = ?
       `,
       [
-        data.studentCode,
-        data.dateOfBirth || null,
-        data.gender || "OTHER",
-        data.address || null,
-        data.status || "ACTIVE",
+        payload.studentCode,
+        payload.dateOfBirth,
+        payload.gender,
+        payload.address,
+        payload.status,
         studentId,
       ],
     );
@@ -210,13 +324,13 @@ async function updateStudent(studentId, data) {
         [studentId],
       );
 
-      if (data.classId) {
+      if (payload.classId) {
         await connection.query(
           `
             INSERT INTO class_enrollment (class_id, student_id, enrollment_date, status)
             VALUES (?, ?, CURDATE(), 'ACTIVE')
           `,
-          [data.classId, studentId],
+          [payload.classId, studentId],
         );
       }
     }

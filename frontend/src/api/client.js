@@ -120,6 +120,11 @@ export const adminApi = {
   getFeesDashboard: () => request("/admin/dashboard/fees"),
   getMessagesDashboard: () => request("/admin/communication/dashboard"),
 
+  getSchoolYears: () => request("/admin/school-years"),
+
+  activateSchoolYear: (id) =>
+    request(`/admin/school-years/${id}/activate`, { method: "PUT" }),
+
   getUsers: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
     return request(`/admin/users${qs ? `?${qs}` : ""}`);
@@ -1954,7 +1959,12 @@ export const parentApi = {
 };
 
 export const staffApi = {
-  getOverview: () => request("/staff/overview"),
+  getOverview: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/overview${query ? `?${query}` : ""}`);
+  },
 
   getLookups: () => request("/staff/lookups"),
 
@@ -2119,14 +2129,14 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
-  activateSchoolYear: (id) =>
-    request(`/staff/school-years/${id}/activate`, { method: "PUT" }),
-
   updateSchoolYear: (id, payload) =>
     request(`/staff/school-years/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+
+  initializeSchoolYear: (id) =>
+    request(`/staff/school-years/${id}/initialize`, { method: "POST" }),
 
   getClasses: (params = {}) => {
     const query = new URLSearchParams(

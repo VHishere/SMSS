@@ -26,6 +26,15 @@ const SESSION_PARTS = [
   { value: "AFTERNOON", label: "Buổi chiều" },
 ];
 
+function displaySessionName(session) {
+  const name = String(session.sessionName || "");
+  if (name.includes("Buá") || name.includes("Bu?") || name.includes("Bu�")) {
+    const subjectName = name.split(" - ").slice(1).join(" - ");
+    return `Buổi ${session.sessionNo}${subjectName ? ` - ${subjectName}` : ""}`;
+  }
+  return name;
+}
+
 function StaffCurriculumDetailPage() {
   const { id } = useParams();
   const [curriculum, setCurriculum] = useState(null);
@@ -82,7 +91,7 @@ function StaffCurriculumDetailPage() {
   const handleEditSession = (session) => {
     setEditingSession(session.sessionId);
     setSessionForm({
-      sessionName: session.sessionName,
+      sessionName: displaySessionName(session),
       dayOfWeek: session.dayOfWeek ? String(session.dayOfWeek) : "",
       periodNo: session.periodNo || "",
       startTime: session.startTime || "",
@@ -128,10 +137,7 @@ function StaffCurriculumDetailPage() {
         title={curriculum.subjectName}
         description={`${curriculum.schoolYearName} · ${curriculum.semesterName}`}
         action={
-          <Link
-            to="/staff/curriculum"
-            className={cancelLinkClass}
-          >
+          <Link to="/staff/curriculum" className={cancelLinkClass}>
             Quay lại
           </Link>
         }
@@ -206,14 +212,14 @@ function StaffCurriculumDetailPage() {
                   <th className="px-4 py-2 text-left">Thứ</th>
                   <th className="px-4 py-2 text-left">Tiết</th>
                   <th className="px-4 py-2 text-left">Thời gian</th>
-                  <th className="px-4 py-2 text-left">Buổi</th>
+                  <th className="px-4 py-2 text-left">Ca học</th>
                   <th className="px-4 py-2 text-left" />
                 </tr>
               </thead>
               <tbody>
                 {curriculum.sessions.map((session) => (
                   <tr key={session.sessionId} className="border-t border-slate-100">
-                    <td className="px-4 py-3 font-semibold">{session.sessionName}</td>
+                    <td className="px-4 py-3 font-semibold">{displaySessionName(session)}</td>
                     <td className="px-4 py-3">
                       {WEEK_DAYS.find((day) => Number(day.value) === session.dayOfWeek)
                         ?.label || "—"}

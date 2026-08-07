@@ -8,6 +8,7 @@ import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import { formatGender, formatStatus } from "../../../utils/formatters";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import { resolveStaffWorkingSchoolYear } from "../../../utils/staffSchoolYear";
 
 const filterSelectClass =
   "h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] px-4 text-sm font-medium text-[#1A1C1C] outline-none transition hover:border-[#F27123] focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20 lg:w-44";
@@ -26,12 +27,23 @@ function StaffStudentsPage() {
     staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
   }, []);
 
+  const workingSchoolYear = useMemo(
+    () => resolveStaffWorkingSchoolYear(lookups?.schoolYears || []),
+    [lookups?.schoolYears],
+  );
+  const workingSchoolYearId = workingSchoolYear
+    ? String(workingSchoolYear.schoolYearId)
+    : "";
+
   useEffect(() => {
+    if (!lookups) return undefined;
+
     const timer = setTimeout(() => {
       setLoading(true);
       staffApi
         .getStudents({
           search,
+          schoolYearId: workingSchoolYearId,
           gradeId: filters.gradeId,
           classId: filters.classId,
         })
@@ -44,7 +56,7 @@ function StaffStudentsPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search, filters.gradeId, filters.classId]);
+  }, [search, filters.gradeId, filters.classId, lookups, workingSchoolYearId]);
 
   const rows = useMemo(
     () => students.map((student) => ({ ...student, id: student.studentId })),
@@ -54,9 +66,12 @@ function StaffStudentsPage() {
   const filteredClasses = useMemo(
     () =>
       (lookups?.classes || []).filter(
-        (cls) => !filters.gradeId || String(cls.gradeId) === String(filters.gradeId),
+        (cls) =>
+          (!workingSchoolYearId ||
+            String(cls.schoolYearId) === String(workingSchoolYearId)) &&
+          (!filters.gradeId || String(cls.gradeId) === String(filters.gradeId)),
       ),
-    [filters.gradeId, lookups?.classes],
+    [filters.gradeId, lookups?.classes, workingSchoolYearId],
   );
 
   const filterToolbar = (
@@ -136,8 +151,16 @@ function StaffStudentsPage() {
               </div>
             ),
           },
-          { key: "className", label: "Lớp" },
-          { key: "gradeName", label: "Khối" },
+          {
+            key: "className",
+            label: "Lớp",
+            render: (row) => row.className || "Chưa xếp lớp",
+          },
+          {
+            key: "gradeName",
+            label: "Khối",
+            render: (row) => row.gradeName || "-",
+          },
           {
             key: "gender",
             label: "Giới tính",

@@ -7,6 +7,7 @@ const academicService = require("../services/academic.service");
 const behaviourService = require("../services/behaviour.service");
 const goalModel = require("../models/goal.model");
 const notificationModel = require("../models/notification.model");
+const staffSchoolYearModel = require("../models/staff/schoolYears");
 
 function handleError(res, error, fallbackMessage) {
   console.error(fallbackMessage, error);
@@ -62,6 +63,24 @@ async function getUserStats(_req, res) {
     return res.json({ success: true, data });
   } catch (error) {
     return handleError(res, error, "Không thể tải thống kê tài khoản");
+  }
+}
+
+async function getSchoolYears(_req, res) {
+  try {
+    const data = await staffSchoolYearModel.listSchoolYears();
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể tải danh sách năm học");
+  }
+}
+
+async function activateSchoolYear(req, res) {
+  try {
+    const data = await staffSchoolYearModel.activateSchoolYear(req.params.id);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể kích hoạt năm học");
   }
 }
 
@@ -393,6 +412,8 @@ async function getFeesDashboard(_req, res) {
 module.exports = {
   getUsers,
   getUserStats,
+  getSchoolYears,
+  activateSchoolYear,
   updateUserStatus,
   getRoles,
   getUserDetail,

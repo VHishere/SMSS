@@ -1,11 +1,112 @@
 const { pool } = require("../../config/db");
 const { TIMETABLE_SLOTS } = require("../../config/timetable.config");
+const {
+  assertExists,
+  assertUnique,
+  cleanText,
+  createHttpError,
+  optionalText,
+  requireText,
+  validateEnum,
+  validatePositiveInt,
+} = require("./validation");
+
+const CURRICULUM_STATUSES = ["ACTIVE", "INACTIVE"];
+const SESSION_PARTS = ["MORNING", "AFTERNOON"];
 
 function slotByPeriod(periodNo) {
   return (
     TIMETABLE_SLOTS.find((slot) => slot.periodNo === periodNo) ||
     TIMETABLE_SLOTS[0]
   );
+}
+
+async function validateCurriculumPayload(
+  connection,
+  data,
+  { curriculumId = null, current = null } = {},
+) {
+  const schoolYearId = validatePositiveInt(
+    data.schoolYearId || current?.schoolYearId,
+    "năm học",
+  );
+  const semesterId = validatePositiveInt(
+    data.semesterId || current?.semesterId,
+    "học kỳ",
+  );
+  const subjectId = validatePositiveInt(
+    data.subjectId || current?.subjectId,
+    "môn học",
+  );
+  const gradeId = cleanText(data.gradeId ?? current?.gradeId)
+    ? validatePositiveInt(data.gradeId ?? current?.gradeId, "khối")
+    : null;
+  const periodsPerWeek = validatePositiveInt(
+    data.periodsPerWeek || current?.periodsPerWeek || 2,
+    "số buổi mỗi tuần",
+    { min: 1, max: 8 },
+  );
+  const note = optionalText(data.note, "ghi chú", 255);
+  const status = validateEnum(
+    data.status,
+    CURRICULUM_STATUSES,
+    "trạng thái chương trình học",
+    "ACTIVE",
+  );
+
+  await assertExists(
+    connection,
+    "SELECT school_year_id FROM school_year WHERE school_year_id = ? LIMIT 1",
+    [schoolYearId],
+    "Không tìm thấy năm học",
+  );
+  await assertExists(
+    connection,
+    "SELECT semester_id FROM semester WHERE semester_id = ? AND school_year_id = ? LIMIT 1",
+    [semesterId, schoolYearId],
+    "Học kỳ không thuộc năm học đã chọn",
+  );
+  const subject = await assertExists(
+    connection,
+    "SELECT subject_name AS subjectName FROM subject WHERE subject_id = ? AND status = 'ACTIVE' LIMIT 1",
+    [subjectId],
+    "Không tìm thấy môn học đang hoạt động",
+  );
+
+  if (gradeId) {
+    await assertExists(
+      connection,
+      "SELECT grade_id FROM grade WHERE grade_id = ? AND status = 'ACTIVE' LIMIT 1",
+      [gradeId],
+      "Không tìm thấy khối đang hoạt động",
+    );
+  }
+
+  await assertUnique(
+    connection,
+    `SELECT curriculum_id
+     FROM school_year_curriculum
+     WHERE school_year_id = ?
+       AND semester_id = ?
+       AND subject_id = ?
+       AND (grade_id <=> ?)
+       AND status = 'ACTIVE'
+       AND (? IS NULL OR curriculum_id <> ?)
+     LIMIT 1`,
+    [schoolYearId, semesterId, subjectId, gradeId, curriculumId, curriculumId],
+    "Môn học này đã có trong chương trình học",
+  );
+
+  return {
+    gradeId,
+    note,
+    periodsPerWeek,
+    schoolYearId,
+    semesterId,
+    status,
+    subjectId,
+    subjectName: subject.subjectName,
+  };
 }
 
 async function listCurriculum(filters = {}) {
@@ -54,7 +155,7 @@ async function listCurriculum(filters = {}) {
       INNER JOIN subject sub ON sub.subject_id = c.subject_id
       LEFT JOIN grade g ON g.grade_id = c.grade_id
       WHERE ${conditions.join(" AND ")}
-      ORDER BY sem.start_date, g.grade_id, sub.subject_name
+      ORDER BY sub.subject_name, g.grade_id, sem.start_date
     `,
     params,
   );
@@ -202,6 +303,47 @@ async function addCurriculumItem(data) {
 
   try {
     await connection.beginTransaction();
+    if (Array.isArray(data.semesterIds) && data.semesterIds.length > 0) {
+      const createdIds = [];
+
+      for (const semesterId of data.semesterIds) {
+        const payload = await validateCurriculumPayload(connection, {
+          ...data,
+          semesterId,
+        });
+
+        const [result] = await connection.query(
+          `
+            INSERT INTO school_year_curriculum (
+              school_year_id, semester_id, grade_id, subject_id,
+              periods_per_week, note, status
+            ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
+          `,
+          [
+            payload.schoolYearId,
+            payload.semesterId,
+            payload.gradeId,
+            payload.subjectId,
+            payload.periodsPerWeek,
+            payload.note,
+          ],
+        );
+
+        createdIds.push(result.insertId);
+
+        await createDefaultSessions(
+          connection,
+          result.insertId,
+          payload.subjectName,
+          payload.periodsPerWeek,
+        );
+      }
+
+      await connection.commit();
+      return Promise.all(createdIds.map((id) => getCurriculumById(id)));
+    }
+
+    const payload = await validateCurriculumPayload(connection, data);
 
     const [subjectRows] = await connection.query(
       "SELECT subject_name AS subjectName FROM subject WHERE subject_id = ?",
@@ -222,20 +364,20 @@ async function addCurriculumItem(data) {
         ) VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
       `,
       [
-        data.schoolYearId,
-        data.semesterId,
-        data.gradeId || null,
-        data.subjectId,
-        data.periodsPerWeek || 2,
-        data.note || null,
+        payload.schoolYearId,
+        payload.semesterId,
+        payload.gradeId,
+        payload.subjectId,
+        payload.periodsPerWeek,
+        payload.note,
       ],
     );
 
     await createDefaultSessions(
       connection,
       result.insertId,
-      subjectRows[0].subjectName,
-      data.periodsPerWeek || 2,
+      payload.subjectName || subjectRows[0].subjectName,
+      payload.periodsPerWeek,
     );
 
     await connection.commit();
@@ -256,7 +398,14 @@ async function updateCurriculumItem(curriculumId, data) {
 
     const [rows] = await connection.query(
       `
-        SELECT c.curriculum_id AS curriculumId, sub.subject_name AS subjectName
+        SELECT
+          c.curriculum_id AS curriculumId,
+          c.school_year_id AS schoolYearId,
+          c.semester_id AS semesterId,
+          c.grade_id AS gradeId,
+          c.subject_id AS subjectId,
+          c.periods_per_week AS periodsPerWeek,
+          sub.subject_name AS subjectName
         FROM school_year_curriculum c
         INNER JOIN subject sub ON sub.subject_id = c.subject_id
         WHERE c.curriculum_id = ?
@@ -270,7 +419,10 @@ async function updateCurriculumItem(curriculumId, data) {
       throw error;
     }
 
-    const periodsPerWeek = data.periodsPerWeek || 2;
+    const payload = await validateCurriculumPayload(connection, data, {
+      curriculumId,
+      current: rows[0],
+    });
 
     await connection.query(
       `
@@ -279,10 +431,10 @@ async function updateCurriculumItem(curriculumId, data) {
         WHERE curriculum_id = ?
       `,
       [
-        data.gradeId || null,
-        periodsPerWeek,
-        data.note || null,
-        data.status || "ACTIVE",
+        payload.gradeId,
+        payload.periodsPerWeek,
+        payload.note,
+        payload.status,
         curriculumId,
       ],
     );
@@ -290,8 +442,8 @@ async function updateCurriculumItem(curriculumId, data) {
     await syncStudySessions(
       connection,
       curriculumId,
-      rows[0].subjectName,
-      periodsPerWeek,
+      payload.subjectName || rows[0].subjectName,
+      payload.periodsPerWeek,
     );
 
     await connection.commit();
@@ -337,7 +489,33 @@ async function deleteCurriculumItem(curriculumId) {
 }
 
 async function updateStudySession(sessionId, data) {
-  const slot = data.periodNo ? slotByPeriod(Number(data.periodNo)) : null;
+  const normalizedSessionId = validatePositiveInt(sessionId, "buổi học");
+  const sessionName = requireText(data.sessionName, "tên buổi học", 120);
+  const dayOfWeek = cleanText(data.dayOfWeek)
+    ? validatePositiveInt(data.dayOfWeek, "thứ", { min: 2, max: 7 })
+    : null;
+  const periodNo = cleanText(data.periodNo)
+    ? validatePositiveInt(data.periodNo, "tiết học", { min: 1, max: 8 })
+    : null;
+  const slot = periodNo ? slotByPeriod(periodNo) : null;
+  const startTime = data.startTime || slot?.startTime || null;
+  const endTime = data.endTime || slot?.endTime || null;
+  const sessionPart = validateEnum(
+    data.sessionPart || slot?.session,
+    SESSION_PARTS,
+    "buổi học",
+    "MORNING",
+  );
+  const status = validateEnum(
+    data.status,
+    CURRICULUM_STATUSES,
+    "trạng thái buổi học",
+    "ACTIVE",
+  );
+
+  if (startTime && endTime && startTime >= endTime) {
+    throw createHttpError("Giờ kết thúc phải sau giờ bắt đầu");
+  }
 
   const [result] = await pool.query(
     `
@@ -353,14 +531,14 @@ async function updateStudySession(sessionId, data) {
       WHERE session_id = ?
     `,
     [
-      data.sessionName,
-      data.dayOfWeek || null,
-      data.periodNo || null,
-      data.startTime || slot?.startTime || null,
-      data.endTime || slot?.endTime || null,
-      data.sessionPart || slot?.session || "MORNING",
-      data.status || "ACTIVE",
-      sessionId,
+      sessionName,
+      dayOfWeek,
+      periodNo,
+      startTime,
+      endTime,
+      sessionPart,
+      status,
+      normalizedSessionId,
     ],
   );
 
@@ -375,7 +553,7 @@ async function updateStudySession(sessionId, data) {
       SELECT session_id AS sessionId, curriculum_id AS curriculumId
       FROM study_session WHERE session_id = ?
     `,
-    [sessionId],
+    [normalizedSessionId],
   );
 
   return listStudySessions(rows[0].curriculumId);

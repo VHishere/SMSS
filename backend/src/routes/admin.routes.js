@@ -31,6 +31,20 @@ router.get(
   adminController.getUserStats,
 );
 
+router.get(
+  "/school-years",
+  authenticate,
+  authorize("ADMIN"),
+  adminController.getSchoolYears,
+);
+
+router.put(
+  "/school-years/:id/activate",
+  authenticate,
+  authorize("ADMIN"),
+  adminController.activateSchoolYear,
+);
+
 router.put(
   "/users/:id/status",
   authenticate,

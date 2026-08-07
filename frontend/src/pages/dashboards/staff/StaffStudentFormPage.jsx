@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { staffApi } from "../../../api/client";
@@ -9,6 +9,7 @@ import StaffFormCard, {
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import { resolveStaffWorkingSchoolYear } from "../../../utils/staffSchoolYear";
 
 const emptyForm = {
   studentCode: "",
@@ -28,7 +29,7 @@ function StaffStudentFormPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState(emptyForm);
-  const [lookups, setLookups] = useState({ classes: [] });
+  const [lookups, setLookups] = useState({ classes: [], schoolYears: [] });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
@@ -36,6 +37,24 @@ function StaffStudentFormPage() {
   useEffect(() => {
     staffApi.getLookups().then((res) => setLookups(res.data));
   }, []);
+
+  const workingSchoolYearId = useMemo(
+    () =>
+      resolveStaffWorkingSchoolYear(lookups.schoolYears || [])?.schoolYearId ||
+      "",
+    [lookups.schoolYears],
+  );
+
+  const classOptions = useMemo(
+    () =>
+      (lookups.classes || []).filter(
+        (item) =>
+          !workingSchoolYearId ||
+          String(item.schoolYearId) === String(workingSchoolYearId) ||
+          String(item.classId) === String(form.classId),
+      ),
+    [form.classId, lookups.classes, workingSchoolYearId],
+  );
 
   useEffect(() => {
     if (!isEdit) return;
@@ -177,7 +196,7 @@ function StaffStudentFormPage() {
             onChange={handleChange("classId")}
           >
             <option value="">-- Chọn lớp --</option>
-            {lookups.classes.map((item) => (
+            {classOptions.map((item) => (
               <option key={item.classId} value={item.classId}>
                 {item.className} · {item.gradeName} · {item.schoolYearName}
               </option>

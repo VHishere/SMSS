@@ -273,17 +273,17 @@ router.post(
 );
 
 router.put(
-  "/school-years/:id/activate",
-  authenticate,
-  authorize(...staffRoles),
-  staffController.activateSchoolYear,
-);
-
-router.put(
   "/school-years/:id",
   authenticate,
   authorize(...staffRoles),
   staffController.updateSchoolYear,
+);
+
+router.post(
+  "/school-years/:id/initialize",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.initializeSchoolYearData,
 );
 
 router.get(

@@ -69,9 +69,11 @@ function handleError(res, error, fallbackMessage) {
   return res.status(500).json({ success: false, message: fallbackMessage });
 }
 
-async function getOverview(_req, res) {
+async function getOverview(req, res) {
   try {
-    const data = await staffModel.getOverview();
+    const data = await staffModel.getOverview({
+      schoolYearId: req.query.schoolYearId,
+    });
     return res.json({ success: true, data });
   } catch (error) {
     return handleError(res, error, "KhÃ´ng thá»ƒ táº£i tá»•ng quan");
@@ -91,6 +93,7 @@ async function getStudents(req, res) {
   try {
     const data = await staffModel.listStudents({
       search: req.query.search || "",
+      schoolYearId: req.query.schoolYearId,
       gradeId: req.query.gradeId,
       classId: req.query.classId,
     });
@@ -157,6 +160,7 @@ async function getParents(req, res) {
   try {
     const data = await staffModel.listParents({
       search: req.query.search || "",
+      schoolYearId: req.query.schoolYearId,
       gradeId: req.query.gradeId,
       classId: req.query.classId,
     });
@@ -205,6 +209,7 @@ async function getTeachers(req, res) {
   try {
     const data = await staffModel.listTeachers({
       search: req.query.search || "",
+      schoolYearId: req.query.schoolYearId,
       gradeId: req.query.gradeId,
       classId: req.query.classId,
     });
@@ -267,21 +272,21 @@ async function createSchoolYear(req, res) {
   }
 }
 
-async function activateSchoolYear(req, res) {
-  try {
-    const data = await staffModel.activateSchoolYear(req.params.id);
-    return res.json({ success: true, data });
-  } catch (error) {
-    return handleError(res, error, "KhÃ´ng thá»ƒ kÃ­ch hoáº¡t nÄƒm há»c");
-  }
-}
-
 async function updateSchoolYear(req, res) {
   try {
     const data = await staffModel.updateSchoolYear(req.params.id, req.body);
     return res.json({ success: true, data });
   } catch (error) {
     return handleError(res, error, "KhÃ´ng thá»ƒ cáº­p nháº­t nÄƒm há»c");
+  }
+}
+
+async function initializeSchoolYearData(req, res) {
+  try {
+    const data = await staffModel.initializeSchoolYearData(req.params.id);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể khởi tạo dữ liệu năm học");
   }
 }
 
@@ -622,8 +627,8 @@ module.exports = {
   updateTeacher,
   getSchoolYears,
   createSchoolYear,
-  activateSchoolYear,
   updateSchoolYear,
+  initializeSchoolYearData,
   getClasses,
   getClassById,
   createClass,

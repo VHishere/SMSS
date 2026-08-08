@@ -51,6 +51,7 @@ async function listSchoolYears() {
         DATE_FORMAT(sy.start_date, '%Y-%m-%d') AS startDate,
         DATE_FORMAT(sy.end_date, '%Y-%m-%d') AS endDate,
         sy.is_active AS isActive,
+        sy.end_date < CURDATE() AS hasEnded,
         sy.status,
         (SELECT COUNT(*) FROM school_class sc WHERE sc.school_year_id = sy.school_year_id) AS classCount,
         (
@@ -67,6 +68,7 @@ async function listSchoolYears() {
   return rows.map((row) => ({
     ...row,
     isActive: Boolean(row.isActive),
+    hasEnded: Boolean(Number(row.hasEnded)),
   }));
 }
 
@@ -130,14 +132,33 @@ async function activateSchoolYear(schoolYearId) {
     await connection.beginTransaction();
 
     const [rows] = await connection.query(
-      "SELECT school_year_id FROM school_year WHERE school_year_id = ?",
+      `
+        SELECT
+          school_year_id AS schoolYearId,
+          year_name AS yearName,
+          is_active AS isActive,
+          end_date < CURDATE() AS hasEnded
+        FROM school_year
+        WHERE school_year_id = ?
+      `,
       [schoolYearId],
     );
 
-    if (!rows[0]) {
+    const target = rows[0];
+
+    if (!target) {
       const error = new Error("Không tìm thấy năm học");
       error.statusCode = 404;
       throw error;
+    }
+
+    // Năm học đã qua ngày kết thúc thì không thể được kích hoạt nữa. Năm học
+    // đang áp dụng vẫn giữ nguyên (kể cả khi đã kết thúc) cho tới khi admin
+    // kích hoạt năm học mới — đây là mặc định trong giai đoạn giao mùa.
+    if (Number(target.hasEnded) === 1 && !Number(target.isActive)) {
+      throw createHttpError(
+        `Năm học ${target.yearName} đã kết thúc nên không thể kích hoạt.`,
+      );
     }
 
     await connection.query("UPDATE school_year SET is_active = FALSE");

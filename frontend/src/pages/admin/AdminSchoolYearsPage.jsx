@@ -36,6 +36,13 @@ function AdminSchoolYearsPage() {
   }, []);
 
   const handleActivate = (year) => {
+    if (year.hasEnded && !year.isActive) {
+      setError(
+        `Năm học ${year.yearName} đã kết thúc nên không thể kích hoạt.`,
+      );
+      return;
+    }
+
     const confirmed = window.confirm(
       `Kích hoạt năm học ${year.yearName} cho toàn hệ thống? Tất cả user sẽ ưu tiên xem dữ liệu theo năm học này.`,
     );
@@ -78,22 +85,52 @@ function AdminSchoolYearsPage() {
           {
             key: "status",
             label: "Trạng thái",
-            render: (row) => (
-              <StatusBadge
-                value={row.isActive ? "Đang áp dụng toàn hệ thống" : statusLabels[row.status] || row.status}
-                tone={row.isActive ? "success" : "info"}
-              />
-            ),
+            render: (row) => {
+              if (row.isActive) {
+                return (
+                  <StatusBadge
+                    value="Đang áp dụng toàn hệ thống"
+                    tone="success"
+                  />
+                );
+              }
+
+              if (row.hasEnded) {
+                return <StatusBadge value="Đã kết thúc" tone="neutral" />;
+              }
+
+              return (
+                <StatusBadge
+                  value={statusLabels[row.status] || row.status}
+                  tone="info"
+                />
+              );
+            },
           },
           {
             key: "actions",
             label: "Thao tác",
-            render: (row) =>
-              row.isActive ? (
-                <span className="text-xs font-semibold text-emerald-600">
-                  Năm học hiện hành
-                </span>
-              ) : (
+            render: (row) => {
+              if (row.isActive) {
+                return (
+                  <span className="text-xs font-semibold text-emerald-600">
+                    Năm học hiện hành
+                  </span>
+                );
+              }
+
+              if (row.hasEnded) {
+                return (
+                  <span
+                    className="text-xs font-semibold text-slate-400"
+                    title="Năm học đã kết thúc nên không thể kích hoạt."
+                  >
+                    Không thể kích hoạt
+                  </span>
+                );
+              }
+
+              return (
                 <button
                   type="button"
                   onClick={() => handleActivate(row)}
@@ -105,7 +142,8 @@ function AdminSchoolYearsPage() {
                     ? "Đang kích hoạt"
                     : "Kích hoạt"}
                 </button>
-              ),
+              );
+            },
           },
         ]}
         rows={schoolYears.map((item) => ({ ...item, id: item.schoolYearId }))}

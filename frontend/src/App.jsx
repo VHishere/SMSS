@@ -14,6 +14,7 @@ import { TeacherDashboard } from "./pages/dashboards/TeacherDashboard";
 
 import AdminDashboardLayout from "./pages/admin/AdminDashboardLayout";
 import AdminOverviewPage from "./pages/admin/AdminOverviewPage";
+import AdminProfilePage from "./pages/admin/AdminProfilePage";
 import AdminSchoolYearsPage from "./pages/admin/AdminSchoolYearsPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminFeesPage from "./pages/admin/AdminFeesPage";
@@ -158,6 +159,7 @@ function App() {
             }
           >
             <Route index element={<AdminOverviewPage />} />
+            <Route path="profile" element={<AdminProfilePage />} />
             <Route path="school-years" element={<AdminSchoolYearsPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="fees" element={<AdminFeesPage />} />

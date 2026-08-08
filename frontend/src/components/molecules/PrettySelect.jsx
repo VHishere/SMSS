@@ -29,6 +29,7 @@ function PrettySelect({
   title,
   required = false,
   name,
+  dropUp = false,
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -95,7 +96,9 @@ function PrettySelect({
 
       {open && (
         <div
-          className="absolute left-0 top-[calc(100%+6px)] z-30 max-h-64 w-full min-w-[10rem] overflow-y-auto rounded-2xl border bg-white p-1 shadow-lg"
+          className={`absolute left-0 z-30 max-h-64 w-full min-w-[10rem] overflow-y-auto rounded-2xl border bg-white p-1 shadow-lg ${
+            dropUp ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+6px)]"
+          }`}
           style={{ borderColor: C.border }}
           role="listbox"
         >

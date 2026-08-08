@@ -676,6 +676,7 @@ function AdminUsersPage() {
               <PrettySelect
                 value={currentPage}
                 onChange={(event) => setPage(Number(event.target.value))}
+                dropUp
                 className="cursor-pointer rounded-lg border bg-white px-2 py-1 text-sm font-semibold outline-none"
                 style={{ borderColor: C.outlineVariant, color: C.onSurface }}
               >

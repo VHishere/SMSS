@@ -1117,9 +1117,6 @@ function NewConversationModal({
             <h3 className="mb-1 text-base font-extrabold text-[#172033]">
               Tạo cuộc trò chuyện
             </h3>
-            <p className="mb-0 text-xs text-slate-500">
-              Chọn {staffSectionLabel.toLowerCase()} hoặc {teacherSectionLabel.toLowerCase()} bạn muốn nhắn tin.
-            </p>
           </div>
 
           <button

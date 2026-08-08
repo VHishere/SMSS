@@ -105,15 +105,25 @@ function ProfileDropdown({ user, variant = "default" }) {
   const canViewStudentProfile =
     roleNames.includes("STUDENT");
 
+  const canViewAdminProfile =
+    roleNames.includes("ADMIN");
+
   const canViewStaffProfile =
-    roleNames.includes("STAFF") || roleNames.includes("ADMIN");
+    roleNames.includes("STAFF");
 
   const canViewProfile =
-    canViewStudentProfile || canViewStaffProfile;
+    canViewStudentProfile ||
+    canViewAdminProfile ||
+    canViewStaffProfile;
 
   const handleViewProfile = () => {
     if (canViewStudentProfile) {
       navigate("/student/profile");
+      return;
+    }
+
+    if (canViewAdminProfile) {
+      navigate("/admin/profile");
       return;
     }
 

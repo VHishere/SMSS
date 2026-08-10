@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
-import EventFormModal from "../../components/organisms/EventFormModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { eventApi } from "../../api/client";
@@ -63,7 +62,6 @@ function EventsPage() {
   const [cursor, setCursor] = useState(null);
   const [attFilter, setAttFilter] = useState("");
   const [showFilter, setShowFilter] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
   const [copied, setCopied] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const csvRef = useRef(null);
@@ -180,13 +178,18 @@ function EventsPage() {
 
   return (
     <DashboardShell user={headerUser} menuItems={dashboardNavigation.TEACHER} sidebarFooterLabel="Sự kiện sắp tới" sidebarFooterValue={String(upcoming)}>
-      {/* Header */}
+      {/* Header — KHÔNG có nút tạo sự kiện: tạo sự kiện là nghiệp vụ của giáo vụ
+          (staff). Giáo viên chỉ theo dõi và quản lý người tham dự / điểm danh. */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Quản lý sự kiện</h2>
-        <button type="button" onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 rounded-full px-6 py-3 font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
-          style={{ backgroundColor: C.orange }}>
-          <Ms name="add" className="!text-[20px]" /> Tạo sự kiện mới
+        <div>
+          <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Sự kiện</h2>
+          <p className="mt-1 text-sm text-slate-500">Sự kiện do giáo vụ tổ chức — bạn theo dõi và quản lý người tham dự.</p>
+        </div>
+
+        <button type="button" onClick={() => setRefresh((k) => k + 1)}
+          className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold transition-all hover:opacity-90 active:scale-95"
+          style={{ backgroundColor: C.surfaceLow, color: C.onSurface, border: `1px solid ${C.border}` }}>
+          <Ms name="refresh" className="!text-[18px]" /> Làm mới
         </button>
       </div>
 
@@ -195,7 +198,7 @@ function EventsPage() {
       {!loading && !featured && (
         <div className="rounded-3xl bg-white p-12 text-center shadow-sm" style={{ border: `1px solid ${C.border}` }}>
           <Ms name="event_busy" className="!text-[40px]" style={{ color: C.border }} />
-          <p className="mt-2 text-sm text-slate-400">Chưa có sự kiện nào. Nhấn “Tạo sự kiện mới” để bắt đầu.</p>
+          <p className="mt-2 text-sm text-slate-400">Chưa có sự kiện nào. Sự kiện sẽ xuất hiện khi giáo vụ tạo và mở cho lớp bạn.</p>
         </div>
       )}
 
@@ -422,9 +425,6 @@ function EventsPage() {
 
       <a ref={csvRef} className="hidden" aria-hidden="true">csv</a>
 
-      {showCreate && (
-        <EventFormModal mode="create" classes={meta.classes} categories={meta.categories} onClose={() => setShowCreate(false)} onSaved={() => { setShowCreate(false); setRefresh((k) => k + 1); }} />
-      )}
     </DashboardShell>
   );
 }

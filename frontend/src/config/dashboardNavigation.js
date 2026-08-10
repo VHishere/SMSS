@@ -241,6 +241,12 @@ export const dashboardNavigation = {
       ms: "chat",
     },
     {
+      label: "Sự kiện",
+      path: "/staff/events",
+      icon: FiCalendar,
+      ms: "event",
+    },
+    {
       label: "Thông báo",
       path: "/staff/notifications",
       icon: FiBell,

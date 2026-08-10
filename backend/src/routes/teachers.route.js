@@ -734,12 +734,20 @@ router.get("/events/analytics", authenticate, authorize(...TEACHER_ROLES), event
 router.get("/events/classes/:classId/contacts", authenticate, authorize(...TEACHER_ROLES), eventController.getClassContacts);
 
 router.get("/events",  authenticate, authorize(...TEACHER_ROLES), eventController.listEvents);
-router.post("/events", authenticate, authorize(...TEACHER_ROLES), eventController.createEvent);
+
+// TẠO sự kiện là việc của GIÁO VỤ (staff) — giáo viên KHÔNG được tạo.
+// Đã bỏ: POST /events (createEvent) và POST /events/:eventId/duplicate — cả hai
+// đều sinh sự kiện mới. Giáo viên vẫn xem, quản lý người tham dự / điểm danh /
+// kết quả của sự kiện. Endpoint tạo nằm ở /admin/events (mở cho ADMIN + STAFF).
 
 router.get("/events/:eventId",        authenticate, authorize(...TEACHER_ROLES), eventController.getDetail);
-router.put("/events/:eventId",        authenticate, authorize(...TEACHER_ROLES), eventController.updateEvent);
-router.patch("/events/:eventId/status", authenticate, authorize(...TEACHER_ROLES), eventController.changeStatus);
-router.post("/events/:eventId/duplicate", authenticate, authorize(...TEACHER_ROLES), eventController.duplicateEvent);
+
+// Giáo viên KHÔNG được SỬA sự kiện. Đã gỡ thêm:
+//   PUT   /events/:eventId          (updateEvent)  — sửa nội dung sự kiện
+//   PATCH /events/:eventId/status   (changeStatus) — hoàn thành/hủy/lưu trữ
+// Sửa & đổi trạng thái thuộc giáo vụ (/admin/events, mở cho ADMIN + STAFF).
+// Giáo viên còn: xem, nhắc nhở, quản lý người tham dự, điểm danh, ghi kết quả.
+
 router.post("/events/:eventId/reminder",  authenticate, authorize(...TEACHER_ROLES), eventController.sendReminder);
 router.put("/events/:eventId/outcome",    authenticate, authorize(...TEACHER_ROLES), eventController.saveOutcome);
 

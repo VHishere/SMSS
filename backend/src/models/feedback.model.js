@@ -93,7 +93,10 @@ async function findOpenSurveysForStudent(studentId) {
        ts.title,
        sub.subject_name AS subjectName,
        ua.full_name AS teacherName,
-       CASE WHEN b.student_id IS NULL THEN 0 ELSE 1 END AS submitted
+       CASE WHEN b.student_id IS NULL THEN 0 ELSE 1 END AS submitted,
+       -- Phải có trong SELECT vì ORDER BY dùng nó: MySQL strict mode báo
+       -- ER_FIELD_IN_ORDER_NOT_SELECT khi ORDER BY cột ngoài SELECT của DISTINCT.
+       ts.created_at AS createdAt
      FROM teacher_survey ts
      INNER JOIN teacher t ON t.teacher_id = ts.teacher_id
      INNER JOIN user_account ua ON ua.user_id = t.user_id

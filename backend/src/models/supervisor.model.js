@@ -577,13 +577,45 @@ async function findAreaContacts(areaIds) {
   return rows;
 }
 
+// Đơn nghỉ ĐANG CHỜ GVQN duyệt (GVCN đã duyệt, GVQN chưa xử lý) — lọc ngay trong
+// SQL bằng HAVING. KHÔNG dùng findLeaveApprovals rồi filter ở JS: hàm đó có
+// LIMIT nên lấy N đơn mới nhất trước, đơn chờ duyệt cũ hơn sẽ bị cắt → chuông
+// đếm thiếu. Điều kiện ở đây khớp đúng bucket "pending_gvqn" của màn Duyệt nghỉ.
+async function findPendingGvqnLeaveRequests(areaIds, { limit = 50 } = {}) {
+  if (!areaIds.length) return [];
+  const ph = areaIds.map(() => "?").join(",");
+  const [rows] = await pool.query(
+    `SELECT lr.leave_request_id AS id, lr.leave_type AS leaveType, lr.status,
+            lr.start_date AS startDate, lr.end_date AS endDate,
+            stu.full_name AS studentName, sc.class_name AS className,
+            MAX(CASE WHEN la.role = 'HOMEROOM_TEACHER' THEN la.action END) AS gvcnAction,
+            MAX(CASE WHEN la.role = 'DORM_SUPERVISOR'  THEN la.action END) AS gvqnAction
+     FROM leave_request lr
+     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph})
+     JOIN student s ON s.student_id = lr.student_id
+     JOIN user_account stu ON stu.user_id = s.user_id
+     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+     LEFT JOIN leave_approval la ON la.leave_request_id = lr.leave_request_id
+     WHERE lr.status <> 'CANCELLED'
+     GROUP BY lr.leave_request_id, lr.leave_type, lr.status, lr.start_date, lr.end_date,
+              lr.created_at, stu.full_name, sc.class_name
+     HAVING gvcnAction = 'APPROVE' AND gvqnAction IS NULL
+     ORDER BY lr.created_at DESC
+     LIMIT ?`,
+    [...areaIds, limit],
+  );
+  return rows;
+}
+
 // ── Danh bạ cho CHAT (kèm user_id để bắt đầu hội thoại) — scope theo khu ───────
 async function findAreaMessageStudents(areaIds) {
   if (!areaIds.length) return [];
   const ph = areaIds.map(() => "?").join(",");
   const [rows] = await pool.query(
     `SELECT DISTINCT s.user_id AS studentUserId, s.student_id AS studentId,
-            ua.full_name AS studentName, s.student_code AS studentCode, sc.class_name AS className
+            ua.full_name AS studentName, ua.avatar AS studentAvatar,
+            s.student_code AS studentCode, sc.class_name AS className
      FROM student_area saa
      JOIN student s ON s.student_id = saa.student_id
      JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
@@ -601,6 +633,7 @@ async function findAreaMessageParents(areaIds) {
   const ph = areaIds.map(() => "?").join(",");
   const [rows] = await pool.query(
     `SELECT DISTINCT ppu.user_id AS parentUserId, ppu.full_name AS parentName,
+            ppu.avatar AS parentAvatar,
             s.student_id AS studentId, stu.full_name AS studentName,
             sc.class_name AS className, spr.relationship, spr.is_primary AS isPrimary
      FROM student_area saa
@@ -636,6 +669,7 @@ async function parentInArea(areaIds, parentUserId) {
 module.exports = {
   SHIFTS,
   dbToday,
+  findPendingGvqnLeaveRequests,
   findAreaMessageStudents,
   findAreaMessageParents,
   parentInArea,

@@ -3,7 +3,6 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
 import PrettySelect from "../../components/molecules/PrettySelect";
-import EventFormModal from "../../components/organisms/EventFormModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { eventApi } from "../../api/client";
@@ -48,7 +47,6 @@ function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
-  const [showEdit, setShowEdit] = useState(false);
   const [meta, setMeta] = useState({ classes: [], categories: [] });
 
   useEffect(() => {
@@ -70,13 +68,8 @@ function EventDetailPage() {
   function setTab(k) { setSearchParams({ tab: k }); }
   function refetch() { setRefresh((k) => k + 1); }
 
-  async function changeStatus(status) {
-    if (status === "CANCELLED" && !window.confirm("Hủy sự kiện này?")) return;
-    try { await eventApi.changeStatus(eventId, status); refetch(); } catch (e) { alert(e.message); }
-  }
-  async function duplicate() {
-    try { const res = await eventApi.duplicate(eventId); navigate(`/teacher/events/${res.data.eventId}`); } catch (e) { alert(e.message); }
-  }
+  // Đã bỏ: "Nhân bản" (= tạo mới), "Sửa" và đổi trạng thái sự kiện — đều là
+  // quyền của giáo vụ; các route tương ứng ở /teachers/events đã được gỡ.
   async function reminder() {
     try { const res = await eventApi.sendReminder(eventId); alert(`Đã gửi nhắc nhở tới ${res.data.sent} người.`); } catch (e) { alert(e.message); }
   }
@@ -109,14 +102,11 @@ function EventDetailPage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {/* Giáo viên KHÔNG sửa được sự kiện: bỏ nút Sửa / Hoàn thành /
+                    Hủy / Lưu trữ — sửa & đổi trạng thái là quyền của giáo vụ
+                    (route PUT + PATCH status ở /teachers/events đã gỡ). Giáo viên
+                    chỉ nhắc nhở, quản lý người tham dự và điểm danh. */}
                 <button type="button" onClick={reminder} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium" style={{ backgroundColor: C.surfaceLow, color: C.orange }}><Ms name="notifications" className="!text-[16px]" /> Nhắc</button>
-                <button type="button" onClick={duplicate} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#EBF3FF", color: C.secondary }}><Ms name="content_copy" className="!text-[16px]" /> Nhân bản</button>
-                {!readOnly && event.status === "ACTIVE" && <>
-                  <button type="button" onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: C.deepBlue }}><Ms name="edit" className="!text-[16px]" /> Sửa</button>
-                  <button type="button" onClick={() => changeStatus("COMPLETED")} className="rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#16A34A" }}>Hoàn thành</button>
-                  <button type="button" onClick={() => changeStatus("CANCELLED")} className="rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#DC2626" }}>Hủy</button>
-                </>}
-                {event.status === "COMPLETED" && <button type="button" onClick={() => changeStatus("ARCHIVED")} className="rounded-full px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#F1F5F9", color: "#475569" }}>Lưu trữ</button>}
               </div>
             </div>
             {event.description && <p className="mt-3 rounded-3xl px-4 py-3 text-sm text-slate-600" style={{ backgroundColor: C.surfaceLow }}>{event.description}</p>}
@@ -140,9 +130,6 @@ function EventDetailPage() {
         </>
       )}
 
-      {showEdit && event && (
-        <EventFormModal mode="edit" classes={meta.classes} categories={meta.categories} event={event} onClose={() => setShowEdit(false)} onSaved={() => { setShowEdit(false); refetch(); }} />
-      )}
     </DashboardShell>
   );
 }

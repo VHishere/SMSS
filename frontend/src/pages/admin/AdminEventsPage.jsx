@@ -58,7 +58,10 @@ const iso = (y, m, d) => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).pad
 function dateLong(s) { if (!s) return "—"; const [y, mo, da] = s.slice(0, 10).split("-"); return `${+da} tháng ${+mo}, ${y}`; }
 const hhmm = (s) => (s && s.length >= 16 ? s.slice(11, 16) : "");
 
-function AdminEventsPage() {
+// basePath: portal đang render trang này ("/admin" hoặc "/staff"). Cả 2 role dùng
+// CÙNG endpoint /admin/events (đã mở cho ADMIN + STAFF) và cùng UI — chỉ khác
+// đường điều hướng nội bộ để không đá staff sang portal admin.
+function AdminEventsPage({ basePath = "/admin" }) {
   const navigate = useNavigate();
 
   const [meta, setMeta] = useState({ classes: [], categories: [] });
@@ -162,7 +165,7 @@ function AdminEventsPage() {
   function focusEvent(id) { setFeaturedId(id); setAttFilter(""); }
 
   function shareLink() {
-    const url = `${window.location.origin}/admin/events/${featured.eventId}`;
+    const url = `${window.location.origin}${basePath}/events/${featured.eventId}`;
     navigator.clipboard?.writeText(url).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800); }).catch(() => {});
   }
 
@@ -260,7 +263,7 @@ function AdminEventsPage() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => navigate(`/admin/events/${featured.eventId}`)}
+                    <button type="button" onClick={() => navigate(`${basePath}/events/${featured.eventId}`)}
                       className="grow rounded-full px-4 py-2 text-sm font-bold text-white transition-colors hover:opacity-90"
                       style={{ backgroundColor: C.deepBlue }}>Sửa chi tiết</button>
                     <button type="button" onClick={shareLink} title={copied ? "Đã copy link" : "Copy link"}
@@ -333,7 +336,7 @@ function AdminEventsPage() {
                           <td className="px-6 py-3"><span className="rounded px-2 py-1 text-[10px] font-bold uppercase tracking-tight" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span></td>
                           <td className="px-6 py-3" style={{ color: C.muted }}>{CHECK[p.attendStatus] ?? "—"}</td>
                           <td className="px-6 py-3 text-right">
-                            <button type="button" onClick={() => navigate(`/admin/events/${featured.eventId}?tab=participants`)} className="text-slate-400 transition-colors hover:text-[#F27123]"><Ms name="more_vert" /></button>
+                            <button type="button" onClick={() => navigate(`${basePath}/events/${featured.eventId}?tab=participants`)} className="text-slate-400 transition-colors hover:text-[#F27123]"><Ms name="more_vert" /></button>
                           </td>
                         </tr>
                       );

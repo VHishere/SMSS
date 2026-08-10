@@ -189,6 +189,11 @@ function App() {
             <Route index element={<StaffOverviewPage />} />
             <Route path="profile" element={<StaffProfilePage />} />
             <Route path="notifications" element={<StaffNotificationsPage />} />
+            {/* Sự kiện: TẠO sự kiện là nghiệp vụ giáo vụ. Dùng lại đúng UI của
+                admin (cùng endpoint /admin/events đã mở cho STAFF), chỉ truyền
+                basePath để điều hướng ở lại portal staff. */}
+            <Route path="events" element={<AdminEventsPage basePath="/staff" />} />
+            <Route path="events/:eventId" element={<AdminEventDetailPage basePath="/staff" />} />
             <Route path="students" element={<StaffStudentsPage />} />
             <Route path="students/new" element={<StaffStudentFormPage />} />
             <Route path="students/:id" element={<StaffStudentDetailPage />} />

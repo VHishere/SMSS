@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import {
   FiChevronDown,
   FiLogOut,
-  FiSettings,
   FiUser,
 } from "react-icons/fi";
 
@@ -165,34 +164,29 @@ function ProfileDropdown({ user, variant = "default" }) {
           </p>
         </div>
 
-        <Dropdown.Item
-          as="button"
-          onClick={handleViewProfile}
-          disabled={!canViewProfile}
-          className="
-            flex items-center gap-3
-            rounded-lg px-3 py-2
-            text-sm
-          "
-        >
-          <FiUser size={17} />
-          Hồ sơ cá nhân
-        </Dropdown.Item>
+        {/* Chỉ hiện "Hồ sơ cá nhân" khi role đó THỰC SỰ có trang hồ sơ
+            (student / admin / staff). Các role còn lại (giáo viên, phụ huynh,
+            quản nhiệm) chưa có trang hồ sơ → menu chỉ còn nút Đăng xuất, thay vì
+            hiện mục xám bấm không được. Mục "Cài đặt" cũng bỏ vì luôn disabled,
+            không có chức năng. */}
+        {canViewProfile && (
+          <>
+            <Dropdown.Item
+              as="button"
+              onClick={handleViewProfile}
+              className="
+                flex items-center gap-3
+                rounded-lg px-3 py-2
+                text-sm
+              "
+            >
+              <FiUser size={17} />
+              Hồ sơ cá nhân
+            </Dropdown.Item>
 
-        <Dropdown.Item
-          as="button"
-          disabled
-          className="
-            flex items-center gap-3
-            rounded-lg px-3 py-2
-            text-sm
-          "
-        >
-          <FiSettings size={17} />
-          Cài đặt
-        </Dropdown.Item>
-
-        <Dropdown.Divider />
+            <Dropdown.Divider />
+          </>
+        )}
 
         <Dropdown.Item
           as="button"

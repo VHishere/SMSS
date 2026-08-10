@@ -142,6 +142,7 @@ async function findStudentContacts(teacherId) {
        s.user_id      AS studentUserId,
        s.student_code AS studentCode,
        ua.full_name   AS studentName,
+       ua.avatar      AS studentAvatar,
        sc.class_id    AS classId,
        sc.class_name  AS className
      FROM teacher_class tc
@@ -161,6 +162,7 @@ async function findParentContacts(teacherId) {
     `SELECT DISTINCT
        pp.user_id     AS parentUserId,
        pua.full_name  AS parentName,
+       pua.avatar     AS parentAvatar,
        sp.relationship,
        s.student_id   AS studentId,
        sua.full_name  AS studentName,

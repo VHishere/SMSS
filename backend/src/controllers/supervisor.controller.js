@@ -362,15 +362,14 @@ async function getNotifications(req, res) {
     if (!ctx) return;
     const { sup, areaIds } = ctx;
     const date = await model.dbToday();
-    const [tasks, approvals, readKeys] = await Promise.all([
+    // pendingApprovals lọc SẴN trong SQL (HAVING) nên số đếm luôn đúng, kể cả khi
+    // khu có rất nhiều đơn — khớp bucket "pending_gvqn" của màn /supervisor/leave-approvals.
+    const [tasks, pendingApprovals, readKeys] = await Promise.all([
       model.findTasks(sup.supervisorId, date),
-      model.findLeaveApprovals(areaIds, { limit: 20 }),
+      model.findPendingGvqnLeaveRequests(areaIds, { limit: 50 }),
       notificationModel.findReadFeedKeys(req.user.userId),
     ]);
     const pendingTasks = tasks.filter((t) => t.status === "PENDING");
-    const pendingApprovals = approvals.filter(
-      (a) => a.gvcnAction === "APPROVE" && !a.gvqnAction && a.status !== "CANCELLED",
-    );
 
     const readSet = new Set(readKeys);
     const unread =

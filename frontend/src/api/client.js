@@ -1629,33 +1629,15 @@ export const eventApi = {
     );
   },
 
-  create: (body) =>
-    request("/teachers/events", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+  // KHÔNG có create/duplicate: tạo (và nhân bản) sự kiện là nghiệp vụ của giáo vụ
+  // (staff) — route POST /teachers/events đã được gỡ ở backend. Trang giáo vụ
+  // dùng adminApi.createEvent / duplicateEvent (đã mở cho ADMIN + STAFF).
 
   getDetail: (id) =>
     request(`/teachers/events/${id}`),
 
-  update: (id, body) =>
-    request(`/teachers/events/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }),
-
-  changeStatus: (id, status) =>
-    request(`/teachers/events/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status,
-      }),
-    }),
-
-  duplicate: (id) =>
-    request(`/teachers/events/${id}/duplicate`, {
-      method: "POST",
-    }),
+  // KHÔNG có update / changeStatus: sửa nội dung và đổi trạng thái sự kiện là
+  // quyền của giáo vụ (route PUT + PATCH status ở /teachers/events đã gỡ).
 
   sendReminder: (id) =>
     request(`/teachers/events/${id}/reminder`, {

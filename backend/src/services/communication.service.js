@@ -47,7 +47,7 @@ async function startConversation({ teacher, target }) {
 
   const type = kind === "PARENT" ? "PARENT_TEACHER" : "TEACHER_STUDENT";
 
-  const existing = await commModel.findDirectConversation(type, teacher.userId, otherUserId, studentId ?? null);
+  const existing = await commModel.findOneToOneConversation(teacher.userId, otherUserId);
   if (existing) return { conversationId: existing, created: false };
 
   const conversationId = await commModel.createConversation({
@@ -83,6 +83,9 @@ async function createGroup({ teacher, title, classId, audience }) {
     title: title.trim(),
     studentId: null,
     createdBy: teacher.userId,
+    // Recorded for traceability only. groupKind stays null so the roster sync
+    // never touches a group the teacher curates by hand.
+    classId,
     participants: participantIds.map((uid) => ({
       userId: uid,
       role: uid === teacher.userId ? "TEACHER" : "MEMBER",
@@ -172,19 +175,19 @@ async function getThread({ userId, conversationId, page, limit }) {
   const participants = await commModel.findParticipants(conversationId);
   const { total, rows } = await commModel.findMessages(conversationId, { page, limit });
 
-  // Read receipt: a message I sent is "read" if every OTHER participant's
-  // last_read_at >= the message sent time.
+  // Read receipt: a message I sent is "read" once every OTHER participant has
+  // read at least that far. Compared by message_id, matching how unread counts
+  // are computed — sent_at is not dependable enough to order messages by.
   const others = participants.filter((p) => p.userId !== userId);
-  const minOtherRead = others.reduce((min, p) => {
-    const t = p.lastReadRaw ? new Date(p.lastReadRaw).getTime() : 0;
-    return Math.min(min, t);
-  }, Number.POSITIVE_INFINITY);
+  const minOtherRead = others.reduce(
+    (min, p) => Math.min(min, Number(p.lastReadMessageId) || 0),
+    Number.POSITIVE_INFINITY,
+  );
 
   const messages = rows.map((m) => {
     let receipt = null;
     if (m.senderId === userId) {
-      const sentTime = new Date(m.sentRaw).getTime();
-      receipt = others.length > 0 && minOtherRead >= sentTime ? "READ" : "SENT";
+      receipt = others.length > 0 && minOtherRead >= m.messageId ? "READ" : "SENT";
     }
     const { sentRaw, ...rest } = m;
     return { ...rest, receipt };
@@ -195,7 +198,7 @@ async function getThread({ userId, conversationId, page, limit }) {
 
   return {
     meta,
-    participants: participants.map(({ lastReadRaw, ...p }) => p),
+    participants: participants.map(({ lastReadMessageId, ...p }) => p),
     messages,
     pagination: { total, page: Number(page) || 1, limit: Number(limit) || 50 },
   };

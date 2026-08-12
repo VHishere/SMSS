@@ -27,6 +27,9 @@ function StaffParentFormPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState(emptyForm);
+  // Các con khác của phụ huynh mà form này không chỉnh sửa — phải gửi lại khi
+  // lưu, nếu không backend sẽ hiểu là staff muốn gỡ liên kết.
+  const [otherStudentIds, setOtherStudentIds] = useState([]);
   const [lookups, setLookups] = useState({ students: [] });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(isEdit);
@@ -43,17 +46,17 @@ function StaffParentFormPage() {
       .getParent(id)
       .then((res) => {
         const data = res.data;
+        const students = data.students || [];
         setForm({
           fullName: data.fullName || "",
           email: data.email || "",
           phone: data.phone || "",
           relationship: data.relationship || "Father",
           isPrimary: Boolean(data.isPrimary),
-          studentId: data.students?.[0]?.studentId
-            ? String(data.students[0].studentId)
-            : "",
+          studentId: students[0]?.studentId ? String(students[0].studentId) : "",
           status: data.status || "ACTIVE",
         });
+        setOtherStudentIds(students.slice(1).map((item) => item.studentId));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -74,8 +77,16 @@ function StaffParentFormPage() {
 
     const payload = {
       ...form,
-      studentId: form.studentId ? Number(form.studentId) : null,
+      studentIds: [
+        ...new Set(
+          [
+            form.studentId ? Number(form.studentId) : null,
+            ...otherStudentIds,
+          ].filter(Boolean),
+        ),
+      ],
     };
+    delete payload.studentId;
 
     try {
       if (isEdit) {
@@ -170,6 +181,21 @@ function StaffParentFormPage() {
               </option>
             ))}
           </PrettySelect>
+          {otherStudentIds.length > 0 && (
+            <p className="mt-2 mb-0 text-xs text-slate-500">
+              Các con khác đang liên kết (được giữ nguyên khi lưu):{" "}
+              {otherStudentIds
+                .map((studentId) => {
+                  const match = lookups.students.find(
+                    (item) => item.studentId === studentId,
+                  );
+                  return match
+                    ? `${match.studentCode} · ${match.fullName}`
+                    : `#${studentId}`;
+                })
+                .join(", ")}
+            </p>
+          )}
         </StaffField>
         <StaffField label="Liên hệ chính" className="rounded-2xl border border-[#DFC0B2] bg-[#F9F9F9] p-4 md:self-end">
           <input
@@ -188,6 +214,7 @@ function StaffParentFormPage() {
             >
               <option value="ACTIVE">Hoạt động</option>
               <option value="INACTIVE">Ngưng hoạt động</option>
+              <option value="LOCKED">Đã khóa</option>
             </PrettySelect>
           </StaffField>
         )}

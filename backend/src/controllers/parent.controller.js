@@ -410,6 +410,11 @@ async function registerStudentEvent(req, res) {
       },
     });
   } catch (error) {
+    if (error.statusCode) {
+      return res
+        .status(error.statusCode)
+        .json({ success: false, message: error.message });
+    }
     console.error("registerStudentEvent error:", error);
     return res.status(500).json({
       success: false,
@@ -502,8 +507,7 @@ async function startMyTeacherConversation(req, res) {
       });
     }
 
-    const existing = await commModel.findAnyDirectConversation(
-      "PARENT_TEACHER",
+    const existing = await commModel.findOneToOneConversation(
       req.user.userId,
       teacherUserId,
     );

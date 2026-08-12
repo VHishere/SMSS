@@ -13,6 +13,11 @@
     "migrate:announcement-grade": "node src/scripts/migrate-announcement-grade.js",
     "migrate:behaviour-categories": "node src/scripts/migrate-behaviour-categories.js",
     "migrate:conversation-admin-type": "node src/scripts/migrate-conversation-admin-type.js",
+    "migrate:conversation-class-scope": "node src/scripts/migrate-conversation-class-scope.js",
+    "migrate:merge-direct-conversations": "node src/scripts/migrate-merge-direct-conversations.js",
+    "migrate:conversation-read-pointer": "node src/scripts/migrate-conversation-read-pointer.js",
+    "migrate:score-types": "node src/scripts/migrate-score-types-to-tx.js",
+    "fix:future-message-times": "node src/scripts/fix-future-message-times.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:regression": "node --test tests/payment-student-regression.test.js"
   },

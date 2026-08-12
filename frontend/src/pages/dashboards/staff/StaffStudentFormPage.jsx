@@ -220,6 +220,7 @@ function StaffStudentFormPage() {
             >
               <option value="ACTIVE">Đang học</option>
               <option value="INACTIVE">Ngưng học</option>
+              <option value="TRANSFERRED">Chuyển trường</option>
             </PrettySelect>
           </StaffField>
         )}

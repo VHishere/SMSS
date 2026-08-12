@@ -337,29 +337,6 @@ export const adminApi = {
       body: JSON.stringify(body),
     }),
 
-  // Reports (báo cáo) — view + export only
-  getReportsMeta: () => request("/admin/reports/meta"),
-
-  generateReport: (reportType, filters) =>
-    request("/admin/reports/generate", {
-      method: "POST",
-      body: JSON.stringify({ reportType, filters }),
-    }),
-
-  exportReportExcel: (reportType, filters) =>
-    downloadRequest("/admin/reports/export-excel", { reportType, filters }, "bao_cao.xlsx"),
-
-  logReportExport: (reportType, filters, format) =>
-    request("/admin/reports/log-export", {
-      method: "POST",
-      body: JSON.stringify({ reportType, filters, format }),
-    }),
-
-  getReportHistory: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return request(`/admin/reports/history${qs ? `?${qs}` : ""}`);
-  },
-
   // Attendance (điểm danh) — school-wide history/stats + class summary/warnings
   getAttendanceMeta: () => request("/admin/attendance/meta"),
 
@@ -2022,6 +1999,29 @@ export const staffApi = {
     request("/staff/me/notifications/read-all", {
       method: "PATCH",
     }).then((res) => { emitNotificationsChanged(); return res; }),
+
+  // Báo cáo (báo cáo) — xem + xuất, không lưu mẫu
+  getReportsMeta: () => request("/staff/reports/meta"),
+
+  generateReport: (reportType, filters) =>
+    request("/staff/reports/generate", {
+      method: "POST",
+      body: JSON.stringify({ reportType, filters }),
+    }),
+
+  exportReportExcel: (reportType, filters) =>
+    downloadRequest("/staff/reports/export-excel", { reportType, filters }, "bao_cao.xlsx"),
+
+  logReportExport: (reportType, filters, format) =>
+    request("/staff/reports/log-export", {
+      method: "POST",
+      body: JSON.stringify({ reportType, filters, format }),
+    }),
+
+  getReportHistory: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/staff/reports/history${qs ? `?${qs}` : ""}`);
+  },
 
   // Khảo sát đánh giá giáo viên (ẩn danh)
   listTeacherSurveys: () => request("/staff/surveys"),

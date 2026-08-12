@@ -3,7 +3,6 @@ const express = require("express");
 const adminController = require("../controllers/admin.controller");
 const academicController = require("../controllers/academic.controller");
 const behaviourController = require("../controllers/behaviour.controller");
-const reportController = require("../controllers/report.controller");
 const attendanceController = require("../controllers/attendance.controller");
 const announcementController = require("../controllers/announcement.controller");
 const communicationController = require("../controllers/communication.controller");
@@ -354,42 +353,7 @@ router.put(
   behaviourController.updateWarningAdmin,
 );
 
-// Reports (báo cáo) — view + export only (mirrors teacher's Reports /
-// Report Builder minus saved templates).
-router.get(
-  "/reports/meta",
-  authenticate,
-  authorize("ADMIN"),
-  reportController.getMetaAdmin,
-);
-
-router.post(
-  "/reports/generate",
-  authenticate,
-  authorize("ADMIN"),
-  reportController.generateAdmin,
-);
-
-router.post(
-  "/reports/export-excel",
-  authenticate,
-  authorize("ADMIN"),
-  reportController.exportExcelAdmin,
-);
-
-router.post(
-  "/reports/log-export",
-  authenticate,
-  authorize("ADMIN"),
-  reportController.logExportAdmin,
-);
-
-router.get(
-  "/reports/history",
-  authenticate,
-  authorize("ADMIN"),
-  reportController.getHistoryAdmin,
-);
+// Reports (báo cáo) đã chuyển hẳn sang giáo vụ — xem /staff/reports/*.
 
 // Attendance (điểm danh) — school-wide history/stats + class summary
 // (mirrors teacher's homeroom overview but for any class), plus admin can

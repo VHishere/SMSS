@@ -126,7 +126,11 @@ async function findAttendanceByClassAndDate(classId, date) {
        ON at.attendance_type_id = a.attendance_type_id
      WHERE a.class_id = ?
        AND a.attendance_date = ?
-       AND a.attendance_context = 'CLASS'`,
+       AND a.attendance_context = 'CLASS'
+       -- Điểm danh theo NGÀY (timetable_id NULL) — không trộn với điểm danh
+       -- theo TIẾT, nếu không một học sinh sẽ trả về nhiều dòng và
+       -- submittedCount vượt quá sĩ số lớp.
+       AND a.timetable_id IS NULL`,
     [classId, date],
   );
   return rows;
@@ -137,16 +141,37 @@ async function bulkUpsertAttendance(records) {
   try {
     await conn.beginTransaction();
     for (const r of records) {
-      await conn.query(
-        `INSERT INTO attendance
-           (student_id, class_id, attendance_date, attendance_context,
-            attendance_type_id, note, created_by)
-         VALUES (?, ?, ?, 'CLASS', ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           attendance_type_id = VALUES(attendance_type_id),
-           note               = VALUES(note)`,
-        [r.studentId, r.classId, r.date, r.typeId, r.note ?? null, r.createdBy],
+      // uq_att_period là (student_id, timetable_id, attendance_date). Điểm danh
+      // theo ngày không có timetable_id, mà UNIQUE của MySQL coi mỗi NULL là
+      // một giá trị khác nhau → ON DUPLICATE KEY không bao giờ khớp và mỗi lần
+      // lưu lại sinh thêm một dòng trùng. Phải tự tra rồi cập nhật.
+      const [existing] = await conn.query(
+        `SELECT attendance_id FROM attendance
+         WHERE student_id = ?
+           AND class_id = ?
+           AND attendance_date = ?
+           AND attendance_context = 'CLASS'
+           AND timetable_id IS NULL
+         LIMIT 1`,
+        [r.studentId, r.classId, r.date],
       );
+
+      if (existing[0]) {
+        await conn.query(
+          `UPDATE attendance
+           SET attendance_type_id = ?, note = ?
+           WHERE attendance_id = ?`,
+          [r.typeId, r.note ?? null, existing[0].attendance_id],
+        );
+      } else {
+        await conn.query(
+          `INSERT INTO attendance
+             (student_id, class_id, attendance_date, attendance_context,
+              attendance_type_id, note, created_by)
+           VALUES (?, ?, ?, 'CLASS', ?, ?, ?)`,
+          [r.studentId, r.classId, r.date, r.typeId, r.note ?? null, r.createdBy],
+        );
+      }
     }
     await conn.commit();
   } catch (err) {

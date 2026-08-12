@@ -190,6 +190,7 @@ function StaffTeacherFormPage() {
             >
               <option value="ACTIVE">Hoạt động</option>
               <option value="INACTIVE">Ngưng hoạt động</option>
+              <option value="LOCKED">Đã khóa</option>
             </PrettySelect>
           </StaffField>
         )}

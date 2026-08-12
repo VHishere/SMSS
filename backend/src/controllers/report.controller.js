@@ -212,10 +212,10 @@ async function runTemplate(req, res) {
   }
 }
 
-// ── Admin (school-wide, view + export only, no saved templates) ────────────
+// ── Giáo vụ (school-wide, view + export only, no saved templates) ─────────
 
-// GET /admin/reports/meta — every class school-wide + semesters + report types
-async function getMetaAdmin(_req, res) {
+// GET /staff/reports/meta — every class school-wide + semesters + report types
+async function getMetaStaff(_req, res) {
   try {
     const [classes, semesters] = await Promise.all([
       studentProfileModel.findAllClasses(),
@@ -235,8 +235,8 @@ async function getMetaAdmin(_req, res) {
   }
 }
 
-// POST /admin/reports/generate — on-screen preview (no log)
-async function generateAdmin(req, res) {
+// POST /staff/reports/generate — on-screen preview (no log)
+async function generateStaff(req, res) {
   try {
     const { reportType, filters } = req.body;
     const dataset = await reportService.generate({ reportType, filters });
@@ -246,8 +246,8 @@ async function generateAdmin(req, res) {
   }
 }
 
-// POST /admin/reports/export-excel — stream .xlsx + log
-async function exportExcelAdmin(req, res) {
+// POST /staff/reports/export-excel — stream .xlsx + log
+async function exportExcelStaff(req, res) {
   try {
     const { reportType, filters } = req.body;
     const dataset = await reportService.generate({ reportType, filters });
@@ -270,8 +270,8 @@ async function exportExcelAdmin(req, res) {
   }
 }
 
-// POST /admin/reports/log-export — record a client-side (PDF/print) export
-async function logExportAdmin(req, res) {
+// POST /staff/reports/log-export — record a client-side (PDF/print) export
+async function logExportStaff(req, res) {
   try {
     const { reportType, filters, format } = req.body;
 
@@ -288,8 +288,8 @@ async function logExportAdmin(req, res) {
   }
 }
 
-// GET /admin/reports/history — the requesting admin's own export history
-async function getHistoryAdmin(req, res) {
+// GET /staff/reports/history — the requesting user's own export history
+async function getHistoryStaff(req, res) {
   try {
     const page = Math.max(1, parseInt(req.query.page || "1", 10));
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || "20", 10)));
@@ -314,9 +314,9 @@ module.exports = {
   createTemplate,
   deleteTemplate,
   runTemplate,
-  getMetaAdmin,
-  generateAdmin,
-  exportExcelAdmin,
-  logExportAdmin,
-  getHistoryAdmin,
+  getMetaStaff,
+  generateStaff,
+  exportExcelStaff,
+  logExportStaff,
+  getHistoryStaff,
 };

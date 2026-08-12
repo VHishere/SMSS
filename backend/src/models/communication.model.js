@@ -277,10 +277,42 @@ async function findScopedMemberUserIds({ classId, gradeId, audience }) {
 
 // ── Conversations ─────────────────────────────────────────────────────────────
 
+// Membership in conversation_participant is permanent, so a student who changes
+// class keeps seeing the old class's group forever. For any conversation tied to
+// a class, require a live tie to that class on top of being a participant. Takes
+// four userId params.
+const CLASS_SCOPE_GATE = `
+  (
+    c.class_id IS NULL
+    OR c.created_by = ?
+    OR EXISTS (
+      SELECT 1 FROM teacher_class tc
+      INNER JOIN teacher t ON t.teacher_id = tc.teacher_id
+      WHERE tc.class_id = c.class_id
+        AND t.user_id = ?
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+    )
+    OR EXISTS (
+      SELECT 1 FROM class_enrollment ce
+      INNER JOIN student s ON s.student_id = ce.student_id AND s.status = 'ACTIVE'
+      WHERE ce.class_id = c.class_id AND ce.status = 'ACTIVE' AND s.user_id = ?
+    )
+    OR EXISTS (
+      SELECT 1 FROM class_enrollment ce
+      INNER JOIN student_parent sp ON sp.student_id = ce.student_id
+      INNER JOIN parent_profile pp ON pp.parent_id = sp.parent_id
+      WHERE ce.class_id = c.class_id AND ce.status = 'ACTIVE' AND pp.user_id = ?
+    )
+  )
+`;
+
 async function findConversations(userId, filters = {}) {
   const { search, archived = false, page = 1, limit = 20 } = filters;
   const offset = (page - 1) * limit;
-  const params = [userId, userId, userId, userId, archived ? 1 : 0];
+  const params = [
+    userId, userId, userId, userId, archived ? 1 : 0,
+    userId, userId, userId, userId, // CLASS_SCOPE_GATE
+  ];
   let having = "";
   if (search) {
     having = "HAVING (otherName LIKE ? OR c.title LIKE ? OR studentName LIKE ?)";
@@ -305,25 +337,38 @@ async function findConversations(userId, filters = {}) {
          WHERE s.student_id = c.student_id) AS studentName,
        (SELECT sua.avatar FROM student s INNER JOIN user_account sua ON sua.user_id = s.user_id
          WHERE s.student_id = c.student_id) AS studentAvatar,
-       (SELECT m.content FROM conversation_message m
-         WHERE m.conversation_id = c.conversation_id
-         ORDER BY m.sent_at DESC, m.message_id DESC LIMIT 1) AS lastContent,
-       (SELECT m.message_type FROM conversation_message m
-         WHERE m.conversation_id = c.conversation_id
-         ORDER BY m.sent_at DESC, m.message_id DESC LIMIT 1) AS lastType,
-       (SELECT DATE_FORMAT(m.sent_at, '%Y-%m-%d %H:%i') FROM conversation_message m
-         WHERE m.conversation_id = c.conversation_id
-         ORDER BY m.sent_at DESC, m.message_id DESC LIMIT 1) AS lastSentAt,
+       last.content AS lastContent,
+       last.message_type AS lastType,
+       DATE_FORMAT(last.sent_at, '%Y-%m-%d %H:%i') AS lastSentAt,
+       last.is_deleted AS lastIsDeleted,
+       last.sender_id AS lastSenderId,
+       last.senderName AS lastSenderName,
+       -- Đếm theo message_id chứ không theo sent_at: "đã đọc" là đã xem tới tin
+       -- mới nhất hiện có, một câu hỏi về thứ tự chứ không phải về đồng hồ. So
+       -- theo thời gian thì tin có sent_at ở tương lai (lệch giờ máy chủ, hoặc
+       -- dữ liệu nhập sẵn) sẽ mãi mãi là chưa đọc dù người dùng đã mở.
        (SELECT COUNT(*) FROM conversation_message m
          WHERE m.conversation_id = c.conversation_id
            AND m.is_deleted = FALSE
            AND m.sender_id <> ?
-           AND m.sent_at > COALESCE(cp.last_read_at, '1970-01-01')) AS unreadCount
+           AND m.message_id > COALESCE(cp.last_read_message_id, 0)) AS unreadCount
      FROM conversation_participant cp
      INNER JOIN conversation c ON c.conversation_id = cp.conversation_id
+     -- Tin nhắn cuối lấy một lần qua LATERAL thay vì lặp lại cùng một truy vấn
+     -- con cho từng cột.
+     LEFT JOIN LATERAL (
+       SELECT m.content, m.message_type, m.sent_at, m.is_deleted, m.sender_id,
+              ua.full_name AS senderName
+       FROM conversation_message m
+       INNER JOIN user_account ua ON ua.user_id = m.sender_id
+       WHERE m.conversation_id = c.conversation_id
+       ORDER BY m.sent_at DESC, m.message_id DESC
+       LIMIT 1
+     ) AS last ON TRUE
      WHERE cp.user_id = ? AND cp.is_archived = ?
+       AND ${CLASS_SCOPE_GATE}
      ${having}
-     ORDER BY lastSentAt DESC
+     ORDER BY last.sent_at DESC
      LIMIT ? OFFSET ?`,
     [...params, limit, offset],
   );
@@ -338,8 +383,14 @@ async function findConversations(userId, filters = {}) {
     otherAvatar: r.otherAvatar,
     studentName: r.studentName,
     studentAvatar: r.studentAvatar,
-    lastContent: r.lastContent,
-    lastType: r.lastType,
+    // Tin nhắn đã thu hồi vẫn giữ nội dung gốc trong DB để phục vụ đối soát,
+    // nên phải chặn tại đây — nếu không danh sách sẽ lộ nội dung người gửi đã
+    // thu hồi, dù mở hội thoại ra thì không còn thấy.
+    lastContent: r.lastIsDeleted ? null : r.lastContent,
+    lastType: r.lastIsDeleted ? null : r.lastType,
+    lastIsDeleted: Boolean(r.lastIsDeleted),
+    lastSenderId: r.lastSenderId,
+    lastSenderName: r.lastSenderName,
     lastSentAt: r.lastSentAt,
     unreadCount: Number(r.unreadCount),
     displayName: r.conversationType === "GROUP" ? (r.title || "Nhóm") : (r.otherName || "—"),
@@ -372,7 +423,7 @@ async function findParticipants(conversationId) {
        ua.avatar,
        cp.role_in_conversation AS role,
        DATE_FORMAT(cp.last_read_at, '%Y-%m-%d %H:%i') AS lastReadAt,
-       cp.last_read_at AS lastReadRaw
+       cp.last_read_message_id AS lastReadMessageId
      FROM conversation_participant cp
      INNER JOIN user_account ua ON ua.user_id = cp.user_id
      WHERE cp.conversation_id = ?`,
@@ -381,44 +432,61 @@ async function findParticipants(conversationId) {
   return rows;
 }
 
-// Find an existing 1-1 conversation of a type between two users (+ optional student scope).
-async function findDirectConversation(type, userA, userB, studentId) {
+// One thread per pair of people, Messenger-style. Deliberately ignores
+// conversation_type and student_id: a parent talking to the same teacher about a
+// second child, or a teacher who is also the dorm supervisor, must land in the
+// existing thread instead of opening a parallel one.
+//
+// Restricted to conversations holding exactly these two people — some 1-1 types
+// carry a third participant (e.g. a counselor sitting in on a parent/teacher
+// thread), and reusing one of those would expose the history to someone the
+// caller did not pick.
+function directConversationKey(userA, userB) {
+  return [Number(userA), Number(userB)].sort((a, b) => a - b).join(":");
+}
+
+async function findOneToOneConversation(userA, userB) {
   const [[row]] = await pool.query(
     `SELECT c.conversation_id AS conversationId
      FROM conversation c
      INNER JOIN conversation_participant a ON a.conversation_id = c.conversation_id AND a.user_id = ?
      INNER JOIN conversation_participant b ON b.conversation_id = c.conversation_id AND b.user_id = ?
-     WHERE c.conversation_type = ?
-       AND (c.student_id <=> ?)
+     WHERE c.conversation_type <> 'GROUP'
+       AND (
+         SELECT COUNT(*) FROM conversation_participant cp
+         WHERE cp.conversation_id = c.conversation_id
+       ) = 2
+     ORDER BY c.conversation_id ASC
      LIMIT 1`,
-    [userA, userB, type, studentId ?? null],
+    [userA, userB],
   );
   return row ? row.conversationId : null;
 }
 
-// Find any existing 1-1 conversation of a type between two users, regardless of student scope.
-// Used when the counterpart (e.g. a parent) doesn't know/care which student the thread was originally scoped to.
-async function findAnyDirectConversation(type, userA, userB) {
-  const [[row]] = await pool.query(
-    `SELECT c.conversation_id AS conversationId
-     FROM conversation c
-     INNER JOIN conversation_participant a ON a.conversation_id = c.conversation_id AND a.user_id = ?
-     INNER JOIN conversation_participant b ON b.conversation_id = c.conversation_id AND b.user_id = ?
-     WHERE c.conversation_type = ?
-     ORDER BY c.conversation_id DESC
-     LIMIT 1`,
-    [userA, userB, type],
-  );
-  return row ? row.conversationId : null;
-}
+async function createConversation({
+  type,
+  title,
+  studentId,
+  createdBy,
+  participants,
+  groupKind = null,
+  classId = null,
+  areaId = null,
+}) {
+  // dm_key is UNIQUE, so two callers racing to open the same 1-1 thread can
+  // never end up with two rows — the loser reuses the winner's conversation.
+  const dmKey = type !== "GROUP" && participants.length === 2
+    ? directConversationKey(participants[0].userId, participants[1].userId)
+    : null;
 
-async function createConversation({ type, title, studentId, createdBy, participants }) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
     const [result] = await conn.query(
-      `INSERT INTO conversation (student_id, conversation_type, title, created_by) VALUES (?, ?, ?, ?)`,
-      [studentId ?? null, type, title ?? null, createdBy],
+      `INSERT INTO conversation
+         (student_id, conversation_type, title, group_kind, class_id, area_id, dm_key, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [studentId ?? null, type, title ?? null, groupKind, classId, areaId, dmKey, createdBy],
     );
     const conversationId = result.insertId;
 
@@ -432,6 +500,15 @@ async function createConversation({ type, title, studentId, createdBy, participa
     return conversationId;
   } catch (err) {
     await conn.rollback();
+
+    if (err.code === "ER_DUP_ENTRY" && dmKey) {
+      const existing = await findOneToOneConversation(
+        participants[0].userId,
+        participants[1].userId,
+      );
+      if (existing) return existing;
+    }
+
     throw err;
   } finally {
     conn.release();
@@ -495,7 +572,16 @@ async function insertMessage({ conversationId, senderId, messageType, content, f
 
 async function markRead(conversationId, userId) {
   await pool.query(
-    `UPDATE conversation_participant SET last_read_at = NOW() WHERE conversation_id = ? AND user_id = ?`,
+    `UPDATE conversation_participant cp
+     SET cp.last_read_at = NOW(),
+         cp.last_read_message_id = GREATEST(
+           COALESCE(cp.last_read_message_id, 0),
+           COALESCE((
+             SELECT MAX(m.message_id) FROM conversation_message m
+             WHERE m.conversation_id = cp.conversation_id
+           ), 0)
+         )
+     WHERE cp.conversation_id = ? AND cp.user_id = ?`,
     [conversationId, userId],
   );
 }
@@ -527,16 +613,16 @@ async function findMessageById(messageId) {
   return row || null;
 }
 
-async function addMissingParticipants(conversationId, participants = []) {
-  if (!participants.length) return;
+// Bring a managed group's membership in line with who currently belongs to the
+// class/area: add the newcomers AND drop whoever left. Only ever called for
+// groups the system owns (group_kind IS NOT NULL) — never for the ad-hoc groups
+// a teacher creates by hand.
+async function syncParticipants(conversationId, participants = []) {
+  if (!participants.length) return { added: 0, removed: 0 };
 
-  const values = participants.map((p) => [
-    conversationId,
-    p.userId,
-    p.role,
-  ]);
+  const values = participants.map((p) => [conversationId, p.userId, p.role]);
 
-  await pool.query(
+  const [added] = await pool.query(
     `
       INSERT IGNORE INTO conversation_participant
         (conversation_id, user_id, role_in_conversation)
@@ -544,9 +630,33 @@ async function addMissingParticipants(conversationId, participants = []) {
     `,
     [values],
   );
+
+  const keepIds = participants.map((p) => p.userId);
+  const [removed] = await pool.query(
+    `
+      DELETE FROM conversation_participant
+      WHERE conversation_id = ?
+        AND user_id NOT IN (?)
+    `,
+    [conversationId, keepIds],
+  );
+
+  return {
+    added: added.affectedRows,
+    removed: removed.affectedRows,
+  };
 }
 
-async function findGroupByTitle(title) {
+// Managed groups are keyed on (group_kind, class_id/area_id) — never on the
+// title. Class names repeat across school years and even inside one year
+// (e.g. four separate classes named 10A1 in 2026-2027), so a title lookup
+// merges unrelated classes into one group.
+async function findManagedGroup(groupKind, { classId = null, areaId = null }) {
+  const scopeColumn = areaId ? "area_id" : "class_id";
+  const scopeValue = areaId ?? classId;
+
+  if (!scopeValue) return null;
+
   const [[row]] = await pool.query(
     `
       SELECT
@@ -554,13 +664,26 @@ async function findGroupByTitle(title) {
         title
       FROM conversation
       WHERE conversation_type = 'GROUP'
-        AND title = ?
+        AND group_kind = ?
+        AND ${scopeColumn} = ?
+      ORDER BY conversation_id ASC
       LIMIT 1
     `,
-    [title],
+    [groupKind, scopeValue],
   );
 
   return row || null;
+}
+
+// Now that identity lives on (group_kind, class_id/area_id), the title is just
+// a label — keep it in step when a class or area gets renamed.
+async function renameGroupIfNeeded(group, title) {
+  if (!group || group.title === title) return;
+
+  await pool.query(
+    `UPDATE conversation SET title = ? WHERE conversation_id = ?`,
+    [title, group.conversationId],
+  );
 }
 
 async function getGroupSummary(conversationId, groupType) {
@@ -647,6 +770,9 @@ async function ensureClassGroupConversation({
   const title = `Nhóm lớp ${className}`;
   const participants = await findClassGroupParticipants(classId);
 
+  // The caller only reaches here for a class they are currently enrolled in,
+  // so add them even if the roster query missed them (e.g. enrollment row not
+  // yet ACTIVE) — but never widen the group beyond this one class.
   if (!participants.some((p) => Number(p.userId) === Number(userId))) {
     participants.push({
       userId,
@@ -654,7 +780,7 @@ async function ensureClassGroupConversation({
     });
   }
 
-  let group = await findGroupByTitle(title);
+  const group = await findManagedGroup("CLASS", { classId });
 
   if (!group) {
     const conversationId = await createConversation({
@@ -663,12 +789,15 @@ async function ensureClassGroupConversation({
       studentId: null,
       createdBy: userId,
       participants,
+      groupKind: "CLASS",
+      classId,
     });
 
     return getGroupSummary(conversationId, "CLASS");
   }
 
-  await addMissingParticipants(group.conversationId, participants);
+  await syncParticipants(group.conversationId, participants);
+  await renameGroupIfNeeded(group, title);
 
   return getGroupSummary(group.conversationId, "CLASS");
 }
@@ -748,7 +877,7 @@ async function ensureBoardingGroupConversation({
     });
   }
 
-  let group = await findGroupByTitle(title);
+  const group = await findManagedGroup("BOARDING", { areaId });
 
   if (!group) {
     const conversationId = await createConversation({
@@ -757,12 +886,15 @@ async function ensureBoardingGroupConversation({
       studentId: null,
       createdBy: userId,
       participants,
+      groupKind: "BOARDING",
+      areaId,
     });
 
     return getGroupSummary(conversationId, "BOARDING");
   }
 
-  await addMissingParticipants(group.conversationId, participants);
+  await syncParticipants(group.conversationId, participants);
+  await renameGroupIfNeeded(group, title);
 
   return getGroupSummary(group.conversationId, "BOARDING");
 }
@@ -834,7 +966,7 @@ async function ensureParentClassGroupConversation({
     });
   }
 
-  let group = await findGroupByTitle(title);
+  const group = await findManagedGroup("CLASS_PARENTS", { classId });
 
   if (!group) {
     const conversationId = await createConversation({
@@ -843,12 +975,15 @@ async function ensureParentClassGroupConversation({
       studentId: null,
       createdBy: userId,
       participants,
+      groupKind: "CLASS_PARENTS",
+      classId,
     });
 
     return getGroupSummary(conversationId, "CLASS_PARENTS");
   }
 
-  await addMissingParticipants(group.conversationId, participants);
+  await syncParticipants(group.conversationId, participants);
+  await renameGroupIfNeeded(group, title);
 
   return getGroupSummary(group.conversationId, "CLASS_PARENTS");
 }
@@ -958,6 +1093,7 @@ async function searchMessages(userId, filters = {}) {
         ON ua.user_id = m.sender_id
       WHERE cp.user_id = ?
         AND cp.is_archived = ?
+        AND ${CLASS_SCOPE_GATE}
         AND m.is_deleted = FALSE
         AND (
           m.content LIKE ?
@@ -972,6 +1108,7 @@ async function searchMessages(userId, filters = {}) {
       userId,
       userId,
       archived ? 1 : 0,
+      userId, userId, userId, userId, // CLASS_SCOPE_GATE
       searchText,
       searchText,
       searchText,
@@ -1010,7 +1147,7 @@ async function dashboardStats(userId) {
         WHERE cp.user_id = ?
           AND m.is_deleted = FALSE
           AND m.sender_id <> ?
-          AND m.sent_at > COALESCE(cp.last_read_at, '1970-01-01')) AS unreadMessages`,
+          AND m.message_id > COALESCE(cp.last_read_message_id, 0)) AS unreadMessages`,
     [userId, userId, userId],
   );
   return {
@@ -1036,8 +1173,7 @@ module.exports = {
   findConversations,
   findConversationMeta,
   findParticipants,
-  findDirectConversation,
-  findAnyDirectConversation,
+  findOneToOneConversation,
   createConversation,
   findMessages,
   insertMessage,
@@ -1049,4 +1185,10 @@ module.exports = {
   ensureStudentGroupConversations,
   ensureParentGroupConversations,
   searchMessages,
+  // Exposed for the roster-cleanup migration so it uses the same definition of
+  // "who belongs in this group" as the runtime sync.
+  findClassGroupParticipants,
+  findParentClassGroupParticipants,
+  findBoardingGroupParticipants,
+  syncParticipants,
 };

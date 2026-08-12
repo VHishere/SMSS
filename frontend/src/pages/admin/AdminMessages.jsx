@@ -171,10 +171,28 @@ function appendUniqueMessage(messages = [], message) {
   return [...messages, message];
 }
 
-function getConversationPreview(conversation) {
+function getMessageSummary(conversation) {
+  if (conversation.lastIsDeleted) return "Tin nhắn đã được thu hồi";
   if (conversation.lastType === "IMAGE") return "Đã gửi một hình ảnh";
   if (conversation.lastType === "FILE") return "Đã gửi một tệp đính kèm";
-  return conversation.lastContent || "Chưa có tin nhắn";
+  return conversation.lastContent || "";
+}
+
+function getConversationPreview(conversation, currentUserId) {
+  const summary = getMessageSummary(conversation);
+  if (!summary) return "Chưa có tin nhắn";
+
+  if (Number(conversation.lastSenderId) === Number(currentUserId)) {
+    return `Bạn: ${summary}`;
+  }
+
+  // Hội thoại 1-1: tên đối phương đã nằm ngay trên dòng tiêu đề, lặp lại ở đây
+  // chỉ tốn chỗ. Nhóm thì cần, vì tiêu đề là tên nhóm chứ không phải tên người.
+  if (conversation.conversationType !== "GROUP") return summary;
+
+  return conversation.lastSenderName
+    ? `${conversation.lastSenderName}: ${summary}`
+    : summary;
 }
 
 function getContactRoleLabel(contact) {
@@ -194,11 +212,9 @@ function ConversationAvatar({
   size = "md",
   className = "",
 }) {
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [src]);
+  // Lưu chính đường dẫn bị lỗi thay vì cờ boolean: đổi ảnh là tự động thử lại,
+  // không cần effect reset trạng thái.
+  const [failedSrc, setFailedSrc] = useState("");
 
   const sizeClass =
     size === "sm"
@@ -214,12 +230,12 @@ function ConversationAvatar({
         ? "bg-emerald-50 text-emerald-700"
         : "bg-[#FFF0E6] text-[#F27123]";
 
-  if (src && !imageFailed) {
+  if (src && failedSrc !== src) {
     return (
       <img
         src={src}
         alt={name || "Ảnh đại diện"}
-        onError={() => setImageFailed(true)}
+        onError={() => setFailedSrc(src)}
         className={`${sizeClass} shrink-0 rounded-full border border-slate-200 bg-white object-cover ${className}`}
       />
     );
@@ -314,8 +330,8 @@ function MessageBubble({ message, isMine, onRecall, avatarSrc }) {
         <div
           className={`px-4 py-3 text-sm shadow-sm ${
             isMine
-              ? "rounded-[16px] rounded-br-[5px] bg-[#0757A6] text-white"
-              : "rounded-[16px] rounded-bl-[5px] bg-[#ECEDEF] text-[#172033]"
+              ? "rounded-2xl rounded-br-[5px] bg-[#0757A6] text-white"
+              : "rounded-2xl rounded-bl-[5px] bg-[#ECEDEF] text-[#172033]"
           }`}
         >
           {message.isDeleted ? (
@@ -323,7 +339,7 @@ function MessageBubble({ message, isMine, onRecall, avatarSrc }) {
           ) : (
             <>
               {showText && (
-                <p className="mb-0 whitespace-pre-wrap break-words leading-6">
+                <p className="mb-0 whitespace-pre-wrap wrap-break-word leading-6">
                   {message.content}
                 </p>
               )}
@@ -430,7 +446,7 @@ function ThreadPanel({
     api,
   );
 
-  const messages = data?.messages || [];
+  const messages = useMemo(() => data?.messages || [], [data?.messages]);
   const participants = useMemo(
     () => data?.participants || [],
     [data?.participants],
@@ -476,12 +492,6 @@ function ThreadPanel({
     emitSocketWithAck("conversation:read", { conversationId }).catch(
       () => {},
     );
-  }, [conversationId]);
-
-  useEffect(() => {
-    setMessageSearch("");
-    setShowMessageSearch(false);
-    setSendError("");
   }, [conversationId]);
 
   useEffect(() => {
@@ -788,7 +798,7 @@ function ThreadPanel({
 
   if (!conversationId) {
     return (
-      <section className="flex min-h-[520px] min-w-0 flex-col bg-white lg:min-h-0">
+      <section className="flex min-h-130 min-w-0 flex-col bg-white lg:min-h-0">
         <div className="flex flex-1 items-center justify-center px-6 py-12 text-center">
           <div>
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EEF5FC] text-[#0757A6]">
@@ -809,8 +819,8 @@ function ThreadPanel({
   }
 
   return (
-    <section className="relative flex min-h-[560px] min-w-0 flex-col bg-white lg:min-h-0">
-      <header className="flex min-h-[70px] items-center justify-between border-b border-[#F1E4DC] bg-white px-4 py-3 sm:px-6">
+    <section className="relative flex min-h-140 min-w-0 flex-col bg-white lg:min-h-0">
+      <header className="flex min-h-17.5 items-center justify-between border-b border-[#F1E4DC] bg-white px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <div className="relative">
             <ConversationAvatar
@@ -907,7 +917,7 @@ function ThreadPanel({
         {!loading && error && <ErrorAlert error={error} />}
 
         {!loading && !error && messages.length === 0 && (
-          <div className="flex h-full min-h-[300px] items-center justify-center">
+          <div className="flex h-full min-h-75 items-center justify-center">
             <EmptyState
               title="Chưa có tin nhắn"
               description="Gửi tin nhắn đầu tiên để bắt đầu cuộc trò chuyện."
@@ -919,7 +929,7 @@ function ThreadPanel({
           !error &&
           messageSearch.trim() &&
           renderedMessages.length === 0 && (
-            <div className="flex h-full min-h-[260px] items-center justify-center text-center">
+            <div className="flex h-full min-h-65 items-center justify-center text-center">
               <div>
                 <FiSearch
                   size={28}
@@ -961,6 +971,12 @@ function ThreadPanel({
             );
           })}
       </div>
+
+      {typingNames.length > 0 && (
+        <div className="border-t border-slate-100 bg-white px-4 pt-2 text-[11px] italic text-slate-500 sm:px-6">
+          {`${typingNames.join(", ")} đang soạn tin nhắn...`}
+        </div>
+      )}
 
       <form
         onSubmit={sendMessage}
@@ -1035,6 +1051,8 @@ function ThreadPanel({
 }
 
 function ConversationItem({ conversation, active, onClick }) {
+  const { user } = useAuth();
+
   return (
     <button
       type="button"
@@ -1045,7 +1063,7 @@ function ConversationItem({ conversation, active, onClick }) {
       aria-current={active ? "true" : undefined}
     >
       {active && (
-        <span className="absolute inset-y-0 left-0 w-[3px] bg-[#F27123]" />
+        <span className="absolute inset-y-0 left-0 w-0.75 bg-[#F27123]" />
       )}
 
       <ConversationAvatar
@@ -1078,7 +1096,7 @@ function ConversationItem({ conversation, active, onClick }) {
                 : "text-slate-500"
             }`}
           >
-            {getConversationPreview(conversation)}
+            {getConversationPreview(conversation, user?.userId)}
           </p>
 
           {Number(conversation.unreadCount) > 0 && (
@@ -1254,8 +1272,8 @@ function AdminMessages({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [activeConversationId, setActiveConversationId] = useState(null);
-  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [pickedConversationId, setPickedConversationId] = useState(null);
+  const [pickedConversation, setPickedConversation] = useState(null);
   const [contactSearch, setContactSearch] = useState("");
   const [conversationSearch, setConversationSearch] = useState("");
   const [conversationFilter, setConversationFilter] = useState("ALL");
@@ -1289,27 +1307,30 @@ function AdminMessages({
   useEffect(() => {
     let isMounted = true;
 
-    setLoading(true);
+    async function loadMessages() {
+      setLoading(true);
 
-    Promise.all([
-      api.getMessageContacts(),
-      api.listConversations({ archived: false, limit: 50 }),
-    ])
-      .then(([contactsResponse, conversationsResponse]) => {
+      try {
+        const [contactsResponse, conversationsResponse] = await Promise.all([
+          api.getMessageContacts(),
+          api.listConversations({ archived: false, limit: 50 }),
+        ]);
+
         if (!isMounted) return;
 
         setError("");
         setContacts(contactsResponse.data);
         setConversations(conversationsResponse.data.items || []);
-      })
-      .catch((requestError) => {
+      } catch (requestError) {
         if (isMounted) {
           setError(requestError.message || "Không tải được tin nhắn");
         }
-      })
-      .finally(() => {
+      } finally {
         if (isMounted) setLoading(false);
-      });
+      }
+    }
+
+    loadMessages();
 
     return () => {
       isMounted = false;
@@ -1400,28 +1421,27 @@ function AdminMessages({
     );
   }, [teacherContacts, contactSearch]);
 
-  useEffect(() => {
-    if (visibleConversations.length === 0) return;
+  // Chưa chọn thủ công thì mặc định mở hội thoại đầu danh sách.
+  const activeConversationId =
+    pickedConversationId ?? visibleConversations[0]?.conversationId ?? null;
 
-    const current = visibleConversations.find(
+  // Hội thoại vừa tạo chưa có trong danh sách, nên vẫn cần giữ bản ghi tạm
+  // (pickedConversation) và ưu tiên dữ liệu mới nhất từ danh sách nếu có.
+  const selectedConversation = useMemo(() => {
+    const fromList = visibleConversations.find(
       (conversation) =>
         Number(conversation.conversationId) === Number(activeConversationId),
     );
 
-    if (current) {
-      setSelectedConversation((previous) => ({
-        ...previous,
-        ...current,
-      }));
-      return;
-    }
+    const picked =
+      pickedConversation &&
+      Number(pickedConversation.conversationId) === Number(activeConversationId)
+        ? pickedConversation
+        : null;
 
-    if (activeConversationId) return;
-
-    const firstConversation = visibleConversations[0];
-    setActiveConversationId(firstConversation.conversationId);
-    setSelectedConversation(firstConversation);
-  }, [activeConversationId, visibleConversations]);
+    if (fromList && picked) return { ...picked, ...fromList };
+    return fromList || picked;
+  }, [activeConversationId, pickedConversation, visibleConversations]);
 
   async function startContactConversation(contact) {
     try {
@@ -1436,8 +1456,8 @@ function AdminMessages({
         roleLabel: getContactRoleLabel(contact),
       };
 
-      setActiveConversationId(response.data.conversationId);
-      setSelectedConversation(conversation);
+      setPickedConversationId(response.data.conversationId);
+      setPickedConversation(conversation);
       setShowNewConversation(false);
       setContactSearch("");
       refreshConversations();
@@ -1447,8 +1467,8 @@ function AdminMessages({
   }
 
   function openConversation(conversation) {
-    setActiveConversationId(conversation.conversationId);
-    setSelectedConversation(conversation);
+    setPickedConversationId(conversation.conversationId);
+    setPickedConversation(conversation);
   }
 
   const hasLoadedData = Boolean(contacts) || conversations.length > 0;
@@ -1469,8 +1489,8 @@ function AdminMessages({
             </div>
           )}
 
-          <div className="overflow-hidden rounded-3xl border border-[#EEDFD7] bg-white shadow-sm lg:grid lg:h-[calc(100vh-150px)] lg:min-h-[650px] lg:max-h-[820px] lg:grid-cols-[340px_minmax(0,1fr)]">
-            <aside className="flex min-h-[500px] flex-col border-b border-[#EEDFD7] bg-white lg:min-h-0 lg:border-b-0 lg:border-r">
+          <div className="overflow-hidden rounded-3xl border border-[#EEDFD7] bg-white shadow-sm lg:grid lg:h-[calc(100vh-150px)] lg:min-h-162.5 lg:max-h-205 lg:grid-cols-[340px_minmax(0,1fr)]">
+            <aside className="flex min-h-125 flex-col border-b border-[#EEDFD7] bg-white lg:min-h-0 lg:border-b-0 lg:border-r">
               <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
                 <div className="mb-4 flex items-center gap-2">
                   <div className="relative min-w-0 flex-1">
@@ -1523,7 +1543,7 @@ function AdminMessages({
                       key={filter.value}
                       type="button"
                       onClick={() => setConversationFilter(filter.value)}
-                      className={`flex min-h-11 items-center justify-center whitespace-normal break-words rounded-2xl px-1.5 py-1 text-center text-[10.5px] font-bold leading-tight transition ${
+                      className={`flex min-h-11 items-center justify-center whitespace-normal wrap-break-word rounded-2xl px-1.5 py-1 text-center text-[10.5px] font-bold leading-tight transition ${
                         conversationFilter === filter.value
                           ? "bg-[#F27123] text-white"
                           : "bg-[#ECEDEF] text-slate-600 hover:bg-slate-200"
@@ -1549,7 +1569,7 @@ function AdminMessages({
                     />
                   ))
                 ) : (
-                  <div className="flex h-full min-h-[280px] items-center justify-center px-6 text-center">
+                  <div className="flex h-full min-h-70 items-center justify-center px-6 text-center">
                     <div>
                       <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#FFF2EA] text-[#F27123]">
                         <FiMessageSquare size={21} />
@@ -1576,6 +1596,7 @@ function AdminMessages({
             </aside>
 
             <ThreadPanel
+              key={activeConversationId ?? "empty"}
               api={api}
               conversationId={activeConversationId}
               selectedConversation={selectedConversation}

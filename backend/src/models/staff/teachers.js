@@ -10,12 +10,14 @@ const {
   validateOptionalPhone,
   validatePassword,
   validateUsername,
+  generateUniqueUsername,
 } = require("./validation");
 
 const HOMEROOM_TEACHER_ROLE_ID = 3;
 const SUBJECT_TEACHER_ROLE_ID = 4;
 const TEACHER_ROLE_IDS = [HOMEROOM_TEACHER_ROLE_ID, SUBJECT_TEACHER_ROLE_ID];
-const USER_STATUSES = ["ACTIVE", "INACTIVE"];
+// LOCKED tồn tại trong DB (tài khoản bị khóa) — thiếu thì không sửa được.
+const USER_STATUSES = ["ACTIVE", "INACTIVE", "LOCKED"];
 
 const teacherSelect = `
   SELECT
@@ -195,9 +197,19 @@ async function validateTeacherPayload(
   const fullName = requireText(data.fullName, "họ và tên giáo viên", 120);
   const email = validateEmail(data.email);
   const phone = validateOptionalPhone(data.phone);
-  const username = validateUsername(
-    data.username || teacherCode.toLowerCase().replace(/[^a-z0-9._-]/gi, ""),
-  );
+  let username = null;
+  if (String(data.username ?? "").trim()) {
+    username = validateUsername(data.username);
+    await assertUnique(
+      connection,
+      "SELECT user_id FROM user_account WHERE username = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
+      [username, userId, userId],
+      "Tên đăng nhập đã tồn tại",
+    );
+  } else if (!userId) {
+    username = await generateUniqueUsername(connection, teacherCode);
+  }
+
   const password = validatePassword(data.password);
   const subjectSpecialize = optionalText(
     data.subjectSpecialize,
@@ -211,12 +223,6 @@ async function validateTeacherPayload(
     "ACTIVE",
   );
 
-  await assertUnique(
-    connection,
-    "SELECT user_id FROM user_account WHERE username = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
-    [username, userId, userId],
-    "Tên đăng nhập đã tồn tại",
-  );
   await assertUnique(
     connection,
     "SELECT user_id FROM user_account WHERE email = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
@@ -255,7 +261,7 @@ async function createTeacher(data) {
     const [userResult] = await connection.query(
       `
         INSERT INTO user_account (username, password_hash, email, full_name, phone, status)
-        VALUES (?, ?, ?, ?, ?, 'ACTIVE')
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
         payload.username,
@@ -263,6 +269,7 @@ async function createTeacher(data) {
         payload.email,
         payload.fullName,
         payload.phone,
+        payload.status,
       ],
     );
 

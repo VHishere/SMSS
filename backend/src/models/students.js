@@ -42,6 +42,16 @@ async function findProfileByUserId(userId) {
       LEFT JOIN class_enrollment ce
         ON ce.student_id = s.student_id
         AND ce.status = 'ACTIVE'
+        -- Enrollments pile up year after year, so scope to the active year.
+        -- Without this the profile falls back to last year's class.
+        AND ce.class_id IN (
+          SELECT sc2.class_id
+          FROM school_class sc2
+          INNER JOIN school_year sy2
+            ON sy2.school_year_id = sc2.school_year_id
+            AND sy2.is_active = 1
+          WHERE sc2.status = 'ACTIVE'
+        )
 
       LEFT JOIN school_class sc
         ON sc.class_id = ce.class_id
@@ -220,10 +230,10 @@ async function findStudentContextByUserId(userId) {
       WHERE s.user_id = ?
         AND s.status = 'ACTIVE'
         AND ua.status = 'ACTIVE'
+        AND sy.is_active = 1
       ORDER BY
-        sy.is_active DESC,
-        sy.start_date DESC,
-        ce.enrollment_date DESC
+        ce.enrollment_date DESC,
+        ce.enrollment_id DESC
       LIMIT 1
     `,
     [userId],

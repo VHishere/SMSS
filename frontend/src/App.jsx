@@ -25,7 +25,6 @@ import AdminStudentProfilePage from "./pages/admin/AdminStudentProfilePage";
 import AdminAcademicPage from "./pages/admin/AdminAcademicPage";
 import AdminBehaviourPage from "./pages/admin/AdminBehaviourPage";
 import AdminDisciplinePage from "./pages/admin/AdminDisciplinePage";
-import AdminReportsPage from "./pages/admin/AdminReportsPage";
 import AdminAttendancePage from "./pages/admin/AdminAttendancePage";
 import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage";
 import AdminMessages from "./pages/admin/AdminMessages";
@@ -171,7 +170,6 @@ function App() {
             <Route path="discipline" element={<AdminDisciplinePage />} />
             <Route path="behaviour" element={<AdminBehaviourPage />} />
             <Route path="attendance" element={<AdminAttendancePage />} />
-            <Route path="reports" element={<AdminReportsPage />} />
             <Route path="notifications" element={<AdminNotificationsPage />} />
             <Route path="messages" element={<AdminMessages />} />
             <Route path="events" element={<AdminEventsPage />} />

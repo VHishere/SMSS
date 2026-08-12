@@ -7,10 +7,11 @@ function httpError(message, statusCode) {
   return err;
 }
 
+// Trả null khi không parse được thay vì đẩy nguyên chuỗi rác xuống MySQL.
 function toMysqlDateTime(value) {
   if (!value) return null;
   const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
+  if (isNaN(d.getTime())) return null;
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`;
 }
@@ -60,11 +61,23 @@ function validateEventPayload(payload) {
   if (!payload.category || !EVENT_CATEGORIES.includes(payload.category)) throw httpError("Vui lòng chọn danh mục hợp lệ", 400);
   if (!payload.startDate) throw httpError("Thời gian bắt đầu là bắt buộc", 400);
   if (!payload.organizer || !payload.organizer.trim()) throw httpError("Đơn vị/người tổ chức là bắt buộc", 400);
-  if (payload.endDate && new Date(payload.endDate).getTime() <= new Date(payload.startDate).getTime()) {
-    throw httpError("Thời gian kết thúc phải sau thời gian bắt đầu", 400);
+
+  const startedAt = new Date(payload.startDate).getTime();
+  if (Number.isNaN(startedAt)) throw httpError("Thời gian bắt đầu không hợp lệ", 400);
+
+  if (payload.endDate) {
+    const endedAt = new Date(payload.endDate).getTime();
+    if (Number.isNaN(endedAt)) throw httpError("Thời gian kết thúc không hợp lệ", 400);
+    if (endedAt <= startedAt) {
+      throw httpError("Thời gian kết thúc phải sau thời gian bắt đầu", 400);
+    }
   }
-  if (payload.capacity != null && payload.capacity !== "" && Number(payload.capacity) <= 0) {
-    throw httpError("Sức chứa phải lớn hơn 0", 400);
+
+  if (payload.capacity != null && payload.capacity !== "") {
+    const capacity = Number(payload.capacity);
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      throw httpError("Sức chứa phải là số nguyên lớn hơn 0", 400);
+    }
   }
 }
 

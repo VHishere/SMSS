@@ -107,9 +107,8 @@ function StaffDataTable({
                 const rowLink = getRowLink?.(row);
                 const rowClass = `border-t border-[#F1DED4] transition hover:bg-[#FFF7F2]${rowLink ? " cursor-pointer" : ""}`;
 
-                // Key duy nhất & ổn định. KÈM index vì dữ liệu có thể trùng id
-                // thật (vd getParents trả 1 dòng/mỗi liên kết PH–HS ⇒ cùng
-                // parentId xuất hiện nhiều lần) → chỉ dùng id sẽ trùng key.
+                // Key duy nhất & ổn định. KÈM index để phòng trường hợp nguồn
+                // dữ liệu trả về id trùng nhau → chỉ dùng id sẽ trùng key.
                 const rawId =
                   row.id ?? row.studentId ?? row.parentId ?? row.teacherId ??
                   row.classId ?? row.userId ?? row.feeId ?? row.surveyId;

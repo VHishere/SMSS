@@ -134,12 +134,6 @@ export const dashboardNavigation = {
       ms: "workspace_premium",
     },
     {
-      label: "Báo cáo",
-      path: "/admin/reports",
-      icon: FiBarChart2,
-      ms: "assessment",
-    },
-    {
       label: "Quản lý học phí",
       path: "/admin/fees",
       icon: FiCreditCard,

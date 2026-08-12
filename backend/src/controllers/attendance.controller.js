@@ -1,5 +1,6 @@
 const attendanceModel = require("../models/attendance.model");
 const studentProfileModel = require("../models/studentProfile.model");
+const { toIsoDate } = require("../utils/date");
 
 function handleAdminError(res, error, fallback) {
   if (error.statusCode) return res.status(error.statusCode).json({ success: false, message: error.message });
@@ -58,9 +59,8 @@ async function getStudentAttendanceAnalytics(req, res) {
     const studentId = parseInt(req.params.studentId, 10);
 
     const now          = new Date();
-    const defaultEnd   = now.toISOString().split("T")[0];
-    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      .toISOString().split("T")[0];
+    const defaultEnd   = toIsoDate(now);
+    const defaultStart = toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
 
     const startDate = req.query.startDate || defaultStart;
     const endDate   = req.query.endDate   || defaultEnd;
@@ -174,8 +174,8 @@ async function getAnalytics(req, res) {
     const classId = parseInt(req.params.classId, 10);
 
     const now = new Date();
-    const defaultEnd = now.toISOString().split("T")[0];
-    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    const defaultEnd = toIsoDate(now);
+    const defaultStart = toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
 
     const startDate = req.query.startDate || defaultStart;
     const endDate = req.query.endDate || defaultEnd;

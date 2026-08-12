@@ -13,6 +13,11 @@ function httpError(message, statusCode) {
   return err;
 }
 
+// Thang điểm do client gửi lên và được dùng làm mẫu số khi quy đổi về hệ 10
+// (gpa.service.normalize), nên phải có trần — nếu không một thang 100000 sẽ
+// làm mọi điểm quy đổi về gần 0.
+const MAX_SCORE_LIMIT = 100;
+
 // ── Score input / bulk ────────────────────────────────────────────────────────
 
 async function submitScores({ teacherId, actorUserId, payload }) {
@@ -27,6 +32,9 @@ async function submitScores({ teacherId, actorUserId, payload }) {
   const max = Number(maxScore);
   if (!Number.isFinite(max) || max <= 0) {
     throw httpError("Điểm tối đa phải lớn hơn 0", 400);
+  }
+  if (max > MAX_SCORE_LIMIT) {
+    throw httpError(`Điểm tối đa không được vượt quá ${MAX_SCORE_LIMIT}`, 400);
   }
   if (!Array.isArray(records) || records.length === 0) {
     throw httpError("Không có điểm nào để lưu", 400);
@@ -91,7 +99,9 @@ async function updateScore({ teacherId, actorUserId, resultId, payload }) {
   const max = payload.maxScore !== undefined ? Number(payload.maxScore) : prev.maxScore;
 
   if (!Number.isFinite(newScore) || newScore < 0) throw httpError("Điểm không được âm", 400);
-  if (max <= 0) throw httpError("Điểm tối đa phải lớn hơn 0", 400);
+  // Number.isFinite bắt cả NaN: `NaN <= 0` là false nên bản cũ ghi thẳng NaN vào DB.
+  if (!Number.isFinite(max) || max <= 0) throw httpError("Điểm tối đa phải lớn hơn 0", 400);
+  if (max > MAX_SCORE_LIMIT) throw httpError(`Điểm tối đa không được vượt quá ${MAX_SCORE_LIMIT}`, 400);
   if (newScore > max) throw httpError(`Điểm không được vượt quá điểm tối đa (${max})`, 400);
 
   await academicModel.updateSingleScore({

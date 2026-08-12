@@ -1,4 +1,5 @@
 const { pool } = require("../config/db");
+const { toIsoDate } = require("../utils/date");
 
 async function listUsers({
   search = "",
@@ -444,8 +445,8 @@ async function getOperationsSummary() {
   );
 
   const today = new Date();
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-  const monthEnd = today.toISOString().slice(0, 10);
+  const monthStart = toIsoDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  const monthEnd = toIsoDate(today);
 
   const [[attendance]] = await pool.query(
     `SELECT

@@ -1,4 +1,5 @@
 const { pool } = require("../../config/db");
+const { addIsoDays } = require("../../utils/date");
 const {
   assertExists,
   assertUnique,
@@ -14,8 +15,20 @@ const {
 const CLASS_STATUSES = ["ACTIVE", "INACTIVE"];
 const TEACHER_CLASS_ROLES = ["HOMEROOM_TEACHER", "SUBJECT_TEACHER"];
 
+// Trong DB đang có lớp tên "1=1" (phòng "ư") lọt vào từ lúc test — tên lớp chỉ
+// nên gồm chữ/số/khoảng trắng và . - /
 function normalizeClassName(value) {
-  return requireText(value, "tên lớp", 50).replace(/\s+/g, " ").toUpperCase();
+  const className = requireText(value, "tên lớp", 50)
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+
+  if (!/^[\p{L}\p{N}][\p{L}\p{N} ./-]*$/u.test(className)) {
+    throw createHttpError(
+      "Tên lớp chỉ được chứa chữ, số, khoảng trắng và các ký tự . - /",
+    );
+  }
+
+  return className;
 }
 
 async function validateClassPayload(connection, data, classId = null) {
@@ -330,9 +343,12 @@ async function enrollStudent(classId, studentId) {
     const normalizedClassId = validatePositiveInt(classId, "lớp học");
     const normalizedStudentId = validatePositiveInt(studentId, "học sinh");
 
-    await assertExists(
+    const targetClass = await assertExists(
       connection,
-      "SELECT class_id FROM school_class WHERE class_id = ? AND status = 'ACTIVE' LIMIT 1",
+      `SELECT class_id AS classId, school_year_id AS schoolYearId
+       FROM school_class
+       WHERE class_id = ? AND status = 'ACTIVE'
+       LIMIT 1`,
       [normalizedClassId],
       "Không tìm thấy lớp học đang hoạt động",
     );
@@ -343,13 +359,18 @@ async function enrollStudent(classId, studentId) {
       "Không tìm thấy học sinh đang hoạt động",
     );
 
+    // Chỉ gỡ lớp cũ TRONG CÙNG NĂM HỌC. Trước đây câu này không lọc theo năm
+    // nên xếp lớp cho năm mới sẽ hủy luôn enrollment của năm đang chạy.
     await connection.query(
       `
-        UPDATE class_enrollment
-        SET status = 'INACTIVE'
-        WHERE student_id = ? AND status = 'ACTIVE'
+        UPDATE class_enrollment ce
+        INNER JOIN school_class sc ON sc.class_id = ce.class_id
+        SET ce.status = 'INACTIVE'
+        WHERE ce.student_id = ?
+          AND ce.status = 'ACTIVE'
+          AND sc.school_year_id = ?
       `,
-      [normalizedStudentId],
+      [normalizedStudentId, targetClass.schoolYearId],
     );
 
     await connection.query(
@@ -528,11 +549,10 @@ function mysqlDayOfWeek(isoDate) {
   return day === 0 ? 8 : day + 1;
 }
 
-function addIsoDays(isoDate, amount) {
-  const date = new Date(`${isoDate}T00:00:00`);
-  date.setDate(date.getDate() + amount);
-  return date.toISOString().slice(0, 10);
-}
+// addIsoDays nằm ở utils/date để tránh lặp lại bẫy UTC của toISOString():
+// bản cũ ở đây cộng 7 ngày rồi format theo UTC nên thực chất chỉ tiến 6 ngày ở
+// múi giờ +07 — vòng lặp xếp lịch cả năm không bao giờ khớp thứ và chỉ tạo được
+// đúng 1 tiết.
 
 async function buildTimetableLessonDates(data, dayOfWeek) {
   const lessonDate = validateDate(data.lessonDate, "ngày học", {
@@ -658,12 +678,44 @@ async function validateTimetableAssignment(classId, data) {
     minYear: 2000,
   });
   const dayOfWeek = mysqlDayOfWeek(lessonDate);
-  const periodNo = Number(data.periodNo);
-  const subjectId = Number(data.subjectId);
-  const teacherId = Number(data.teacherId);
+  // validatePositiveInt bắt cả NaN — `Number("abc") < 1` là false nên bản cũ
+  // để lọt giá trị rác xuống tận câu INSERT rồi vỡ thành lỗi 500.
+  const periodNo = validatePositiveInt(data.periodNo, "tiết học", {
+    min: 1,
+    max: 8,
+  });
+  const subjectId = validatePositiveInt(data.subjectId, "môn học");
+  const teacherId = validatePositiveInt(data.teacherId, "giáo viên");
 
-  if (dayOfWeek < 2 || dayOfWeek > 7 || periodNo < 1 || periodNo > 8) {
-    const error = new Error("Ngày hoặc tiết học không hợp lệ");
+  if (dayOfWeek < 2 || dayOfWeek > 7) {
+    const error = new Error("Không thể xếp tiết học vào Chủ nhật");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // Tiết học phải nằm trong khoảng thời gian của năm học chứa lớp này.
+  const [yearRows] = await pool.query(
+    `
+      SELECT
+        sy.year_name AS yearName,
+        DATE_FORMAT(sy.start_date, '%Y-%m-%d') AS startDate,
+        DATE_FORMAT(sy.end_date, '%Y-%m-%d') AS endDate
+      FROM school_class sc
+      INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+      WHERE sc.class_id = ?
+      LIMIT 1
+    `,
+    [classId],
+  );
+  const schoolYear = yearRows[0];
+
+  if (
+    schoolYear &&
+    (lessonDate < schoolYear.startDate || lessonDate > schoolYear.endDate)
+  ) {
+    const error = new Error(
+      `Ngày học phải nằm trong năm học ${schoolYear.yearName} (${schoolYear.startDate} đến ${schoolYear.endDate})`,
+    );
     error.statusCode = 400;
     throw error;
   }

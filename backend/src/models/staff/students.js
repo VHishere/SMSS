@@ -14,10 +14,13 @@ const {
   validatePassword,
   validatePositiveInt,
   validateUsername,
+  generateUniqueUsername,
 } = require("./validation");
 
 const STUDENT_ROLE_ID = 7;
-const STUDENT_STATUSES = ["ACTIVE", "INACTIVE"];
+// TRANSFERRED tồn tại trong DB (học sinh chuyển trường). Thiếu nó thì mở trang
+// sửa các học sinh đó là văng ngay "trạng thái không hợp lệ".
+const STUDENT_STATUSES = ["ACTIVE", "INACTIVE", "TRANSFERRED"];
 const STUDENT_GENDERS = ["MALE", "FEMALE", "OTHER"];
 
 function buildStudentSelect({ schoolYearId } = {}) {
@@ -67,7 +70,6 @@ async function listStudents(filters = "") {
   const keyword = `%${search.trim()}%`;
   const joinParams = normalized.schoolYearId ? [normalized.schoolYearId] : [];
   const conditions = [
-    "s.status = 'ACTIVE'",
     `(
       ? = ''
       OR ua.full_name LIKE ?
@@ -84,6 +86,15 @@ async function listStudents(filters = "") {
     keyword,
     keyword,
   ];
+
+  // Mặc định chỉ hiện học sinh đang học, nhưng vẫn cho phép lọc INACTIVE/ALL —
+  // trước đây INACTIVE bị ẩn cứng nên chuyển trạng thái xong là mất luôn lối
+  // vào trang sửa để bật lại.
+  const statusFilter = String(normalized.status || "ACTIVE").toUpperCase();
+  if (STUDENT_STATUSES.includes(statusFilter)) {
+    conditions.push("s.status = ?");
+    params.push(statusFilter);
+  }
 
   if (normalized.gradeId) {
     conditions.push("sc.grade_id = ?");
@@ -146,7 +157,21 @@ async function validateStudentPayload(
   const fullName = requireText(data.fullName, "họ và tên học sinh", 120);
   const email = validateEmail(data.email);
   const phone = validateOptionalPhone(data.phone);
-  const username = validateUsername(data.username || studentCode.toLowerCase());
+  // username không bao giờ bị đổi khi cập nhật, nên chỉ cần giải quyết lúc tạo
+  // mới hoặc khi staff nhập tay.
+  let username = null;
+  if (cleanText(data.username)) {
+    username = validateUsername(data.username);
+    await assertUnique(
+      connection,
+      "SELECT user_id FROM user_account WHERE username = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
+      [username, userId, userId],
+      "Tên đăng nhập đã tồn tại",
+    );
+  } else if (!userId) {
+    username = await generateUniqueUsername(connection, studentCode);
+  }
+
   const password = validatePassword(data.password);
   const dateOfBirth = validateDate(data.dateOfBirth, "ngày sinh", {
     notFuture: true,
@@ -178,12 +203,6 @@ async function validateStudentPayload(
     );
   }
 
-  await assertUnique(
-    connection,
-    "SELECT user_id FROM user_account WHERE username = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
-    [username, userId, userId],
-    "Tên đăng nhập đã tồn tại",
-  );
   await assertUnique(
     connection,
     "SELECT user_id FROM user_account WHERE email = ? AND (? IS NULL OR user_id <> ?) LIMIT 1",
@@ -224,7 +243,7 @@ async function createStudent(data, actorUserId) {
     const [userResult] = await connection.query(
       `
         INSERT INTO user_account (username, password_hash, email, full_name, phone, status)
-        VALUES (?, ?, ?, ?, ?, 'ACTIVE')
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
         payload.username,
@@ -232,6 +251,7 @@ async function createStudent(data, actorUserId) {
         payload.email,
         payload.fullName,
         payload.phone,
+        payload.status,
       ],
     );
 
@@ -240,7 +260,7 @@ async function createStudent(data, actorUserId) {
     const [studentResult] = await connection.query(
       `
         INSERT INTO student (user_id, student_code, date_of_birth, gender, address, status)
-        VALUES (?, ?, ?, ?, ?, 'ACTIVE')
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
         userId,
@@ -248,6 +268,7 @@ async function createStudent(data, actorUserId) {
         payload.dateOfBirth,
         payload.gender,
         payload.address,
+        payload.status,
       ],
     );
 
@@ -301,13 +322,15 @@ async function updateStudent(studentId, data) {
       userId,
     });
 
+    // status phải đi cùng user_account: chỉ đổi student.status thì học sinh
+    // "Ngưng học" vẫn đăng nhập được như thường.
     await connection.query(
       `
         UPDATE user_account
-        SET full_name = ?, email = ?, phone = ?, updated_at = NOW()
+        SET full_name = ?, email = ?, phone = ?, status = ?, updated_at = NOW()
         WHERE user_id = ?
       `,
-      [payload.fullName, payload.email, payload.phone, userId],
+      [payload.fullName, payload.email, payload.phone, payload.status, userId],
     );
 
     await connection.query(
@@ -339,28 +362,53 @@ async function updateStudent(studentId, data) {
         targetSchoolYearId = classRows[0]?.schoolYearId || targetSchoolYearId;
       }
 
-      if (targetSchoolYearId) {
-        await connection.query(
-          `
-            UPDATE class_enrollment ce
-            INNER JOIN school_class sc ON sc.class_id = ce.class_id
-            SET ce.status = 'INACTIVE'
-            WHERE ce.student_id = ?
-              AND ce.status = 'ACTIVE'
-              AND sc.school_year_id = ?
-          `,
-          [studentId, targetSchoolYearId],
-        );
-      }
+      // Form luôn gửi classId kể cả khi không đổi lớp, nên phải so với lớp hiện
+      // tại trước: nếu giữ nguyên thì không đụng gì cả. Trước đây mỗi lần lưu
+      // đều hủy rồi INSERT lại → đụng unique key (class_id, student_id) và báo
+      // nhầm thành "email/mã/username trùng", hoặc nhân bản enrollment.
+      const [currentRows] = await connection.query(
+        `
+          SELECT ce.class_id AS classId
+          FROM class_enrollment ce
+          INNER JOIN school_class sc ON sc.class_id = ce.class_id
+          WHERE ce.student_id = ?
+            AND ce.status = 'ACTIVE'
+            AND (? IS NULL OR sc.school_year_id = ?)
+          ORDER BY ce.enrollment_date DESC, ce.enrollment_id DESC
+          LIMIT 1
+        `,
+        [studentId, targetSchoolYearId, targetSchoolYearId],
+      );
+      const currentClassId = currentRows[0]?.classId ?? null;
+      const nextClassId = payload.classId ?? null;
 
-      if (payload.classId) {
-        await connection.query(
-          `
-            INSERT INTO class_enrollment (class_id, student_id, enrollment_date, status)
-            VALUES (?, ?, CURDATE(), 'ACTIVE')
-          `,
-          [payload.classId, studentId],
-        );
+      if (currentClassId !== nextClassId) {
+        if (targetSchoolYearId) {
+          await connection.query(
+            `
+              UPDATE class_enrollment ce
+              INNER JOIN school_class sc ON sc.class_id = ce.class_id
+              SET ce.status = 'INACTIVE'
+              WHERE ce.student_id = ?
+                AND ce.status = 'ACTIVE'
+                AND sc.school_year_id = ?
+            `,
+            [studentId, targetSchoolYearId],
+          );
+        }
+
+        if (nextClassId) {
+          // Học sinh có thể từng học lớp này rồi (chuyển đi rồi quay lại) —
+          // upsert để tái kích hoạt dòng cũ thay vì chèn dòng trùng.
+          await connection.query(
+            `
+              INSERT INTO class_enrollment (class_id, student_id, enrollment_date, status)
+              VALUES (?, ?, CURDATE(), 'ACTIVE')
+              ON DUPLICATE KEY UPDATE status = 'ACTIVE', enrollment_date = CURDATE()
+            `,
+            [nextClassId, studentId],
+          );
+        }
       }
     }
 

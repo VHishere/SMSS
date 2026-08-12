@@ -21,7 +21,11 @@ function StaffStudentsPage() {
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ gradeId: "", classId: "" });
+  const [filters, setFilters] = useState({
+    gradeId: "",
+    classId: "",
+    status: "ACTIVE",
+  });
 
   useEffect(() => {
     staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
@@ -46,6 +50,7 @@ function StaffStudentsPage() {
           schoolYearId: workingSchoolYearId,
           gradeId: filters.gradeId,
           classId: filters.classId,
+          status: filters.status,
         })
         .then((response) => {
           setStudents(response.data);
@@ -56,7 +61,14 @@ function StaffStudentsPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search, filters.gradeId, filters.classId, lookups, workingSchoolYearId]);
+  }, [
+    search,
+    filters.gradeId,
+    filters.classId,
+    filters.status,
+    lookups,
+    workingSchoolYearId,
+  ]);
 
   const rows = useMemo(
     () => students.map((student) => ({ ...student, id: student.studentId })),
@@ -108,6 +120,19 @@ function StaffStudentsPage() {
             {cls.className}
           </option>
         ))}
+      </PrettySelect>
+
+      <PrettySelect
+        className={filterSelectClass}
+        value={filters.status}
+        onChange={(event) =>
+          setFilters((prev) => ({ ...prev, status: event.target.value }))
+        }
+      >
+        <option value="ACTIVE">Đang học</option>
+        <option value="INACTIVE">Ngưng học</option>
+        <option value="TRANSFERRED">Chuyển trường</option>
+        <option value="ALL">Tất cả trạng thái</option>
       </PrettySelect>
     </>
   );
@@ -172,7 +197,10 @@ function StaffStudentsPage() {
             key: "status",
             label: "Trạng thái",
             render: (row) => (
-              <StatusBadge value={formatStatus(row.status)} tone="success" />
+              <StatusBadge
+                value={formatStatus(row.status)}
+                tone={row.status === "ACTIVE" ? "success" : "neutral"}
+              />
             ),
           },
           {

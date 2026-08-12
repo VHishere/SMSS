@@ -86,7 +86,7 @@ async function startSupervisorConversation(userId, target) {
   }
 
   const type = kind === "PARENT" ? "PARENT_TEACHER" : "TEACHER_STUDENT";
-  const existing = await commModel.findDirectConversation(type, userId, otherUserId, studentId ?? null);
+  const existing = await commModel.findOneToOneConversation(userId, otherUserId);
   if (existing) return { conversationId: existing, created: false };
 
   const conversationId = await commModel.createConversation({
@@ -674,7 +674,7 @@ async function startConversationAdmin(req, res) {
     const ok = await commModel.isStaffOrTeacher(targetUserId);
     if (!ok) return res.status(404).json({ success: false, message: "Không thể nhắn tin với người dùng này" });
 
-    const existing = await commModel.findAnyDirectConversation("ADMIN_DIRECT", req.user.userId, targetUserId);
+    const existing = await commModel.findOneToOneConversation(req.user.userId, targetUserId);
     if (existing) {
       return res.json({ success: true, data: { conversationId: existing, created: false } });
     }
@@ -737,8 +737,7 @@ async function startConversationStaff(req, res) {
       });
     }
 
-    const existing = await commModel.findAnyDirectConversation(
-      "ADMIN_DIRECT",
+    const existing = await commModel.findOneToOneConversation(
       req.user.userId,
       targetUserId,
     );

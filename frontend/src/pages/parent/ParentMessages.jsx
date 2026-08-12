@@ -270,10 +270,28 @@ function getTeacherSubtitle(teacher) {
     : base;
 }
 
-function getConversationPreview(conversation) {
+function getMessageSummary(conversation) {
+  if (conversation.lastIsDeleted) return "Tin nhắn đã được thu hồi";
   if (conversation.lastType === "IMAGE") return "Đã gửi một hình ảnh";
   if (conversation.lastType === "FILE") return "Đã gửi một tệp đính kèm";
-  return conversation.lastContent || "Chưa có tin nhắn";
+  return conversation.lastContent || "";
+}
+
+function getConversationPreview(conversation, currentUserId) {
+  const summary = getMessageSummary(conversation);
+  if (!summary) return "Chưa có tin nhắn";
+
+  if (Number(conversation.lastSenderId) === Number(currentUserId)) {
+    return `Bạn: ${summary}`;
+  }
+
+  // Hội thoại 1-1: tên đối phương đã nằm ngay trên dòng tiêu đề, lặp lại ở đây
+  // chỉ tốn chỗ. Nhóm thì cần, vì tiêu đề là tên nhóm chứ không phải tên người.
+  if (conversation.conversationType !== "GROUP") return summary;
+
+  return conversation.lastSenderName
+    ? `${conversation.lastSenderName}: ${summary}`
+    : summary;
 }
 
 function ConversationAvatar({
@@ -511,6 +529,7 @@ function ThreadPanel({
   conversationId,
   selectedConversation,
   onConversationChanged,
+  onConversationRead,
 }) {
   const { user } = useAuth();
 
@@ -580,9 +599,9 @@ function ThreadPanel({
   }, [messageSearch, messages]);
 
   const markConversationRead = useCallback(() => {
-    if (!conversationId) return;
+    if (!conversationId) return Promise.resolve();
 
-    emitSocketWithAck("conversation:read", { conversationId }).catch(
+    return emitSocketWithAck("conversation:read", { conversationId }).catch(
       () => {},
     );
   }, [conversationId]);
@@ -620,7 +639,12 @@ function ThreadPanel({
       });
 
       if (Number(message.senderId) !== Number(user?.userId)) {
-        markConversationRead();
+        // Đang mở hội thoại thì tin đến cũng là đã đọc. Phải đợi server ghi nhận
+        // xong mới làm mới danh sách, nếu không danh sách đọc trước và badge
+        // chưa đọc lại hiện lên.
+        onConversationRead?.(conversationId);
+        markConversationRead().finally(() => onConversationChanged?.());
+        return;
       }
 
       onConversationChanged?.();
@@ -748,6 +772,7 @@ function ThreadPanel({
     conversationId,
     markConversationRead,
     onConversationChanged,
+    onConversationRead,
     setData,
     user?.userId,
   ]);
@@ -759,10 +784,14 @@ function ThreadPanel({
       scrollContainerRef.current.scrollHeight;
   }, [messages.length, conversationId, messageSearch]);
 
+  // Mở hội thoại là đã đọc. getThread đã dời mốc last_read_at ở server, nên ở
+  // đây chỉ cần báo "đã xem" cho người kia và xoá badge chưa đọc ở danh sách bên
+  // trái — danh sách chỉ tải lại theo refreshKey nên không tự sạch.
   useEffect(() => {
     if (!conversationId || loading || error) return;
     markConversationRead();
-  }, [conversationId, error, loading, markConversationRead]);
+    onConversationRead?.(conversationId);
+  }, [conversationId, error, loading, markConversationRead, onConversationRead]);
 
   function handleContentChange(event) {
     const nextContent = event.target.value.slice(0, MAX_MESSAGE_LENGTH);
@@ -1165,6 +1194,8 @@ function ThreadPanel({
 }
 
 function ConversationItem({ conversation, active, onClick }) {
+  const { user } = useAuth();
+
   const roleLabel =
     conversation.conversationType === "GROUP"
       ? "Nhóm"
@@ -1211,7 +1242,7 @@ function ConversationItem({ conversation, active, onClick }) {
                 : "text-slate-500"
             }`}
           >
-            {getConversationPreview(conversation)}
+            {getConversationPreview(conversation, user?.userId)}
           </p>
 
           {Number(conversation.unreadCount) > 0 && (
@@ -1402,6 +1433,32 @@ function ParentMessages() {
 
   const refreshConversations = useCallback(() => {
     setRefreshKey((key) => key + 1);
+  }, []);
+
+  // Trả về đúng state cũ khi không có gì thay đổi — effect đánh dấu đã đọc chạy
+  // lại mỗi lần thread tải xong, tạo mảng mới mỗi lần sẽ render lại vô ích.
+  const markConversationReadLocally = useCallback((conversationId) => {
+    if (!conversationId) return;
+
+    const isTarget = (conversation) =>
+      Number(conversation.conversationId) === Number(conversationId) &&
+      Number(conversation.unreadCount) > 0;
+
+    setConversations((current) =>
+      current.some(isTarget)
+        ? current.map((conversation) =>
+          isTarget(conversation)
+            ? { ...conversation, unreadCount: 0 }
+            : conversation,
+        )
+        : current,
+    );
+
+    setSelectedConversation((current) =>
+      current && isTarget(current)
+        ? { ...current, unreadCount: 0 }
+        : current,
+    );
   }, []);
 
   useEffect(() => {
@@ -1595,6 +1652,8 @@ function ParentMessages() {
   function openConversation(conversation) {
     setActiveConversationId(conversation.conversationId);
     setSelectedConversation(conversation);
+    // Xoá badge ngay khi bấm, không đợi thread tải xong.
+    markConversationReadLocally(conversation.conversationId);
   }
 
   function openGroupConversation(group) {
@@ -1741,6 +1800,7 @@ function ParentMessages() {
               conversationId={activeConversationId}
               selectedConversation={selectedConversation}
               onConversationChanged={refreshConversations}
+              onConversationRead={markConversationReadLocally}
             />
           </div>
 

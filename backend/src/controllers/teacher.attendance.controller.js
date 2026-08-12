@@ -1,14 +1,9 @@
 const teacherModel    = require("../models/teacher.model");
 const attendanceModel = require("../models/attendance.model");
 const feedbackModel   = require("../models/feedback.model");
+const { toIsoDate, todayIso } = require("../utils/date");
 
 const HOURS_48_MS = 48 * 60 * 60 * 1000;
-
-function todayIso() {
-  const now = new Date();
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
 
 async function resolveTeacher(userId, classId) {
   const profile = await teacherModel.findProfileByUserId(userId);
@@ -22,7 +17,7 @@ async function resolveTeacher(userId, classId) {
 async function getAttendanceSheet(req, res) {
   try {
     const classId = parseInt(req.params.classId, 10);
-    const date    = req.query.date || new Date().toISOString().split("T")[0];
+    const date    = req.query.date || todayIso();
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return res.status(400).json({
@@ -105,10 +100,7 @@ async function submitAttendance(req, res) {
       return res.status(400).json({ success: false, message: "Ngày không hợp lệ (YYYY-MM-DD)" });
     }
 
-    const _p = (n) => String(n).padStart(2, "0");
-    const _now = new Date();
-    const _today = `${_now.getFullYear()}-${_p(_now.getMonth() + 1)}-${_p(_now.getDate())}`;
-    if (date > _today) {
+    if (date > todayIso()) {
       return res.status(400).json({ success: false, message: "Không thể điểm danh cho ngày trong tương lai" });
     }
 
@@ -234,7 +226,7 @@ async function updateAttendanceRecord(req, res) {
 // GET /teachers/attendance/periods?date=YYYY-MM-DD — các tiết GV dạy trong ngày
 async function getMyPeriods(req, res) {
   try {
-    const date = req.query.date || new Date().toISOString().split("T")[0];
+    const date = req.query.date || todayIso();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return res.status(400).json({ success: false, message: "Định dạng ngày không hợp lệ (YYYY-MM-DD)" });
     }
@@ -253,7 +245,7 @@ async function getMyPeriods(req, res) {
 async function getPeriodSheet(req, res) {
   try {
     const timetableId = parseInt(req.params.timetableId, 10);
-    const date = req.query.date || new Date().toISOString().split("T")[0];
+    const date = req.query.date || todayIso();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return res.status(400).json({ success: false, message: "Định dạng ngày không hợp lệ" });
     }
@@ -326,10 +318,7 @@ async function submitPeriodAttendance(req, res) {
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return res.status(400).json({ success: false, message: "Ngày không hợp lệ (YYYY-MM-DD)" });
     }
-    const _p = (n) => String(n).padStart(2, "0");
-    const _now = new Date();
-    const _today = `${_now.getFullYear()}-${_p(_now.getMonth() + 1)}-${_p(_now.getDate())}`;
-    if (date > _today) {
+    if (date > todayIso()) {
       return res.status(400).json({ success: false, message: "Không thể điểm danh cho ngày trong tương lai" });
     }
     if (!Array.isArray(records) || records.length === 0) {
@@ -723,10 +712,8 @@ async function getAttendanceAnalytics(req, res) {
     const classId = parseInt(req.params.classId, 10);
 
     const now          = new Date();
-    const defaultEnd   = now.toISOString().split("T")[0];
-    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      .toISOString()
-      .split("T")[0];
+    const defaultEnd   = toIsoDate(now);
+    const defaultStart = toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
 
     const startDate = req.query.startDate || defaultStart;
     const endDate   = req.query.endDate   || defaultEnd;

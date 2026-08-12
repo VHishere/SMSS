@@ -64,11 +64,15 @@ function validateEmail(value) {
   return email;
 }
 
+// Số VN sau chuẩn hóa 2018: 0 + 9 chữ số (10 số), hoặc +84 + 9 chữ số.
+// Regex cũ `^(0|\+84)[0-9]{8,10}$` cho lọt cả số 9 chữ số lẫn 11 chữ số.
 function validateOptionalPhone(value) {
-  const phone = cleanText(value);
+  const phone = cleanText(value).replace(/[\s.-]/g, "");
   if (!phone) return null;
-  if (!/^(0|\+84)[0-9]{8,10}$/.test(phone)) {
-    throw createHttpError("Số điện thoại không hợp lệ");
+  if (!/^(0\d{9}|\+84\d{9})$/.test(phone)) {
+    throw createHttpError(
+      "Số điện thoại không hợp lệ (10 số bắt đầu bằng 0, hoặc +84 và 9 số)",
+    );
   }
   return phone;
 }
@@ -130,6 +134,31 @@ function validatePositiveInt(value, label, options = {}) {
   return number;
 }
 
+// Tên đăng nhập tự sinh (từ mã HS/GV hoặc email phụ huynh) có thể quá ngắn hoặc
+// trùng với tài khoản khác — trước đây staff nhận lỗi "Tên đăng nhập đã tồn tại"
+// dù chưa từng nhập ô nào. Ở đây tự làm sạch và thêm hậu tố cho tới khi trống.
+async function generateUniqueUsername(connection, base) {
+  const normalized = cleanText(base).toLowerCase().replace(/[^a-z0-9._-]/g, "");
+  const seed = (normalized.length >= 3 ? normalized : `${normalized}user`).slice(
+    0,
+    50,
+  );
+
+  for (let suffix = 0; suffix < 1000; suffix += 1) {
+    const candidate =
+      suffix === 0 ? seed : `${seed.slice(0, 50 - String(suffix).length)}${suffix}`;
+    const [rows] = await connection.query(
+      "SELECT user_id FROM user_account WHERE username = ? LIMIT 1",
+      [candidate],
+    );
+    if (!rows[0]) return validateUsername(candidate);
+  }
+
+  throw createHttpError(
+    "Không tạo được tên đăng nhập tự động, vui lòng nhập thủ công",
+  );
+}
+
 async function assertExists(connection, sql, params, message) {
   const [rows] = await connection.query(sql, params);
   if (!rows[0]) {
@@ -150,6 +179,7 @@ module.exports = {
   assertUnique,
   cleanText,
   createHttpError,
+  generateUniqueUsername,
   optionalText,
   requireText,
   validateCode,

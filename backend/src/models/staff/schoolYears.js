@@ -9,6 +9,40 @@ const {
 
 const SCHOOL_YEAR_STATUSES = ["PLANNED", "ACTIVE", "LOCKED", "CLOSED"];
 
+// Tách khoảng thời gian năm học thành 2 học kỳ. Mốc mặc định là giao thừa
+// dương lịch (HK1 kết thúc 31/12, HK2 bắt đầu 01/01) — đúng lịch phổ thông VN.
+// Nếu năm học không vắt qua năm dương lịch thì chia đôi khoảng thời gian.
+function splitSemesterRanges(startDate, endDate) {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const newYearBoundary = new Date(`${end.getFullYear()}-01-01T00:00:00`);
+
+  let firstEnd;
+  let secondStart;
+
+  if (newYearBoundary > start && newYearBoundary <= end) {
+    firstEnd = `${start.getFullYear()}-12-31`;
+    secondStart = `${end.getFullYear()}-01-01`;
+  } else {
+    const midpoint = new Date((start.getTime() + end.getTime()) / 2);
+    const nextDay = new Date(midpoint.getTime());
+    nextDay.setDate(nextDay.getDate() + 1);
+    firstEnd = toIsoDate(midpoint);
+    secondStart = toIsoDate(nextDay);
+  }
+
+  return [
+    { name: "Học kỳ 1", startDate, endDate: firstEnd },
+    { name: "Học kỳ 2", startDate: secondStart, endDate },
+  ];
+}
+
+// Định dạng theo giờ địa phương — toISOString() sẽ lệch 1 ngày ở múi giờ +07.
+function toIsoDate(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 async function validateSchoolYearPayload(connection, data, schoolYearId = null) {
   const yearName = requireText(data.yearName, "tên năm học", 20);
   const match = /^(\d{4})-(\d{4})$/.exec(yearName);
@@ -19,12 +53,19 @@ async function validateSchoolYearPayload(connection, data, schoolYearId = null) 
     );
   }
 
-  const expectedStartDate = `${match[1]}-09-15`;
-  const expectedEndDate = `${match[2]}-05-31`;
+  // Form bắt buộc nhập ngày bắt đầu/kết thúc nên phải dùng đúng giá trị đó;
+  // chỉ suy ra mốc mặc định khi client không gửi (API cũ).
   const { startDate, endDate } = validateDateRange(
-    expectedStartDate,
-    expectedEndDate,
+    data.startDate || `${match[1]}-09-15`,
+    data.endDate || `${match[2]}-05-31`,
   );
+
+  if (startDate.slice(0, 4) !== match[1] || endDate.slice(0, 4) !== match[2]) {
+    throw createHttpError(
+      `Năm học ${yearName} phải bắt đầu trong năm ${match[1]} và kết thúc trong năm ${match[2]}`,
+    );
+  }
+
   const status = validateEnum(
     data.status,
     SCHOOL_YEAR_STATUSES,
@@ -95,20 +136,20 @@ async function createSchoolYear(data) {
     const schoolYearId = result.insertId;
 
     if (data.createSemesters !== false) {
+      const semesters = splitSemesterRanges(payload.startDate, payload.endDate);
       await connection.query(
         `
           INSERT INTO semester (school_year_id, semester_name, start_date, end_date, status)
-          VALUES
-            (?, 'Học kỳ 1', ?, ?, 'ACTIVE'),
-            (?, 'Học kỳ 2', ?, ?, 'ACTIVE')
+          VALUES ?
         `,
         [
-          schoolYearId,
-          payload.startDate,
-          payload.endDate,
-          schoolYearId,
-          payload.startDate,
-          payload.endDate,
+          semesters.map((semester) => [
+            schoolYearId,
+            semester.name,
+            semester.startDate,
+            semester.endDate,
+            "ACTIVE",
+          ]),
         ],
       );
     }
@@ -203,22 +244,38 @@ async function ensureTargetSemesters(connection, targetYear) {
     [targetYear.schoolYearId],
   );
 
-  if (semesters.length > 0) return semesters;
+  // targetYear.startDate/endDate đến từ cột DATE nên có thể là Date object.
+  const ranges = splitSemesterRanges(
+    toIsoDate(new Date(targetYear.startDate)),
+    toIsoDate(new Date(targetYear.endDate)),
+  );
+
+  // Bổ sung học kỳ CÒN THIẾU thay vì bỏ qua khi đã có ít nhất một học kỳ —
+  // trong DB có năm học chỉ tạo được Học kỳ 1 rồi mắc kẹt vĩnh viễn.
+  const existingNames = new Set(
+    semesters.map((semester) =>
+      String(semester.semesterName || "").trim().toLowerCase(),
+    ),
+  );
+  const missing = ranges.filter(
+    (range) => !existingNames.has(range.name.trim().toLowerCase()),
+  );
+
+  if (missing.length === 0) return semesters;
 
   await connection.query(
     `
       INSERT INTO semester (school_year_id, semester_name, start_date, end_date, status)
-      VALUES
-        (?, 'Học kỳ 1', ?, ?, 'ACTIVE'),
-        (?, 'Học kỳ 2', ?, ?, 'ACTIVE')
+      VALUES ?
     `,
     [
-      targetYear.schoolYearId,
-      targetYear.startDate,
-      targetYear.endDate,
-      targetYear.schoolYearId,
-      targetYear.startDate,
-      targetYear.endDate,
+      missing.map((range) => [
+        targetYear.schoolYearId,
+        range.name,
+        range.startDate,
+        range.endDate,
+        "ACTIVE",
+      ]),
     ],
   );
 

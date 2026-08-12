@@ -2,6 +2,7 @@ const express = require("express");
 
 const staffController = require("../controllers/staff.controller");
 const communicationController = require("../controllers/communication.controller");
+const reportController = require("../controllers/report.controller");
 
 const {
   authenticate,
@@ -100,6 +101,46 @@ router.patch(
   authenticate,
   authorize(...staffRoles),
   communicationController.archiveConversation,
+);
+
+// Báo cáo — xem + xuất (Excel/PDF), không có mẫu đã lưu như bên giáo viên.
+// Chỉ STAFF (không mở cho ADMIN): báo cáo là nghiệp vụ của giáo vụ, admin đã
+// được gỡ hoàn toàn khỏi mảng này — cùng cách /me/notifications loại trừ ADMIN.
+const reportRoles = ["STAFF"];
+
+router.get(
+  "/reports/meta",
+  authenticate,
+  authorize(...reportRoles),
+  reportController.getMetaStaff,
+);
+
+router.post(
+  "/reports/generate",
+  authenticate,
+  authorize(...reportRoles),
+  reportController.generateStaff,
+);
+
+router.post(
+  "/reports/export-excel",
+  authenticate,
+  authorize(...reportRoles),
+  reportController.exportExcelStaff,
+);
+
+router.post(
+  "/reports/log-export",
+  authenticate,
+  authorize(...reportRoles),
+  reportController.logExportStaff,
+);
+
+router.get(
+  "/reports/history",
+  authenticate,
+  authorize(...reportRoles),
+  reportController.getHistoryStaff,
 );
 
 // Khảo sát đánh giá giáo viên (HS → GV, ẩn danh) — quản lý tạo + xem tổng hợp

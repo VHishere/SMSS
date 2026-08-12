@@ -257,10 +257,28 @@ function getTeacherSubtitle(teacher) {
     : "Giáo viên";
 }
 
-function getConversationPreview(conversation) {
+function getMessageSummary(conversation) {
+  if (conversation.lastIsDeleted) return "Tin nhắn đã được thu hồi";
   if (conversation.lastType === "IMAGE") return "Đã gửi một hình ảnh";
   if (conversation.lastType === "FILE") return "Đã gửi một tệp đính kèm";
-  return conversation.lastContent || "Chưa có tin nhắn";
+  return conversation.lastContent || "";
+}
+
+function getConversationPreview(conversation, currentUserId) {
+  const summary = getMessageSummary(conversation);
+  if (!summary) return "Chưa có tin nhắn";
+
+  if (Number(conversation.lastSenderId) === Number(currentUserId)) {
+    return `Bạn: ${summary}`;
+  }
+
+  // Hội thoại 1-1: tên đối phương đã nằm ngay trên dòng tiêu đề, lặp lại ở đây
+  // chỉ tốn chỗ. Nhóm thì cần, vì tiêu đề là tên nhóm chứ không phải tên người.
+  if (conversation.conversationType !== "GROUP") return summary;
+
+  return conversation.lastSenderName
+    ? `${conversation.lastSenderName}: ${summary}`
+    : summary;
 }
 
 function ConversationAvatar({
@@ -1155,6 +1173,8 @@ function ThreadPanel({
 }
 
 function ConversationItem({ conversation, active, onClick }) {
+  const { user } = useAuth();
+
   const roleLabel =
     conversation.conversationType === "GROUP"
       ? "Nhóm"
@@ -1201,7 +1221,7 @@ function ConversationItem({ conversation, active, onClick }) {
                 : "text-slate-500"
             }`}
           >
-            {getConversationPreview(conversation)}
+            {getConversationPreview(conversation, user?.userId)}
           </p>
 
           {Number(conversation.unreadCount) > 0 && (

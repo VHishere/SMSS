@@ -145,6 +145,11 @@ function StaffParentsPage() {
               <div>
                 <p className="mb-0 font-semibold">{row.fullName}</p>
                 <p className="mb-0 text-xs text-slate-500">{row.email}</p>
+                {row.studentCount > 1 && (
+                  <p className="mb-0 text-xs font-medium text-[#F27123]">
+                    {row.studentCount} con
+                  </p>
+                )}
               </div>
             ),
           },
@@ -154,21 +159,40 @@ function StaffParentsPage() {
             render: (row) => formatRelationship(row.relationship),
           },
           {
-            key: "studentName",
+            // Mỗi con một dòng, khớp thứ tự với cột "Lớp" bên cạnh.
+            key: "students",
             label: "Học sinh",
-            render: (row) => (
-              <div>
-                <p className="mb-0 font-semibold">{row.studentName || "-"}</p>
-                <p className="mb-0 text-xs text-slate-500">
-                  {row.studentCode || "-"}
-                </p>
-              </div>
-            ),
+            render: (row) =>
+              row.students?.length ? (
+                <div className="flex flex-col gap-1">
+                  {row.students.map((student) => (
+                    <p key={student.studentId} className="mb-0 font-semibold">
+                      {student.studentName}{" "}
+                      <span className="text-xs font-normal text-slate-500">
+                        {student.studentCode}
+                      </span>
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                "-"
+              ),
           },
           {
             key: "className",
             label: "Lớp",
-            render: (row) => row.className || "Chưa xếp lớp",
+            render: (row) =>
+              row.students?.length ? (
+                <div className="flex flex-col gap-1">
+                  {row.students.map((student) => (
+                    <p key={student.studentId} className="mb-0">
+                      {student.className || "Chưa xếp lớp"}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                "Chưa xếp lớp"
+              ),
           },
           { key: "phone", label: "Điện thoại" },
           {

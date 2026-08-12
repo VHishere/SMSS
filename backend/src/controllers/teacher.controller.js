@@ -1,5 +1,6 @@
 const teacherModel = require("../models/teacher.model");
 const notificationModel = require("../models/notification.model");
+const { toIsoDate } = require("../utils/date");
 
 async function getMyProfile(req, res) {
   try {
@@ -63,13 +64,13 @@ async function getDashboardSummary(req, res) {
     }
 
     const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = toIsoDate(now);
 
     const dayOfWeek = now.getDay();
     const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const monday = new Date(now);
     monday.setDate(now.getDate() - daysFromMonday);
-    const mondayStr = monday.toISOString().split("T")[0];
+    const mondayStr = toIsoDate(monday);
 
     const [
       todayAttendance,

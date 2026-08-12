@@ -1130,11 +1130,9 @@ async function startMyTeacherConversation(req, res) {
 
     const { context } = resolved;
 
-    const existing = await commModel.findDirectConversation(
-      "TEACHER_STUDENT",
+    const existing = await commModel.findOneToOneConversation(
       req.user.userId,
       teacherUserId,
-      context.studentId,
     );
 
     if (existing) {

@@ -178,12 +178,9 @@ function EventsPage() {
 
   return (
     <DashboardShell user={headerUser} menuItems={dashboardNavigation.TEACHER} sidebarFooterLabel="Sự kiện sắp tới" sidebarFooterValue={String(upcoming)}>
-      {/* Header — KHÔNG có nút tạo sự kiện: tạo sự kiện là nghiệp vụ của giáo vụ
-          (staff). Giáo viên chỉ theo dõi và quản lý người tham dự / điểm danh. */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Sự kiện</h2>
-          <p className="mt-1 text-sm text-slate-500">Sự kiện do giáo vụ tổ chức — bạn theo dõi và quản lý người tham dự.</p>
         </div>
 
         <button type="button" onClick={() => setRefresh((k) => k + 1)}
@@ -259,7 +256,7 @@ function EventsPage() {
                   <div className="flex gap-2">
                     <button type="button" onClick={() => navigate(`/teacher/events/${featured.eventId}`)}
                       className="flex-grow rounded-full px-4 py-2 text-sm font-bold text-white transition-colors hover:opacity-90"
-                      style={{ backgroundColor: C.deepBlue }}>Sửa chi tiết</button>
+                      style={{ backgroundColor: C.deepBlue }}>Xem chi tiết</button>
                     <button type="button" onClick={shareLink} title={copied ? "Đã copy link" : "Copy link"}
                       className="rounded-full border p-2 transition-colors hover:bg-[#F3F3F3]" style={{ borderColor: C.border, color: copied ? C.orange : C.muted }}>
                       <Ms name={copied ? "check" : "share"} />

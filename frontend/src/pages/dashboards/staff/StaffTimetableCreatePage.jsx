@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 
@@ -15,15 +15,6 @@ import {
   setStaffWorkingSchoolYearId,
 } from "../../../utils/staffSchoolYear";
 
-const WEEK_DAYS = [
-  { value: 2, label: "Thứ 2" },
-  { value: 3, label: "Thứ 3" },
-  { value: 4, label: "Thứ 4" },
-  { value: 5, label: "Thứ 5" },
-  { value: 6, label: "Thứ 6" },
-  { value: 7, label: "Thứ 7" },
-];
-
 const PERIODS = [
   { periodNo: 1, startTime: "07:30", endTime: "08:15" },
   { periodNo: 2, startTime: "08:20", endTime: "09:05" },
@@ -34,6 +25,24 @@ const PERIODS = [
   { periodNo: 7, startTime: "15:25", endTime: "16:10" },
   { periodNo: 8, startTime: "16:15", endTime: "17:00" },
 ];
+
+function todayInputValue() {
+  const date = new Date();
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function getDayLabel(isoDate) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(isoDate || ""));
+  if (!match) return "";
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const day = date.getDay();
+  if (day === 0) return "Chủ nhật";
+  return `Thứ ${day + 1}`;
+}
 
 function StaffTimetableCreatePage() {
   const navigate = useNavigate();
@@ -51,7 +60,8 @@ function StaffTimetableCreatePage() {
     schoolYearId: searchParams.get("schoolYearId") || "",
     gradeId: searchParams.get("gradeId") || "",
     classId: searchParams.get("classId") || "",
-    dayOfWeek: searchParams.get("dayOfWeek") || "2",
+    lessonDate: searchParams.get("lessonDate") || todayInputValue(),
+    scheduleMode: "SINGLE_DAY",
     periodNo: searchParams.get("periodNo") || "1",
     subjectId: "",
     teacherMode: hasClassQuery ? "SELECTED_TEACHER" : "ASSIGNED_TEACHER",
@@ -236,6 +246,7 @@ function StaffTimetableCreatePage() {
       schoolYearId: form.schoolYearId,
       gradeId: form.gradeId,
       classId: form.classId,
+      selectedDate: form.lessonDate,
     });
     [...query.entries()].forEach(([key, value]) => {
       if (!value) query.delete(key);
@@ -255,7 +266,8 @@ function StaffTimetableCreatePage() {
         schoolYearId: Number(form.schoolYearId),
         gradeId: form.gradeId ? Number(form.gradeId) : null,
         classId: form.classId ? Number(form.classId) : null,
-        dayOfWeek: Number(form.dayOfWeek),
+        lessonDate: form.lessonDate,
+        scheduleMode: form.scheduleMode,
         periodNo: Number(form.periodNo),
         subjectId: Number(form.subjectId),
         teacherId:
@@ -378,18 +390,29 @@ function StaffTimetableCreatePage() {
             </PrettySelect>
           </StaffField>
         )}
+        <StaffField label="Ngày học">
+          <input
+            type="date"
+            className={inputClass}
+            value={form.lessonDate}
+            onChange={(event) => updateForm("lessonDate", event.target.value)}
+            required
+          />
+          {form.lessonDate && (
+            <p className="mt-2 text-sm font-semibold text-[#08509F]">
+              {getDayLabel(form.lessonDate)}
+            </p>
+          )}
+        </StaffField>
 
-        <StaffField label="Thứ">
+        <StaffField label="Kiểu áp dụng">
           <PrettySelect
             className={inputClass}
-            value={form.dayOfWeek}
-            onChange={(event) => updateForm("dayOfWeek", event.target.value)}
+            value={form.scheduleMode}
+            onChange={(event) => updateForm("scheduleMode", event.target.value)}
           >
-            {WEEK_DAYS.map((day) => (
-              <option key={day.value} value={day.value}>
-                {day.label}
-              </option>
-            ))}
+            <option value="SINGLE_DAY">Chỉ ngày này</option>
+            <option value="SCHOOL_YEAR">Từ ngày này đến hết năm học</option>
           </PrettySelect>
         </StaffField>
 

@@ -324,7 +324,7 @@ function RateFormModal({ rate, category, lookups, onClose, onSaved }) {
 // UC-11: Configure Fee Rates — folded into this same page: selecting a
 // category reveals a scoped panel to manage that category's rates by
 // academic year, semester, grade, class, and billing cycle.
-function AdminFeeCategoriesPage() {
+function AdminFeeCategoriesPage({ embedded = false }) {
   const [categories, setCategories] = useState([]);
   const [filters, setFilters] = useState({ search: "", status: "" });
   const [loading, setLoading] = useState(true);
@@ -480,9 +480,30 @@ function AdminFeeCategoriesPage() {
 
   return (
     <>
-      <StaffPageHeader
-        title="Loại phí"
-        action={
+      {!embedded && (
+        <StaffPageHeader
+          title="Loại phí"
+          action={
+            <button
+              type="button"
+              onClick={() => setShowCreateCategory(true)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline hover:bg-[#E55C0A] sm:w-auto"
+            >
+              <FiPlus size={16} />
+              Tạo loại phí
+            </button>
+          }
+        />
+      )}
+
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
+      {embedded && (
+        <div className="mb-4 flex justify-end">
           <button
             type="button"
             onClick={() => setShowCreateCategory(true)}
@@ -491,12 +512,6 @@ function AdminFeeCategoriesPage() {
             <FiPlus size={16} />
             Tạo loại phí
           </button>
-        }
-      />
-
-      {error && (
-        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-          {error}
         </div>
       )}
 

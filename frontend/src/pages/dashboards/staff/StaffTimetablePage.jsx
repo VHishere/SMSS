@@ -45,33 +45,40 @@ function toDateInputValue(date) {
   ].join("-");
 }
 
+function parseLocalDate(value) {
+  if (value instanceof Date) {
+    const date = new Date(value);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+
+  const date = new Date(value || Date.now());
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 function formatDate(date) {
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-  }).format(date);
+  return [
+    String(date.getDate()).padStart(2, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+  ].join("/");
 }
 
 function getMonday(value = new Date()) {
-  const date = new Date(value);
+  const date = parseLocalDate(value);
   const day = date.getDay();
   date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
   date.setHours(0, 0, 0, 0);
   return date;
 }
 
-function getSchoolYearFirstWeek(schoolYear) {
-  const startYear = Number(String(schoolYear?.yearName || "").slice(0, 4));
-
-  if (Number.isInteger(startYear) && startYear > 1900) {
-    return getMonday(new Date(startYear, 8, 15));
-  }
-
-  if (schoolYear?.startDate) {
-    return getMonday(schoolYear.startDate);
-  }
-
-  return getMonday();
+function getPreferredDateForSchoolYear() {
+  return parseLocalDate();
 }
 
 function addDays(date, amount) {
@@ -86,6 +93,7 @@ function slotKey(dayOfWeek, periodNo) {
 
 function StaffTimetablePage() {
   const [searchParams] = useSearchParams();
+  const selectedDateParam = searchParams.get("selectedDate") || "";
   const [lookups, setLookups] = useState({
     schoolYears: [],
     grades: [],
@@ -98,8 +106,12 @@ function StaffTimetablePage() {
     gradeId: searchParams.get("gradeId") || "",
     classId: searchParams.get("classId") || "",
   });
-  const [weekStart, setWeekStart] = useState(getMonday());
+  const [selectedDate, setSelectedDate] = useState(
+    selectedDateParam ? parseLocalDate(selectedDateParam) : parseLocalDate(),
+  );
   const [error, setError] = useState("");
+  const weekStart = useMemo(() => getMonday(selectedDate), [selectedDate]);
+  const weekEnd = useMemo(() => addDays(weekStart, 5), [weekStart]);
 
   useEffect(() => {
     staffApi
@@ -107,8 +119,12 @@ function StaffTimetablePage() {
       .then((res) => {
         setLookups(res.data);
         if (!filters.schoolYearId) {
+          const activeYear = (res.data.schoolYears || []).find(
+            (year) => year.isActive,
+          );
           const workingYear = resolveStaffWorkingSchoolYear(
             res.data.schoolYears || [],
+            activeYear?.schoolYearId,
           );
           if (workingYear) {
             const workingYearId = String(workingYear.schoolYearId);
@@ -158,7 +174,10 @@ function StaffTimetablePage() {
 
     Promise.all([
       staffApi.getClass(filters.classId),
-      staffApi.getClassTimetable(filters.classId),
+      staffApi.getClassTimetable(filters.classId, {
+        startDate: toDateInputValue(weekStart),
+        endDate: toDateInputValue(weekEnd),
+      }),
     ])
       .then(([classRes, timetableRes]) => {
         setClassInfo(classRes.data);
@@ -166,14 +185,17 @@ function StaffTimetablePage() {
         setError("");
       })
       .catch((err) => setError(err.message));
-  }, [filters.classId]);
+  }, [filters.classId, weekEnd, weekStart]);
 
   useEffect(() => {
     if (!filters.classId) return;
 
     Promise.all([
       staffApi.getClass(filters.classId),
-      staffApi.getClassTimetable(filters.classId),
+      staffApi.getClassTimetable(filters.classId, {
+        startDate: toDateInputValue(weekStart),
+        endDate: toDateInputValue(weekEnd),
+      }),
     ])
       .then(([classRes, timetableRes]) => {
         setClassInfo(classRes.data);
@@ -181,7 +203,7 @@ function StaffTimetablePage() {
         setError("");
       })
       .catch((err) => setError(err.message));
-  }, [filters.classId]);
+  }, [filters.classId, weekEnd, weekStart]);
 
   const selectedYear = useMemo(
     () =>
@@ -193,9 +215,13 @@ function StaffTimetablePage() {
 
   useEffect(() => {
     if (selectedYear) {
-      setWeekStart(getSchoolYearFirstWeek(selectedYear));
+      setSelectedDate(
+        selectedDateParam
+          ? parseLocalDate(selectedDateParam)
+          : getPreferredDateForSchoolYear(),
+      );
     }
-  }, [selectedYear?.schoolYearId]);
+  }, [selectedDateParam, selectedYear?.schoolYearId]);
 
   const weekDays = useMemo(
     () =>
@@ -235,6 +261,8 @@ function StaffTimetablePage() {
       schoolYearId: filters.schoolYearId,
       gradeId: filters.gradeId,
       classId: filters.classId,
+      lessonDate: toDateInputValue(selectedDate),
+      selectedDate: toDateInputValue(selectedDate),
       ...extra,
     });
     [...query.entries()].forEach(([key, value]) => {
@@ -248,8 +276,10 @@ function StaffTimetablePage() {
 
     staffApi
       .deleteClassTimetableLesson(filters.classId, lesson.timetableId)
-      .then((res) => {
-        setTimetable(res.data || []);
+      .then(() => {
+        setTimetable((prev) =>
+          prev.filter((item) => item.timetableId !== lesson.timetableId),
+        );
       })
       .catch((err) => setError(err.message));
   };
@@ -331,7 +361,7 @@ function StaffTimetablePage() {
           <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-2">
             <button
               type="button"
-              onClick={() => setWeekStart((prev) => addDays(prev, -7))}
+              onClick={() => setSelectedDate((prev) => addDays(prev, -7))}
               className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#08509F] transition hover:bg-blue-50"
               title="Tuần trước"
             >
@@ -341,13 +371,15 @@ function StaffTimetablePage() {
               <input
                 type="date"
                 className={inputClass}
-                value={toDateInputValue(weekStart)}
-                onChange={(event) => setWeekStart(getMonday(event.target.value))}
+                value={toDateInputValue(selectedDate)}
+                onChange={(event) =>
+                  setSelectedDate(parseLocalDate(event.target.value))
+                }
               />
             </StaffField>
             <button
               type="button"
-              onClick={() => setWeekStart((prev) => addDays(prev, 7))}
+              onClick={() => setSelectedDate((prev) => addDays(prev, 7))}
               className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#08509F] transition hover:bg-blue-50"
               title="Tuần sau"
             >
@@ -449,7 +481,8 @@ function StaffTimetablePage() {
                         ) : (
                           <Link
                             to={buildCreateLink({
-                              dayOfWeek: String(day.value),
+                              lessonDate: toDateInputValue(day.date),
+                              selectedDate: toDateInputValue(day.date),
                               periodNo: String(period.periodNo),
                             })}
                             className="flex min-h-28 w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/75 text-sm font-semibold text-slate-400 no-underline transition hover:border-[#F27123] hover:bg-[#FFF7F2] hover:text-[#F27123]"

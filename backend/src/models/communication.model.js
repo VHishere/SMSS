@@ -16,7 +16,12 @@ async function studentAccessibleByTeacher(teacherId, studentId) {
     `SELECT 1 AS ok
      FROM teacher_class tc
      INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ? AND ce.student_id = ?
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, studentId],
   );
@@ -29,9 +34,14 @@ async function parentAccessibleByTeacher(teacherId, parentUserId) {
     `SELECT 1 AS ok
      FROM teacher_class tc
      INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      INNER JOIN student_parent sp ON sp.student_id = ce.student_id
      INNER JOIN parent_profile pp ON pp.parent_id = sp.parent_id
      WHERE tc.teacher_id = ? AND pp.user_id = ?
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, parentUserId],
   );
@@ -47,6 +57,8 @@ async function teacherAccessibleByParent(parentUserId, teacherUserId) {
      INNER JOIN student s ON s.student_id = sp.student_id AND s.status = 'ACTIVE'
      INNER JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
      INNER JOIN teacher_class tc ON tc.class_id = ce.class_id AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+     INNER JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
      INNER JOIN teacher t ON t.teacher_id = tc.teacher_id
      WHERE pp.user_id = ? AND t.user_id = ?
      LIMIT 1`,
@@ -57,7 +69,16 @@ async function teacherAccessibleByParent(parentUserId, teacherUserId) {
 
 async function isTeacherForClass(teacherId, classId) {
   const [[row]] = await pool.query(
-    `SELECT 1 AS ok FROM teacher_class WHERE teacher_id = ? AND class_id = ? LIMIT 1`,
+    `SELECT 1 AS ok
+     FROM teacher_class tc
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+     WHERE tc.teacher_id = ?
+       AND tc.class_id = ?
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+     LIMIT 1`,
     [teacherId, classId],
   );
   return Boolean(row);
@@ -149,8 +170,11 @@ async function findStudentContacts(teacherId) {
      INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
      INNER JOIN student s ON s.student_id = ce.student_id AND s.status = 'ACTIVE'
      INNER JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
-     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ?
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      ORDER BY sc.class_name, ua.full_name`,
     [teacherId],
   );
@@ -171,11 +195,14 @@ async function findParentContacts(teacherId) {
      INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
      INNER JOIN student s ON s.student_id = ce.student_id AND s.status = 'ACTIVE'
      INNER JOIN user_account sua ON sua.user_id = s.user_id
-     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      INNER JOIN student_parent sp ON sp.student_id = s.student_id
      INNER JOIN parent_profile pp ON pp.parent_id = sp.parent_id
      INNER JOIN user_account pua ON pua.user_id = pp.user_id AND pua.status = 'ACTIVE'
      WHERE tc.teacher_id = ?
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      ORDER BY sc.class_name, sua.full_name`,
     [teacherId],
   );
@@ -577,6 +604,12 @@ async function findClassGroupParticipants(classId) {
       INNER JOIN user_account ua
         ON ua.user_id = s.user_id
         AND ua.status = 'ACTIVE'
+      INNER JOIN school_class sc
+        ON sc.class_id = ce.class_id
+        AND sc.status = 'ACTIVE'
+      INNER JOIN school_year sy
+        ON sy.school_year_id = sc.school_year_id
+        AND sy.is_active = 1
       WHERE ce.class_id = ?
         AND ce.status = 'ACTIVE'
 
@@ -591,6 +624,12 @@ async function findClassGroupParticipants(classId) {
       INNER JOIN user_account ua
         ON ua.user_id = t.user_id
         AND ua.status = 'ACTIVE'
+      INNER JOIN school_class sc
+        ON sc.class_id = tc.class_id
+        AND sc.status = 'ACTIVE'
+      INNER JOIN school_year sy
+        ON sy.school_year_id = sc.school_year_id
+        AND sy.is_active = 1
       WHERE tc.class_id = ?
         AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
     `,
@@ -745,6 +784,12 @@ async function findParentClassGroupParticipants(classId) {
       INNER JOIN user_account ua
         ON ua.user_id = pp.user_id
         AND ua.status = 'ACTIVE'
+      INNER JOIN school_class sc
+        ON sc.class_id = ce.class_id
+        AND sc.status = 'ACTIVE'
+      INNER JOIN school_year sy
+        ON sy.school_year_id = sc.school_year_id
+        AND sy.is_active = 1
       WHERE ce.class_id = ?
         AND ce.status = 'ACTIVE'
 
@@ -759,6 +804,12 @@ async function findParentClassGroupParticipants(classId) {
       INNER JOIN user_account ua
         ON ua.user_id = t.user_id
         AND ua.status = 'ACTIVE'
+      INNER JOIN school_class sc
+        ON sc.class_id = tc.class_id
+        AND sc.status = 'ACTIVE'
+      INNER JOIN school_year sy
+        ON sy.school_year_id = sc.school_year_id
+        AND sy.is_active = 1
       WHERE tc.class_id = ?
         AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
     `,

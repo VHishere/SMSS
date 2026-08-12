@@ -163,6 +163,10 @@ function EditUserModal({ user, roles, students, onClose, onSaved }) {
   };
 
   const handleSave = async () => {
+    if (!window.confirm(`Xác nhận cập nhật vai trò cho "${user.fullName}"?`)) {
+      return;
+    }
+
     setSaving(true);
     setError("");
 

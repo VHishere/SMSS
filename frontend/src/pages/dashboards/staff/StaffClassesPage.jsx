@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { FiEye } from "react-icons/fi";
+import { FiArrowLeft, FiEye, FiTrash2 } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
@@ -26,6 +26,10 @@ const emptyForm = {
   roomName: "",
 };
 
+function normalizeClassName(value) {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase();
+}
+
 function StaffClassesPage() {
   const [classes, setClasses] = useState([]);
   const [lookups, setLookups] = useState(null);
@@ -34,6 +38,7 @@ function StaffClassesPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [filters, setFilters] = useState({ schoolYearId: "", gradeId: "" });
   const [form, setForm] = useState(emptyForm);
 
@@ -94,11 +99,29 @@ function StaffClassesPage() {
 
   const handleCreate = (event) => {
     event.preventDefault();
+    const className = normalizeClassName(form.className);
+    const duplicateClass = classes.some(
+      (item) =>
+        String(item.schoolYearId) === String(form.schoolYearId) &&
+        normalizeClassName(item.className) === className,
+    );
+
+    if (!className) {
+      setError("Vui lòng nhập tên lớp");
+      return;
+    }
+
+    if (duplicateClass) {
+      setError("Lớp học đã tồn tại trong năm học này");
+      return;
+    }
+
     setSaving(true);
 
     staffApi
       .createClass({
         ...form,
+        className,
         gradeId: Number(form.gradeId),
         schoolYearId: Number(form.schoolYearId),
       })
@@ -112,6 +135,34 @@ function StaffClassesPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setSaving(false));
+  };
+
+  const handleDelete = (row) => {
+    const hasStudents = Number(row.studentCount || 0) > 0;
+    const hasTeachers = Number(row.teacherCount || 0) > 0;
+    const hasTimetable = Number(row.timetableCount || 0) > 0;
+
+    if (hasStudents || hasTeachers) {
+      setError("Chỉ được xóa lớp sau khi đã gỡ hết học sinh và giáo viên");
+      return;
+    }
+
+    if (hasTimetable) {
+      setError("Chỉ được xóa lớp sau khi đã xóa hết lịch học của lớp");
+      return;
+    }
+
+    if (!window.confirm(`Xóa lớp ${row.className}?`)) return;
+
+    setDeletingId(row.classId);
+    staffApi
+      .deleteClass(row.classId)
+      .then(() => {
+        setError("");
+        loadClasses();
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setDeletingId(null));
   };
 
   const filterToolbar = (
@@ -157,9 +208,9 @@ function StaffClassesPage() {
           <button
             type="button"
             onClick={() => setShowForm((prev) => !prev)}
-            className={primaryActionClass}
+            className={showForm ? "inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-[#08509F] transition hover:border-[#08509F] hover:bg-blue-50" : primaryActionClass}
           >
-            + Tạo lớp học
+            {showForm ? <><FiArrowLeft size={16} /> Quay lại danh sách</> : "+ Tạo lớp học"}
           </button>
         }
       />
@@ -267,17 +318,39 @@ function StaffClassesPage() {
             render: (row) => row.teacherCount || 0,
           },
           {
-            key: "detail",
-            label: "Chi tiết",
-            render: (row) => (
-              <Link
-                to={`/staff/classes/${row.classId}`}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#DFC0B2] bg-white text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50 hover:text-[#08509F]"
-                title="Xem chi tiết"
-              >
-                <FiEye size={18} />
-              </Link>
-            ),
+            key: "actions",
+            label: "Thao tác",
+            render: (row) => {
+              const cannotDelete =
+                Number(row.studentCount || 0) > 0 ||
+                Number(row.teacherCount || 0) > 0 ||
+                Number(row.timetableCount || 0) > 0;
+              const deleteTitle = cannotDelete
+                ? "Chỉ xóa được khi lớp không còn học sinh, giáo viên và lịch học"
+                : "Xóa lớp";
+
+              return (
+                <div className="flex items-center justify-center gap-2">
+                  <Link
+                    to={`/staff/classes/${row.classId}`}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#DFC0B2] bg-white text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50 hover:text-[#08509F]"
+                    title="Xem chi tiết"
+                  >
+                    <FiEye size={18} />
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(row)}
+                    disabled={cannotDelete || deletingId === row.classId}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-red-100 bg-white text-red-600 transition hover:border-red-300 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    title={deleteTitle}
+                  >
+                    <FiTrash2 size={17} />
+                  </button>
+                </div>
+              );
+            },
           },
         ]}
         rows={rows}

@@ -314,6 +314,13 @@ router.put(
   staffController.updateClass,
 );
 
+router.delete(
+  "/classes/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.deleteClass,
+);
+
 router.post(
   "/classes/:id/students",
   authenticate,

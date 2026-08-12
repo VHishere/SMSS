@@ -119,7 +119,6 @@ function StaffOverviewPage() {
       <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <StaffDataTable
           title="Lớp học"
-          description="Danh sách lớp theo năm học hiện tại"
           showSearch={false}
           searchValue=""
           onSearchChange={() => {}}
@@ -140,7 +139,6 @@ function StaffOverviewPage() {
 
         <StaffDataTable
           title="Học sinh mới nhất"
-          description="Hồ sơ học sinh trong hệ thống"
           showSearch={false}
           searchValue=""
           onSearchChange={() => {}}
@@ -163,7 +161,6 @@ function StaffOverviewPage() {
 
       <StaffDataTable
         title="Phụ huynh liên kết"
-        description="Thông tin phụ huynh và học sinh tương ứng"
         showSearch={false}
         searchValue=""
         onSearchChange={() => {}}

@@ -26,7 +26,7 @@ const emptyForm = {
 
 const statusLabels = {
   PLANNED: "Dự kiến",
-  ACTIVE: "Đang hoạt động",
+  ACTIVE: "Có thể thao tác",
   LOCKED: "Đã khóa",
   CLOSED: "Đã đóng",
 };
@@ -98,10 +98,16 @@ function StaffSchoolYearsPage() {
       .initializeSchoolYear(year.schoolYearId)
       .then((res) => {
         const created = res.data?.created || {};
+        const createdTotal =
+          (created.classes || 0) +
+          (created.curriculumItems || 0) +
+          (created.studySessions || 0);
         setWorkingSchoolYearId(yearId);
         setStaffWorkingSchoolYearId(yearId);
         setNotice(
-          `Đã chọn năm học ${year.yearName}. Dữ liệu nền đã sẵn sàng: ${created.classes || 0} lớp, ${created.curriculumItems || 0} chương trình học, ${created.studySessions || 0} buổi học.`,
+          createdTotal > 0
+            ? `Đã chọn năm học ${year.yearName}. Đã chuẩn bị thêm: ${created.classes || 0} lớp, ${created.curriculumItems || 0} chương trình học, ${created.studySessions || 0} buổi học.`
+            : `Đã chọn năm học ${year.yearName}. Không tạo thêm dữ liệu mới vì dữ liệu nền đã có sẵn hoặc chưa có nguồn để sao chép.`,
         );
         loadSchoolYears();
       })
@@ -208,7 +214,7 @@ function StaffSchoolYearsPage() {
                 }
               >
                 <option value="PLANNED">Dự kiến</option>
-                <option value="ACTIVE">Đang hoạt động</option>
+                <option value="ACTIVE">Có thể thao tác</option>
                 <option value="LOCKED">Đã khóa</option>
                 <option value="CLOSED">Đã đóng</option>
               </PrettySelect>
@@ -235,11 +241,11 @@ function StaffSchoolYearsPage() {
             render: (row) => (
               <div className="flex flex-wrap justify-center gap-2">
                 <StatusBadge
-                  value={row.isActive ? "User đang xem" : statusLabels[row.status] || row.status}
+                  value={row.isActive ? "Đang áp dụng cho người dùng" : statusLabels[row.status] || row.status}
                   tone={row.isActive ? "success" : "info"}
                 />
                 {workingSchoolYearId === String(row.schoolYearId) && (
-                  <StatusBadge value="Staff đang thao tác" tone="warning" />
+                  <StatusBadge value="Staff đang chọn thao tác" tone="warning" />
                 )}
               </div>
             ),

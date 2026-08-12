@@ -91,6 +91,7 @@ function StaffStudentFormPage() {
     const payload = {
       ...form,
       classId: form.classId ? Number(form.classId) : null,
+      schoolYearId: workingSchoolYearId ? Number(workingSchoolYearId) : null,
     };
 
     try {

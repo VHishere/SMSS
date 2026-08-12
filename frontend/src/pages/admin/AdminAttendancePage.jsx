@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import StaffPageHeader from "../../components/staff/StaffPageHeader";
@@ -20,6 +20,7 @@ function Ms({ name, className = "", style, fill = false }) {
 
 const TABS = [
   { key: "analytics", label: "Lịch sử & Thống kê", ms: "insights" },
+  { key: "history", label: "Lịch sử điểm danh", ms: "history" },
   { key: "overview", label: "Tổng hợp lớp", ms: "fact_check" },
 ];
 
@@ -57,6 +58,19 @@ const TYPE_LABEL = {
   EARLY_LEAVE: { label: "Về sớm", color: "#7C3AED" },
 };
 const ALL_TYPES = ["PRESENT", "LATE", "ABSENT_EXCUSED", "ABSENT_UNEXCUSED", "EARLY_LEAVE"];
+
+function formatDateTimeLocal(value) {
+  if (!value) return "—";
+  const date = new Date(String(value).replace(" ", "T"));
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
 
 function StatBox({ label, value, color = C.onSurface, children }) {
   return (
@@ -299,6 +313,122 @@ function AnalyticsTab({ classId }) {
 }
 
 // ─── Tổng hợp lớp (mọi lớp) + quét cảnh báo & báo PH ──────────────────────────
+function HistoryTab({ classId }) {
+  const [filters, setFilters] = useState({ startDate: "", endDate: "" });
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!classId) return;
+    let mounted = true;
+    setLoading(true);
+    setError("");
+
+    adminApi
+      .getAttendanceHistory(classId, { ...filters, limit: 100 })
+      .then((res) => {
+        if (!mounted) return;
+        setRows(res.data?.rows || []);
+        setTotal(res.data?.total || 0);
+      })
+      .catch((err) => {
+        if (mounted) setError(err.message);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+
+    return () => { mounted = false; };
+  }, [classId, filters]);
+
+  const setFilter = (field, value) => {
+    setFilters((prev) => ({ ...prev, [field]: value }));
+  };
+
+  return (
+    <section className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: `1px solid ${C.border}` }}>
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b px-6 py-4" style={{ borderColor: C.border, backgroundColor: C.surfaceLow }}>
+        <div>
+          <h3 className="text-base font-bold" style={{ color: C.onSurface }}>Lịch sử điểm danh</h3>
+          <p className="mt-1 text-xs" style={{ color: C.muted }}>{total} bản ghi</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={filters.startDate}
+            onChange={(e) => setFilter("startDate", e.target.value)}
+            className={selectCls}
+            style={selStyle}
+          />
+          <input
+            type="date"
+            value={filters.endDate}
+            onChange={(e) => setFilter("endDate", e.target.value)}
+            className={selectCls}
+            style={selStyle}
+          />
+          <button
+            type="button"
+            onClick={() => setFilters({ startDate: "", endDate: "" })}
+            className="rounded-full border bg-white px-4 py-2 text-sm font-semibold"
+            style={{ borderColor: C.border, color: C.secondary }}
+          >
+            Xóa lọc
+          </button>
+        </div>
+      </div>
+
+      {loading && <div className="h-40 animate-pulse bg-slate-100" />}
+      {error && <div className="m-6 rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
+
+      {!loading && !error && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="text-white" style={THEAD_STYLE}>
+              <tr>
+                <th className={TH}>Ngày</th>
+                <th className={TH}>Học sinh</th>
+                <th className={TH}>Trạng thái</th>
+                <th className={TH}>Ghi chú</th>
+                <th className={TH}>Thời điểm ghi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y" style={{ borderColor: C.border }}>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-400">
+                    Chưa có bản ghi điểm danh.
+                  </td>
+                </tr>
+              ) : rows.map((row) => {
+                const type = TYPE_LABEL[row.typeName] || { label: row.typeName || "—", color: C.muted };
+                return (
+                  <tr key={row.attendanceId} className="transition-colors hover:bg-[#F3F3F3]">
+                    <td className="px-6 py-4 font-medium" style={{ color: C.onSurface }}>{formatDateVN(row.attendanceDate)}</td>
+                    <td className="px-6 py-4">
+                      <div className="font-medium" style={{ color: C.onSurface }}>{row.fullName}</div>
+                      <div className="text-xs" style={{ color: C.muted }}>{row.studentCode}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: `${type.color}1A`, color: type.color }}>
+                        {type.label}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4" style={{ color: C.muted }}>{row.note || "—"}</td>
+                    <td className="px-6 py-4" style={{ color: C.muted }}>{formatDateTimeLocal(row.createdAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 const ABS_LEVEL = {
   OVER: { label: "Vượt ngưỡng", bg: "#FFDAD6", text: "#93000A" },
   WARN: { label: "Cảnh báo", bg: "#FEF3C7", text: "#B45309" },
@@ -428,6 +558,7 @@ function AdminAttendancePage() {
           </div>
 
           {activeTab === "analytics" && <AnalyticsTab classId={classId} />}
+          {activeTab === "history" && <HistoryTab classId={classId} />}
           {activeTab === "overview" && <OverviewTab classId={classId} />}
         </>
       )}

@@ -209,6 +209,7 @@ async function findTeacherPeriods(teacherId, date) {
        sub.subject_id   AS subjectId,
        sub.subject_name AS subjectName,
        tt.period_no     AS periodNo,
+       DATE_FORMAT(tt.lesson_date, '%Y-%m-%d') AS lessonDate,
        TIME_FORMAT(tt.start_time, '%H:%i') AS startTime,
        TIME_FORMAT(tt.end_time, '%H:%i')   AS endTime,
        tt.room_name     AS roomName,
@@ -233,13 +234,14 @@ async function findTeacherPeriods(teacherId, date) {
        AND cx.status = 'APPROVED' AND cx.request_type = 'CANCEL'
      WHERE tt.status = 'ACTIVE'
        AND tt.day_of_week = ${DOW_EXPR}
+       AND (tt.lesson_date IS NULL OR tt.lesson_date = ?)
        AND cx.substitution_id IS NULL
        AND (
          (tt.teacher_id = ? AND so.substitution_id IS NULL)
          OR si.substitution_id IS NOT NULL
        )
      ORDER BY tt.period_no ASC, sc.class_name ASC`,
-    [date, date, teacherId, date, date, date, date, teacherId],
+    [date, date, teacherId, date, date, date, date, date, teacherId],
   );
   return rows.map((r) => ({
     ...r,
@@ -261,6 +263,7 @@ async function resolveEffectivePeriod(timetableId, date) {
        sub.subject_name AS subjectName,
        tt.teacher_id    AS baseTeacherId,
        tt.period_no     AS periodNo,
+       DATE_FORMAT(tt.lesson_date, '%Y-%m-%d') AS lessonDate,
        TIME_FORMAT(tt.start_time, '%H:%i') AS startTime,
        TIME_FORMAT(tt.end_time, '%H:%i')   AS endTime,
        tt.room_name     AS roomName
@@ -268,8 +271,9 @@ async function resolveEffectivePeriod(timetableId, date) {
      INNER JOIN school_class sc ON sc.class_id = tt.class_id
      INNER JOIN grade g ON g.grade_id = sc.grade_id
      INNER JOIN subject sub ON sub.subject_id = tt.subject_id
-     WHERE tt.timetable_id = ?`,
-    [timetableId],
+     WHERE tt.timetable_id = ?
+       AND (tt.lesson_date IS NULL OR tt.lesson_date = ?)`,
+    [timetableId, date],
   );
   if (!tt) return null;
 

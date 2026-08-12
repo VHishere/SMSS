@@ -511,6 +511,7 @@ async function findDashboardSemesterAnalytics(studentId) {
         ON a.attendance_date BETWEEN sm.start_date AND sm.end_date
       WHERE a.student_id = ?
         AND a.attendance_context = 'CLASS'
+        AND a.attendance_date <= CURDATE()
       GROUP BY sm.semester_id
     `,
     [studentId],
@@ -680,6 +681,7 @@ async function findDashboardByUserId(userId) {
         ON at.attendance_type_id = a.attendance_type_id
       WHERE a.student_id = ?
         AND a.attendance_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        AND a.attendance_date <= CURDATE()
     `,
     [context.studentId],
   );

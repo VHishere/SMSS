@@ -176,7 +176,7 @@ function AdminReportsPage() {
             </div>
           )}
 
-          <div className="mb-5 overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: "1px solid #DFC0B2" }}>
+          <div className="relative z-20 mb-5 overflow-visible rounded-3xl bg-white shadow-sm" style={{ border: "1px solid #DFC0B2" }}>
             <div className="flex items-center gap-2 border-b px-5 py-4" style={{ borderColor: "#DFC0B2", backgroundColor: "#F3F3F3" }}>
               <Ms name="filter_list" style={{ color: "#F27123" }} />
               <h3 className="text-base font-bold text-[#1A1C1C]">Cấu hình báo cáo</h3>

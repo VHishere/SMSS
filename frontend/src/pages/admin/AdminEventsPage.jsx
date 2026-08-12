@@ -187,17 +187,18 @@ function AdminEventsPage({ basePath = "/admin" }) {
 
   const mapsUrl = ev?.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}` : null;
 
-  const headerAction = (
+  const canCreateEvent = basePath === "/staff";
+  const headerAction = canCreateEvent ? (
     <button type="button" onClick={() => setShowCreate(true)}
       className="flex items-center gap-2 rounded-full px-6 py-3 font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
       style={{ backgroundColor: C.orange }}>
       <Ms name="add" className="text-[20px]!" /> Tạo sự kiện mới
     </button>
-  );
+  ) : null;
 
   return (
     <>
-      <StaffPageHeader title="Sự kiện" description={`${upcoming} sự kiện sắp tới`} action={headerAction} />
+      <StaffPageHeader title="Sự kiện" action={headerAction} />
 
       {loading && <div className="h-[70vh] animate-pulse rounded-3xl bg-slate-200/50" />}
 

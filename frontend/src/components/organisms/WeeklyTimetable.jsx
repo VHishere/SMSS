@@ -45,6 +45,8 @@ function WeeklyTimetable({
   weekDays = [],
   slots = [],
   lessons = [],
+  onLessonClick,
+  getLessonActionLabel,
 }) {
   const lessonMap = useMemo(() => {
     return new Map(
@@ -74,6 +76,11 @@ function WeeklyTimetable({
               <h3 className="mb-0 text-base font-bold">
                 {day.label}
               </h3>
+              {day.dateLabel && (
+                <p className="mb-0 mt-0.5 text-xs font-semibold text-white/75">
+                  {day.dateLabel}
+                </p>
+              )}
             </div>
 
             <div className="space-y-3 p-3">
@@ -81,6 +88,10 @@ function WeeklyTimetable({
                 const lesson = lessonMap.get(
                   buildLessonKey(day.value, slot.periodNo),
                 );
+                const actionLabel =
+                  lesson && getLessonActionLabel
+                    ? getLessonActionLabel(lesson, day)
+                    : undefined;
 
                 return (
                   <div
@@ -108,7 +119,12 @@ function WeeklyTimetable({
                     </div>
 
                     {lesson ? (
-                      <TimetableLessonCard lesson={lesson} compact />
+                      <TimetableLessonCard
+                        lesson={lesson}
+                        compact
+                        onClick={actionLabel && onLessonClick ? () => onLessonClick(lesson, day) : undefined}
+                        actionLabel={actionLabel}
+                      />
                     ) : (
                       <EmptyMobileLesson />
                     )}
@@ -176,7 +192,12 @@ function WeeklyTimetable({
                     text-sm font-bold last:border-r-0
                   "
                 >
-                  {day.label}
+                  <span className="block">{day.label}</span>
+                  {day.dateLabel && (
+                    <span className="mt-0.5 block text-xs font-semibold text-white/75">
+                      {day.dateLabel}
+                    </span>
+                  )}
                 </th>
               ))}
             </tr>
@@ -233,6 +254,10 @@ function WeeklyTimetable({
                         slot.periodNo,
                       ),
                     );
+                    const actionLabel =
+                      lesson && getLessonActionLabel
+                        ? getLessonActionLabel(lesson, day)
+                        : undefined;
 
                     return (
                       <td
@@ -246,6 +271,8 @@ function WeeklyTimetable({
                         <TimetableLessonCard
                           lesson={lesson}
                           periodNo={slot.periodNo}
+                          onClick={actionLabel && onLessonClick ? () => onLessonClick(lesson, day) : undefined}
+                          actionLabel={actionLabel}
                         />
                       </td>
                     );

@@ -127,7 +127,6 @@ function StaffNotificationsPage() {
     <>
       <StaffPageHeader
         title="Thông báo"
-        description={`${totalCount} thông báo · ${unreadCount} chưa đọc`}
         action={
           <>
             <PrettySelect

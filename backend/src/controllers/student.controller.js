@@ -114,6 +114,44 @@ function isValidIsoDate(value) {
     && date.getUTCDate() === day;
 }
 
+function clampEndDateToToday(endDate) {
+  const today = formatDateInVietnam(new Date());
+  if (!endDate || endDate > today) return today;
+  return endDate;
+}
+
+function emptyAttendanceHistory(context, page, limit) {
+  return {
+    success: true,
+    data: {
+      context,
+      items: [],
+      pagination: {
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+      },
+    },
+  };
+}
+
+function emptyAttendanceAnalytics(context, startDate, endDate) {
+  const byType = {};
+  for (const type of ["PRESENT", "LATE", "ABSENT_EXCUSED", "ABSENT_UNEXCUSED", "EARLY_LEAVE"]) {
+    byType[type] = { count: 0, rate: 0 };
+  }
+  return {
+    success: true,
+    data: {
+      context,
+      period: { startDate, endDate },
+      summary: { totalRecords: 0, byType },
+      timeline: [],
+    },
+  };
+}
+
 async function getMyProfile(req, res) {
   try {
     const student = await studentModel.findProfileByUserId(
@@ -407,6 +445,11 @@ async function getMyAttendanceHistory(req, res) {
 
     const parsedPage = parsePositiveInteger(page, 1);
     const parsedLimit = Math.min(100, parsePositiveInteger(limit, 30));
+    const effectiveEndDate = clampEndDateToToday(endDate || null);
+
+    if (startDate && startDate > effectiveEndDate) {
+      return res.json(emptyAttendanceHistory(context, parsedPage, parsedLimit));
+    }
 
     const { total, rows } = await attendanceModel.findHistoryByStudentId(
       context.studentId,
@@ -414,7 +457,7 @@ async function getMyAttendanceHistory(req, res) {
         page: parsedPage,
         limit: parsedLimit,
         startDate: startDate || null,
-        endDate: endDate || null,
+        endDate: effectiveEndDate,
         context: normalizedContext,
         typeId: parsedTypeId,
       },
@@ -459,11 +502,15 @@ async function getMyAttendanceAnalytics(req, res) {
     const defaultStart = `${vietnamParts[0]}-${String(vietnamParts[1]).padStart(2, "0")}-01`;
 
     const startDate = req.query.startDate || defaultStart;
-    const endDate = req.query.endDate || defaultEnd;
+    const endDate = clampEndDateToToday(req.query.endDate || defaultEnd);
     const dateError = validateAttendanceDateRange(startDate, endDate);
 
     if (dateError) {
       return res.status(400).json({ success: false, message: dateError });
+    }
+
+    if (startDate > endDate) {
+      return res.json(emptyAttendanceAnalytics(context, startDate, endDate));
     }
 
     const attendanceContext = req.query.context

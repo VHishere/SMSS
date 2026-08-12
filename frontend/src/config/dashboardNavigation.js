@@ -14,7 +14,6 @@ import {
   FiMessageSquare,
   FiShield,
   FiStar,
-  FiTag,
   FiUserCheck,
   FiUsers,
 } from "react-icons/fi";
@@ -141,16 +140,10 @@ export const dashboardNavigation = {
       ms: "assessment",
     },
     {
-      label: "Theo dõi học phí",
+      label: "Quản lý học phí",
       path: "/admin/fees",
       icon: FiCreditCard,
       ms: "payments",
-    },
-    {
-      label: "Loại phí",
-      path: "/admin/fee-categories",
-      icon: FiTag,
-      ms: "sell",
     },
     {
       label: "Sự kiện",

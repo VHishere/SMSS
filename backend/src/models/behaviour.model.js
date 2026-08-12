@@ -11,8 +11,12 @@ async function findTeacherClasses(teacherId) {
        g.grade_name  AS gradeName
      FROM teacher_class tc
      INNER JOIN school_class sc ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      INNER JOIN grade g ON g.grade_id = sc.grade_id
-     WHERE tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
+     WHERE tc.teacher_id = ?
+       AND tc.role_in_class = 'HOMEROOM_TEACHER'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      ORDER BY sc.class_name ASC`,
     [teacherId],
   );
@@ -22,8 +26,17 @@ async function findTeacherClasses(teacherId) {
 // Chỉ GVCN của lớp mới được thao tác nề nếp/hạnh kiểm của lớp đó.
 async function isTeacherForClass(teacherId, classId) {
   const [[row]] = await pool.query(
-    `SELECT 1 AS ok FROM teacher_class
-     WHERE teacher_id = ? AND class_id = ? AND role_in_class = 'HOMEROOM_TEACHER' LIMIT 1`,
+    `SELECT 1 AS ok
+     FROM teacher_class tc
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+     WHERE tc.teacher_id = ?
+       AND tc.class_id = ?
+       AND tc.role_in_class = 'HOMEROOM_TEACHER'
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+     LIMIT 1`,
     [teacherId, classId],
   );
   return Boolean(row);
@@ -34,7 +47,12 @@ async function isTeacherForStudent(teacherId, studentId) {
     `SELECT 1 AS ok
      FROM teacher_class tc
      INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ? AND ce.student_id = ?
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, studentId],
   );
@@ -47,7 +65,12 @@ async function isHomeroomOfStudent(teacherId, studentId) {
     `SELECT 1 AS ok
      FROM teacher_class tc
      INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ? AND ce.student_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, studentId],
   );
@@ -570,15 +593,24 @@ async function findWarnings(filters = {}) {
     where += ` AND w.student_id IN (
       SELECT ce2.student_id FROM class_enrollment ce2
       INNER JOIN teacher_class tc ON tc.class_id = ce2.class_id
-      WHERE tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER' AND ce2.status = 'ACTIVE')`;
+      INNER JOIN school_class sc2 ON sc2.class_id = ce2.class_id AND sc2.status = 'ACTIVE'
+      INNER JOIN school_year sy2 ON sy2.school_year_id = sc2.school_year_id AND sy2.is_active = 1
+      WHERE tc.teacher_id = ?
+        AND tc.role_in_class = 'HOMEROOM_TEACHER'
+        AND ce2.status = 'ACTIVE'
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE()))`;
     params.push(parseInt(teacherId, 10));
   }
 
   const [[{ total }]] = await pool.query(
-    `SELECT COUNT(*) AS total
+    `SELECT COUNT(DISTINCT w.warning_id) AS total
      FROM behavior_warning w
      INNER JOIN student s ON s.student_id = w.student_id
+     INNER JOIN semester sem ON sem.semester_id = w.semester_id
      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+       AND sc.status = 'ACTIVE'
+       AND sc.school_year_id = sem.school_year_id
      WHERE ${where}`,
     params,
   );
@@ -596,7 +628,9 @@ async function findWarnings(filters = {}) {
      INNER JOIN user_account ua ON ua.user_id = s.user_id
      INNER JOIN semester sem ON sem.semester_id = w.semester_id
      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+       AND sc.status = 'ACTIVE'
+       AND sc.school_year_id = sem.school_year_id
      WHERE ${where}
      ORDER BY CASE w.status WHEN 'OPEN' THEN 0 WHEN 'IN_PROGRESS' THEN 1 ELSE 2 END, w.created_at DESC
      LIMIT ? OFFSET ?`,

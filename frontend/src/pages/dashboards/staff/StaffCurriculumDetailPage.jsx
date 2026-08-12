@@ -135,7 +135,6 @@ function StaffCurriculumDetailPage() {
     <>
       <StaffPageHeader
         title={curriculum.subjectName}
-        description={`${curriculum.schoolYearName} · ${curriculum.semesterName}`}
         action={
           <Link to="/staff/curriculum" className={cancelLinkClass}>
             Quay lại

@@ -4,7 +4,16 @@ const { pool } = require("../config/db");
 
 async function isTeacherForClass(teacherId, classId) {
   const [[row]] = await pool.query(
-    `SELECT 1 AS ok FROM teacher_class WHERE teacher_id = ? AND class_id = ? LIMIT 1`,
+    `SELECT 1 AS ok
+     FROM teacher_class tc
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+     WHERE tc.teacher_id = ?
+       AND tc.class_id = ?
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+     LIMIT 1`,
     [teacherId, classId],
   );
   return Boolean(row);
@@ -15,7 +24,12 @@ async function isTeacherForStudent(teacherId, studentId) {
     `SELECT 1 AS ok
      FROM teacher_class tc
      INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ? AND ce.student_id = ?
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, studentId],
   );
@@ -25,8 +39,17 @@ async function isTeacherForStudent(teacherId, studentId) {
 // Homeroom-only variants (cho Mục tiêu, Hỗ trợ HS...): chỉ GVCN của lớp/hs.
 async function isHomeroomOfClass(teacherId, classId) {
   const [[row]] = await pool.query(
-    `SELECT 1 AS ok FROM teacher_class
-     WHERE teacher_id = ? AND class_id = ? AND role_in_class = 'HOMEROOM_TEACHER' LIMIT 1`,
+    `SELECT 1 AS ok
+     FROM teacher_class tc
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+     WHERE tc.teacher_id = ?
+       AND tc.class_id = ?
+       AND tc.role_in_class = 'HOMEROOM_TEACHER'
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+     LIMIT 1`,
     [teacherId, classId],
   );
   return Boolean(row);
@@ -37,7 +60,12 @@ async function isHomeroomOfStudent(teacherId, studentId) {
     `SELECT 1 AS ok
      FROM teacher_class tc
      INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ? AND ce.student_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, studentId],
   );
@@ -54,7 +82,10 @@ async function findTeacherClasses(teacherId) {
      FROM teacher_class tc
      INNER JOIN school_class sc ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
      INNER JOIN grade g ON g.grade_id = sc.grade_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ?
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      GROUP BY sc.class_id, sc.class_name, g.grade_name
      ORDER BY sc.class_name ASC`,
     [teacherId],
@@ -88,6 +119,7 @@ async function findSemesters() {
        sy.year_name AS schoolYearName, sy.is_active AS isActiveYear
      FROM semester sem
      INNER JOIN school_year sy ON sy.school_year_id = sem.school_year_id
+     WHERE sy.is_active = 1
      ORDER BY sy.is_active DESC, sy.start_date DESC, sem.start_date ASC`,
   );
   return rows.map((r) => ({ ...r, isActiveYear: Boolean(r.isActiveYear) }));
@@ -131,7 +163,18 @@ async function find360(studentId) {
        ce.status      AS enrollmentStatus
      FROM student s
      INNER JOIN user_account ua ON ua.user_id = s.user_id
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     LEFT JOIN class_enrollment ce ON ce.enrollment_id = (
+       SELECT ce2.enrollment_id
+       FROM class_enrollment ce2
+       INNER JOIN school_class sc2 ON sc2.class_id = ce2.class_id
+       INNER JOIN school_year sy2 ON sy2.school_year_id = sc2.school_year_id
+       WHERE ce2.student_id = s.student_id
+         AND ce2.status = 'ACTIVE'
+         AND sc2.status = 'ACTIVE'
+         AND sy2.is_active = 1
+       ORDER BY ce2.enrollment_date DESC, ce2.enrollment_id DESC
+       LIMIT 1
+     )
      LEFT JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
      LEFT JOIN grade g ON g.grade_id = sc.grade_id
      LEFT JOIN school_year sy ON sy.school_year_id = sc.school_year_id

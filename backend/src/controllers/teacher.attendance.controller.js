@@ -4,6 +4,12 @@ const feedbackModel   = require("../models/feedback.model");
 
 const HOURS_48_MS = 48 * 60 * 60 * 1000;
 
+function todayIso() {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
 async function resolveTeacher(userId, classId) {
   const profile = await teacherModel.findProfileByUserId(userId);
   if (!profile) return { profile: null, classInfo: null, hasAccess: false };
@@ -47,11 +53,12 @@ async function getAttendanceSheet(req, res) {
     }
 
     const now = Date.now();
+    const isFutureDate = date > todayIso();
 
     const sheet = students.map((s) => {
       const rec       = recordMap[s.studentId];
       const createdAt = rec?.createdAt ? new Date(rec.createdAt).getTime() : null;
-      const isEditable = !createdAt || now - createdAt <= HOURS_48_MS;
+      const isEditable = !isFutureDate && (!createdAt || now - createdAt <= HOURS_48_MS);
 
       return {
         studentId:    s.studentId,
@@ -272,6 +279,7 @@ async function getPeriodSheet(req, res) {
     const fbMap = {};
     for (const f of feedback) fbMap[f.studentId] = f;
     const now = Date.now();
+    const isFutureDate = date > todayIso();
 
     const sheet = students.map((s) => {
       const rec = recMap[s.studentId];
@@ -286,7 +294,7 @@ async function getPeriodSheet(req, res) {
         typeId:       rec?.typeId ?? null,
         typeName:     rec?.typeName ?? null,
         note:         rec?.note ?? "",
-        isEditable:   !createdAt || now - createdAt <= HOURS_48_MS,
+        isEditable:   !isFutureDate && (!createdAt || now - createdAt <= HOURS_48_MS),
         createdAt:    rec?.createdAt ?? null,
         feedbackRating:  fb?.rating ?? null,
         feedbackContent: fb?.content ?? "",

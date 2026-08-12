@@ -6,6 +6,7 @@ const {
   createHttpError,
   optionalText,
   requireText,
+  validateDate,
   validateEnum,
   validatePositiveInt,
 } = require("./validation");
@@ -13,8 +14,12 @@ const {
 const CLASS_STATUSES = ["ACTIVE", "INACTIVE"];
 const TEACHER_CLASS_ROLES = ["HOMEROOM_TEACHER", "SUBJECT_TEACHER"];
 
+function normalizeClassName(value) {
+  return requireText(value, "tên lớp", 50).replace(/\s+/g, " ").toUpperCase();
+}
+
 async function validateClassPayload(connection, data, classId = null) {
-  const className = requireText(data.className, "tên lớp", 50);
+  const className = normalizeClassName(data.className);
   const roomName = optionalText(data.roomName, "phòng học", 50);
   const gradeId = validatePositiveInt(data.gradeId, "khối");
   const schoolYearId = validatePositiveInt(data.schoolYearId, "năm học");
@@ -39,7 +44,13 @@ async function validateClassPayload(connection, data, classId = null) {
   );
   await assertUnique(
     connection,
-    "SELECT class_id FROM school_class WHERE school_year_id = ? AND class_name = ? AND (? IS NULL OR class_id <> ?) LIMIT 1",
+    `SELECT class_id
+     FROM school_class
+     WHERE school_year_id = ?
+       AND status = 'ACTIVE'
+       AND LOWER(TRIM(class_name)) = LOWER(TRIM(?))
+       AND (? IS NULL OR class_id <> ?)
+     LIMIT 1`,
     [schoolYearId, className, classId, classId],
     "Lớp học đã tồn tại trong năm học này",
   );
@@ -80,7 +91,12 @@ async function listClasses(filters = {}) {
           SELECT COUNT(*)
           FROM teacher_class tc
           WHERE tc.class_id = sc.class_id AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
-        ) AS teacherCount
+        ) AS teacherCount,
+        (
+          SELECT COUNT(*)
+          FROM timetable tt
+          WHERE tt.class_id = sc.class_id AND tt.status = 'ACTIVE'
+        ) AS timetableCount
       FROM school_class sc
       INNER JOIN grade g ON g.grade_id = sc.grade_id
       INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
@@ -240,6 +256,64 @@ async function updateClass(classId, data) {
 
     await connection.commit();
     return getClassById(classId);
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+async function deleteClass(classId) {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+    const normalizedClassId = validatePositiveInt(classId, "lớp học");
+
+    await assertExists(
+      connection,
+      "SELECT class_id FROM school_class WHERE class_id = ? AND status = 'ACTIVE' LIMIT 1",
+      [normalizedClassId],
+      "Không tìm thấy lớp học đang hoạt động",
+    );
+
+    const [[students]] = await connection.query(
+      "SELECT COUNT(*) AS total FROM class_enrollment WHERE class_id = ? AND status = 'ACTIVE'",
+      [normalizedClassId],
+    );
+    const [[teachers]] = await connection.query(
+      `SELECT COUNT(*) AS total
+       FROM teacher_class
+       WHERE class_id = ? AND (end_date IS NULL OR end_date >= CURDATE())`,
+      [normalizedClassId],
+    );
+    const [[timetables]] = await connection.query(
+      "SELECT COUNT(*) AS total FROM timetable WHERE class_id = ? AND status = 'ACTIVE'",
+      [normalizedClassId],
+    );
+
+    if (Number(students.total) > 0 || Number(teachers.total) > 0) {
+      throw createHttpError(
+        "Chỉ được xóa lớp sau khi đã gỡ hết học sinh và giáo viên",
+        409,
+      );
+    }
+
+    if (Number(timetables.total) > 0) {
+      throw createHttpError(
+        "Chỉ được xóa lớp sau khi đã xóa hết lịch học của lớp",
+        409,
+      );
+    }
+
+    await connection.query(
+      "UPDATE school_class SET status = 'INACTIVE' WHERE class_id = ?",
+      [normalizedClassId],
+    );
+
+    await connection.commit();
+    return { classId: normalizedClassId };
   } catch (error) {
     await connection.rollback();
     throw error;
@@ -448,7 +522,74 @@ async function removeTeacher(teacherClassId) {
   return getClassById(rows[0].classId);
 }
 
-async function listClassTimetable(classId) {
+function mysqlDayOfWeek(isoDate) {
+  const date = new Date(`${isoDate}T00:00:00`);
+  const day = date.getDay();
+  return day === 0 ? 8 : day + 1;
+}
+
+function addIsoDays(isoDate, amount) {
+  const date = new Date(`${isoDate}T00:00:00`);
+  date.setDate(date.getDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+async function buildTimetableLessonDates(data, dayOfWeek) {
+  const lessonDate = validateDate(data.lessonDate, "ngày học", {
+    required: true,
+    minYear: 2000,
+  });
+
+  if (data.scheduleMode !== "SCHOOL_YEAR") {
+    return [lessonDate];
+  }
+
+  const [rows] = await pool.query(
+    `
+      SELECT DATE_FORMAT(end_date, '%Y-%m-%d') AS endDate
+      FROM school_year
+      WHERE school_year_id = ?
+      LIMIT 1
+    `,
+    [data.schoolYearId],
+  );
+  const endDate = rows[0]?.endDate;
+  if (!endDate) return [lessonDate];
+
+  const dates = [];
+  for (let current = lessonDate; current <= endDate; current = addIsoDays(current, 7)) {
+    if (mysqlDayOfWeek(current) === dayOfWeek) {
+      dates.push(current);
+    }
+  }
+
+  return dates.length ? dates : [lessonDate];
+}
+
+async function listClassTimetable(classId, filters = {}) {
+  const params = [classId];
+  const conditions = ["tt.class_id = ?", "tt.status = 'ACTIVE'"];
+
+  if (filters.startDate && filters.endDate) {
+    const startDate = validateDate(filters.startDate, "ngày bắt đầu", {
+      required: true,
+      minYear: 2000,
+    });
+    const endDate = validateDate(filters.endDate, "ngày kết thúc", {
+      required: true,
+      minYear: 2000,
+    });
+    conditions.push("tt.lesson_date BETWEEN ? AND ?");
+    params.push(startDate, endDate);
+  } else if (filters.lessonDate) {
+    const lessonDate = validateDate(filters.lessonDate, "ngày học", {
+      required: true,
+      minYear: 2000,
+    });
+    conditions.push("tt.lesson_date = ?");
+    params.push(lessonDate);
+  }
+
   const [rows] = await pool.query(
     `
       SELECT
@@ -456,6 +597,7 @@ async function listClassTimetable(classId) {
         tt.class_id AS classId,
         sc.school_year_id AS schoolYearId,
         sy.year_name AS schoolYearName,
+        DATE_FORMAT(tt.lesson_date, '%Y-%m-%d') AS lessonDate,
         tt.day_of_week AS dayOfWeek,
         tt.period_no AS periodNo,
         COALESCE(tt.room_name, sc.room_name) AS roomName,
@@ -472,11 +614,10 @@ async function listClassTimetable(classId) {
       INNER JOIN subject sub ON sub.subject_id = tt.subject_id
       INNER JOIN teacher t ON t.teacher_id = tt.teacher_id
       INNER JOIN user_account ua ON ua.user_id = t.user_id
-      WHERE tt.class_id = ?
-        AND tt.status = 'ACTIVE'
-      ORDER BY tt.day_of_week, tt.period_no
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY tt.lesson_date, tt.day_of_week, tt.period_no
     `,
-    [classId],
+    params,
   );
 
   return rows;
@@ -497,7 +638,7 @@ async function assertClassExists(classId) {
   );
 
   if (!rows[0]) {
-    const error = new Error("KhÃ´ng tÃ¬m tháº¥y lá»›p há»c");
+    const error = new Error("Không tìm thấy lớp học");
     error.statusCode = 404;
     throw error;
   }
@@ -506,19 +647,23 @@ async function assertClassExists(classId) {
 }
 
 async function validateTimetableAssignment(classId, data) {
-  if (!data.dayOfWeek || !data.periodNo || !data.subjectId || !data.teacherId) {
-    const error = new Error("Vui lÃ²ng chá»n thá»©, tiáº¿t, mÃ´n há»c vÃ  giÃ¡o viÃªn");
+  if (!data.lessonDate || !data.periodNo || !data.subjectId || !data.teacherId) {
+    const error = new Error("Vui lòng chọn ngày, tiết, môn học và giáo viên");
     error.statusCode = 400;
     throw error;
   }
 
-  const dayOfWeek = Number(data.dayOfWeek);
+  const lessonDate = validateDate(data.lessonDate, "ngày học", {
+    required: true,
+    minYear: 2000,
+  });
+  const dayOfWeek = mysqlDayOfWeek(lessonDate);
   const periodNo = Number(data.periodNo);
   const subjectId = Number(data.subjectId);
   const teacherId = Number(data.teacherId);
 
   if (dayOfWeek < 2 || dayOfWeek > 7 || periodNo < 1 || periodNo > 8) {
-    const error = new Error("Thá»© hoáº·c tiáº¿t há»c khÃ´ng há»£p lá»‡");
+    const error = new Error("Ngày hoặc tiết học không hợp lệ");
     error.statusCode = 400;
     throw error;
   }
@@ -537,12 +682,13 @@ async function validateTimetableAssignment(classId, data) {
   );
 
   if (!assignments[0]) {
-    const error = new Error("GiÃ¡o viÃªn chÆ°a Ä‘Æ°á»£c phÃ¢n cÃ´ng cho mÃ´n/lá»›p nÃ y");
+    const error = new Error("Giáo viên chưa được phân công cho môn/lớp này");
     error.statusCode = 400;
     throw error;
   }
 
   return {
+    lessonDate,
     dayOfWeek,
     periodNo,
     subjectId,
@@ -690,27 +836,26 @@ async function findTimetableTargetClasses(data) {
 }
 
 async function createTimetableLessons(data) {
-  const dayOfWeek = Number(data.dayOfWeek);
+  const lessonDate = validateDate(data.lessonDate, "ngày học", {
+    required: true,
+    minYear: 2000,
+  });
+  const dayOfWeek = mysqlDayOfWeek(lessonDate);
+  const lessonDates = await buildTimetableLessonDates(data, dayOfWeek);
   const periodNo = Number(data.periodNo);
   const subjectId = Number(data.subjectId);
   const teacherMode = data.teacherMode || "SELECTED_TEACHER";
 
-  if (!dayOfWeek || !periodNo || !subjectId) {
-    const error = new Error("Vui lòng chọn thứ, tiết và môn học");
-    error.statusCode = 400;
-    throw error;
+  if (!periodNo || !subjectId) {
+    throw createHttpError("Vui lòng chọn ngày, tiết và môn học");
   }
 
   if (dayOfWeek < 2 || dayOfWeek > 7 || periodNo < 1 || periodNo > 8) {
-    const error = new Error("Thứ hoặc tiết học không hợp lệ");
-    error.statusCode = 400;
-    throw error;
+    throw createHttpError("Ngày hoặc tiết học không hợp lệ");
   }
 
   if (teacherMode !== "ASSIGNED_TEACHER" && !data.teacherId) {
-    const error = new Error("Vui lòng chọn giáo viên");
-    error.statusCode = 400;
-    throw error;
+    throw createHttpError("Vui lòng chọn giáo viên");
   }
 
   const targetClasses = await findTimetableTargetClasses(data);
@@ -734,29 +879,6 @@ async function createTimetableLessons(data) {
       continue;
     }
 
-    const [classSlot] = await pool.query(
-      `
-        SELECT tt.timetable_id AS timetableId, sub.subject_name AS subjectName
-        FROM timetable tt
-        INNER JOIN subject sub ON sub.subject_id = tt.subject_id
-        WHERE tt.class_id = ?
-          AND tt.day_of_week = ?
-          AND tt.period_no = ?
-          AND tt.status = 'ACTIVE'
-        LIMIT 1
-      `,
-      [classId, dayOfWeek, periodNo],
-    );
-
-    if (classSlot[0]) {
-      conflicts.push({
-        classId,
-        className: classItem.className,
-        reason: `Lớp đã có tiết ${classSlot[0].subjectName} ở ô này`,
-      });
-      continue;
-    }
-
     const [assignments] = await pool.query(
       `
         SELECT 1 AS ok
@@ -771,100 +893,104 @@ async function createTimetableLessons(data) {
     );
 
     if (!assignments[0]) {
-      if (teacherMode === "SELECTED_TEACHER") {
-        const canTeachSubject = await teacherCanTeachSubject(
-          teacherId,
-          subjectId,
-        );
-
-        if (!canTeachSubject) {
-          conflicts.push({
-            classId,
-            className: classItem.className,
-            reason: "Giáo viên không đúng chuyên môn của môn học này",
-          });
-          continue;
-        }
+      if (
+        teacherMode === "SELECTED_TEACHER" &&
+        await teacherCanTeachSubject(teacherId, subjectId)
+      ) {
+        // Giáo viên đúng chuyên môn nhưng chưa được phân công lớp: cho phép staff xếp lịch thủ công.
       } else {
-      conflicts.push({
-        classId,
-        className: classItem.className,
-        reason: "Giáo viên chưa được phân công cho môn/lớp này",
-      });
-      continue;
+        conflicts.push({
+          classId,
+          className: classItem.className,
+          reason: "Giáo viên chưa được phân công cho môn/lớp này",
+        });
+        continue;
       }
     }
 
-    const [teacherSlot] = await pool.query(
-      `
-        SELECT sc.class_name AS className
-        FROM timetable tt
-        INNER JOIN school_class sc ON sc.class_id = tt.class_id
-        WHERE tt.teacher_id = ?
-          AND tt.day_of_week = ?
-          AND tt.period_no = ?
-          AND tt.status = 'ACTIVE'
-          AND sc.school_year_id = ?
-        LIMIT 1
-      `,
-      [teacherId, dayOfWeek, periodNo, classItem.schoolYearId],
-    );
+    for (const currentLessonDate of lessonDates) {
+      const [classSlot] = await pool.query(
+        `
+          SELECT tt.timetable_id AS timetableId, sub.subject_name AS subjectName
+          FROM timetable tt
+          INNER JOIN subject sub ON sub.subject_id = tt.subject_id
+          WHERE tt.class_id = ?
+            AND tt.lesson_date = ?
+            AND tt.period_no = ?
+            AND tt.status = 'ACTIVE'
+          LIMIT 1
+        `,
+        [classId, currentLessonDate, periodNo],
+      );
 
-    const teacherSlotKey = `${teacherId}-${dayOfWeek}-${periodNo}`;
+      if (classSlot[0]) {
+        conflicts.push({
+          classId,
+          className: classItem.className,
+          reason: `Lớp đã có tiết ${classSlot[0].subjectName} ngày ${currentLessonDate}`,
+        });
+        continue;
+      }
 
-    if (teacherSlot[0]) {
-      conflicts.push({
+      const [teacherSlot] = await pool.query(
+        `
+          SELECT sc.class_name AS className
+          FROM timetable tt
+          INNER JOIN school_class sc ON sc.class_id = tt.class_id
+          WHERE tt.teacher_id = ?
+            AND tt.lesson_date = ?
+            AND tt.period_no = ?
+            AND tt.status = 'ACTIVE'
+            AND sc.school_year_id = ?
+          LIMIT 1
+        `,
+        [teacherId, currentLessonDate, periodNo, classItem.schoolYearId],
+      );
+
+      const teacherSlotKey = `${teacherId}-${currentLessonDate}-${periodNo}`;
+
+      if (teacherSlot[0]) {
+        conflicts.push({
+          classId,
+          className: classItem.className,
+          reason: `Giáo viên đã có tiết ở lớp ${teacherSlot[0].className} ngày ${currentLessonDate}`,
+        });
+        continue;
+      }
+
+      if (plannedTeacherSlots.has(teacherSlotKey)) {
+        conflicts.push({
+          classId,
+          className: classItem.className,
+          reason: `Giáo viên đã được xếp cùng tiết cho lớp ${plannedTeacherSlots.get(teacherSlotKey)} ngày ${currentLessonDate}`,
+        });
+        continue;
+      }
+
+      plannedTeacherSlots.set(teacherSlotKey, classItem.className);
+      plannedLessons.push({
         classId,
-        className: classItem.className,
-        reason: `Giáo viên đã có tiết ở lớp ${teacherSlot[0].className}`,
+        subjectId,
+        teacherId,
+        lessonDate: currentLessonDate,
+        dayOfWeek,
+        periodNo,
+        roomName: data.roomName || classItem.roomName || null,
       });
-      continue;
     }
-
-    if (plannedTeacherSlots.has(teacherSlotKey)) {
-      conflicts.push({
-        classId,
-        className: classItem.className,
-        reason: `Giáo viên đã được xếp cùng tiết cho lớp ${plannedTeacherSlots.get(teacherSlotKey)}`,
-      });
-      continue;
-    }
-
-    plannedTeacherSlots.set(teacherSlotKey, classItem.className);
-    plannedLessons.push({
-      classId,
-      subjectId,
-      teacherId,
-      dayOfWeek,
-      periodNo,
-      roomName: data.roomName || classItem.roomName || null,
-    });
   }
 
   if (conflicts.length) {
-    const normalizedConflicts = conflicts.map((item) => ({
-      ...item,
-      reason: normalizeTimetableConflictReason(item.reason),
-    }));
     const error = createHttpError(
       "Lịch học bị trùng hoặc chưa đủ phân công",
       409,
     );
-    error.details = normalizedConflicts;
-    throw error;
-  }
-
-  if (conflicts.length) {
-    const error = new Error("Lịch học bị trùng hoặc chưa đủ phân công");
-    error.statusCode = 409;
     error.details = conflicts;
     throw error;
   }
 
   if (!plannedLessons.length) {
-    const error = new Error("Không có lớp nào đủ điều kiện để thêm lịch");
-    error.statusCode = 400;
-    throw error;
+    throw createHttpError("Không có lớp nào đủ điều kiện để thêm lịch");
   }
 
   const connection = await pool.getConnection();
@@ -876,7 +1002,7 @@ async function createTimetableLessons(data) {
       `
         INSERT INTO timetable (
           class_id, subject_id, teacher_id,
-          day_of_week, period_no, room_name, status
+          lesson_date, day_of_week, period_no, room_name, status
         )
         VALUES ?
       `,
@@ -885,6 +1011,7 @@ async function createTimetableLessons(data) {
           lesson.classId,
           lesson.subjectId,
           lesson.teacherId,
+          lesson.lessonDate,
           lesson.dayOfWeek,
           lesson.periodNo,
           lesson.roomName,
@@ -903,8 +1030,9 @@ async function createTimetableLessons(data) {
 
   return {
     createdCount: plannedLessons.length,
+    scheduleMode: data.scheduleMode || "SINGLE_DAY",
     scope: data.scope || "CLASS",
-    classIds: plannedLessons.map((lesson) => lesson.classId),
+    classIds: [...new Set(plannedLessons.map((lesson) => lesson.classId))],
   };
 }
 
@@ -918,15 +1046,16 @@ async function createClassTimetableLesson(classId, data) {
       FROM timetable
       WHERE class_id = ?
         AND day_of_week = ?
+        AND lesson_date = ?
         AND period_no = ?
         AND status = 'ACTIVE'
       LIMIT 1
     `,
-    [classId, lesson.dayOfWeek, lesson.periodNo],
+    [classId, lesson.dayOfWeek, lesson.lessonDate, lesson.periodNo],
   );
 
   if (occupied[0]) {
-    const error = new Error("Tiáº¿t nÃ y Ä‘Ã£ cÃ³ lá»‹ch há»c");
+    const error = new Error("Tiết này đã có lịch học");
     error.statusCode = 409;
     throw error;
   }
@@ -935,14 +1064,15 @@ async function createClassTimetableLesson(classId, data) {
     `
       INSERT INTO timetable (
         class_id, subject_id, teacher_id,
-        day_of_week, period_no, room_name, status
+        lesson_date, day_of_week, period_no, room_name, status
       )
-      VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE')
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
     `,
     [
       classId,
       lesson.subjectId,
       lesson.teacherId,
+      lesson.lessonDate,
       lesson.dayOfWeek,
       lesson.periodNo,
       lesson.roomName,
@@ -962,16 +1092,17 @@ async function updateClassTimetableLesson(classId, timetableId, data) {
       FROM timetable
       WHERE class_id = ?
         AND day_of_week = ?
+        AND lesson_date = ?
         AND period_no = ?
         AND status = 'ACTIVE'
         AND timetable_id <> ?
       LIMIT 1
     `,
-    [classId, lesson.dayOfWeek, lesson.periodNo, timetableId],
+    [classId, lesson.dayOfWeek, lesson.lessonDate, lesson.periodNo, timetableId],
   );
 
   if (occupied[0]) {
-    const error = new Error("Tiáº¿t nÃ y Ä‘Ã£ cÃ³ lá»‹ch há»c");
+    const error = new Error("Tiết này đã có lịch học");
     error.statusCode = 409;
     throw error;
   }
@@ -981,6 +1112,7 @@ async function updateClassTimetableLesson(classId, timetableId, data) {
       UPDATE timetable
       SET subject_id = ?,
           teacher_id = ?,
+          lesson_date = ?,
           day_of_week = ?,
           period_no = ?,
           room_name = ?,
@@ -991,6 +1123,7 @@ async function updateClassTimetableLesson(classId, timetableId, data) {
     [
       lesson.subjectId,
       lesson.teacherId,
+      lesson.lessonDate,
       lesson.dayOfWeek,
       lesson.periodNo,
       lesson.roomName,
@@ -1000,7 +1133,7 @@ async function updateClassTimetableLesson(classId, timetableId, data) {
   );
 
   if (result.affectedRows === 0) {
-    const error = new Error("KhÃ´ng tÃ¬m tháº¥y tiáº¿t há»c");
+    const error = new Error("Không tìm thấy tiết học");
     error.statusCode = 404;
     throw error;
   }
@@ -1018,7 +1151,7 @@ async function deleteClassTimetableLesson(classId, timetableId) {
   );
 
   if (result.affectedRows === 0) {
-    const error = new Error("KhÃ´ng tÃ¬m tháº¥y tiáº¿t há»c");
+    const error = new Error("Không tìm thấy tiết học");
     error.statusCode = 404;
     throw error;
   }
@@ -1029,6 +1162,7 @@ module.exports = {
   getClassById,
   createClass,
   updateClass,
+  deleteClass,
   enrollStudent,
   removeStudent,
   assignTeacher,

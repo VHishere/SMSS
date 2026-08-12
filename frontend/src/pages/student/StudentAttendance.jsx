@@ -27,7 +27,7 @@ const WEEK_DAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 
 const TYPE_CONFIG = {
   PRESENT: {
-    label: "Hiện diện",
+    label: "Có mặt",
     shortLabel: "P",
     icon: FiCheckCircle,
     dotClass: "bg-emerald-500",
@@ -35,7 +35,7 @@ const TYPE_CONFIG = {
     badgeClass: "bg-emerald-50 text-emerald-700",
   },
   LATE: {
-    label: "Đi muộn",
+    label: "Muộn",
     shortLabel: "L",
     icon: FiClock,
     dotClass: "bg-orange-500",
@@ -51,7 +51,7 @@ const TYPE_CONFIG = {
     badgeClass: "bg-blue-50 text-blue-700",
   },
   ABSENT_UNEXCUSED: {
-    label: "Vắng không phép",
+    label: "Nghỉ",
     shortLabel: "A",
     icon: FiXCircle,
     dotClass: "bg-red-600",
@@ -67,6 +67,35 @@ const TYPE_CONFIG = {
     badgeClass: "bg-violet-50 text-violet-700",
   },
 };
+
+const ATTENDANCE_LABELS = {
+  PRESENT: "Có mặt",
+  LATE: "Muộn",
+  ABSENT_EXCUSED: "Vắng có phép",
+  ABSENT_UNEXCUSED: "Nghỉ",
+  EARLY_LEAVE: "Về sớm",
+};
+
+TYPE_CONFIG.PRESENT.label = ATTENDANCE_LABELS.PRESENT;
+TYPE_CONFIG.LATE.label = ATTENDANCE_LABELS.LATE;
+TYPE_CONFIG.ABSENT_EXCUSED.label = ATTENDANCE_LABELS.ABSENT_EXCUSED;
+TYPE_CONFIG.ABSENT_UNEXCUSED.label = ATTENDANCE_LABELS.ABSENT_UNEXCUSED;
+TYPE_CONFIG.ABSENT_UNEXCUSED.shortLabel = "N";
+TYPE_CONFIG.EARLY_LEAVE.label = ATTENDANCE_LABELS.EARLY_LEAVE;
+
+const NOT_RECORDED_CONFIG = {
+  label: "Chưa điểm danh",
+  lineClass: "bg-slate-300",
+  textClass: "text-slate-400",
+};
+
+const DAY_STATUS_PRIORITY = [
+  "ABSENT_UNEXCUSED",
+  "ABSENT_EXCUSED",
+  "LATE",
+  "EARLY_LEAVE",
+  "PRESENT",
+];
 
 const CONTEXT_CONFIG = {
   CLASS: {
@@ -303,6 +332,34 @@ function countTypes(items = []) {
   }, {});
 }
 
+function getDayStatus(records = [], dateKey) {
+  const todayKey = toDateKey(new Date());
+
+  if (!records.length) {
+    if (dateKey <= todayKey) {
+      return {
+        typeName: "NOT_RECORDED",
+        count: 0,
+        config: NOT_RECORDED_CONFIG,
+      };
+    }
+
+    return null;
+  }
+
+  const counts = countTypes(records);
+  const typeName =
+    DAY_STATUS_PRIORITY.find((status) => counts[status] > 0) ||
+    records[0]?.typeName ||
+    "UNKNOWN";
+
+  return {
+    typeName,
+    count: records.length,
+    config: getTypeConfig(typeName),
+  };
+}
+
 function SummaryCard({
   label,
   value,
@@ -356,8 +413,7 @@ function CalendarCell({
   selected,
   onSelect,
 }) {
-  const counts = countTypes(records);
-  const typeEntries = Object.entries(counts);
+  const dayStatus = getDayStatus(records, day.key);
 
   return (
     <button
@@ -404,16 +460,16 @@ function CalendarCell({
       )}
 
       <div className="absolute bottom-2 left-2 right-2 space-y-1">
-        {typeEntries.slice(0, 3).map(([typeName]) => {
-          const config = getTypeConfig(typeName);
-
-          return (
-            <span
-              key={typeName}
-              className={`block h-1 rounded-full ${config.lineClass}`}
-            />
-          );
-        })}
+        {dayStatus?.typeName === "NOT_RECORDED" ? (
+          <span className={`block truncate text-[9px] font-semibold ${dayStatus.config.textClass}`}>
+            {dayStatus.config.label}
+          </span>
+        ) : dayStatus ? (
+          <span
+            title={dayStatus.config.label}
+            className={`block h-1.5 rounded-full ${dayStatus.config.lineClass}`}
+          />
+        ) : null}
       </div>
     </button>
   );
@@ -820,7 +876,7 @@ function StudentAttendance() {
             />
 
             <SummaryCard
-              label="Hiện diện"
+              label={ATTENDANCE_LABELS.PRESENT}
               value={presentCount}
               helper={`${presentRate}% tổng số buổi`}
               icon={FiCheckCircle}
@@ -829,7 +885,7 @@ function StudentAttendance() {
             />
 
             <SummaryCard
-              label="Đi muộn"
+              label={ATTENDANCE_LABELS.LATE}
               value={lateCount}
               helper={lateCount > 0 ? "Cần lưu ý" : "Không có bản ghi"}
               icon={FiClock}
@@ -838,7 +894,7 @@ function StudentAttendance() {
             />
 
             <SummaryCard
-              label="Vắng mặt"
+              label={ATTENDANCE_LABELS.ABSENT_UNEXCUSED}
               value={absentCount}
               helper={`${summary.ABSENT_UNEXCUSED?.count || 0} không phép`}
               icon={FiAlertCircle}

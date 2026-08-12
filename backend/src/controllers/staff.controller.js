@@ -54,7 +54,7 @@ function handleError(res, error, fallbackMessage) {
   if (error.code === "ER_DUP_ENTRY") {
     return res.status(409).json({
       success: false,
-      message: "Dá»¯ liá»‡u Ä‘Ã£ tá»“n táº¡i (email, mÃ£ hoáº·c username trÃ¹ng)",
+      message: "Dữ liệu đã tồn tại (email, mã hoặc username trùng)",
     });
   }
 
@@ -337,6 +337,15 @@ async function updateClass(req, res) {
   }
 }
 
+async function deleteClass(req, res) {
+  try {
+    const data = await staffModel.deleteClass(req.params.id);
+    return res.json({ success: true, data, message: "Đã xóa lớp học" });
+  } catch (error) {
+    return handleError(res, error, "Không thể xóa lớp học");
+  }
+}
+
 async function enrollStudent(req, res) {
   try {
     const data = await staffModel.enrollStudent(
@@ -381,7 +390,11 @@ async function removeTeacher(req, res) {
 
 async function getClassTimetable(req, res) {
   try {
-    const data = await staffModel.listClassTimetable(req.params.id);
+    const data = await staffModel.listClassTimetable(req.params.id, {
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      lessonDate: req.query.lessonDate,
+    });
     return res.json({ success: true, data });
   } catch (error) {
     return handleError(res, error, "KhÃƒÂ´ng thÃ¡Â»Æ’ tÃ¡ÂºÂ£i thÃ¡Â»Âi khÃƒÂ³a biÃ¡Â»Æ’u");
@@ -633,6 +646,7 @@ module.exports = {
   getClassById,
   createClass,
   updateClass,
+  deleteClass,
   enrollStudent,
   removeStudentFromClass,
   assignTeacher,

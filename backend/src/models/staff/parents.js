@@ -70,14 +70,30 @@ async function listParents(filters = "") {
         sc.class_name AS className
       FROM parent_profile pp
       INNER JOIN user_account ua ON ua.user_id = pp.user_id
-      LEFT JOIN student_parent sp ON sp.parent_id = pp.parent_id
+      LEFT JOIN (
+        SELECT
+          parent_id,
+          student_id,
+          MAX(relationship) AS relationship,
+          MAX(is_primary) AS is_primary
+        FROM student_parent
+        GROUP BY parent_id, student_id
+      ) sp ON sp.parent_id = pp.parent_id
       LEFT JOIN student s ON s.student_id = sp.student_id
       LEFT JOIN user_account su ON su.user_id = s.user_id
       LEFT JOIN class_enrollment ce
-        ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+        ON ce.enrollment_id = (
+          SELECT ce2.enrollment_id
+          FROM class_enrollment ce2
+          INNER JOIN school_class sc2 ON sc2.class_id = ce2.class_id
+          WHERE ce2.student_id = s.student_id
+            AND ce2.status = 'ACTIVE'
+            ${normalized.schoolYearId ? "AND sc2.school_year_id = ?" : ""}
+          ORDER BY ce2.enrollment_date DESC, ce2.enrollment_id DESC
+          LIMIT 1
+        )
       LEFT JOIN school_class sc
         ON sc.class_id = ce.class_id
-        ${normalized.schoolYearId ? "AND sc.school_year_id = ?" : ""}
       WHERE ${conditions.join(" AND ")}
       ORDER BY pp.parent_id
     `,
@@ -120,11 +136,26 @@ async function getParentById(parentId) {
         sp.relationship,
         sp.is_primary AS isPrimary,
         sc.class_name AS className
-      FROM student_parent sp
+      FROM (
+        SELECT
+          parent_id,
+          student_id,
+          MAX(relationship) AS relationship,
+          MAX(is_primary) AS is_primary
+        FROM student_parent
+        GROUP BY parent_id, student_id
+      ) sp
       INNER JOIN student s ON s.student_id = sp.student_id
       INNER JOIN user_account su ON su.user_id = s.user_id
       LEFT JOIN class_enrollment ce
-        ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+        ON ce.enrollment_id = (
+          SELECT ce2.enrollment_id
+          FROM class_enrollment ce2
+          WHERE ce2.student_id = s.student_id
+            AND ce2.status = 'ACTIVE'
+          ORDER BY ce2.enrollment_date DESC, ce2.enrollment_id DESC
+          LIMIT 1
+        )
       LEFT JOIN school_class sc ON sc.class_id = ce.class_id
       WHERE sp.parent_id = ?
     `,

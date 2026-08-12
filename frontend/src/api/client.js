@@ -1688,11 +1688,15 @@ export const eventApi = {
 };
 
 export const timetableApi = {
-  getMyTimetable: () =>
-    request("/teachers/timetable"),
+  getMyTimetable: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/teachers/timetable${qs ? `?${qs}` : ""}`);
+  },
 
-  getSubstitutionMeta: () =>
-    request("/teachers/timetable/substitutions/meta"),
+  getSubstitutionMeta: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/teachers/timetable/substitutions/meta${qs ? `?${qs}` : ""}`);
+  },
 
   listSubstitutions: (params = {}) => {
     const cleaned = Object.fromEntries(
@@ -2141,6 +2145,11 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
+  deleteClass: (id) =>
+    request(`/staff/classes/${id}`, {
+      method: "DELETE",
+    }),
+
   enrollStudent: (classId, studentId) =>
     request(`/staff/classes/${classId}/students`, {
       method: "POST",
@@ -2163,8 +2172,14 @@ export const staffApi = {
       method: "DELETE",
     }),
 
-  getClassTimetable: (classId) =>
-    request(`/staff/classes/${classId}/timetable`),
+  getClassTimetable: (classId, params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(
+      `/staff/classes/${classId}/timetable${query ? `?${query}` : ""}`,
+    );
+  },
 
   createClassTimetableLesson: (classId, payload) =>
     request(`/staff/classes/${classId}/timetable`, {

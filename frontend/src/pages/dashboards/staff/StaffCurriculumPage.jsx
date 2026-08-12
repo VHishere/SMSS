@@ -378,7 +378,6 @@ function StaffCurriculumPage() {
 
       <StaffDataTable
         title="Môn học trong chương trình"
-        description={`${rows.length} môn`}
         showSearch={false}
         searchValue=""
         onSearchChange={() => {}}

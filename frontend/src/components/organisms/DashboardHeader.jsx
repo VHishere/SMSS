@@ -838,9 +838,9 @@ function DashboardHeader({
   const isSupervisorOnly = roleNames.includes("DORM_SUPERVISOR") && !isTeacherProper && !isAdmin && !isStudent && !isParent;
   const isStitch = isStitchUser(authUser);
 
-  // Đích tìm kiếm theo role (trang danh sách phù hợp nhất). Teacher giữ nguyên.
+  // Không hiển thị ô tìm kiếm trên header giáo viên.
   const search = isTeacher
-    ? { to: "/teacher/students", placeholder: "Tìm học sinh, lớp học, hoặc điểm số...", loadItems: loadTeacherStudents }
+    ? null
     : isStaff
       ? { to: "/staff/students", placeholder: "Tìm học sinh, lớp học...", loadItems: loadStaffStudents }
       : isStudent

@@ -43,10 +43,18 @@ function buildStudentSelect({ schoolYearId } = {}) {
   FROM student s
   INNER JOIN user_account ua ON ua.user_id = s.user_id
   LEFT JOIN class_enrollment ce
-    ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+    ON ce.enrollment_id = (
+      SELECT ce2.enrollment_id
+      FROM class_enrollment ce2
+      INNER JOIN school_class sc2 ON sc2.class_id = ce2.class_id
+      WHERE ce2.student_id = s.student_id
+        AND ce2.status = 'ACTIVE'
+        ${schoolYearId ? "AND sc2.school_year_id = ?" : ""}
+      ORDER BY ce2.enrollment_date DESC, ce2.enrollment_id DESC
+      LIMIT 1
+    )
   LEFT JOIN school_class sc
     ON sc.class_id = ce.class_id
-    ${schoolYearId ? "AND sc.school_year_id = ?" : ""}
   LEFT JOIN grade g ON g.grade_id = sc.grade_id
   LEFT JOIN school_year sy ON sy.school_year_id = sc.school_year_id
 `;
@@ -319,10 +327,31 @@ async function updateStudent(studentId, data) {
     );
 
     if (data.classId !== undefined) {
-      await connection.query(
-        "UPDATE class_enrollment SET status = 'INACTIVE' WHERE student_id = ? AND status = 'ACTIVE'",
-        [studentId],
-      );
+      let targetSchoolYearId = data.schoolYearId
+        ? validatePositiveInt(data.schoolYearId, "năm học")
+        : null;
+
+      if (payload.classId) {
+        const [classRows] = await connection.query(
+          "SELECT school_year_id AS schoolYearId FROM school_class WHERE class_id = ? LIMIT 1",
+          [payload.classId],
+        );
+        targetSchoolYearId = classRows[0]?.schoolYearId || targetSchoolYearId;
+      }
+
+      if (targetSchoolYearId) {
+        await connection.query(
+          `
+            UPDATE class_enrollment ce
+            INNER JOIN school_class sc ON sc.class_id = ce.class_id
+            SET ce.status = 'INACTIVE'
+            WHERE ce.student_id = ?
+              AND ce.status = 'ACTIVE'
+              AND sc.school_year_id = ?
+          `,
+          [studentId, targetSchoolYearId],
+        );
+      }
 
       if (payload.classId) {
         await connection.query(

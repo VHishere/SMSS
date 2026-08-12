@@ -13,10 +13,14 @@ async function findTeachingAssignments(teacherId) {
      FROM teacher_class tc
      INNER JOIN school_class sc
        ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy
+       ON sy.school_year_id = sc.school_year_id
      INNER JOIN grade g ON g.grade_id = sc.grade_id
      INNER JOIN subject sub
        ON sub.subject_id = tc.subject_id AND sub.status = 'ACTIVE'
      WHERE tc.teacher_id = ? AND tc.subject_id IS NOT NULL
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      ORDER BY sc.class_name ASC, sub.subject_name ASC`,
     [teacherId],
   );
@@ -29,7 +33,11 @@ async function isTeacherAssigned(teacherId, classId, subjectId) {
      FROM teacher_class tc
      INNER JOIN school_class sc
        ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy
+       ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ? AND tc.class_id = ? AND tc.subject_id = ?
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, classId, subjectId],
   );
@@ -44,9 +52,15 @@ async function isTeacherForStudentSubject(teacherId, studentId, subjectId) {
      FROM teacher_class tc
      INNER JOIN class_enrollment ce
        ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc
+       ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy
+       ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ?
        AND tc.subject_id = ?
        AND ce.student_id = ?
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, subjectId, studentId],
   );
@@ -61,7 +75,13 @@ async function isTeacherForStudent(teacherId, studentId) {
      FROM teacher_class tc
      INNER JOIN class_enrollment ce
        ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc
+       ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy
+       ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ? AND ce.student_id = ?
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, studentId],
   );
@@ -78,6 +98,7 @@ async function findSemesters() {
        sy.is_active      AS isActiveYear
      FROM semester sem
      INNER JOIN school_year sy ON sy.school_year_id = sem.school_year_id
+     WHERE sy.is_active = 1
      ORDER BY sy.is_active DESC, sy.start_date DESC, sem.start_date ASC`,
   );
   return rows.map((r) => ({ ...r, isActiveYear: Boolean(r.isActiveYear) }));
@@ -425,7 +446,11 @@ async function findScoreLog(filters = {}) {
     where += ` AND l.student_id IN (
       SELECT ce.student_id FROM class_enrollment ce
       INNER JOIN teacher_class tc ON tc.class_id = ce.class_id
-      WHERE tc.teacher_id = ? AND ce.status = 'ACTIVE')`;
+      INNER JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+      INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
+      WHERE tc.teacher_id = ?
+        AND ce.status = 'ACTIVE'
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE()))`;
     params.push(parseInt(teacherId, 10));
   }
 
@@ -496,15 +521,23 @@ async function findWarnings(filters = {}) {
     where += ` AND w.student_id IN (
       SELECT ce2.student_id FROM class_enrollment ce2
       INNER JOIN teacher_class tc ON tc.class_id = ce2.class_id
-      WHERE tc.teacher_id = ? AND ce2.status = 'ACTIVE')`;
+      INNER JOIN school_class sc2 ON sc2.class_id = ce2.class_id AND sc2.status = 'ACTIVE'
+      INNER JOIN school_year sy2 ON sy2.school_year_id = sc2.school_year_id AND sy2.is_active = 1
+      WHERE tc.teacher_id = ?
+        AND ce2.status = 'ACTIVE'
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE()))`;
     params.push(parseInt(teacherId, 10));
   }
 
   const [[{ total }]] = await pool.query(
-    `SELECT COUNT(*) AS total
+    `SELECT COUNT(DISTINCT w.warning_id) AS total
      FROM academic_warning w
      INNER JOIN student s ON s.student_id = w.student_id
+     INNER JOIN semester sem ON sem.semester_id = w.semester_id
      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+       AND sc.status = 'ACTIVE'
+       AND sc.school_year_id = sem.school_year_id
      WHERE ${where}`,
     params,
   );
@@ -530,7 +563,9 @@ async function findWarnings(filters = {}) {
      INNER JOIN user_account ua ON ua.user_id = s.user_id
      INNER JOIN semester sem ON sem.semester_id = w.semester_id
      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+       AND sc.status = 'ACTIVE'
+       AND sc.school_year_id = sem.school_year_id
      WHERE ${where}
      ORDER BY
        CASE w.status WHEN 'OPEN' THEN 0 WHEN 'IN_PROGRESS' THEN 1 ELSE 2 END ASC,

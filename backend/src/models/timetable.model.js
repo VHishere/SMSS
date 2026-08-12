@@ -110,11 +110,25 @@ async function findCurrentStudentContextByStudentId(studentId) {
   return rows[0] || null;
 }
 
-async function findLessonsByClassId(classId) {
+async function findLessonsByClassId(classId, filters = {}) {
+  const conditions = [
+    "tt.class_id = ?",
+    "tt.status = 'ACTIVE'",
+    "sc.status = 'ACTIVE'",
+    "sy.is_active = 1",
+  ];
+  const params = [classId];
+
+  if (filters.startDate && filters.endDate) {
+    conditions.push("tt.lesson_date BETWEEN ? AND ?");
+    params.push(filters.startDate, filters.endDate);
+  }
+
   const [rows] = await pool.query(
     `
       SELECT
         tt.timetable_id AS timetableId,
+        DATE_FORMAT(tt.lesson_date, '%Y-%m-%d') AS lessonDate,
         tt.day_of_week AS dayOfWeek,
         tt.period_no AS periodNo,
 
@@ -138,6 +152,9 @@ async function findLessonsByClassId(classId) {
       INNER JOIN school_class sc
         ON sc.class_id = tt.class_id
 
+      INNER JOIN school_year sy
+        ON sy.school_year_id = sc.school_year_id
+
       INNER JOIN subject sb
         ON sb.subject_id = tt.subject_id
 
@@ -147,24 +164,38 @@ async function findLessonsByClassId(classId) {
       INNER JOIN user_account ua
         ON ua.user_id = t.user_id
 
-      WHERE tt.class_id = ?
-        AND tt.status = 'ACTIVE'
+      WHERE ${conditions.join(" AND ")}
 
       ORDER BY
+        tt.lesson_date ASC,
         tt.day_of_week ASC,
         tt.period_no ASC
     `,
-    [classId],
+    params,
   );
 
   return rows;
 }
 
-async function findLessonsByTeacherId(teacherId) {
+async function findLessonsByTeacherId(teacherId, filters = {}) {
+  const conditions = [
+    "tt.teacher_id = ?",
+    "tt.status = 'ACTIVE'",
+    "sc.status = 'ACTIVE'",
+    "sy.is_active = 1",
+  ];
+  const params = [teacherId];
+
+  if (filters.startDate && filters.endDate) {
+    conditions.push("tt.lesson_date BETWEEN ? AND ?");
+    params.push(filters.startDate, filters.endDate);
+  }
+
   const [rows] = await pool.query(
     `
       SELECT
         tt.timetable_id AS timetableId,
+        DATE_FORMAT(tt.lesson_date, '%Y-%m-%d') AS lessonDate,
         tt.day_of_week AS dayOfWeek,
         tt.period_no AS periodNo,
 
@@ -181,24 +212,36 @@ async function findLessonsByTeacherId(teacherId) {
         sb.subject_code AS subjectCode,
 
         sc.class_id AS classId,
-        sc.class_name AS className
+        sc.class_name AS className,
+
+        t.teacher_id AS teacherId,
+        ua.full_name AS teacherName
 
       FROM timetable tt
 
       INNER JOIN school_class sc
         ON sc.class_id = tt.class_id
 
+      INNER JOIN school_year sy
+        ON sy.school_year_id = sc.school_year_id
+
       INNER JOIN subject sb
         ON sb.subject_id = tt.subject_id
 
-      WHERE tt.teacher_id = ?
-        AND tt.status = 'ACTIVE'
+      INNER JOIN teacher t
+        ON t.teacher_id = tt.teacher_id
+
+      INNER JOIN user_account ua
+        ON ua.user_id = t.user_id
+
+      WHERE ${conditions.join(" AND ")}
 
       ORDER BY
+        tt.lesson_date ASC,
         tt.day_of_week ASC,
         tt.period_no ASC
     `,
-    [teacherId],
+    params,
   );
 
   return rows;

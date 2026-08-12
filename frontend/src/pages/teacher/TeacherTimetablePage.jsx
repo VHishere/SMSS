@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardShell from "../../components/templates/DashboardShell";
 import WeeklyTimetable from "../../components/organisms/WeeklyTimetable";
 import SubstitutionModal from "../../components/organisms/SubstitutionModal";
@@ -34,6 +35,7 @@ const AVA = ["#00458E", "#225DAD", "#4A5F82", "#F27123"];
 
 function TeacherTimetablePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState("schedule");
   const [subTab, setSubTab] = useState("create");
   const [tt, setTt] = useState(null);
@@ -75,6 +77,30 @@ function TeacherTimetablePage() {
   async function cancel(id) {
     if (!window.confirm("Hủy yêu cầu này?")) return;
     try { await timetableApi.cancelSubstitution(id); setRefresh((k) => k + 1); } catch (e) { alert(e.message); }
+  }
+
+  const todayKey = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  function getLessonDate(lesson, day) {
+    return lesson?.lessonDate || day?.date || todayKey;
+  }
+
+  function canOpenAttendance(lesson, day) {
+    return getLessonDate(lesson, day) <= todayKey;
+  }
+
+  function openAttendance(lesson, day) {
+    if (!lesson || !canOpenAttendance(lesson, day)) return;
+    const lessonDate = getLessonDate(lesson, day);
+    navigate(
+      `/teacher/attendance?tab=roll-call&date=${lessonDate}&timetableId=${lesson.timetableId}`,
+    );
   }
 
   function reqCard(s) {
@@ -125,7 +151,17 @@ function TeacherTimetablePage() {
           {!loading && !error && tt && (
             tt.lessons.length === 0
               ? <div className="rounded-3xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: `1px solid ${C.border}` }}>Chưa có tiết dạy nào trong thời khóa biểu.</div>
-              : <WeeklyTimetable weekDays={tt.weekDays} slots={tt.slots} lessons={tt.lessons} />
+              : (
+                <WeeklyTimetable
+                  weekDays={tt.weekDays}
+                  slots={tt.slots}
+                  lessons={tt.lessons}
+                  onLessonClick={(lesson, day) => openAttendance(lesson, day)}
+                  getLessonActionLabel={(lesson, day) =>
+                    canOpenAttendance(lesson, day) ? "Mở điểm danh" : undefined
+                  }
+                />
+              )
           )}
         </>
       )}

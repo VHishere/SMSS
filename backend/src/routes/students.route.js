@@ -114,10 +114,16 @@ router.get(
   studentController.getMyGoals,
 );
 
-router.get(
-  "/me/goals/:goalId/log",
+router.post(
+  "/me/goals",
   ...studentOnly,
-  studentController.getMyGoalLog,
+  studentController.createMyGoal,
+);
+
+router.put(
+  "/me/goals/:goalId",
+  ...studentOnly,
+  studentController.updateMyGoal,
 );
 
 router.get(

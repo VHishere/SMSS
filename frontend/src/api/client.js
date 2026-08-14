@@ -645,8 +645,17 @@ export const studentApi = {
     return request(`/students/me/goals${qs ? `?${qs}` : ""}`);
   },
 
-  getMyGoalLog: (goalId) =>
-    request(`/students/me/goals/${goalId}/log`),
+  createMyGoal: (body) =>
+    request("/students/me/goals", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateMyGoal: (goalId, body) =>
+    request(`/students/me/goals/${goalId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
 
   getMyEvents: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
@@ -1201,40 +1210,11 @@ export const goalApi = {
     );
   },
 
-  create: (studentId, body) =>
-    request(`/teachers/students/${studentId}/goals`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  update: (goalId, body) =>
-    request(`/teachers/goals/${goalId}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }),
-
-  updateProgress: (goalId, body) =>
-    request(`/teachers/goals/${goalId}/progress`, {
+  comment: (goalId, comment) =>
+    request(`/teachers/goals/${goalId}/comment`, {
       method: "PATCH",
-      body: JSON.stringify(body),
+      body: JSON.stringify({ comment }),
     }),
-
-  evaluate: (goalId, body) =>
-    request(`/teachers/goals/${goalId}/evaluate`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  archive: (goalId, note) =>
-    request(`/teachers/goals/${goalId}/archive`, {
-      method: "POST",
-      body: JSON.stringify({
-        note,
-      }),
-    }),
-
-  getLog: (goalId) =>
-    request(`/teachers/goals/${goalId}/log`),
 };
 
 async function downloadRequest(path, body, fallbackName) {

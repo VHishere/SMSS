@@ -700,12 +700,11 @@ async function findDashboardByUserId(userId) {
     `
       SELECT
         COUNT(*) AS totalGoals,
-        SUM(CASE WHEN status = 'IN_PROGRESS' THEN 1 ELSE 0 END) AS inProgressGoals,
-        SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) AS completedGoals,
-        ROUND(AVG(progress), 0) AS averageProgress
+        SUM(CASE WHEN teacher_remark IS NOT NULL AND TRIM(teacher_remark) <> '' THEN 1 ELSE 0 END) AS reviewedGoals,
+        SUM(CASE WHEN target_date IS NOT NULL AND target_date < CURDATE() THEN 1 ELSE 0 END) AS overdueGoals,
+        SUM(CASE WHEN target_date IS NULL OR target_date >= CURDATE() THEN 1 ELSE 0 END) AS upcomingGoals
       FROM student_goal
       WHERE student_id = ?
-        AND status <> 'ARCHIVED'
     `,
     [context.studentId],
   );

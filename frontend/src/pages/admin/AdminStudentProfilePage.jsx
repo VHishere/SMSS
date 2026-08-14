@@ -459,17 +459,25 @@ function AcademicTab({ acad, semesters, effSem, setSem }) {
 // ─── Roadmap (goals + derived competency + goal-based timeline) ───────────────
 function RoadmapTab({ goals, acad }) {
   const gs = useMemo(() => goals ?? [], [goals]);
-  const active = gs.filter((g) => g.status === "IN_PROGRESS" || g.status === "COMPLETED");
   const subjects = acad?.current?.subjects;
+
   const skillTags = useMemo(() => {
     const tags = new Set();
-    for (const g of gs) if (GOAL_TYPE_LABEL[g.goalType]) tags.add(GOAL_TYPE_LABEL[g.goalType]);
-    for (const s of subjects ?? []) if (s.average >= 8) tags.add(s.subjectName);
+    for (const goal of gs) {
+      if (GOAL_TYPE_LABEL[goal.goalType]) tags.add(GOAL_TYPE_LABEL[goal.goalType]);
+    }
+    for (const subject of subjects ?? []) {
+      if (subject.average >= 8) tags.add(subject.subjectName);
+    }
     return [...tags].slice(0, 8);
   }, [gs, subjects]);
+
   const tagColors = [
-    { bg: "rgba(242,113,35,0.1)", text: C.orange }, { bg: "rgba(34,93,173,0.1)", text: C.secondary },
-    { bg: "#DCFCE7", text: "#15803D" }, { bg: "#FEF3C7", text: "#B45309" }, { bg: "#EBF3FF", text: "#225DAD" },
+    { bg: "rgba(242,113,35,0.1)", text: C.orange },
+    { bg: "rgba(34,93,173,0.1)", text: C.secondary },
+    { bg: "#DCFCE7", text: "#15803D" },
+    { bg: "#FEF3C7", text: "#B45309" },
+    { bg: "#EBF3FF", text: "#225DAD" },
   ];
 
   return (
@@ -477,69 +485,131 @@ function RoadmapTab({ goals, acad }) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="flex items-center gap-2 font-bold" style={{ color: C.onSurface }}><Ms name="track_changes" style={{ color: C.orange }} /> Mục tiêu hiện tại</h3>
+            <h3 className="flex items-center gap-2 font-bold" style={{ color: C.onSurface }}>
+              <Ms name="track_changes" style={{ color: C.orange }} />
+              Mục tiêu của học sinh
+            </h3>
           </div>
-          {active.length === 0 ? (
-            <p className="rounded-2xl border border-dashed px-4 py-6 text-center text-sm text-slate-400" style={{ borderColor: C.border }}>Học sinh chưa thiết lập mục tiêu nào.</p>
+
+          {gs.length === 0 ? (
+            <p className="rounded-2xl border border-dashed px-4 py-6 text-center text-sm text-slate-400" style={{ borderColor: C.border }}>
+              Học sinh chưa tự tạo mục tiêu nào.
+            </p>
           ) : (
             <div className="space-y-4">
-              {active.map((g) => {
-                const done = g.status === "COMPLETED";
-                const col = done ? "#16A34A" : (g.goalType === "ACADEMIC" ? C.orange : C.secondary);
-                return (
-                  <div key={g.goalId} className="rounded-2xl border p-4" style={{ backgroundColor: C.surfaceLow, borderColor: "rgba(223,192,178,0.4)" }}>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="text-sm font-bold" style={{ color: C.onSurface }}>{g.title}</span>
-                      <span className="text-xs font-bold" style={{ color: col }}>{g.progress}%</span>
+              {gs.map((goal) => (
+                <div
+                  key={goal.goalId}
+                  className="rounded-2xl border p-4"
+                  style={{
+                    backgroundColor: C.surfaceLow,
+                    borderColor: "rgba(223,192,178,0.4)",
+                  }}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span
+                        className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                        style={{ backgroundColor: "rgba(34,93,173,0.1)", color: C.secondary }}
+                      >
+                        {GOAL_TYPE_LABEL[goal.goalType] ?? goal.goalType}
+                      </span>
+                      <p className="mt-2 text-sm font-bold" style={{ color: C.onSurface }}>
+                        {goal.title}
+                      </p>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(223,192,178,0.3)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${g.progress}%`, backgroundColor: col }} />
-                    </div>
-                    {g.description && <p className="mt-2 text-[10px] italic" style={{ color: C.muted }}>Kế hoạch: {g.description}</p>}
+
+                    <span className="text-xs" style={{ color: C.muted }}>
+                      {goal.targetDate ? formatDateVN(goal.targetDate) : "—"}
+                    </span>
                   </div>
-                );
-              })}
+
+                  {goal.description && (
+                    <p className="mt-2 text-xs leading-5" style={{ color: C.muted }}>
+                      {goal.description}
+                    </p>
+                  )}
+
+                  {goal.teacherRemark && (
+                    <div className="mt-3 rounded-xl bg-blue-50 px-3 py-2.5">
+                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: C.secondary }}>
+                        Nhận xét của GVCN
+                      </p>
+                      <p className="text-xs leading-5 text-blue-800">
+                        {goal.teacherRemark}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
 
         <div>
-          <h3 className="mb-4 flex items-center gap-2 font-bold" style={{ color: C.onSurface }}><Ms name="psychology" style={{ color: C.secondary }} /> Đánh giá năng lực</h3>
+          <h3 className="mb-4 flex items-center gap-2 font-bold" style={{ color: C.onSurface }}>
+            <Ms name="psychology" style={{ color: C.secondary }} />
+            Định hướng nổi bật
+          </h3>
           <div className="rounded-2xl border p-6" style={{ backgroundColor: C.surfaceLow, borderColor: "rgba(223,192,178,0.4)" }}>
             {skillTags.length === 0 ? (
-              <p className="text-center text-sm text-slate-400">Chưa có dữ liệu năng lực.</p>
+              <p className="text-center text-sm text-slate-400">Chưa có dữ liệu định hướng.</p>
             ) : (
               <div className="flex flex-wrap justify-center gap-2">
-                {skillTags.map((t, i) => {
-                  const c = tagColors[i % tagColors.length];
-                  return <span key={t} className="rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: c.bg, color: c.text }}>{t}</span>;
+                {skillTags.map((tag, index) => {
+                  const color = tagColors[index % tagColors.length];
+                  return (
+                    <span
+                      key={tag}
+                      className="rounded-full px-3 py-1 text-xs font-bold"
+                      style={{ backgroundColor: color.bg, color: color.text }}
+                    >
+                      {tag}
+                    </span>
+                  );
                 })}
               </div>
             )}
-            <p className="mt-4 text-center text-[11px] italic" style={{ color: C.muted }}>Suy ra từ mục tiêu &amp; môn học nổi bật (điểm ≥ 8).</p>
+            <p className="mt-4 text-center text-[11px] italic" style={{ color: C.muted }}>
+              Tham khảo từ loại mục tiêu học sinh đã chọn và các môn học nổi bật.
+            </p>
           </div>
         </div>
       </div>
 
       <div>
-        <h3 className="mb-6 flex items-center gap-2 font-bold" style={{ color: C.onSurface }}><Ms name="rocket_launch" style={{ color: C.orange }} /> Lộ trình mục tiêu</h3>
-        {gs.filter((g) => g.targetDate).length === 0 ? (
-          <p className="rounded-2xl border border-dashed px-4 py-6 text-center text-sm text-slate-400" style={{ borderColor: C.border }}>Chưa có mục tiêu gắn mốc thời gian.</p>
+        <h3 className="mb-6 flex items-center gap-2 font-bold" style={{ color: C.onSurface }}>
+          <Ms name="rocket_launch" style={{ color: C.orange }} />
+          Lộ trình theo thời hạn
+        </h3>
+
+        {gs.filter((goal) => goal.targetDate).length === 0 ? (
+          <p className="rounded-2xl border border-dashed px-4 py-6 text-center text-sm text-slate-400" style={{ borderColor: C.border }}>
+            Chưa có mục tiêu gắn mốc thời gian.
+          </p>
         ) : (
           <div className="relative overflow-x-auto p-4">
             <div className="flex gap-6">
-              {[...gs].filter((g) => g.targetDate).sort((a, b) => String(a.targetDate).localeCompare(String(b.targetDate))).slice(0, 5).map((g, i) => {
-                const done = g.status === "COMPLETED";
-                return (
-                  <div key={g.goalId} className="flex min-w-30 flex-col items-center text-center">
-                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full border-4 border-white text-white shadow-sm" style={{ backgroundColor: done ? "#16A34A" : (i === 0 ? C.orange : C.secondary) }}>
-                      <Ms name={done ? "check" : "flag"} className="text-[18px]!" />
+              {[...gs]
+                .filter((goal) => goal.targetDate)
+                .sort((first, second) => String(first.targetDate).localeCompare(String(second.targetDate)))
+                .slice(0, 6)
+                .map((goal, index) => (
+                  <div key={goal.goalId} className="flex min-w-30 flex-col items-center text-center">
+                    <div
+                      className="mb-2 flex h-10 w-10 items-center justify-center rounded-full border-4 border-white text-white shadow-sm"
+                      style={{ backgroundColor: index === 0 ? C.orange : C.secondary }}
+                    >
+                      <Ms name="flag" className="text-[18px]!" />
                     </div>
-                    <p className="text-[11px] font-bold" style={{ color: C.onSurface }}>{g.title}</p>
-                    <p className="text-[10px] uppercase" style={{ color: C.muted }}>{formatDateVN(g.targetDate)}</p>
+                    <p className="text-[11px] font-bold" style={{ color: C.onSurface }}>
+                      {goal.title}
+                    </p>
+                    <p className="text-[10px] uppercase" style={{ color: C.muted }}>
+                      {formatDateVN(goal.targetDate)}
+                    </p>
                   </div>
-                );
-              })}
+                ))}
             </div>
           </div>
         )}

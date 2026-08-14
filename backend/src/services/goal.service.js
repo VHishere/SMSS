@@ -3,42 +3,85 @@ const goalModel = require("../models/goal.model");
 const GOAL_TYPES = ["ACADEMIC", "BEHAVIOUR", "ATTENDANCE", "PERSONAL"];
 
 function httpError(message, statusCode) {
-  const err = new Error(message);
-  err.statusCode = statusCode;
-  return err;
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
 }
 
 function todayStr() {
-  const p = (n) => String(n).padStart(2, "0");
-  const d = new Date();
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  const pad = (value) => String(value).padStart(2, "0");
+  const now = new Date();
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-function validateBase({ title, goalType, targetDate }) {
-  if (!title || !title.trim()) throw httpError("Tiêu đề mục tiêu là bắt buộc", 400);
-  if (!goalType || !GOAL_TYPES.includes(goalType)) throw httpError("Loại mục tiêu không hợp lệ", 400);
-  if (!targetDate) throw httpError("Hạn hoàn thành là bắt buộc", 400);
-  if (String(targetDate).slice(0, 10) < todayStr()) throw httpError("Hạn hoàn thành phải từ hôm nay trở đi", 400);
+function normalizeDate(value) {
+  return value ? String(value).slice(0, 10) : "";
 }
 
-function notif(recipients, title, content) {
-  return recipients.map((receiverId) => ({ receiverId, title, content }));
+function validateBase(payload, options = {}) {
+  const { allowExistingPastDate = "" } = options;
+  const title = String(payload?.title ?? "").trim();
+  const goalType = String(payload?.goalType ?? "").trim().toUpperCase();
+  const targetDate = normalizeDate(payload?.targetDate);
+
+  if (!title) {
+    throw httpError("Tiêu đề mục tiêu là bắt buộc", 400);
+  }
+
+  if (title.length > 255) {
+    throw httpError("Tiêu đề mục tiêu không được vượt quá 255 ký tự", 400);
+  }
+
+  if (!GOAL_TYPES.includes(goalType)) {
+    throw httpError("Loại mục tiêu không hợp lệ", 400);
+  }
+
+  if (!targetDate) {
+    throw httpError("Hạn hoàn thành là bắt buộc", 400);
+  }
+
+  const isUnchangedLegacyDate =
+    allowExistingPastDate && targetDate === normalizeDate(allowExistingPastDate);
+
+  if (targetDate < todayStr() && !isUnchangedLegacyDate) {
+    throw httpError("Hạn hoàn thành phải từ hôm nay trở đi", 400);
+  }
+
+  const description = String(payload?.description ?? "").trim();
+
+  return {
+    title,
+    goalType,
+    targetDate,
+    description: description || null,
+  };
+}
+
+function makeNotifications(receiverIds, title, content) {
+  return receiverIds.map((receiverId) => ({
+    receiverId,
+    title,
+    content,
+  }));
 }
 
 async function createGoal({ actorUserId, studentId, payload }) {
-  validateBase(payload);
+  const fields = validateBase(payload);
+  const homeroomTeacherIds = await goalModel.findHomeroomTeacherRecipients(studentId);
 
-  const recipients = await goalModel.findStudentRecipients(studentId);
   const goalId = await goalModel.createGoal({
     studentId,
-    goalType: payload.goalType,
-    title: payload.title.trim(),
-    description: payload.description ?? null,
-    targetDate: payload.targetDate || null,
-    teacherRemark: payload.teacherRemark ?? null,
+    goalType: fields.goalType,
+    title: fields.title,
+    description: fields.description,
+    targetDate: fields.targetDate,
     createdBy: actorUserId,
-    note: payload.note ?? null,
-    notifications: notif(recipients, "Mục tiêu mới được giao", `Bạn được giao mục tiêu: "${payload.title.trim()}".`),
+    note: "Học sinh tự tạo mục tiêu",
+    notifications: makeNotifications(
+      homeroomTeacherIds,
+      "Học sinh tạo mục tiêu mới",
+      `Học sinh đã tạo mục tiêu: "${fields.title}".`,
+    ),
   });
 
   return { goalId };
@@ -46,117 +89,72 @@ async function createGoal({ actorUserId, studentId, payload }) {
 
 async function updateGoal({ actorUserId, goalId, payload }) {
   const goal = await goalModel.findById(goalId);
-  if (!goal) throw httpError("Không tìm thấy mục tiêu", 404);
-  if (!["OPEN", "IN_PROGRESS"].includes(goal.status)) {
-    throw httpError("Mục tiêu đã kết thúc hoặc lưu trữ, không thể chỉnh sửa", 409);
+
+  if (!goal) {
+    throw httpError("Không tìm thấy mục tiêu", 404);
   }
 
-  validateBase(payload);
+  const fields = validateBase(payload, {
+    allowExistingPastDate: goal.targetDate,
+  });
+
+  const homeroomTeacherIds = await goalModel.findHomeroomTeacherRecipients(goal.studentId);
 
   await goalModel.updateGoal({
     goalId,
     changedBy: actorUserId,
     fields: {
-      goalType: payload.goalType,
-      title: payload.title.trim(),
-      description: payload.description ?? null,
-      targetDate: payload.targetDate || null,
-      teacherRemark: payload.teacherRemark ?? null,
-      note: payload.note ?? null,
+      ...fields,
+      note: "Học sinh cập nhật mục tiêu",
     },
+    notifications: makeNotifications(
+      homeroomTeacherIds,
+      "Học sinh cập nhật mục tiêu",
+      `Mục tiêu "${fields.title}" vừa được học sinh cập nhật.`,
+    ),
   });
-
-  // Notify of update (non-critical)
-  try {
-    const recipients = await goalModel.findStudentRecipients(goal.studentId);
-    await notifyUpdate(recipients, payload.title.trim(), goalId);
-  } catch (e) {
-    console.error("updateGoal notifications (non-critical):", e);
-  }
 
   return { goalId };
 }
 
-const { pool } = require("../config/db");
-async function notifyUpdate(recipients, title, goalId) {
-  if (!recipients.length) return;
-  await pool.query(
-    `INSERT INTO notification (receiver_id, title, content, type, related_type, related_id, is_read) VALUES ?`,
-    [recipients.map((rid) => [rid, "Mục tiêu được cập nhật", `Mục tiêu "${title}" đã được cập nhật.`, "GOAL", "STUDENT_GOAL", goalId, false])],
-  );
-}
-
-async function updateProgress({ actorUserId, goalId, payload }) {
+async function updateTeacherRemark({ goalId, payload }) {
   const goal = await goalModel.findById(goalId);
-  if (!goal) throw httpError("Không tìm thấy mục tiêu", 404);
-  if (goal.status === "ARCHIVED") throw httpError("Mục tiêu đã lưu trữ, không thể cập nhật", 409);
 
-  const newProgress = Number(payload.progress);
-  if (!Number.isInteger(newProgress) || newProgress < 0 || newProgress > 100) {
-    throw httpError("Tiến độ phải từ 0 đến 100", 400);
+  if (!goal) {
+    throw httpError("Không tìm thấy mục tiêu", 404);
   }
 
-  // Auto-complete when reaching 100% (still allows explicit evaluation later)
-  const autoStatus = newProgress >= 100 && goal.status === "IN_PROGRESS" ? "COMPLETED" : null;
+  const teacherRemark = String(payload?.comment ?? payload?.teacherRemark ?? "").trim();
 
-  await goalModel.updateProgress({
+  if (!teacherRemark) {
+    throw httpError("Vui lòng nhập nhận xét cho mục tiêu", 400);
+  }
+
+  if (teacherRemark.length > 2000) {
+    throw httpError("Nhận xét không được vượt quá 2000 ký tự", 400);
+  }
+
+  const studentUserIds = await goalModel.findStudentUserRecipients(goal.studentId);
+
+  await goalModel.updateTeacherRemark({
     goalId,
-    oldProgress: goal.progress,
-    newProgress,
-    note: payload.note ?? null,
-    milestoneTitle: payload.milestoneTitle ?? null,
-    changedBy: actorUserId,
-    autoStatus,
+    teacherRemark,
+    notifications: makeNotifications(
+      studentUserIds,
+      "GVCN nhận xét mục tiêu",
+      `GVCN đã nhận xét mục tiêu "${goal.title}".`,
+    ),
   });
 
-  return { goalId, progress: newProgress, status: autoStatus ?? goal.status };
-}
-
-async function evaluateGoal({ actorUserId, goalId, payload }) {
-  const goal = await goalModel.findById(goalId);
-  if (!goal) throw httpError("Không tìm thấy mục tiêu", 404);
-  if (!["OPEN", "IN_PROGRESS"].includes(goal.status)) {
-    throw httpError("Mục tiêu đã được đánh giá hoặc lưu trữ", 409);
-  }
-
-  if (!["COMPLETED", "FAILED"].includes(payload.status)) {
-    throw httpError("Kết quả đánh giá không hợp lệ", 400);
-  }
-  if (!payload.finalComment || !payload.finalComment.trim()) {
-    throw httpError("Đánh giá mục tiêu phải có nhận xét", 400);
-  }
-
-  const progress = payload.status === "COMPLETED" ? 100 : goal.progress;
-
-  const recipients = await goalModel.findStudentRecipients(goal.studentId);
-  const statusLabel = payload.status === "COMPLETED" ? "hoàn thành" : "chưa đạt";
-
-  await goalModel.evaluateGoal({
+  return {
     goalId,
-    status: payload.status,
-    finalComment: payload.finalComment.trim(),
-    progress,
-    changedBy: actorUserId,
-    notifications: notif(recipients, "Đánh giá mục tiêu", `Mục tiêu "${goal.title}" được đánh giá: ${statusLabel}.`),
-  });
-
-  return { goalId, status: payload.status };
-}
-
-async function archiveGoal({ actorUserId, goalId, note }) {
-  const goal = await goalModel.findById(goalId);
-  if (!goal) throw httpError("Không tìm thấy mục tiêu", 404);
-  if (goal.status === "ARCHIVED") throw httpError("Mục tiêu đã được lưu trữ", 409);
-
-  await goalModel.archiveGoal({ goalId, note: note ?? null, changedBy: actorUserId });
-  return { goalId };
+    teacherRemark,
+  };
 }
 
 module.exports = {
   GOAL_TYPES,
   createGoal,
   updateGoal,
-  updateProgress,
-  evaluateGoal,
-  archiveGoal,
+  updateTeacherRemark,
 };

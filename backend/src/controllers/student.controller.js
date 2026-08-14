@@ -25,12 +25,6 @@ const ALLOWED_STUDENT_EVENT_STATUSES = new Set([
   "CANCELLED",
 ]);
 
-const ALLOWED_GOAL_STATUSES = new Set([
-  "IN_PROGRESS",
-  "COMPLETED",
-  "FAILED",
-]);
-
 function isValidHttpUrl(value) {
   try {
     const url = new URL(value);
@@ -719,15 +713,7 @@ async function getMyGoals(req, res) {
       });
     }
 
-    const status = String(req.query.status || "").trim().toUpperCase();
     const goalType = String(req.query.goalType || "").trim().toUpperCase();
-
-    if (status && !ALLOWED_GOAL_STATUSES.has(status)) {
-      return res.status(400).json({
-        success: false,
-        message: "Trạng thái mục tiêu không hợp lệ",
-      });
-    }
 
     if (goalType && !GOAL_TYPES.includes(goalType)) {
       return res.status(400).json({
@@ -737,7 +723,6 @@ async function getMyGoals(req, res) {
     }
 
     const goals = await goalModel.findByStudent(context.studentId, {
-      status: status || null,
       goalType: goalType || null,
     });
 
@@ -771,10 +756,7 @@ async function createMyGoal(req, res) {
     const result = await goalService.createGoal({
       actorUserId: req.user.userId,
       studentId: context.studentId,
-      payload: {
-        ...req.body,
-        teacherRemark: null,
-      },
+      payload: req.body,
     });
 
     return res.status(201).json({
@@ -802,7 +784,7 @@ async function assertMyGoal(req, res, goalId) {
     return null;
   }
 
-  if (goal.studentUserId !== req.user.userId) {
+  if (Number(goal.studentUserId) !== Number(req.user.userId)) {
     res.status(403).json({
       success: false,
       message: "Bạn không có quyền thao tác mục tiêu này",
@@ -813,19 +795,24 @@ async function assertMyGoal(req, res, goalId) {
   return goal;
 }
 
-async function updateMyGoalProgress(req, res) {
+async function updateMyGoal(req, res) {
   try {
     const goalId = parsePositiveInteger(req.params.goalId);
+
     if (!goalId) {
-      return res.status(400).json({ success: false, message: "Mã mục tiêu không hợp lệ" });
+      return res.status(400).json({
+        success: false,
+        message: "Mã mục tiêu không hợp lệ",
+      });
     }
+
     const goal = await assertMyGoal(req, res, goalId);
 
     if (!goal) {
       return undefined;
     }
 
-    const result = await goalService.updateProgress({
+    const result = await goalService.updateGoal({
       actorUserId: req.user.userId,
       goalId,
       payload: req.body,
@@ -833,41 +820,14 @@ async function updateMyGoalProgress(req, res) {
 
     return res.json({
       success: true,
-      message: "Đã cập nhật tiến độ",
+      message: "Đã cập nhật mục tiêu",
       data: result,
     });
   } catch (error) {
     return handleError(
       res,
       error,
-      "Không thể cập nhật tiến độ mục tiêu",
-    );
-  }
-}
-
-async function getMyGoalLog(req, res) {
-  try {
-    const goalId = parsePositiveInteger(req.params.goalId);
-    if (!goalId) {
-      return res.status(400).json({ success: false, message: "Mã mục tiêu không hợp lệ" });
-    }
-    const goal = await assertMyGoal(req, res, goalId);
-
-    if (!goal) {
-      return undefined;
-    }
-
-    const log = await goalModel.findGoalLog(goalId);
-
-    return res.json({
-      success: true,
-      data: log,
-    });
-  } catch (error) {
-    return handleError(
-      res,
-      error,
-      "Không thể lấy nhật ký mục tiêu",
+      "Không thể cập nhật mục tiêu",
     );
   }
 }
@@ -1400,8 +1360,7 @@ module.exports = {
   getGoalTypes,
   getMyGoals,
   createMyGoal,
-  updateMyGoalProgress,
-  getMyGoalLog,
+  updateMyGoal,
   getMyEvents,
   getMyEventDetail,
   registerMyEvent,

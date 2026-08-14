@@ -277,7 +277,7 @@ function StaffFeeFormPage() {
         <StaffField label="Số tiền">
           <input
             type="number"
-            min="1"
+            min="1000"
             step="1000"
             className={inputClass}
             value={form.amount}

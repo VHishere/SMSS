@@ -427,34 +427,10 @@ router.get(
   goalController.listClassGoals,
 );
 
-router.get(
-  "/goals/:goalId/log",
-  authenticate, authorize(...TEACHER_ROLES),
-  goalController.getGoalLog,
-);
-
-router.put(
-  "/goals/:goalId",
-  authenticate, authorize(...TEACHER_ROLES),
-  goalController.updateGoal,
-);
-
 router.patch(
-  "/goals/:goalId/progress",
+  "/goals/:goalId/comment",
   authenticate, authorize(...TEACHER_ROLES),
-  goalController.updateProgress,
-);
-
-router.post(
-  "/goals/:goalId/evaluate",
-  authenticate, authorize(...TEACHER_ROLES),
-  goalController.evaluateGoal,
-);
-
-router.post(
-  "/goals/:goalId/archive",
-  authenticate, authorize(...TEACHER_ROLES),
-  goalController.archiveGoal,
+  goalController.updateComment,
 );
 
 router.get(
@@ -473,12 +449,6 @@ router.get(
   "/students/:studentId/goals",
   authenticate, authorize(...TEACHER_ROLES),
   goalController.listStudentGoals,
-);
-
-router.post(
-  "/students/:studentId/goals",
-  authenticate, authorize(...TEACHER_ROLES),
-  goalController.createGoal,
 );
 
 // ── Reporting & Export ────────────────────────────────────────────────────────

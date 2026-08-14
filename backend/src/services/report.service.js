@@ -21,7 +21,7 @@ const REPORT_TITLES = {
   BEHAVIOUR:     "Báo cáo hạnh kiểm",
   PROGRESS:      "Báo cáo tiến bộ học sinh",
   CLASS_SUMMARY: "Báo cáo tổng hợp lớp",
-  GOAL:          "Báo cáo hoàn thành mục tiêu",
+  GOAL:          "Báo cáo mục tiêu học sinh",
   EFFICIENCY:    "Báo cáo hiệu quả vận hành",
 };
 
@@ -29,7 +29,6 @@ const REPORT_TITLES = {
 const ADMIN_ONLY_REPORT_TYPES = ["EFFICIENCY"];
 
 const GOAL_TYPE_LABEL = { ACADEMIC: "Học tập", BEHAVIOUR: "Hạnh kiểm", ATTENDANCE: "Chuyên cần", PERSONAL: "Phát triển cá nhân" };
-const GOAL_STATUS_LABEL = { IN_PROGRESS: "Đang thực hiện", COMPLETED: "Hoàn thành", FAILED: "Chưa đạt", ARCHIVED: "Đã lưu trữ" };
 
 function fmtDate(d) {
   if (!d) return "";
@@ -204,14 +203,14 @@ async function buildProgress(filters) {
         columns: [
           { key: "title", label: "Mục tiêu" },
           { key: "goalType", label: "Loại" },
-          { key: "progress", label: "Tiến độ (%)" },
-          { key: "status", label: "Trạng thái" },
+          { key: "targetDate", label: "Hạn hoàn thành" },
+          { key: "teacherRemark", label: "Nhận xét GVCN" },
         ],
-        rows: (goals ?? []).map((g) => ({
-          title: g.title,
-          goalType: GOAL_TYPE_LABEL[g.goalType] ?? g.goalType,
-          progress: g.progress,
-          status: GOAL_STATUS_LABEL[g.status] ?? g.status,
+        rows: (goals ?? []).map((goal) => ({
+          title: goal.title,
+          goalType: GOAL_TYPE_LABEL[goal.goalType] ?? goal.goalType,
+          targetDate: goal.targetDate ? fmtDate(goal.targetDate) : "—",
+          teacherRemark: goal.teacherRemark ?? "—",
         })),
       },
       {
@@ -285,24 +284,32 @@ async function buildGoals(filters) {
   const { classId, className } = filters;
   if (!classId) throw httpError("Cần chọn lớp", 400);
 
-  const { rows } = await goalModel.findByClass(parseInt(classId, 10), { page: 1, limit: 1000 });
+  const { rows } = await goalModel.findByClass(parseInt(classId, 10), {
+    page: 1,
+    limit: 1000,
+  });
 
-  const counts = { IN_PROGRESS: 0, COMPLETED: 0, FAILED: 0, ARCHIVED: 0 };
-  for (const g of rows) if (counts[g.status] !== undefined) counts[g.status] += 1;
+  const today = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  const todayText = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
   const total = rows.length;
-  const completionRate = total > 0 ? Math.round((counts.COMPLETED / total) * 1000) / 10 : 0;
+  const reviewed = rows.filter((goal) => Boolean(goal.teacherRemark)).length;
+  const overdue = rows.filter((goal) => goal.targetDate && goal.targetDate < todayText).length;
+  const upcoming = rows.filter((goal) => !goal.targetDate || goal.targetDate >= todayText).length;
 
   return {
     sections: [
       {
         heading: "Tổng quan mục tiêu",
-        columns: [{ key: "metric", label: "Chỉ số" }, { key: "value", label: "Giá trị" }],
+        columns: [
+          { key: "metric", label: "Chỉ số" },
+          { key: "value", label: "Giá trị" },
+        ],
         rows: [
           { metric: "Tổng mục tiêu", value: total },
-          { metric: "Đang thực hiện", value: counts.IN_PROGRESS },
-          { metric: "Hoàn thành", value: counts.COMPLETED },
-          { metric: "Chưa đạt", value: counts.FAILED },
-          { metric: "Tỷ lệ hoàn thành", value: `${completionRate}%` },
+          { metric: "Đã có nhận xét GVCN", value: reviewed },
+          { metric: "Còn thời gian / chưa đặt hạn", value: upcoming },
+          { metric: "Đã qua hạn", value: overdue },
         ],
       },
       {
@@ -311,17 +318,15 @@ async function buildGoals(filters) {
           { key: "studentName", label: "Học sinh" },
           { key: "goalType", label: "Loại" },
           { key: "title", label: "Mục tiêu" },
-          { key: "progress", label: "Tiến độ (%)" },
-          { key: "status", label: "Trạng thái" },
-          { key: "targetDate", label: "Hạn" },
+          { key: "targetDate", label: "Hạn hoàn thành" },
+          { key: "teacherRemark", label: "Nhận xét GVCN" },
         ],
-        rows: rows.map((g) => ({
-          studentName: g.studentName,
-          goalType: GOAL_TYPE_LABEL[g.goalType] ?? g.goalType,
-          title: g.title,
-          progress: g.progress,
-          status: GOAL_STATUS_LABEL[g.status] ?? g.status,
-          targetDate: g.targetDate ?? "—",
+        rows: rows.map((goal) => ({
+          studentName: goal.studentName,
+          goalType: GOAL_TYPE_LABEL[goal.goalType] ?? goal.goalType,
+          title: goal.title,
+          targetDate: goal.targetDate ? fmtDate(goal.targetDate) : "—",
+          teacherRemark: goal.teacherRemark ?? "—",
         })),
       },
     ],

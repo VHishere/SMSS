@@ -4,8 +4,8 @@ const API_BASE =
 
 function getAuthToken() {
   return (
-    sessionStorage.getItem("kidcare_token") ||
-    localStorage.getItem("kidcare_token")
+    sessionStorage.getItem("smss_token") ||
+    localStorage.getItem("smss_token")
   );
 }
 

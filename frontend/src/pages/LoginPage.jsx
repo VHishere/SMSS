@@ -25,6 +25,8 @@ import {
   saveLastPortal,
 } from "../utils/auth";
 
+import fptLogo from "../assets/logoFPT.png";
+
 export function LoginPage({
   portal,
 }) {
@@ -160,9 +162,11 @@ export function LoginPage({
         </Link>
 
         <div className="login-brand">
-          <span className="brand-mark">
-            FPT
-          </span>
+          <img
+            src={fptLogo}
+            alt="FPT School"
+            className="brand-logo"
+          />
 
           <p className="eyebrow">
             {isSchool

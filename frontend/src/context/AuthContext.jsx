@@ -3,8 +3,8 @@ import { authApi } from '../api/client';
 import { saveLastPortal } from '../utils/auth';
 import { AuthContext } from './authContext2';
 
-const TOKEN_KEY = 'kidcare_token';
-const USER_KEY = 'kidcare_user';
+const TOKEN_KEY = 'smss_token';
+const USER_KEY = 'smss_user';
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(() => {

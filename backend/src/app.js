@@ -53,14 +53,14 @@ app.use(
 app.get("/", (_req, res) => {
   res.json({
     success: true,
-    message: "KidCare API đang hoạt động",
+    message: "Student Management API đang hoạt động",
   });
 });
 
 app.get("/api/health", (_req, res) => {
   res.json({
     success: true,
-    message: "KidCare API đang hoạt động",
+    message: "Student Management API đang hoạt động",
   });
 });
 

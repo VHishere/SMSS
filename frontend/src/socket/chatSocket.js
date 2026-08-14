@@ -5,10 +5,10 @@ let socketInstance = null;
 function getToken() {
   return (
     sessionStorage.getItem(
-      "kidcare_token",
+      "smss_token",
     ) ||
     localStorage.getItem(
-      "kidcare_token",
+      "smss_token",
     ) ||
     ""
   );

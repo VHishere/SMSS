@@ -1,4 +1,4 @@
-# KidCare Kindergarten Management System
+# Student Management Support System
 
 
 

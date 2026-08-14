@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { Navigate } from 'react-router-dom';
+import fptLogo from '../assets/logoFPT.png';
 
 export function HomePage() {
     const { user, loading, isAuthenticated } = useAuth();
@@ -17,9 +18,9 @@ export function HomePage() {
         <div className="home-page">
             <div className="home-card">
                 <div className="home-brand">
-                    <span className="brand-mark">FPT</span>
-                    <p className="eyebrow">FPT School</p>
+                    <img src={fptLogo} alt="FPT School" className="brand-logo" />
                 </div>
+                <h1>Hệ thống quản lý học sinh</h1>
                 <p className="lead">Chọn cổng đăng nhập phù hợp với vai trò của bạn</p>
 
                 <div className="portal-grid">

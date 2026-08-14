@@ -1,6 +1,7 @@
 ﻿const staffModel = require("../models/staff");
 const feedbackModel = require("../models/feedback.model");
 const notificationModel = require("../models/notification.model");
+const timetableModel = require("../models/timetable.model");
 
 // ── Thông báo của tài khoản STAFF ────────────────────────────────────────────
 // Dùng bảng `notification` chung (receiver_id + is_read thật) như student/parent/
@@ -447,6 +448,82 @@ async function deleteClassTimetableLesson(req, res) {
     return handleError(res, error, "Không thể xóa tiết học");
   }
 }
+async function listTimetableSubstitutions(req, res) {
+  try {
+    const { status, page = "1", limit = "20" } = req.query;
+    const parsedPage = Math.max(1, parseInt(page, 10));
+    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
+    const data = await timetableModel.findSubstitutionsForStaff({
+      status,
+      page: parsedPage,
+      limit: parsedLimit,
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        items: data.rows,
+        pagination: {
+          total: data.total,
+          page: parsedPage,
+          limit: parsedLimit,
+          totalPages: Math.ceil(data.total / parsedLimit),
+        },
+      },
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể tải yêu cầu đổi tiết");
+  }
+}
+
+async function getTimetableSubstitutionById(req, res) {
+  try {
+    const substitutionId = parseInt(req.params.substitutionId, 10);
+    if (Number.isNaN(substitutionId)) {
+      return res.status(400).json({ success: false, message: "Mã yêu cầu không hợp lệ" });
+    }
+
+    const data = await timetableModel.findSubstitutionForStaffById(substitutionId);
+    if (!data) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy yêu cầu đổi tiết" });
+    }
+
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể tải chi tiết yêu cầu đổi tiết");
+  }
+}
+
+async function reviewTimetableSubstitution(req, res) {
+  try {
+    const substitutionId = parseInt(req.params.substitutionId, 10);
+    if (Number.isNaN(substitutionId)) {
+      return res.status(400).json({ success: false, message: "Mã yêu cầu không hợp lệ" });
+    }
+
+    const decision = String(req.body.decision || "").toUpperCase();
+    if (!["APPROVE", "REJECT"].includes(decision)) {
+      return res.status(400).json({ success: false, message: "Quyết định duyệt không hợp lệ" });
+    }
+
+    const data = await timetableModel.reviewSubstitution(
+      substitutionId,
+      req.user.userId,
+      decision,
+      req.body.reviewNote ? String(req.body.reviewNote).trim() : null,
+      req.body.substituteTeacherId ? parseInt(req.body.substituteTeacherId, 10) : null,
+    );
+
+    return res.json({
+      success: true,
+      message: decision === "APPROVE" ? "Đã duyệt yêu cầu đổi tiết" : "Đã từ chối yêu cầu đổi tiết",
+      data,
+    });
+  } catch (error) {
+    return handleError(res, error, "Không thể xử lý yêu cầu đổi tiết");
+  }
+}
+
 async function getCurriculum(req, res) {
   try {
     const data = await staffModel.listCurriculum({
@@ -657,6 +734,9 @@ module.exports = {
   createTimetableLessons,
   updateClassTimetableLesson,
   deleteClassTimetableLesson,
+  listTimetableSubstitutions,
+  getTimetableSubstitutionById,
+  reviewTimetableSubstitution,
   getCurriculum,
   getCurriculumById,
   createCurriculumItem,

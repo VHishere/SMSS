@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import PrettySelect from "../molecules/PrettySelect";
 
 import { timetableApi } from "../../api/client";
@@ -22,6 +22,28 @@ function lessonLabel(l) {
   return `${l.subjectName} · Tiết ${l.periodNo} (${l.startTime}${l.endTime ? `-${l.endTime}` : ""}) · ${WD[l.dayOfWeek] ?? ""}`;
 }
 
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function canTeachSelectedLesson(candidate, lesson) {
+  if (!lesson) return true;
+  const subjectId = Number(lesson.subjectId);
+  if (subjectId && candidate.subjectIds?.map(Number).includes(subjectId)) return true;
+  const specialize = normalizeText(candidate.subjectSpecialize);
+  const subjectName = normalizeText(lesson.subjectName);
+  const subjectCode = normalizeText(lesson.subjectCode);
+  if (!specialize) return false;
+  return specialize === subjectName
+    || specialize === subjectCode
+    || specialize.includes(subjectName)
+    || subjectName.includes(specialize);
+}
+
 /**
  * lessons: structured [{ timetableId, subjectName, periodNo, startTime, endTime, dayOfWeek, className, roomName }]
  * candidates: [{ teacherId, name, subjectSpecialize }]
@@ -35,22 +57,40 @@ function SubstitutionModal({ lessons = [], candidates = [], initialTimetableId, 
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const filteredCandidates = useMemo(
-    () => candidates.filter((c) => c.name.toLowerCase().includes(teacherSearch.trim().toLowerCase())),
-    [candidates, teacherSearch],
-  );
   const selectedLesson = lessons.find((l) => String(l.timetableId) === String(timetableId));
+  const compatibleCandidates = useMemo(
+    () => candidates.filter((c) => canTeachSelectedLesson(c, selectedLesson)),
+    [candidates, selectedLesson],
+  );
+  const filteredCandidates = useMemo(
+    () => compatibleCandidates.filter((c) =>
+      normalizeText(c.name).includes(normalizeText(teacherSearch)),
+    ),
+    [compatibleCandidates, teacherSearch],
+  );
+
+  useEffect(() => {
+    if (mode !== "SPECIFIC" || !teacherId) return;
+    const stillValid = compatibleCandidates.some(
+      (candidate) => String(candidate.teacherId) === String(teacherId),
+    );
+    if (!stillValid) setTeacherId("");
+  }, [compatibleCandidates, mode, teacherId]);
 
   async function handleSubmit() {
     if (!timetableId) { setErrorMsg("Vui lòng chọn ca dạy"); return; }
     if (mode === "SPECIFIC" && !teacherId) { setErrorMsg("Chọn giáo viên bạn muốn nhờ dạy thay"); return; }
     if (!selectedLesson) { setErrorMsg("Ca dạy không hợp lệ"); return; }
+    if (mode === "SPECIFIC" && !compatibleCandidates.some((c) => String(c.teacherId) === String(teacherId))) {
+      setErrorMsg("Giáo viên được chọn không cùng chuyên môn với tiết học này");
+      return;
+    }
 
     setBusy(true); setErrorMsg("");
     try {
       await timetableApi.createSubstitution({
         timetableId: Number(timetableId),
-        requestType: mode === "SPECIFIC" ? "SUBSTITUTE" : "CANCEL",
+        requestType: "SUBSTITUTE",
         targetDate: nextDateForDow(selectedLesson.dayOfWeek),
         substituteTeacherId: mode === "SPECIFIC" ? Number(teacherId) : null,
         swapTimetableId: null,

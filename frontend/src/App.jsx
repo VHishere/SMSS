@@ -54,6 +54,8 @@ import StaffCurriculumPage from "./pages/dashboards/staff/StaffCurriculumPage";
 import StaffCurriculumDetailPage from "./pages/dashboards/staff/StaffCurriculumDetailPage";
 import StaffTimetablePage from "./pages/dashboards/staff/StaffTimetablePage";
 import StaffTimetableCreatePage from "./pages/dashboards/staff/StaffTimetableCreatePage";
+import StaffTimetableSubstitutionsPage from "./pages/dashboards/staff/StaffTimetableSubstitutionsPage";
+import StaffTimetableSubstitutionDetailPage from "./pages/dashboards/staff/StaffTimetableSubstitutionDetailPage";
 import StaffFeesPage from "./pages/dashboards/staff/StaffFeesPage";
 import StaffFeeFormPage from "./pages/dashboards/staff/StaffFeeFormPage";
 import StaffFeeDetailPage from "./pages/dashboards/staff/StaffFeeDetailPage";
@@ -208,6 +210,8 @@ function App() {
             <Route path="curriculum/:id" element={<StaffCurriculumDetailPage />} />
             <Route path="timetable" element={<StaffTimetablePage />} />
             <Route path="timetable/new" element={<StaffTimetableCreatePage />} />
+            <Route path="timetable-substitutions" element={<StaffTimetableSubstitutionsPage />} />
+            <Route path="timetable-substitutions/:id" element={<StaffTimetableSubstitutionDetailPage />} />
             <Route path="fees" element={<StaffFeesPage />} />
             <Route path="fees/new" element={<StaffFeeFormPage />} />
             <Route path="fees/:id" element={<StaffFeeDetailPage />} />

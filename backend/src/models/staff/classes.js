@@ -701,9 +701,11 @@ async function listClassTimetable(classId, filters = {}) {
         tt.subject_id AS subjectId,
         sub.subject_name AS subjectName,
         sub.subject_code AS subjectCode,
-        tt.teacher_id AS teacherId,
-        t.teacher_code AS teacherCode,
-        ua.full_name AS teacherName,
+        COALESCE(subT.teacher_id, t.teacher_id) AS teacherId,
+        COALESCE(subT.teacher_code, t.teacher_code) AS teacherCode,
+        COALESCE(subUa.full_name, ua.full_name) AS teacherName,
+        ua.full_name AS baseTeacherName,
+        CASE WHEN approvedSub.substitution_id IS NOT NULL THEN 1 ELSE 0 END AS isSubstitute,
         tt.status
       FROM timetable tt
       INNER JOIN school_class sc ON sc.class_id = tt.class_id
@@ -711,6 +713,13 @@ async function listClassTimetable(classId, filters = {}) {
       INNER JOIN subject sub ON sub.subject_id = tt.subject_id
       INNER JOIN teacher t ON t.teacher_id = tt.teacher_id
       INNER JOIN user_account ua ON ua.user_id = t.user_id
+      LEFT JOIN timetable_substitution approvedSub
+        ON approvedSub.timetable_id = tt.timetable_id
+        AND approvedSub.target_date = tt.lesson_date
+        AND approvedSub.status = 'APPROVED'
+        AND approvedSub.request_type = 'SUBSTITUTE'
+      LEFT JOIN teacher subT ON subT.teacher_id = approvedSub.substitute_teacher_id
+      LEFT JOIN user_account subUa ON subUa.user_id = subT.user_id
       WHERE ${conditions.join(" AND ")}
       ORDER BY tt.lesson_date, tt.day_of_week, tt.period_no
     `,

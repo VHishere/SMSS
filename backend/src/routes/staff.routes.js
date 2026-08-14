@@ -404,6 +404,27 @@ router.post(
   staffController.createTimetableLessons,
 );
 
+router.get(
+  "/timetable/substitutions",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.listTimetableSubstitutions,
+);
+
+router.get(
+  "/timetable/substitutions/:substitutionId",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getTimetableSubstitutionById,
+);
+
+router.post(
+  "/timetable/substitutions/:substitutionId/decision",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.reviewTimetableSubstitution,
+);
+
 router.post(
   "/classes/:id/timetable",
   authenticate,

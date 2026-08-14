@@ -173,11 +173,17 @@ async function createSubstitution(req, res) {
     }
 
     if (requestType === "SUBSTITUTE") {
-      if (!substituteTeacherId) {
-        return res.status(400).json({ success: false, message: "Vui lòng chọn giáo viên dạy thay" });
-      }
-      if (parseInt(substituteTeacherId, 10) === teacher.teacherId) {
+      if (substituteTeacherId && parseInt(substituteTeacherId, 10) === teacher.teacherId) {
         return res.status(400).json({ success: false, message: "Giáo viên dạy thay phải khác giáo viên yêu cầu" });
+      }
+      if (substituteTeacherId) {
+        const canTeach = await timetableModel.teacherCanTeachSubject(
+          parseInt(substituteTeacherId, 10),
+          lesson.subjectId,
+        );
+        if (!canTeach) {
+          return res.status(400).json({ success: false, message: "Giáo viên dạy thay không đúng chuyên môn của tiết học" });
+        }
       }
     }
     if (requestType === "SWAP" && !swapTimetableId) {
@@ -188,6 +194,13 @@ async function createSubstitution(req, res) {
       if (!swapLesson || swapLesson.teacherId !== teacher.teacherId) {
         return res.status(400).json({ success: false, message: "Tiết hoán đổi không hợp lệ" });
       }
+    }
+    const hasOpenRequest = await timetableModel.hasOpenSubstitutionForLesson(
+      parseInt(timetableId, 10),
+      targetDate,
+    );
+    if (hasOpenRequest) {
+      return res.status(409).json({ success: false, message: "Tiết học này đã có yêu cầu đang chờ duyệt hoặc đã duyệt" });
     }
 
     const substitutionId = await timetableModel.createSubstitution({
@@ -200,10 +213,10 @@ async function createSubstitution(req, res) {
       reason: reason.trim(),
     });
 
-    // Notify admins for review (UC-84 is the Admin side)
+    // Staff reviews the request before the selected lesson/date changes.
     try {
-      const admins = await timetableModel.findAdminUserIds();
-      await notify(admins, "Yêu cầu đổi tiết mới",
+      const staffUsers = await timetableModel.findStaffUserIds();
+      await notify(staffUsers, "Yêu cầu đổi tiết mới",
         `${teacher.fullName} gửi yêu cầu ${requestType} cho tiết ${lesson.subjectName} (${lesson.className}) ngày ${targetDate}.`);
     } catch (e) { console.error("substitution notify (non-critical):", e); }
 

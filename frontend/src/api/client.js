@@ -2190,6 +2190,22 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
+  getTimetableSubstitutions: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/timetable/substitutions${query ? `?${query}` : ""}`);
+  },
+
+  getTimetableSubstitution: (id) =>
+    request(`/staff/timetable/substitutions/${id}`),
+
+  reviewTimetableSubstitution: (id, payload) =>
+    request(`/staff/timetable/substitutions/${id}/decision`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   getFeePlans: (params = {}) => {
     const query = new URLSearchParams(
       Object.entries(params).filter(([, value]) => value),

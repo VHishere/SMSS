@@ -12,6 +12,7 @@ import {
   FiGrid,
   FiLifeBuoy,
   FiMessageSquare,
+  FiRefreshCw,
   FiShield,
   FiStar,
   FiUserCheck,
@@ -196,6 +197,12 @@ export const dashboardNavigation = {
       path: "/staff/timetable",
       icon: FiClock,
       ms: "schedule",
+    },
+    {
+      label: "Yêu cầu đổi tiết",
+      path: "/staff/timetable-substitutions",
+      icon: FiRefreshCw,
+      ms: "published_with_changes",
     },
     {
       label: "Học phí",

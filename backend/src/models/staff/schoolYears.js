@@ -92,6 +92,7 @@ async function listSchoolYears() {
         DATE_FORMAT(sy.start_date, '%Y-%m-%d') AS startDate,
         DATE_FORMAT(sy.end_date, '%Y-%m-%d') AS endDate,
         sy.is_active AS isActive,
+        sy.start_date <= CURDATE() AS hasStarted,
         sy.end_date < CURDATE() AS hasEnded,
         sy.status,
         (SELECT COUNT(*) FROM school_class sc WHERE sc.school_year_id = sy.school_year_id) AS classCount,
@@ -109,6 +110,7 @@ async function listSchoolYears() {
   return rows.map((row) => ({
     ...row,
     isActive: Boolean(row.isActive),
+    hasStarted: Boolean(Number(row.hasStarted)),
     hasEnded: Boolean(Number(row.hasEnded)),
   }));
 }
@@ -166,6 +168,61 @@ async function createSchoolYear(data) {
   }
 }
 
+async function assertSchoolYearCanActivate(schoolYearId) {
+  const [[target]] = await pool.query(
+    `
+      SELECT
+        school_year_id AS schoolYearId,
+        year_name AS yearName,
+        DATE_FORMAT(start_date, '%Y-%m-%d') AS startDate,
+        DATE_FORMAT(end_date, '%Y-%m-%d') AS endDate,
+        is_active AS isActive,
+        start_date <= CURDATE() AS hasStarted,
+        end_date < CURDATE() AS hasEnded,
+        status
+      FROM school_year
+      WHERE school_year_id = ?
+      LIMIT 1
+    `,
+    [schoolYearId],
+  );
+
+  if (!target) {
+    throw createHttpError("Không tìm thấy năm học", 404);
+  }
+
+  const normalized = {
+    ...target,
+    isActive: Boolean(Number(target.isActive)),
+    hasStarted: Boolean(Number(target.hasStarted)),
+    hasEnded: Boolean(Number(target.hasEnded)),
+  };
+
+  if (normalized.isActive) {
+    throw createHttpError(`Năm học ${normalized.yearName} đang được kích hoạt.`, 409);
+  }
+
+  if (normalized.status === "CLOSED") {
+    throw createHttpError(`Năm học ${normalized.yearName} đã đóng nên không thể kích hoạt.`, 409);
+  }
+
+  if (!normalized.hasStarted) {
+    throw createHttpError(
+      `Chưa thể kích hoạt năm học ${normalized.yearName} trước ngày bắt đầu ${normalized.startDate}.`,
+      409,
+    );
+  }
+
+  if (normalized.hasEnded) {
+    throw createHttpError(
+      `Năm học ${normalized.yearName} đã kết thúc ngày ${normalized.endDate} nên không thể kích hoạt.`,
+      409,
+    );
+  }
+
+  return normalized;
+}
+
 async function activateSchoolYear(schoolYearId) {
   const connection = await pool.getConnection();
 
@@ -177,8 +234,12 @@ async function activateSchoolYear(schoolYearId) {
         SELECT
           school_year_id AS schoolYearId,
           year_name AS yearName,
+          DATE_FORMAT(start_date, '%Y-%m-%d') AS startDate,
+          DATE_FORMAT(end_date, '%Y-%m-%d') AS endDate,
           is_active AS isActive,
-          end_date < CURDATE() AS hasEnded
+          start_date <= CURDATE() AS hasStarted,
+          end_date < CURDATE() AS hasEnded,
+          status
         FROM school_year
         WHERE school_year_id = ?
       `,
@@ -193,12 +254,24 @@ async function activateSchoolYear(schoolYearId) {
       throw error;
     }
 
-    // Năm học đã qua ngày kết thúc thì không thể được kích hoạt nữa. Năm học
-    // đang áp dụng vẫn giữ nguyên (kể cả khi đã kết thúc) cho tới khi admin
-    // kích hoạt năm học mới — đây là mặc định trong giai đoạn giao mùa.
-    if (Number(target.hasEnded) === 1 && !Number(target.isActive)) {
+    // Defense-in-depth: controller đã kiểm tra trước mọi side-effect, nhưng
+    // model vẫn phải tự bảo vệ nếu endpoint/model được gọi từ nơi khác.
+    if (Number(target.isActive) === 1) {
+      throw createHttpError(`Năm học ${target.yearName} đang được kích hoạt.`, 409);
+    }
+    if (target.status === "CLOSED") {
+      throw createHttpError(`Năm học ${target.yearName} đã đóng nên không thể kích hoạt.`, 409);
+    }
+    if (Number(target.hasStarted) !== 1) {
       throw createHttpError(
-        `Năm học ${target.yearName} đã kết thúc nên không thể kích hoạt.`,
+        `Chưa thể kích hoạt năm học ${target.yearName} trước ngày bắt đầu ${target.startDate}.`,
+        409,
+      );
+    }
+    if (Number(target.hasEnded) === 1) {
+      throw createHttpError(
+        `Năm học ${target.yearName} đã kết thúc ngày ${target.endDate} nên không thể kích hoạt.`,
+        409,
       );
     }
 
@@ -602,6 +675,7 @@ async function updateSchoolYear(schoolYearId, data) {
 module.exports = {
   listSchoolYears,
   createSchoolYear,
+  assertSchoolYearCanActivate,
   activateSchoolYear,
   initializeSchoolYearData,
   updateSchoolYear,

@@ -431,34 +431,22 @@ function HistoryTab({ classId }) {
 
 const ABS_LEVEL = {
   OVER: { label: "Vượt ngưỡng", bg: "#FFDAD6", text: "#93000A" },
+  LIMIT: { label: "Chạm ngưỡng", bg: "#FFE9CC", text: "#9A4A00" },
   WARN: { label: "Cảnh báo", bg: "#FEF3C7", text: "#B45309" },
   OK: { label: "Bình thường", bg: "#DCFCE7", text: "#15803D" },
 };
 
 function OverviewTab({ classId }) {
-  const [refresh, setRefresh] = useState(0);
-  const [generating, setGenerating] = useState(false);
-  const [genMsg, setGenMsg] = useState("");
-  const { data, loading, error } = useAdminAttendanceOverview(classId, refresh);
-
-  async function handleGenerate() {
-    setGenerating(true); setGenMsg("");
-    try {
-      const res = await adminApi.generateAttendanceWarnings(classId);
-      setGenMsg(`Đã cập nhật ${res.data.generated} cảnh báo & thông báo phụ huynh.`);
-      setRefresh((k) => k + 1);
-    } catch (e) { setGenMsg(e.message); } finally { setGenerating(false); }
-  }
+  const { data, loading, error } = useAdminAttendanceOverview(classId, 0);
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-end gap-3">
-        <button type="button" onClick={handleGenerate} disabled={generating || !classId}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-sm transition active:scale-95 disabled:opacity-50" style={{ backgroundColor: C.deepBlue }}>
-          <Ms name={generating ? "sync" : "notifications_active"} className={`text-[18px]! ${generating ? "animate-spin" : ""}`} /> {generating ? "Đang quét..." : "Quét cảnh báo & báo PH"}
-        </button>
+        <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
+          <Ms name="notifications_active" className="text-[17px]!" />
+          Cảnh báo 36/45 buổi được gửi tự động
+        </div>
       </div>
-      {genMsg && <p className="text-xs font-medium text-green-600">{genMsg}</p>}
 
       {loading && <div className="h-64 animate-pulse rounded-3xl bg-slate-200/60" />}
       {error && <div className="rounded-3xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
@@ -467,7 +455,7 @@ function OverviewTab({ classId }) {
         <>
           <div className="rounded-3xl p-4 text-sm" style={{ backgroundColor: "#FFF7F2", color: C.onSurface }}>
             <span className="font-semibold">Ngưỡng nghỉ:</span> tối đa {data.policy.maxAbsentSessions} buổi/năm (1 buổi = {data.policy.periodsPerSession} tiết) · cảnh báo từ {data.warnThreshold} buổi.
-            {" "}<span style={{ color: "#93000A" }}>{data.summary.over} vượt ngưỡng</span> · <span style={{ color: "#B45309" }}>{data.summary.warn} cần lưu ý</span> / {data.summary.total} HS.
+            {" "}<span style={{ color: "#93000A" }}>{data.summary.over} vượt ngưỡng</span> · <span style={{ color: "#9A4A00" }}>{data.summary.limit || 0} chạm ngưỡng</span> · <span style={{ color: "#B45309" }}>{data.summary.warn} cảnh báo</span> / {data.summary.total} HS.
           </div>
 
           <div className="overflow-hidden rounded-3xl bg-white shadow-sm" style={{ border: `1px solid ${C.border}` }}>

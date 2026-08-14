@@ -391,6 +391,74 @@ async function findAbsencePolicy(schoolYearId) {
     : { periodsPerSession: 5, maxAbsentSessions: 45, warnRatio: 0.8, countExcused: true };
 }
 
+async function findSchoolYearByDate(date) {
+  const [[row]] = await pool.query(
+    `SELECT school_year_id AS schoolYearId, year_name AS yearName,
+            DATE_FORMAT(start_date, '%Y-%m-%d') AS startDate,
+            DATE_FORMAT(end_date, '%Y-%m-%d') AS endDate,
+            status
+     FROM school_year
+     WHERE ? BETWEEN start_date AND end_date
+     ORDER BY start_date DESC
+     LIMIT 1`,
+    [date],
+  );
+  return row || null;
+}
+
+async function findStudentAbsenceSummaries(studentIds, startDate, endDate) {
+  if (!studentIds.length) return [];
+  const placeholders = studentIds.map(() => "?").join(",");
+  const [rows] = await pool.query(
+    `SELECT
+       s.student_id AS studentId,
+       ua.full_name AS fullName,
+       SUM(CASE WHEN at.type_name = 'ABSENT_EXCUSED' THEN 1 ELSE 0 END) AS absentExcused,
+       SUM(CASE WHEN at.type_name = 'ABSENT_UNEXCUSED' THEN 1 ELSE 0 END) AS absentUnexcused
+     FROM student s
+     INNER JOIN user_account ua ON ua.user_id = s.user_id
+     LEFT JOIN attendance a
+       ON a.student_id = s.student_id
+       AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
+       AND a.attendance_date BETWEEN ? AND ?
+     LEFT JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
+     WHERE s.student_id IN (${placeholders})
+     GROUP BY s.student_id, ua.full_name`,
+    [startDate, endDate, ...studentIds],
+  );
+
+  return rows.map((row) => ({
+    studentId: Number(row.studentId),
+    fullName: row.fullName,
+    absentExcused: Number(row.absentExcused || 0),
+    absentUnexcused: Number(row.absentUnexcused || 0),
+  }));
+}
+
+async function hasAttendanceThresholdNotification({ receiverId, studentId, relatedType }) {
+  const [[row]] = await pool.query(
+    `SELECT notification_id
+     FROM notification
+     WHERE receiver_id = ?
+       AND type = 'ATTENDANCE'
+       AND related_type = ?
+       AND related_id = ?
+     LIMIT 1`,
+    [receiverId, relatedType, studentId],
+  );
+  return Boolean(row);
+}
+
+async function resolveAbsenceWarning(studentId, schoolYearId) {
+  await pool.query(
+    `UPDATE attendance_warning
+     SET status = 'RESOLVED'
+     WHERE student_id = ? AND school_year_id = ? AND status <> 'RESOLVED'`,
+    [studentId, schoolYearId],
+  );
+}
+
 // Tổng hợp điểm danh theo TẤT CẢ tiết/môn của lớp trong khoảng năm học.
 async function findClassAttendanceOverview(classId, startDate, endDate) {
   const [rows] = await pool.query(
@@ -411,6 +479,7 @@ async function findClassAttendanceOverview(classId, startDate, endDate) {
      LEFT JOIN attendance a
        ON a.student_id = s.student_id AND a.class_id = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
        AND a.attendance_date BETWEEN ? AND ?
      LEFT JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
      WHERE ce.class_id = ? AND ce.status = 'ACTIVE'
@@ -441,7 +510,8 @@ async function upsertAbsenceWarning(w) {
        absent_periods = VALUES(absent_periods),
        absent_sessions = VALUES(absent_sessions),
        threshold_sessions = VALUES(threshold_sessions),
-       note = VALUES(note)`,
+       note = VALUES(note),
+       status = 'OPEN'`,
     [w.studentId, w.schoolYearId, w.absentPeriods, w.absentSessions, w.thresholdSessions, w.note ?? null, w.createdBy ?? null],
   );
 }
@@ -660,7 +730,7 @@ async function createAbsenceNotifications(notifications) {
     n.title,
     n.content,
     "ATTENDANCE",
-    "STUDENT",
+    n.relatedType || "STUDENT",
     n.relatedId ?? null,
     false,
   ]);
@@ -687,6 +757,10 @@ module.exports = {
   bulkUpsertPeriodAttendance,
   findActiveSchoolYear,
   findAbsencePolicy,
+  findSchoolYearByDate,
+  findStudentAbsenceSummaries,
+  hasAttendanceThresholdNotification,
+  resolveAbsenceWarning,
   findClassAttendanceOverview,
   upsertAbsenceWarning,
   findAbsenceWarnings,

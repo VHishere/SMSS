@@ -18,6 +18,18 @@ function httpError(message, statusCode) {
 // làm mọi điểm quy đổi về gần 0.
 const MAX_SCORE_LIMIT = 100;
 
+async function assertSemesterEditable(semesterId) {
+  const state = await academicModel.findSemesterState(Number(semesterId));
+  if (!state) throw httpError("Không tìm thấy học kỳ", 404);
+
+  if (["LOCKED", "CLOSED"].includes(state.schoolYearStatus)) {
+    throw httpError(
+      `Năm học ${state.schoolYearName} đã được chốt nên không thể thay đổi điểm.`,
+      409,
+    );
+  }
+}
+
 // ── Score input / bulk ────────────────────────────────────────────────────────
 
 async function submitScores({ teacherId, actorUserId, payload }) {
@@ -26,6 +38,7 @@ async function submitScores({ teacherId, actorUserId, payload }) {
   if (!classId || !subjectId || !semesterId) {
     throw httpError("Thiếu thông tin lớp / môn / học kỳ", 400);
   }
+  await assertSemesterEditable(semesterId);
   if (!SCORE_TYPES.includes(scoreType)) {
     throw httpError("Loại điểm không hợp lệ", 400);
   }
@@ -92,6 +105,8 @@ async function updateScore({ teacherId, actorUserId, resultId, payload }) {
   const prev = await academicModel.findResultById(resultId);
   if (!prev) throw httpError("Không tìm thấy điểm", 404);
 
+  await assertSemesterEditable(prev.semesterId);
+
   const ok = await academicModel.isTeacherForStudentSubject(teacherId, prev.studentId, prev.subjectId);
   if (!ok) throw httpError("Bạn không có quyền sửa điểm này", 403);
 
@@ -138,6 +153,8 @@ async function updateScore({ teacherId, actorUserId, resultId, payload }) {
 async function deleteScore({ teacherId, actorUserId, resultId, reason }) {
   const prev = await academicModel.findResultById(resultId);
   if (!prev) throw httpError("Không tìm thấy điểm", 404);
+
+  await assertSemesterEditable(prev.semesterId);
 
   const ok = await academicModel.isTeacherForStudentSubject(teacherId, prev.studentId, prev.subjectId);
   if (!ok) throw httpError("Bạn không có quyền xóa điểm này", 403);

@@ -345,7 +345,7 @@ async function enrollStudent(classId, studentId) {
 
     const targetClass = await assertExists(
       connection,
-      `SELECT class_id AS classId, school_year_id AS schoolYearId
+      `SELECT class_id AS classId, school_year_id AS schoolYearId, grade_id AS gradeId
        FROM school_class
        WHERE class_id = ? AND status = 'ACTIVE'
        LIMIT 1`,
@@ -358,6 +358,83 @@ async function enrollStudent(classId, studentId) {
       [normalizedStudentId],
       "Không tìm thấy học sinh đang hoạt động",
     );
+
+    // Ràng buộc xếp lớp theo kết quả xét lên lớp của năm trước:
+    // - Không có class_promotion: học sinh không được lên khối trên, Staff chỉ
+    //   được xếp lại vào một lớp CÙNG KHỐI cũ (lưu ban/học lại).
+    // - Có class_promotion: Staff chỉ được đổi lớp trong ĐÚNG KHỐI đã được
+    //   promotion tới; không được nhảy thêm một khối hoặc quay về khối cũ.
+    // Học sinh mới hoàn toàn không có enrollment năm trước nên không bị ràng
+    // buộc bởi kiểm tra này.
+    const [[previousEnrollment]] = await connection.query(
+      `SELECT
+         prev_sc.class_id AS classId,
+         prev_sc.grade_id AS gradeId,
+         g.grade_name AS gradeName
+       FROM school_year target_sy
+       INNER JOIN school_year prev_sy
+         ON prev_sy.school_year_id = (
+           SELECT sy2.school_year_id
+           FROM school_year sy2
+           WHERE sy2.start_date < target_sy.start_date
+           ORDER BY sy2.start_date DESC
+           LIMIT 1
+         )
+       INNER JOIN school_class prev_sc
+         ON prev_sc.school_year_id = prev_sy.school_year_id
+       INNER JOIN class_enrollment prev_ce
+         ON prev_ce.class_id = prev_sc.class_id
+        AND prev_ce.student_id = ?
+       INNER JOIN grade g ON g.grade_id = prev_sc.grade_id
+       WHERE target_sy.school_year_id = ?
+         AND prev_sy.status = 'CLOSED'
+       ORDER BY prev_ce.enrollment_id DESC
+       LIMIT 1`,
+      [normalizedStudentId, targetClass.schoolYearId],
+    );
+
+    if (previousEnrollment) {
+      const [[promotion]] = await connection.query(
+        `SELECT
+           cp.promotion_id AS promotionId,
+           cp.to_class_id AS toClassId,
+           promoted_sc.grade_id AS promotedGradeId,
+           promoted_grade.grade_name AS promotedGradeName
+         FROM class_promotion cp
+         INNER JOIN school_class promoted_sc
+           ON promoted_sc.class_id = cp.to_class_id
+         INNER JOIN grade promoted_grade
+           ON promoted_grade.grade_id = promoted_sc.grade_id
+         WHERE cp.student_id = ?
+           AND cp.from_class_id = ?
+           AND cp.school_year_id = ?
+         ORDER BY cp.promotion_id DESC
+         LIMIT 1`,
+        [
+          normalizedStudentId,
+          previousEnrollment.classId,
+          targetClass.schoolYearId,
+        ],
+      );
+
+      if (promotion) {
+        if (
+          Number(targetClass.gradeId) !== Number(promotion.promotedGradeId)
+        ) {
+          throw createHttpError(
+            `Học sinh đã được xét lên khối ${promotion.promotedGradeName}. Staff chỉ được chuyển học sinh giữa các lớp thuộc khối ${promotion.promotedGradeName} trong năm học này.`,
+            409,
+          );
+        }
+      } else if (
+        Number(targetClass.gradeId) !== Number(previousEnrollment.gradeId)
+      ) {
+        throw createHttpError(
+          `Học sinh không có quyết định lên lớp cho năm học này. Staff chỉ được xếp lại vào lớp cùng khối ${previousEnrollment.gradeName}.`,
+          409,
+        );
+      }
+    }
 
     // Chỉ gỡ lớp cũ TRONG CÙNG NĂM HỌC. Trước đây câu này không lọc theo năm
     // nên xếp lớp cho năm mới sẽ hủy luôn enrollment của năm đang chạy.

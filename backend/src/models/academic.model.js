@@ -88,6 +88,23 @@ async function isTeacherForStudent(teacherId, studentId) {
   return Boolean(row);
 }
 
+async function findSemesterState(semesterId) {
+  const [[row]] = await pool.query(
+    `SELECT sem.semester_id AS semesterId, sem.status AS semesterStatus,
+            sy.school_year_id AS schoolYearId, sy.year_name AS schoolYearName,
+            sy.status AS schoolYearStatus, sy.is_active AS isActiveYear
+     FROM semester sem
+     INNER JOIN school_year sy ON sy.school_year_id = sem.school_year_id
+     WHERE sem.semester_id = ?
+     LIMIT 1`,
+    [semesterId],
+  );
+
+  return row
+    ? { ...row, isActiveYear: Boolean(row.isActiveYear) }
+    : null;
+}
+
 async function findSemesters() {
   const [rows] = await pool.query(
     `SELECT
@@ -663,6 +680,7 @@ module.exports = {
   isTeacherForStudentSubject,
   isTeacherForStudent,
   findSemesters,
+  findSemesterState,
   findScoreSheet,
   findGradebook,
   findResultById,

@@ -8,6 +8,7 @@ const behaviourService = require("../services/behaviour.service");
 const goalModel = require("../models/goal.model");
 const notificationModel = require("../models/notification.model");
 const staffSchoolYearModel = require("../models/staff/schoolYears");
+const promotionService = require("../services/promotion.service");
 
 function handleError(res, error, fallbackMessage) {
   console.error(fallbackMessage, error);
@@ -23,6 +24,7 @@ function handleError(res, error, fallbackMessage) {
     return res.status(error.statusCode).json({
       success: false,
       message: error.message,
+      ...(error.details ? { details: error.details } : {}),
     });
   }
 
@@ -77,8 +79,22 @@ async function getSchoolYears(_req, res) {
 
 async function activateSchoolYear(req, res) {
   try {
-    const data = await staffSchoolYearModel.activateSchoolYear(req.params.id);
-    return res.json({ success: true, data });
+    const schoolYearId = Number(req.params.id);
+
+    // Phải chặn trước mọi side-effect (copy lớp/chương trình, chuyển enrollment).
+    // Không cho kích hoạt năm học trước start_date hoặc sau end_date.
+    await staffSchoolYearModel.assertSchoolYearCanActivate(schoolYearId);
+
+    // Đảm bảo năm học mới đã có dữ liệu nền (lớp/học kỳ/chương trình) trước
+    // khi hệ thống tự xếp học sinh đủ điều kiện lên lớp.
+    await staffSchoolYearModel.initializeSchoolYearData(schoolYearId);
+
+    const promotion = await promotionService.applyTransitionToTarget({
+      targetSchoolYearId: schoolYearId,
+    });
+    const data = await staffSchoolYearModel.activateSchoolYear(schoolYearId);
+
+    return res.json({ success: true, data, promotion });
   } catch (error) {
     return handleError(res, error, "Không thể kích hoạt năm học");
   }

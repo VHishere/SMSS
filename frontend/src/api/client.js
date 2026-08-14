@@ -125,6 +125,12 @@ export const adminApi = {
   activateSchoolYear: (id) =>
     request(`/admin/school-years/${id}/activate`, { method: "PUT" }),
 
+  evaluateSchoolYearPromotion: (id) =>
+    request(`/admin/school-years/${id}/promotion/evaluate`),
+
+  closeSchoolYear: (id) =>
+    request(`/admin/school-years/${id}/close`, { method: "POST" }),
+
   getUsers: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
     return request(`/admin/users${qs ? `?${qs}` : ""}`);

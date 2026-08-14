@@ -7,6 +7,7 @@ const attendanceController = require("../controllers/attendance.controller");
 const announcementController = require("../controllers/announcement.controller");
 const communicationController = require("../controllers/communication.controller");
 const eventController = require("../controllers/event.controller");
+const promotionController = require("../controllers/promotion.controller");
 
 const {
   authenticate,
@@ -42,6 +43,20 @@ router.put(
   authenticate,
   authorize("ADMIN"),
   adminController.activateSchoolYear,
+);
+
+router.get(
+  "/school-years/:id/promotion/evaluate",
+  authenticate,
+  authorize("ADMIN"),
+  promotionController.evaluateSchoolYear,
+);
+
+router.post(
+  "/school-years/:id/close",
+  authenticate,
+  authorize("ADMIN"),
+  promotionController.closeSchoolYear,
 );
 
 router.put(

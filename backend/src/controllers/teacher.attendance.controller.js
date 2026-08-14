@@ -1,9 +1,21 @@
 const teacherModel    = require("../models/teacher.model");
 const attendanceModel = require("../models/attendance.model");
 const feedbackModel   = require("../models/feedback.model");
+const attendanceWarningService = require("../services/attendanceWarning.service");
 const { toIsoDate, todayIso } = require("../utils/date");
 
 const HOURS_48_MS = 48 * 60 * 60 * 1000;
+
+async function assertAttendanceDateEditable(date) {
+  const schoolYear = await attendanceModel.findSchoolYearByDate(date);
+  if (schoolYear && ["LOCKED", "CLOSED"].includes(schoolYear.status)) {
+    const error = new Error(
+      `Năm học ${schoolYear.yearName} đã được chốt nên không thể thay đổi điểm danh.`,
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+}
 
 async function resolveTeacher(userId, classId) {
   const profile = await teacherModel.findProfileByUserId(userId);
@@ -104,6 +116,8 @@ async function submitAttendance(req, res) {
       return res.status(400).json({ success: false, message: "Không thể điểm danh cho ngày trong tương lai" });
     }
 
+    await assertAttendanceDateEditable(date);
+
     if (!Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ success: false, message: "Danh sách điểm danh không được rỗng" });
     }
@@ -137,6 +151,18 @@ async function submitAttendance(req, res) {
     }));
 
     await attendanceModel.bulkUpsertAttendance(toUpsert);
+
+    // Tự động kiểm tra ngưỡng nghỉ 36/45 sau mỗi lần lưu điểm danh.
+    // Lỗi cảnh báo không làm hỏng thao tác điểm danh chính.
+    try {
+      await attendanceWarningService.evaluateStudents({
+        studentIds: toUpsert.map((r) => r.studentId),
+        attendanceDate: date,
+        actorUserId: profile.userId,
+      });
+    } catch (warningErr) {
+      console.error("automatic attendance threshold warning (non-critical):", warningErr);
+    }
 
     // Notify parents of unexcused absent students (non-critical)
     try {
@@ -174,6 +200,9 @@ async function submitAttendance(req, res) {
     return res.json({ success: true, message: `Đã lưu điểm danh ${records.length} học sinh` });
   } catch (error) {
     console.error("submitAttendance error:", error);
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
     return res.status(500).json({ success: false, message: "Không thể lưu điểm danh" });
   }
 }
@@ -195,6 +224,8 @@ async function updateAttendanceRecord(req, res) {
       return res.status(404).json({ success: false, message: "Không tìm thấy bản ghi điểm danh" });
     }
 
+    await assertAttendanceDateEditable(existing.attendanceDate);
+
     const { hasAccess } = await resolveTeacher(req.user.userId, existing.classId);
 
     if (!hasAccess) {
@@ -214,9 +245,22 @@ async function updateAttendanceRecord(req, res) {
       });
     }
 
+    try {
+      await attendanceWarningService.evaluateStudents({
+        studentIds: [existing.studentId],
+        attendanceDate: existing.attendanceDate,
+        actorUserId: req.user.userId,
+      });
+    } catch (warningErr) {
+      console.error("automatic attendance threshold warning after edit (non-critical):", warningErr);
+    }
+
     return res.json({ success: true, message: "Cập nhật điểm danh thành công" });
   } catch (error) {
     console.error("updateAttendanceRecord error:", error);
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
     return res.status(500).json({ success: false, message: "Không thể cập nhật điểm danh" });
   }
 }
@@ -321,6 +365,8 @@ async function submitPeriodAttendance(req, res) {
     if (date > todayIso()) {
       return res.status(400).json({ success: false, message: "Không thể điểm danh cho ngày trong tương lai" });
     }
+
+    await assertAttendanceDateEditable(date);
     if (!Array.isArray(records) || records.length === 0) {
       return res.status(400).json({ success: false, message: "Danh sách điểm danh không được rỗng" });
     }
@@ -349,6 +395,16 @@ async function submitPeriodAttendance(req, res) {
     await attendanceModel.bulkUpsertPeriodAttendance({
       timetableId, classId: period.classId, date, records: toUpsert, createdBy: profile.userId,
     });
+
+    try {
+      await attendanceWarningService.evaluateStudents({
+        studentIds: toUpsert.map((r) => r.studentId),
+        attendanceDate: date,
+        actorUserId: profile.userId,
+      });
+    } catch (warningErr) {
+      console.error("automatic period attendance threshold warning (non-critical):", warningErr);
+    }
 
     // Notify parents of unexcused absentees (kèm môn + tiết)
     try {
@@ -382,6 +438,9 @@ async function submitPeriodAttendance(req, res) {
     });
   } catch (error) {
     console.error("submitPeriodAttendance error:", error);
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
     return res.status(500).json({ success: false, message: "Không thể lưu điểm danh" });
   }
 }
@@ -545,8 +604,9 @@ function buildAbsenceStudents(rows, policy) {
   const students = rows.map((r) => {
     const absentPeriods = r.absentUnexcused + (policy.countExcused ? r.absentExcused : 0);
     const absentSessions = Math.round((absentPeriods / policy.periodsPerSession) * 100) / 100;
-    const level = absentSessions >= policy.maxAbsentSessions ? "OVER"
-      : absentSessions >= warnThreshold ? "WARN" : "OK";
+    const level = absentSessions > policy.maxAbsentSessions ? "OVER"
+      : absentSessions >= policy.maxAbsentSessions ? "LIMIT"
+        : absentSessions >= warnThreshold ? "WARN" : "OK";
     return { ...r, absentPeriods, absentSessions, level };
   });
   return { students, warnThreshold };
@@ -582,6 +642,7 @@ async function getClassOverview(req, res) {
         summary: {
           total: students.length,
           over:  students.filter((s) => s.level === "OVER").length,
+          limit: students.filter((s) => s.level === "LIMIT").length,
           warn:  students.filter((s) => s.level === "WARN").length,
         },
       },
@@ -607,45 +668,24 @@ async function generateAbsenceWarnings(req, res) {
     const year = await attendanceModel.findActiveSchoolYear();
     if (!year) return res.status(404).json({ success: false, message: "Chưa có năm học đang hoạt động" });
 
-    const policy = await attendanceModel.findAbsencePolicy(year.schoolYearId);
-    const rows = await attendanceModel.findClassAttendanceOverview(classId, year.startDate, year.endDate);
-    const { students } = buildAbsenceStudents(rows, policy);
-    const atRisk = students.filter((s) => s.level !== "OK");
+    const students = await attendanceModel.findEnrolledStudents(classId);
+    const results = await attendanceWarningService.evaluateStudents({
+      studentIds: students.map((student) => student.studentId),
+      attendanceDate: year.endDate,
+      actorUserId: profile.userId,
+    });
+    const generated = results.filter((item) => item.level !== "OK").length;
 
-    for (const s of atRisk) {
-      await attendanceModel.upsertAbsenceWarning({
-        studentId: s.studentId,
-        schoolYearId: year.schoolYearId,
-        absentPeriods: s.absentPeriods,
-        absentSessions: s.absentSessions,
-        thresholdSessions: policy.maxAbsentSessions,
-        note: `Nghỉ ${s.absentSessions} buổi (quy đổi từ ${s.absentPeriods} tiết), ngưỡng ${policy.maxAbsentSessions} buổi/năm.`,
-        createdBy: profile.userId,
-      });
-    }
-
-    // Thông báo cho phụ huynh học sinh nguy cơ (non-critical).
-    try {
-      const overIds = atRisk.map((s) => s.studentId);
-      if (overIds.length) {
-        const parents = await attendanceModel.findStudentParentUserIds(overIds);
-        const nameMap = {};
-        for (const s of atRisk) nameMap[s.studentId] = s;
-        const notifications = parents.map((p) => ({
-          receiverId: p.parentUserId,
-          relatedId:  p.studentId,
-          title:      "Cảnh báo số buổi nghỉ",
-          content:    `${nameMap[p.studentId]?.fullName ?? "Học sinh"} đã nghỉ ~${nameMap[p.studentId]?.absentSessions} buổi (ngưỡng ${policy.maxAbsentSessions} buổi/năm). Vui lòng lưu ý điều kiện lên lớp.`,
-        }));
-        await attendanceModel.createAbsenceNotifications(notifications);
-      }
-    } catch (notifErr) {
-      console.error("absence warning notifications (non-critical):", notifErr);
-    }
-
-    return res.json({ success: true, message: `Đã cập nhật ${atRisk.length} cảnh báo nghỉ học`, data: { generated: atRisk.length } });
+    return res.json({
+      success: true,
+      message: `Đã kiểm tra ${students.length} học sinh; ${generated} học sinh đang ở mức cảnh báo trở lên.`,
+      data: { generated },
+    });
   } catch (error) {
     console.error("generateAbsenceWarnings error:", error);
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
     return res.status(500).json({ success: false, message: "Không thể tạo cảnh báo nghỉ học" });
   }
 }

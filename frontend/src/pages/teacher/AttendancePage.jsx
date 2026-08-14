@@ -1031,9 +1031,10 @@ function PeriodList({ date, selectedTimetableId, onSelect }) {
 
 // GVCN: tổng hợp điểm danh toàn tiết/môn của lớp chủ nhiệm + ngưỡng nghỉ.
 const ABS_LEVEL = {
-  OVER: { label: "Vượt ngưỡng", bg: "#FFDAD6", text: "#93000A" },
-  WARN: { label: "Cảnh báo",    bg: "#FEF3C7", text: "#B45309" },
-  OK:   { label: "Bình thường", bg: "#DCFCE7", text: "#15803D" },
+  OVER:  { label: "Vượt ngưỡng", bg: "#FFDAD6", text: "#93000A" },
+  LIMIT: { label: "Chạm ngưỡng", bg: "#FFE9CC", text: "#9A4A00" },
+  WARN:  { label: "Cảnh báo",    bg: "#FEF3C7", text: "#B45309" },
+  OK:    { label: "Bình thường", bg: "#DCFCE7", text: "#15803D" },
 };
 
 function OverviewTab({ homeroomClasses }) {
@@ -1041,9 +1042,6 @@ function OverviewTab({ homeroomClasses }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [genMsg, setGenMsg] = useState("");
-  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     if (!classId) return undefined;
@@ -1053,16 +1051,7 @@ function OverviewTab({ homeroomClasses }) {
       .catch((e) => { if (m) setError(e.message); })
       .finally(() => { if (m) setLoading(false); });
     return () => { m = false; };
-  }, [classId, refresh]);
-
-  async function handleGenerate() {
-    setGenerating(true); setGenMsg("");
-    try {
-      const res = await teacherApi.generateAbsenceWarnings(classId);
-      setGenMsg(`Đã cập nhật ${res.data.generated} cảnh báo & thông báo phụ huynh.`);
-      setRefresh((k) => k + 1);
-    } catch (e) { setGenMsg(e.message); } finally { setGenerating(false); }
-  }
+  }, [classId]);
 
   const th = "px-4 py-3 text-xs font-medium tracking-wider text-white";
   return (
@@ -1074,12 +1063,11 @@ function OverviewTab({ homeroomClasses }) {
             {homeroomClasses.map((c) => <option key={c.classId} value={c.classId}>Lớp {c.className}</option>)}
           </PrettySelect>
         ) : <span />}
-        <button type="button" onClick={handleGenerate} disabled={generating || !classId}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-sm transition active:scale-95 disabled:opacity-50" style={{ backgroundColor: C.deepBlue }}>
-          <Ms name={generating ? "sync" : "notifications_active"} className={`!text-[18px] ${generating ? "animate-spin" : ""}`} /> {generating ? "Đang quét..." : "Quét cảnh báo & báo PH"}
-        </button>
+        <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
+          <Ms name="notifications_active" className="!text-[17px]" />
+          Cảnh báo 36/45 buổi được gửi tự động
+        </div>
       </div>
-      {genMsg && <p className="text-xs font-medium text-green-600">{genMsg}</p>}
 
       {loading && <div className="h-64 animate-pulse rounded-[2rem] bg-slate-200/60" />}
       {error && <div className="rounded-[2rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
@@ -1088,7 +1076,7 @@ function OverviewTab({ homeroomClasses }) {
         <>
           <div className="rounded-[2rem] p-4 text-sm" style={{ backgroundColor: "#FFF7F2", color: C.onSurface }}>
             <span className="font-semibold">Ngưỡng nghỉ:</span> tối đa {data.policy.maxAbsentSessions} buổi/năm (1 buổi = {data.policy.periodsPerSession} tiết) · cảnh báo từ {data.warnThreshold} buổi.
-            {" "}<span style={{ color: "#93000A" }}>{data.summary.over} vượt ngưỡng</span> · <span style={{ color: "#B45309" }}>{data.summary.warn} cần lưu ý</span> / {data.summary.total} HS.
+            {" "}<span style={{ color: "#93000A" }}>{data.summary.over} vượt ngưỡng</span> · <span style={{ color: "#9A4A00" }}>{data.summary.limit || 0} chạm ngưỡng</span> · <span style={{ color: "#B45309" }}>{data.summary.warn} cảnh báo</span> / {data.summary.total} HS.
           </div>
 
           <div className="overflow-hidden rounded-[2rem] border bg-white shadow-sm" style={{ borderColor: C.outlineVariant }}>

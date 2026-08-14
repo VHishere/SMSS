@@ -188,6 +188,7 @@ async function findAttendanceRecordById(attendanceId) {
        a.attendance_id      AS attendanceId,
        a.student_id         AS studentId,
        a.class_id           AS classId,
+       a.timetable_id       AS timetableId,
        DATE_FORMAT(a.attendance_date, '%Y-%m-%d') AS attendanceDate,
        a.attendance_type_id AS typeId,
        at.type_name         AS typeName,

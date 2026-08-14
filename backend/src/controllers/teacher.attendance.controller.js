@@ -5,6 +5,48 @@ const attendanceWarningService = require("../services/attendanceWarning.service"
 const { toIsoDate, todayIso } = require("../utils/date");
 
 const HOURS_48_MS = 48 * 60 * 60 * 1000;
+const PERIOD_ATTENDANCE_CLOSE_AFTER_END_MINUTES = 15;
+
+function parsePeriodDateTime(date, time) {
+  if (!date || !time) return null;
+  const normalizedTime = String(time).slice(0, 5);
+  const value = new Date(`${date}T${normalizedTime}:00`);
+  return Number.isNaN(value.getTime()) ? null : value;
+}
+
+function getPeriodAttendanceWindow(period, date) {
+  const opensAt = parsePeriodDateTime(date, period.startTime);
+  const endsAt = parsePeriodDateTime(date, period.endTime);
+  const closesAt = endsAt
+    ? new Date(endsAt.getTime() + PERIOD_ATTENDANCE_CLOSE_AFTER_END_MINUTES * 60 * 1000)
+    : null;
+
+  return { opensAt, closesAt };
+}
+
+function assertPeriodAttendanceWindow(period, date) {
+  const { opensAt, closesAt } = getPeriodAttendanceWindow(period, date);
+  if (!opensAt || !closesAt) {
+    const error = new Error("Tiết học chưa có thời gian bắt đầu/kết thúc hợp lệ");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  const now = new Date();
+  if (now < opensAt) {
+    const error = new Error("Chưa đến giờ tiết học nên chưa thể điểm danh");
+    error.statusCode = 409;
+    throw error;
+  }
+
+  if (now > closesAt) {
+    const error = new Error(
+      `Đã quá thời gian điểm danh. Giáo viên chỉ được điểm danh đến ${PERIOD_ATTENDANCE_CLOSE_AFTER_END_MINUTES} phút sau khi tiết kết thúc.`,
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+}
 
 async function assertAttendanceDateEditable(date) {
   const schoolYear = await attendanceModel.findSchoolYearByDate(date);
@@ -226,10 +268,27 @@ async function updateAttendanceRecord(req, res) {
 
     await assertAttendanceDateEditable(existing.attendanceDate);
 
-    const { hasAccess } = await resolveTeacher(req.user.userId, existing.classId);
+    const { profile, hasAccess } = await resolveTeacher(req.user.userId, existing.classId);
 
     if (!hasAccess) {
       return res.status(403).json({ success: false, message: "Bạn không có quyền chỉnh sửa điểm danh này" });
+    }
+
+    if (existing.timetableId) {
+      const period = await attendanceModel.resolveEffectivePeriod(
+        existing.timetableId,
+        existing.attendanceDate,
+      );
+      if (!period) {
+        return res.status(404).json({ success: false, message: "Không tìm thấy tiết học" });
+      }
+      if (period.cancelled) {
+        return res.status(409).json({ success: false, message: "Tiết học này đã bị hủy" });
+      }
+      if (period.effectiveTeacherId !== profile.teacherId) {
+        return res.status(403).json({ success: false, message: "Bạn không phụ trách tiết này" });
+      }
+      assertPeriodAttendanceWindow(period, existing.attendanceDate);
     }
 
     const affected = await attendanceModel.updateAttendanceRecord(
@@ -316,6 +375,8 @@ async function getPeriodSheet(req, res) {
     for (const f of feedback) fbMap[f.studentId] = f;
     const now = Date.now();
     const isFutureDate = date > todayIso();
+    const { opensAt, closesAt } = getPeriodAttendanceWindow(period, date);
+    const isAttendanceOpen = Boolean(opensAt && closesAt && new Date() >= opensAt && new Date() <= closesAt);
 
     const sheet = students.map((s) => {
       const rec = recMap[s.studentId];
@@ -330,7 +391,7 @@ async function getPeriodSheet(req, res) {
         typeId:       rec?.typeId ?? null,
         typeName:     rec?.typeName ?? null,
         note:         rec?.note ?? "",
-        isEditable:   !isFutureDate && (!createdAt || now - createdAt <= HOURS_48_MS),
+        isEditable:   !isFutureDate && isAttendanceOpen && (!createdAt || now - createdAt <= HOURS_48_MS),
         createdAt:    rec?.createdAt ?? null,
         feedbackRating:  fb?.rating ?? null,
         feedbackContent: fb?.content ?? "",
@@ -341,6 +402,12 @@ async function getPeriodSheet(req, res) {
       success: true,
       data: {
         timetableId, date, period, attendanceTypes,
+        attendanceWindow: {
+          opensAt: opensAt ? opensAt.toISOString() : null,
+          closesAt: closesAt ? closesAt.toISOString() : null,
+          closeAfterEndMinutes: PERIOD_ATTENDANCE_CLOSE_AFTER_END_MINUTES,
+          isOpen: isAttendanceOpen,
+        },
         students: sheet,
         isSubmitted: existing.length > 0,
         submittedCount: existing.length,
@@ -385,12 +452,34 @@ async function submitPeriodAttendance(req, res) {
       return res.status(403).json({ success: false, message: "Bạn không phụ trách tiết này" });
     }
     if (period.cancelled) return res.status(409).json({ success: false, message: "Tiết học này đã bị hủy" });
+    assertPeriodAttendanceWindow(period, date);
+
+    const enrolledStudents = await attendanceModel.findEnrolledStudents(period.classId);
+    const enrolledStudentIds = new Set(enrolledStudents.map((student) => Number(student.studentId)));
+    const submittedStudentIds = new Set();
 
     const toUpsert = records.map((r) => ({
       studentId: parseInt(r.studentId, 10),
       typeId:    parseInt(r.typeId, 10),
       note:      r.note || null,
     }));
+
+    for (const record of toUpsert) {
+      if (!enrolledStudentIds.has(record.studentId)) {
+        return res.status(403).json({
+          success: false,
+          message: "Danh sách điểm danh có học sinh không thuộc lớp của tiết học",
+        });
+      }
+
+      if (submittedStudentIds.has(record.studentId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Danh sách điểm danh có học sinh bị trùng",
+        });
+      }
+      submittedStudentIds.add(record.studentId);
+    }
 
     await attendanceModel.bulkUpsertPeriodAttendance({
       timetableId, classId: period.classId, date, records: toUpsert, createdBy: profile.userId,

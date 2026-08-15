@@ -59,6 +59,27 @@ async function findStudentFeedback(studentId, limit = 100) {
 
 // ── Teacher survey (HS → GV, ẩn danh) ─────────────────────────────────────────
 
+// Kiểm tra GV có thực sự dạy lớp/môn này không, trước khi tạo khảo sát —
+// tránh tạo khảo sát "vô hình" (không học sinh nào thoả điều kiện join ở
+// findOpenSurveysForStudent) do staff chọn nhầm tổ hợp GV/lớp/môn.
+async function teacherClassAssignmentExists({ teacherId, classId, subjectId }) {
+  const conditions = ["tc.teacher_id = ?", "(tc.end_date IS NULL OR tc.end_date >= CURRENT_DATE)"];
+  const params = [teacherId];
+  if (classId) {
+    conditions.push("tc.class_id = ?");
+    params.push(classId);
+  }
+  if (subjectId) {
+    conditions.push("tc.subject_id = ?");
+    params.push(subjectId);
+  }
+  const [[row]] = await pool.query(
+    `SELECT 1 AS ok FROM teacher_class tc WHERE ${conditions.join(" AND ")} LIMIT 1`,
+    params,
+  );
+  return Boolean(row);
+}
+
 async function createSurvey(s) {
   const [r] = await pool.query(
     `INSERT INTO teacher_survey (semester_id, teacher_id, subject_id, class_id, title, status, opened_at, created_by)
@@ -234,6 +255,7 @@ module.exports = {
   bulkUpsertLessonFeedback,
   findPeriodFeedback,
   findStudentFeedback,
+  teacherClassAssignmentExists,
   createSurvey,
   setSurveyStatus,
   findSurveyById,

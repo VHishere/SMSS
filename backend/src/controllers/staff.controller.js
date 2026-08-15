@@ -671,6 +671,15 @@ async function createTeacherSurvey(req, res) {
     if (!semesterId || !teacherId) {
       return res.status(400).json({ success: false, message: "Thiếu học kỳ hoặc giáo viên" });
     }
+    const assigned = await feedbackModel.teacherClassAssignmentExists({
+      teacherId, classId: classId || null, subjectId: subjectId || null,
+    });
+    if (!assigned) {
+      return res.status(400).json({
+        success: false,
+        message: "Giáo viên không dạy lớp/môn đã chọn — khảo sát sẽ không hiển thị cho học sinh nào. Vui lòng kiểm tra lại phân công giảng dạy.",
+      });
+    }
     const surveyId = await feedbackModel.createSurvey({
       semesterId, teacherId, subjectId: subjectId || null, classId: classId || null,
       title: title || null, createdBy: req.user.userId,

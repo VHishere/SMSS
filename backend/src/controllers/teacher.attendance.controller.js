@@ -5,7 +5,6 @@ const attendanceWarningService = require("../services/attendanceWarning.service"
 const { toIsoDate, todayIso } = require("../utils/date");
 
 const HOURS_48_MS = 48 * 60 * 60 * 1000;
-const PERIOD_ATTENDANCE_CLOSE_AFTER_END_MINUTES = 15;
 
 function parsePeriodDateTime(date, time) {
   if (!date || !time) return null;
@@ -16,10 +15,7 @@ function parsePeriodDateTime(date, time) {
 
 function getPeriodAttendanceWindow(period, date) {
   const opensAt = parsePeriodDateTime(date, period.startTime);
-  const endsAt = parsePeriodDateTime(date, period.endTime);
-  const closesAt = endsAt
-    ? new Date(endsAt.getTime() + PERIOD_ATTENDANCE_CLOSE_AFTER_END_MINUTES * 60 * 1000)
-    : null;
+  const closesAt = opensAt ? new Date(opensAt.getTime() + HOURS_48_MS) : null;
 
   return { opensAt, closesAt };
 }
@@ -27,7 +23,7 @@ function getPeriodAttendanceWindow(period, date) {
 function assertPeriodAttendanceWindow(period, date) {
   const { opensAt, closesAt } = getPeriodAttendanceWindow(period, date);
   if (!opensAt || !closesAt) {
-    const error = new Error("Tiết học chưa có thời gian bắt đầu/kết thúc hợp lệ");
+    const error = new Error("Tiết học chưa có thời gian bắt đầu hợp lệ");
     error.statusCode = 409;
     throw error;
   }
@@ -41,7 +37,7 @@ function assertPeriodAttendanceWindow(period, date) {
 
   if (now > closesAt) {
     const error = new Error(
-      `Đã quá thời gian điểm danh. Giáo viên chỉ được điểm danh đến ${PERIOD_ATTENDANCE_CLOSE_AFTER_END_MINUTES} phút sau khi tiết kết thúc.`,
+      "Đã quá thời gian điểm danh. Giáo viên chỉ được điểm danh trong vòng 2 ngày kể từ khi tiết học bắt đầu (BR-ATT-01).",
     );
     error.statusCode = 409;
     throw error;
@@ -405,7 +401,6 @@ async function getPeriodSheet(req, res) {
         attendanceWindow: {
           opensAt: opensAt ? opensAt.toISOString() : null,
           closesAt: closesAt ? closesAt.toISOString() : null,
-          closeAfterEndMinutes: PERIOD_ATTENDANCE_CLOSE_AFTER_END_MINUTES,
           isOpen: isAttendanceOpen,
         },
         students: sheet,

@@ -143,7 +143,19 @@ async function getTeacherById(teacherId) {
         g.grade_name AS gradeName,
         sy.year_name AS schoolYearName,
         tc.role_in_class AS roleInClass,
-        sub.subject_name AS subjectName
+        COALESCE(
+          sub.subject_name,
+          (
+            SELECT s2.subject_name
+            FROM teacher_class tc2
+            INNER JOIN subject s2 ON s2.subject_id = tc2.subject_id
+            WHERE tc2.teacher_id = tc.teacher_id
+              AND tc2.class_id = tc.class_id
+              AND tc2.role_in_class = 'SUBJECT_TEACHER'
+              AND (tc2.end_date IS NULL OR tc2.end_date >= CURDATE())
+            LIMIT 1
+          )
+        ) AS subjectName
       FROM teacher_class tc
       INNER JOIN school_class sc ON sc.class_id = tc.class_id
       INNER JOIN grade g ON g.grade_id = sc.grade_id

@@ -469,6 +469,33 @@ async function enrollStudent(classId, studentId) {
   }
 }
 
+async function enrollStudents(classId, studentIds) {
+  const ids = [
+    ...new Set(
+      (Array.isArray(studentIds) ? studentIds : [studentIds])
+        .map(Number)
+        .filter((value) => Number.isInteger(value) && value > 0),
+    ),
+  ];
+
+  if (!ids.length) {
+    throw createHttpError("Vui lòng chọn ít nhất một học sinh");
+  }
+
+  const results = [];
+  for (const studentId of ids) {
+    try {
+      await enrollStudent(classId, studentId);
+      results.push({ studentId, success: true });
+    } catch (error) {
+      results.push({ studentId, success: false, message: error.message });
+    }
+  }
+
+  const classInfo = await getClassById(classId);
+  return { ...classInfo, enrollResults: results };
+}
+
 async function removeStudent(classId, studentId) {
   await pool.query(
     `
@@ -1302,6 +1329,7 @@ module.exports = {
   updateClass,
   deleteClass,
   enrollStudent,
+  enrollStudents,
   removeStudent,
   assignTeacher,
   removeTeacher,

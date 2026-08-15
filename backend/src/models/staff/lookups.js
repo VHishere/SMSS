@@ -43,7 +43,20 @@ async function getLookups() {
 
   const [students] = await pool.query(
     `
-      SELECT s.student_id AS studentId, s.student_code AS studentCode, ua.full_name AS fullName
+      SELECT
+        s.student_id AS studentId,
+        s.student_code AS studentCode,
+        ua.full_name AS fullName,
+        (
+          SELECT sc2.class_name
+          FROM class_enrollment ce2
+          INNER JOIN school_class sc2 ON sc2.class_id = ce2.class_id
+          INNER JOIN school_year sy2 ON sy2.school_year_id = sc2.school_year_id
+          WHERE ce2.student_id = s.student_id
+            AND ce2.status = 'ACTIVE'
+            AND sy2.is_active = TRUE
+          LIMIT 1
+        ) AS currentClassName
       FROM student s
       INNER JOIN user_account ua ON ua.user_id = s.user_id
       WHERE s.status = 'ACTIVE'

@@ -66,6 +66,22 @@ function StaffClassDetailPage() {
     );
   }, [lookups, selectedTeacher]);
 
+  const availableTeachers = useMemo(() => {
+    const teachers = lookups?.teachers || [];
+    if (teacherForm.roleInClass !== "HOMEROOM_TEACHER" || !classInfo?.schoolYearId) {
+      return teachers;
+    }
+
+    return teachers.filter((teacher) => {
+      const homeroomAssignments = teacher.homeroomAssignments || [];
+      return !homeroomAssignments.some(
+        (assignment) =>
+          Number(assignment.schoolYearId) === Number(classInfo.schoolYearId) &&
+          Number(assignment.classId) !== Number(classInfo.classId),
+      );
+    });
+  }, [classInfo, lookups, teacherForm.roleInClass]);
+
   useEffect(() => {
     if (teacherForm.roleInClass !== "SUBJECT_TEACHER") return;
 
@@ -90,6 +106,17 @@ function StaffClassDetailPage() {
       }));
     }
   }, [teacherForm.roleInClass, teacherForm.subjectId, teacherSubjects]);
+
+  useEffect(() => {
+    if (!teacherForm.teacherId) return;
+
+    const stillAvailable = availableTeachers.some(
+      (teacher) => String(teacher.teacherId) === String(teacherForm.teacherId),
+    );
+    if (!stillAvailable) {
+      setTeacherForm((prev) => ({ ...prev, teacherId: "", subjectId: "" }));
+    }
+  }, [availableTeachers, teacherForm.teacherId]);
 
   const updateTeacherForm = (field, value) => {
     setTeacherForm((prev) => {
@@ -285,12 +312,18 @@ function StaffClassDetailPage() {
               required
             >
               <option value="">Chọn giáo viên</option>
-              {lookups?.teachers?.map((teacher) => (
+              {availableTeachers.map((teacher) => (
                 <option key={teacher.teacherId} value={teacher.teacherId}>
                   {teacher.teacherCode} - {teacher.fullName}
                 </option>
               ))}
             </PrettySelect>
+            {teacherForm.roleInClass === "HOMEROOM_TEACHER" &&
+              (lookups?.teachers || []).length > availableTeachers.length && (
+                <p className="mt-2 text-sm text-slate-500">
+                  Đã ẩn giáo viên đang chủ nhiệm lớp khác trong năm học này.
+                </p>
+              )}
           </StaffField>
           <StaffField label="Vai trò">
             <PrettySelect

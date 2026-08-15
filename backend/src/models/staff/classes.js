@@ -498,9 +498,12 @@ async function assignTeacher(classId, data) {
       ? validatePositiveInt(data.subjectId, "môn học")
       : null;
 
-    await assertExists(
+    const targetClass = await assertExists(
       conn,
-      "SELECT class_id FROM school_class WHERE class_id = ? AND status = 'ACTIVE' LIMIT 1",
+      `SELECT class_id AS classId, school_year_id AS schoolYearId, class_name AS className
+       FROM school_class
+       WHERE class_id = ? AND status = 'ACTIVE'
+       LIMIT 1`,
       [normalizedClassId],
       "Không tìm thấy lớp học đang hoạt động",
     );
@@ -547,6 +550,31 @@ async function assignTeacher(classId, data) {
         [normalizedClassId],
         "Lớp này đã có giáo viên chủ nhiệm",
       );
+
+      const [homeroomRows] = await conn.query(
+        `SELECT
+           tc.teacher_class_id AS teacherClassId,
+           sc.class_name AS className,
+           sy.year_name AS schoolYearName
+         FROM teacher_class tc
+         INNER JOIN school_class sc ON sc.class_id = tc.class_id
+         INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+         WHERE tc.teacher_id = ?
+           AND tc.role_in_class = 'HOMEROOM_TEACHER'
+           AND sc.school_year_id = ?
+           AND sc.class_id <> ?
+           AND sc.status = 'ACTIVE'
+           AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+         LIMIT 1`,
+        [teacherId, targetClass.schoolYearId, normalizedClassId],
+      );
+
+      if (homeroomRows[0]) {
+        throw createHttpError(
+          `Giáo viên này đang là giáo viên chủ nhiệm lớp ${homeroomRows[0].className} trong năm học ${homeroomRows[0].schoolYearName}`,
+          409,
+        );
+      }
     }
 
     await assertUnique(

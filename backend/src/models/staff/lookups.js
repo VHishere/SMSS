@@ -82,6 +82,22 @@ async function getLookups() {
         t.subject_specialize AS subjectSpecialize,
         ua.full_name AS fullName,
         ua.email,
+        GROUP_CONCAT(
+          DISTINCT
+          CASE
+            WHEN homeroom_tc.teacher_class_id IS NOT NULL
+            THEN CONCAT(
+              homeroom_sc.school_year_id,
+              ':',
+              homeroom_sc.class_id,
+              ':',
+              homeroom_sc.class_name,
+              ':',
+              homeroom_sy.year_name
+            )
+          END
+          SEPARATOR '||'
+        ) AS homeroomAssignments,
         GROUP_CONCAT(DISTINCT COALESCE(tc.subject_id, specialize_subject.subject_id)) AS subjectIds
       FROM teacher t
       INNER JOIN user_account ua ON ua.user_id = t.user_id
@@ -97,6 +113,15 @@ async function getLookups() {
         ON tc.teacher_id = t.teacher_id
         AND tc.subject_id IS NOT NULL
         AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+      LEFT JOIN teacher_class homeroom_tc
+        ON homeroom_tc.teacher_id = t.teacher_id
+        AND homeroom_tc.role_in_class = 'HOMEROOM_TEACHER'
+        AND (homeroom_tc.end_date IS NULL OR homeroom_tc.end_date >= CURDATE())
+      LEFT JOIN school_class homeroom_sc
+        ON homeroom_sc.class_id = homeroom_tc.class_id
+        AND homeroom_sc.status = 'ACTIVE'
+      LEFT JOIN school_year homeroom_sy
+        ON homeroom_sy.school_year_id = homeroom_sc.school_year_id
       WHERE ua.status = 'ACTIVE'
       GROUP BY t.teacher_id, t.teacher_code, t.subject_specialize, ua.full_name, ua.email
       ORDER BY ua.full_name
@@ -152,6 +177,17 @@ async function getLookups() {
     grades,
     teachers: teachers.map((row) => ({
       ...row,
+      homeroomAssignments: row.homeroomAssignments
+        ? row.homeroomAssignments.split("||").map((item) => {
+            const [schoolYearId, classId, className, schoolYearName] = item.split(":");
+            return {
+              schoolYearId: Number(schoolYearId),
+              classId: Number(classId),
+              className,
+              schoolYearName,
+            };
+          })
+        : [],
       subjectIds: row.subjectIds
         ? row.subjectIds.split(",").map((subjectId) => Number(subjectId))
         : [],

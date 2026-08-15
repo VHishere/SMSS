@@ -1,5 +1,6 @@
 const { pool } = require("../../config/db");
 const { addIsoDays } = require("../../utils/date");
+const { TIMETABLE_SLOTS } = require("../../config/timetable.config");
 const {
   assertExists,
   assertUnique,
@@ -11,6 +12,18 @@ const {
   validateEnum,
   validatePositiveInt,
 } = require("./validation");
+
+// Tiết học phải luôn có start_time/end_time trong DB — điểm danh theo tiết
+// (BR-ATT-01) dựa trực tiếp vào 2 cột này để mở/khóa cửa sổ điểm danh.
+function getPeriodTimes(periodNo) {
+  const slot = TIMETABLE_SLOTS.find((s) => s.periodNo === periodNo);
+  if (!slot) {
+    const error = new Error("Tiết học không hợp lệ");
+    error.statusCode = 400;
+    throw error;
+  }
+  return { startTime: `${slot.startTime}:00`, endTime: `${slot.endTime}:00` };
+}
 
 const CLASS_STATUSES = ["ACTIVE", "INACTIVE"];
 const TEACHER_CLASS_ROLES = ["HOMEROOM_TEACHER", "SUBJECT_TEACHER"];
@@ -880,6 +893,8 @@ async function validateTimetableAssignment(classId, data) {
     throw error;
   }
 
+  const { startTime, endTime } = getPeriodTimes(periodNo);
+
   return {
     lessonDate,
     dayOfWeek,
@@ -887,6 +902,8 @@ async function validateTimetableAssignment(classId, data) {
     subjectId,
     teacherId,
     roomName: data.roomName || null,
+    startTime,
+    endTime,
   };
 }
 
@@ -1047,6 +1064,8 @@ async function createTimetableLessons(data) {
     throw createHttpError("Ngày hoặc tiết học không hợp lệ");
   }
 
+  const { startTime, endTime } = getPeriodTimes(periodNo);
+
   if (teacherMode !== "ASSIGNED_TEACHER" && !data.teacherId) {
     throw createHttpError("Vui lòng chọn giáo viên");
   }
@@ -1169,6 +1188,8 @@ async function createTimetableLessons(data) {
         dayOfWeek,
         periodNo,
         roomName: data.roomName || classItem.roomName || null,
+        startTime,
+        endTime,
       });
     }
   }
@@ -1195,7 +1216,7 @@ async function createTimetableLessons(data) {
       `
         INSERT INTO timetable (
           class_id, subject_id, teacher_id,
-          lesson_date, day_of_week, period_no, room_name, status
+          lesson_date, day_of_week, period_no, start_time, end_time, room_name, status
         )
         VALUES ?
       `,
@@ -1207,6 +1228,8 @@ async function createTimetableLessons(data) {
           lesson.lessonDate,
           lesson.dayOfWeek,
           lesson.periodNo,
+          lesson.startTime,
+          lesson.endTime,
           lesson.roomName,
           "ACTIVE",
         ]),
@@ -1257,9 +1280,9 @@ async function createClassTimetableLesson(classId, data) {
     `
       INSERT INTO timetable (
         class_id, subject_id, teacher_id,
-        lesson_date, day_of_week, period_no, room_name, status
+        lesson_date, day_of_week, period_no, start_time, end_time, room_name, status
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
     `,
     [
       classId,
@@ -1268,6 +1291,8 @@ async function createClassTimetableLesson(classId, data) {
       lesson.lessonDate,
       lesson.dayOfWeek,
       lesson.periodNo,
+      lesson.startTime,
+      lesson.endTime,
       lesson.roomName,
     ],
   );
@@ -1308,6 +1333,8 @@ async function updateClassTimetableLesson(classId, timetableId, data) {
           lesson_date = ?,
           day_of_week = ?,
           period_no = ?,
+          start_time = ?,
+          end_time = ?,
           room_name = ?,
           status = 'ACTIVE'
       WHERE timetable_id = ?
@@ -1319,6 +1346,8 @@ async function updateClassTimetableLesson(classId, timetableId, data) {
       lesson.lessonDate,
       lesson.dayOfWeek,
       lesson.periodNo,
+      lesson.startTime,
+      lesson.endTime,
       lesson.roomName,
       timetableId,
       classId,

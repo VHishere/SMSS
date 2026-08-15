@@ -95,7 +95,11 @@ async function listSchoolYears() {
         sy.start_date <= CURDATE() AS hasStarted,
         sy.end_date < CURDATE() AS hasEnded,
         sy.status,
-        (SELECT COUNT(*) FROM school_class sc WHERE sc.school_year_id = sy.school_year_id) AS classCount,
+        (
+          SELECT COUNT(*)
+          FROM school_class sc
+          WHERE sc.school_year_id = sy.school_year_id AND sc.status = 'ACTIVE'
+        ) AS classCount,
         (
           SELECT COUNT(DISTINCT ce.student_id)
           FROM class_enrollment ce

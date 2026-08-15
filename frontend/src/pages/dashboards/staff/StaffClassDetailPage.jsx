@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { FiArrowLeft, FiPlus } from "react-icons/fi";
 
@@ -16,12 +17,160 @@ const ROLE_LABELS = {
   SUBJECT_TEACHER: "Giáo viên bộ môn",
 };
 
+// Dropdown chọn nhiều học sinh — cùng kiểu thả xuống như PrettySelect (nút bo
+// tròn, panel portal) nhưng mỗi dòng là nút bấm đổi màu để chọn/bỏ chọn nhiều
+// học sinh thay vì chỉ chọn 1 giá trị.
+function StudentMultiSelectDropdown({ students, selectedIds, onToggle }) {
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState({});
+  const ref = useRef(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (event) => {
+      if (
+        (ref.current && ref.current.contains(event.target)) ||
+        (menuRef.current && menuRef.current.contains(event.target))
+      ) {
+        return;
+      }
+      setOpen(false);
+    };
+    const onEsc = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const updatePosition = () => {
+      const rect = ref.current?.getBoundingClientRect();
+      if (!rect) return;
+      const menuWidth = Math.max(rect.width, 260);
+      const left = Math.min(
+        Math.max(8, rect.left),
+        Math.max(8, window.innerWidth - menuWidth - 8),
+      );
+      setMenuStyle({
+        position: "fixed",
+        left,
+        top: rect.bottom + 6,
+        width: menuWidth,
+        zIndex: 9999,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  const placeholder = selectedIds.length
+    ? `Đã chọn ${selectedIds.length} học sinh`
+    : "Chọn học sinh";
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex h-11 w-full items-center gap-2 rounded-full border bg-white pl-4 pr-2.5 text-sm font-medium shadow-sm outline-none transition-colors hover:border-[#F27123]"
+        style={{
+          borderColor: open ? "#F27123" : "#DFC0B2",
+          color: "#1A1C1C",
+          boxShadow: open ? "0 0 0 3px rgba(242,113,35,0.15)" : undefined,
+        }}
+      >
+        <span className="min-w-0 flex-1 truncate text-left">{placeholder}</span>
+        <span
+          className={`material-symbols-outlined shrink-0 !text-[20px] text-slate-400 transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        >
+          expand_more
+        </span>
+      </button>
+
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="overflow-hidden rounded-2xl border bg-white shadow-lg"
+            style={{ borderColor: "#DFC0B2", ...menuStyle }}
+          >
+            <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto">
+              {students.length ? (
+                students.map((student) => {
+                  const idStr = String(student.studentId);
+                  const checked = selectedIds.includes(idStr);
+                  return (
+                    <button
+                      type="button"
+                      key={student.studentId}
+                      onClick={() => onToggle(student.studentId)}
+                      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+                        checked
+                          ? "bg-[#F27123] text-white"
+                          : "bg-white text-[#1A1C1C] hover:bg-[#FFF3EB]"
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                        {student.studentCode} - {student.fullName}
+                      </span>
+                      <span
+                        className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          checked
+                            ? "bg-white/20 text-white"
+                            : student.currentClassName
+                              ? "bg-slate-100 text-slate-600"
+                              : "bg-[#FFE7D6] text-[#F27123]"
+                        }`}
+                      >
+                        {student.currentClassName || "Chưa có lớp"}
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="px-4 py-6 text-center text-sm text-slate-400">
+                  Không có học sinh để thêm
+                </p>
+              )}
+            </div>
+            <div className="border-t border-slate-100 bg-[#F9F9F9] px-4 py-2 text-right">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-xs font-semibold text-[#08509F]"
+              >
+                Xong
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
 function StaffClassDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [classInfo, setClassInfo] = useState(null);
   const [lookups, setLookups] = useState(null);
-  const [studentForm, setStudentForm] = useState({ studentId: "" });
+  const [studentForm, setStudentForm] = useState({ studentIds: [] });
   const [teacherForm, setTeacherForm] = useState({
     teacherId: "",
     roleInClass: "HOMEROOM_TEACHER",
@@ -129,16 +278,34 @@ function StaffClassDetailPage() {
     return `/staff/timetable/new?${query.toString()}`;
   }, [classInfo, id]);
 
+  const toggleStudentSelection = (studentId) => {
+    const idStr = String(studentId);
+    setStudentForm((prev) => ({
+      studentIds: prev.studentIds.includes(idStr)
+        ? prev.studentIds.filter((value) => value !== idStr)
+        : [...prev.studentIds, idStr],
+    }));
+  };
+
   const handleEnrollStudent = (event) => {
     event.preventDefault();
-    if (!studentForm.studentId) return;
+    if (!studentForm.studentIds.length) return;
 
     setSaving(true);
     staffApi
-      .enrollStudent(id, Number(studentForm.studentId))
+      .enrollStudents(id, studentForm.studentIds.map(Number))
       .then((res) => {
-        setClassInfo(res.data);
-        setStudentForm({ studentId: "" });
+        const { enrollResults, ...classData } = res.data || {};
+        setClassInfo(classData);
+        setStudentForm({ studentIds: [] });
+        const failed = (enrollResults || []).filter((item) => !item.success);
+        setError(
+          failed.length
+            ? `Không thể thêm ${failed.length} học sinh: ${failed
+                .map((item) => item.message)
+                .join("; ")}`
+            : "",
+        );
       })
       .catch((err) => setError(err.message))
       .finally(() => setSaving(false));
@@ -255,19 +422,11 @@ function StaffClassDetailPage() {
           loading={saving}
         >
           <StaffField label="Học sinh" className="md:col-span-2">
-            <PrettySelect
-              className={inputClass}
-              value={studentForm.studentId}
-              onChange={(event) => setStudentForm({ studentId: event.target.value })}
-              required
-            >
-              <option value="">Chọn học sinh</option>
-              {availableStudents.map((student) => (
-                <option key={student.studentId} value={student.studentId}>
-                  {student.studentCode} - {student.fullName}
-                </option>
-              ))}
-            </PrettySelect>
+            <StudentMultiSelectDropdown
+              students={availableStudents}
+              selectedIds={studentForm.studentIds}
+              onToggle={toggleStudentSelection}
+            />
           </StaffField>
         </StaffFormCard>
 

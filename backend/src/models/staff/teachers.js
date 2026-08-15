@@ -33,7 +33,10 @@ const teacherSelect = `
     (
       SELECT COUNT(*)
       FROM teacher_class tc
+      INNER JOIN school_class sc_count ON sc_count.class_id = tc.class_id
+      INNER JOIN school_year sy_count ON sy_count.school_year_id = sc_count.school_year_id
       WHERE tc.teacher_id = t.teacher_id
+        AND sy_count.is_active = TRUE
         AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
     ) AS classCount,
     EXISTS(
@@ -147,6 +150,7 @@ async function getTeacherById(teacherId) {
       INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
       LEFT JOIN subject sub ON sub.subject_id = tc.subject_id
       WHERE tc.teacher_id = ?
+        AND sy.is_active = TRUE
         AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
       ORDER BY sy.start_date DESC, sc.class_name
     `,

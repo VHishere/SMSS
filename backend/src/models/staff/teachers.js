@@ -33,7 +33,10 @@ const teacherSelect = `
     (
       SELECT COUNT(*)
       FROM teacher_class tc
+      INNER JOIN school_class sc_count ON sc_count.class_id = tc.class_id
+      INNER JOIN school_year sy_count ON sy_count.school_year_id = sc_count.school_year_id
       WHERE tc.teacher_id = t.teacher_id
+        AND sy_count.is_active = TRUE
         AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
     ) AS classCount,
     EXISTS(
@@ -140,13 +143,26 @@ async function getTeacherById(teacherId) {
         g.grade_name AS gradeName,
         sy.year_name AS schoolYearName,
         tc.role_in_class AS roleInClass,
-        sub.subject_name AS subjectName
+        COALESCE(
+          sub.subject_name,
+          (
+            SELECT s2.subject_name
+            FROM teacher_class tc2
+            INNER JOIN subject s2 ON s2.subject_id = tc2.subject_id
+            WHERE tc2.teacher_id = tc.teacher_id
+              AND tc2.class_id = tc.class_id
+              AND tc2.role_in_class = 'SUBJECT_TEACHER'
+              AND (tc2.end_date IS NULL OR tc2.end_date >= CURDATE())
+            LIMIT 1
+          )
+        ) AS subjectName
       FROM teacher_class tc
       INNER JOIN school_class sc ON sc.class_id = tc.class_id
       INNER JOIN grade g ON g.grade_id = sc.grade_id
       INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
       LEFT JOIN subject sub ON sub.subject_id = tc.subject_id
       WHERE tc.teacher_id = ?
+        AND sy.is_active = TRUE
         AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
       ORDER BY sy.start_date DESC, sc.class_name
     `,

@@ -107,13 +107,37 @@ function StaffSurveysPage() {
     [form.teacherId, lookups.teachers],
   );
 
+  const selectedSemester = useMemo(
+    () =>
+      (lookups.semesters ?? []).find(
+        (sem) => String(sem.semesterId) === String(form.semesterId),
+      ),
+    [form.semesterId, lookups.semesters],
+  );
+
+  // Chưa chọn GV: hiện tạm toàn bộ môn (không ảnh hưởng vì chưa submit được).
+  // Đã chọn GV nhưng GV đó không dạy môn nào (vd GV chủ nhiệm thuần) thì phải
+  // trả về rỗng thay vì fallback về toàn bộ môn — nếu không staff có thể chọn
+  // một môn GV không hề dạy, khiến khảo sát không khớp học sinh nào (ts.subject_id
+  // không khớp bất kỳ dòng teacher_class nào của GV đó).
   const teacherSubjects = useMemo(() => {
-    if (!selectedTeacher?.subjectIds?.length) return lookups.subjects ?? [];
+    if (!selectedTeacher) return lookups.subjects ?? [];
+    if (!selectedTeacher.subjectIds?.length) return [];
     const allowedIds = new Set(selectedTeacher.subjectIds.map(Number));
     return (lookups.subjects ?? []).filter((subject) =>
       allowedIds.has(Number(subject.subjectId)),
     );
   }, [lookups.subjects, selectedTeacher]);
+
+  // Nhiều năm học có thể có lớp trùng tên (vd "10A1" của 2 niên khoá khác
+  // nhau) — chỉ hiện lớp thuộc đúng năm học của học kỳ đang chọn để staff
+  // không chọn nhầm lớp năm học khác, khiến khảo sát không khớp học sinh.
+  const availableClasses = useMemo(() => {
+    if (!selectedSemester) return lookups.classes ?? [];
+    return (lookups.classes ?? []).filter(
+      (c) => String(c.schoolYearId) === String(selectedSemester.schoolYearId),
+    );
+  }, [lookups.classes, selectedSemester]);
 
   useEffect(() => {
     if (!form.teacherId) return;
@@ -140,6 +164,16 @@ function StaffSurveysPage() {
       }));
     }
   }, [form.subjectId, form.teacherId, selectedTeacher, teacherSubjects]);
+
+  useEffect(() => {
+    if (!form.classId) return;
+    const stillValid = availableClasses.some(
+      (c) => String(c.classId) === String(form.classId),
+    );
+    if (!stillValid) {
+      setForm((prev) => ({ ...prev, classId: "" }));
+    }
+  }, [availableClasses, form.classId]);
 
   const set = (k) => (e) => {
     const value = e.target.value;
@@ -205,13 +239,22 @@ function StaffSurveysPage() {
             <option value="">— Giáo viên * —</option>
             {(lookups.teachers ?? []).map((t) => <option key={t.teacherId} value={t.teacherId}>{t.fullName}</option>)}
           </PrettySelect>
-          <PrettySelect className={inputCls} value={form.subjectId} onChange={set("subjectId")}>
-            <option value="">— Môn (tùy chọn) —</option>
+          <PrettySelect
+            className={inputCls}
+            value={form.subjectId}
+            onChange={set("subjectId")}
+            disabled={!!selectedTeacher && teacherSubjects.length === 0}
+          >
+            <option value="">
+              {selectedTeacher && teacherSubjects.length === 0
+                ? "— GV này không dạy môn nào (bỏ trống) —"
+                : "— Môn (tùy chọn) —"}
+            </option>
             {teacherSubjects.map((s) => <option key={s.subjectId} value={s.subjectId}>{s.subjectName}</option>)}
           </PrettySelect>
-          <PrettySelect className={inputCls} value={form.classId} onChange={set("classId")}>
+          <PrettySelect className={inputCls} value={form.classId} onChange={set("classId")} disabled={!form.semesterId}>
             <option value="">— Lớp (tùy chọn, giới hạn HS) —</option>
-            {(lookups.classes ?? []).map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
+            {availableClasses.map((c) => <option key={c.classId} value={c.classId}>{c.className} · {c.schoolYearName}</option>)}
           </PrettySelect>
           <input className={`${inputCls} md:col-span-2`} placeholder="Tiêu đề (tùy chọn)" value={form.title} onChange={set("title")} />
         </div>

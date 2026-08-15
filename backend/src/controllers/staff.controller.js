@@ -350,10 +350,12 @@ async function deleteClass(req, res) {
 
 async function enrollStudent(req, res) {
   try {
-    const data = await staffModel.enrollStudent(
-      req.params.id,
-      req.body.studentId,
-    );
+    const studentIds = Array.isArray(req.body.studentIds)
+      ? req.body.studentIds
+      : req.body.studentId != null
+        ? [req.body.studentId]
+        : [];
+    const data = await staffModel.enrollStudents(req.params.id, studentIds);
     return res.json({ success: true, data });
   } catch (error) {
     return handleError(res, error, "Không thể thêm học sinh vào lớp");
@@ -670,6 +672,15 @@ async function createTeacherSurvey(req, res) {
     const { semesterId, teacherId, subjectId, classId, title } = req.body;
     if (!semesterId || !teacherId) {
       return res.status(400).json({ success: false, message: "Thiếu học kỳ hoặc giáo viên" });
+    }
+    const assigned = await feedbackModel.teacherClassAssignmentExists({
+      teacherId, classId: classId || null, subjectId: subjectId || null,
+    });
+    if (!assigned) {
+      return res.status(400).json({
+        success: false,
+        message: "Giáo viên không dạy lớp/môn đã chọn — khảo sát sẽ không hiển thị cho học sinh nào. Vui lòng kiểm tra lại phân công giảng dạy.",
+      });
     }
     const surveyId = await feedbackModel.createSurvey({
       semesterId, teacherId, subjectId: subjectId || null, classId: classId || null,

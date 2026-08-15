@@ -350,10 +350,12 @@ async function deleteClass(req, res) {
 
 async function enrollStudent(req, res) {
   try {
-    const data = await staffModel.enrollStudent(
-      req.params.id,
-      req.body.studentId,
-    );
+    const studentIds = Array.isArray(req.body.studentIds)
+      ? req.body.studentIds
+      : req.body.studentId != null
+        ? [req.body.studentId]
+        : [];
+    const data = await staffModel.enrollStudents(req.params.id, studentIds);
     return res.json({ success: true, data });
   } catch (error) {
     return handleError(res, error, "Không thể thêm học sinh vào lớp");

@@ -2136,10 +2136,10 @@ export const staffApi = {
       method: "DELETE",
     }),
 
-  enrollStudent: (classId, studentId) =>
+  enrollStudents: (classId, studentIds) =>
     request(`/staff/classes/${classId}/students`, {
       method: "POST",
-      body: JSON.stringify({ studentId }),
+      body: JSON.stringify({ studentIds }),
     }),
 
   removeStudentFromClass: (classId, studentId) =>

@@ -110,7 +110,20 @@ async function findLinkedStudentsByUserId(userId) {
     [userId],
   );
 
-  return rows;
+  // A student can temporarily have more than one ACTIVE class_enrollment
+  // row (e.g. mid school-year transition, before promotion closes the old
+  // one), which would multiply that student's row in the join above.
+  // Rows are already ordered so the best match comes first, so just keep
+  // the first row seen per student.
+  const seen = new Set();
+  const deduped = [];
+  for (const row of rows) {
+    if (seen.has(row.studentId)) continue;
+    seen.add(row.studentId);
+    deduped.push(row);
+  }
+
+  return deduped;
 }
 
 async function findStudentDetailByStudentId(studentId) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 
@@ -10,15 +10,10 @@ import StaffFormCard, {
 } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import PrettySelect from "../../../components/molecules/PrettySelect";
-
-const WEEK_DAYS = [
-  { value: 2, label: "Thứ 2" },
-  { value: 3, label: "Thứ 3" },
-  { value: 4, label: "Thứ 4" },
-  { value: 5, label: "Thứ 5" },
-  { value: 6, label: "Thứ 6" },
-  { value: 7, label: "Thứ 7" },
-];
+import {
+  resolveStaffWorkingSchoolYear,
+  setStaffWorkingSchoolYearId,
+} from "../../../utils/staffSchoolYear";
 
 const PERIODS = [
   { periodNo: 1, startTime: "07:30", endTime: "08:15" },
@@ -31,9 +26,28 @@ const PERIODS = [
   { periodNo: 8, startTime: "16:15", endTime: "17:00" },
 ];
 
+function todayInputValue() {
+  const date = new Date();
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function getDayLabel(isoDate) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(isoDate || ""));
+  if (!match) return "";
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const day = date.getDay();
+  if (day === 0) return "Chủ nhật";
+  return `Thứ ${day + 1}`;
+}
+
 function StaffTimetableCreatePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const hasClassQuery = Boolean(searchParams.get("classId"));
   const [lookups, setLookups] = useState({
     schoolYears: [],
     grades: [],
@@ -42,14 +56,15 @@ function StaffTimetableCreatePage() {
   });
   const [classes, setClasses] = useState([]);
   const [form, setForm] = useState({
-    scope: searchParams.get("classId") ? "CLASS" : "GRADE",
+    scope: hasClassQuery ? "CLASS" : "GRADE",
     schoolYearId: searchParams.get("schoolYearId") || "",
     gradeId: searchParams.get("gradeId") || "",
     classId: searchParams.get("classId") || "",
-    dayOfWeek: searchParams.get("dayOfWeek") || "2",
+    lessonDate: searchParams.get("lessonDate") || todayInputValue(),
+    scheduleMode: "SINGLE_DAY",
     periodNo: searchParams.get("periodNo") || "1",
     subjectId: "",
-    teacherMode: "ASSIGNED_TEACHER",
+    teacherMode: hasClassQuery ? "SELECTED_TEACHER" : "ASSIGNED_TEACHER",
     teacherId: "",
     roomName: "",
   });
@@ -63,15 +78,19 @@ function StaffTimetableCreatePage() {
       .then((res) => {
         setLookups(res.data);
         if (!form.schoolYearId) {
-          const activeYear =
-            res.data.schoolYears?.find((year) => year.isActive) ||
-            res.data.schoolYears?.[0];
-          if (activeYear) {
+          const workingYear = resolveStaffWorkingSchoolYear(
+            res.data.schoolYears || [],
+          );
+          if (workingYear) {
+            const workingYearId = String(workingYear.schoolYearId);
             setForm((prev) => ({
               ...prev,
-              schoolYearId: String(activeYear.schoolYearId),
+              schoolYearId: workingYearId,
             }));
+            setStaffWorkingSchoolYearId(workingYearId);
           }
+        } else {
+          setStaffWorkingSchoolYearId(form.schoolYearId);
         }
       })
       .catch((err) => setError(err.message));
@@ -115,16 +134,109 @@ function StaffTimetableCreatePage() {
     return selectedClass?.className || "Chưa chọn lớp";
   }, [classes, form.classId, form.scope]);
 
+  const subjectTeachers = useMemo(() => {
+    if (!form.subjectId) return lookups.teachers;
+    const selectedSubjectId = Number(form.subjectId);
+    return lookups.teachers.filter((teacher) =>
+      (teacher.subjectIds || []).includes(selectedSubjectId),
+    );
+  }, [form.subjectId, lookups.teachers]);
+
+  const selectedTeacher = useMemo(
+    () =>
+      lookups.teachers.find(
+        (teacher) => String(teacher.teacherId) === String(form.teacherId),
+      ),
+    [form.teacherId, lookups.teachers],
+  );
+
+  const teacherSubjectOptions = useMemo(() => {
+    if (!selectedTeacher?.subjectIds?.length) return lookups.subjects;
+    const allowedIds = new Set(selectedTeacher.subjectIds.map(Number));
+    return lookups.subjects.filter((subject) =>
+      allowedIds.has(Number(subject.subjectId)),
+    );
+  }, [lookups.subjects, selectedTeacher]);
+
+  useEffect(() => {
+    if (form.teacherMode !== "SELECTED_TEACHER" || !form.teacherId) return;
+    const stillAvailable = subjectTeachers.some(
+      (teacher) => String(teacher.teacherId) === String(form.teacherId),
+    );
+    if (!stillAvailable) {
+      setForm((prev) => ({ ...prev, teacherId: "" }));
+    }
+  }, [form.teacherId, form.teacherMode, subjectTeachers]);
+
+  useEffect(() => {
+    if (form.teacherMode !== "SELECTED_TEACHER" || !form.teacherId) return;
+
+    if (!form.subjectId && teacherSubjectOptions.length === 1) {
+      setForm((prev) => ({
+        ...prev,
+        subjectId: String(teacherSubjectOptions[0].subjectId),
+      }));
+      return;
+    }
+
+    if (!form.subjectId || !selectedTeacher?.subjectIds?.length) return;
+
+    const allowed = selectedTeacher.subjectIds
+      .map(String)
+      .includes(String(form.subjectId));
+
+    if (!allowed) {
+      setForm((prev) => ({
+        ...prev,
+        subjectId:
+          teacherSubjectOptions.length === 1
+            ? String(teacherSubjectOptions[0].subjectId)
+            : "",
+      }));
+    }
+  }, [
+    form.subjectId,
+    form.teacherId,
+    form.teacherMode,
+    selectedTeacher,
+    teacherSubjectOptions,
+  ]);
+
   const updateForm = (key, value) => {
-    setForm((prev) => ({
-      ...prev,
-      [key]: value,
-      ...(key === "schoolYearId" ? { gradeId: "", classId: "" } : {}),
-      ...(key === "gradeId" ? { classId: "" } : {}),
-      ...(key === "scope" && value !== "CLASS" ? { classId: "" } : {}),
-      ...(key === "scope" && value === "CLASS" ? { teacherMode: "SELECTED_TEACHER" } : {}),
-      ...(key === "scope" && value !== "CLASS" ? { teacherMode: "ASSIGNED_TEACHER" } : {}),
-    }));
+    if (key === "schoolYearId") {
+      setStaffWorkingSchoolYearId(value);
+    }
+
+    setForm((prev) => {
+      const next = {
+        ...prev,
+        [key]: value,
+        ...(key === "schoolYearId" ? { gradeId: "", classId: "" } : {}),
+        ...(key === "gradeId" ? { classId: "" } : {}),
+        ...(key === "scope" && value !== "CLASS" ? { classId: "" } : {}),
+        ...(key === "scope" && value === "CLASS"
+          ? { teacherMode: "SELECTED_TEACHER" }
+          : {}),
+        ...(key === "scope" && value !== "CLASS"
+          ? { teacherMode: "ASSIGNED_TEACHER", teacherId: "" }
+          : {}),
+      };
+
+      if (key === "teacherId") {
+        const teacher = lookups.teachers.find(
+          (item) => String(item.teacherId) === String(value),
+        );
+        const subjectIds = teacher?.subjectIds || [];
+
+        if (subjectIds.length === 1) {
+          next.subjectId = String(subjectIds[0]);
+        } else if (!subjectIds.map(String).includes(String(next.subjectId))) {
+          next.subjectId = "";
+        }
+      }
+
+      return next;
+    });
     setError("");
     setConflicts([]);
   };
@@ -134,6 +246,7 @@ function StaffTimetableCreatePage() {
       schoolYearId: form.schoolYearId,
       gradeId: form.gradeId,
       classId: form.classId,
+      selectedDate: form.lessonDate,
     });
     [...query.entries()].forEach(([key, value]) => {
       if (!value) query.delete(key);
@@ -153,7 +266,8 @@ function StaffTimetableCreatePage() {
         schoolYearId: Number(form.schoolYearId),
         gradeId: form.gradeId ? Number(form.gradeId) : null,
         classId: form.classId ? Number(form.classId) : null,
-        dayOfWeek: Number(form.dayOfWeek),
+        lessonDate: form.lessonDate,
+        scheduleMode: form.scheduleMode,
         periodNo: Number(form.periodNo),
         subjectId: Number(form.subjectId),
         teacherId:
@@ -174,10 +288,7 @@ function StaffTimetableCreatePage() {
       <StaffPageHeader
         title="Thêm lịch học"
         action={
-          <Link
-            to="/staff/timetable"
-            className={cancelLinkClass}
-          >
+          <Link to="/staff/timetable" className={cancelLinkClass}>
             <FiArrowLeft size={16} />
             Quay lại thời khóa biểu
           </Link>
@@ -279,18 +390,29 @@ function StaffTimetableCreatePage() {
             </PrettySelect>
           </StaffField>
         )}
+        <StaffField label="Ngày học">
+          <input
+            type="date"
+            className={inputClass}
+            value={form.lessonDate}
+            onChange={(event) => updateForm("lessonDate", event.target.value)}
+            required
+          />
+          {form.lessonDate && (
+            <p className="mt-2 text-sm font-semibold text-[#08509F]">
+              {getDayLabel(form.lessonDate)}
+            </p>
+          )}
+        </StaffField>
 
-        <StaffField label="Thứ">
+        <StaffField label="Kiểu áp dụng">
           <PrettySelect
             className={inputClass}
-            value={form.dayOfWeek}
-            onChange={(event) => updateForm("dayOfWeek", event.target.value)}
+            value={form.scheduleMode}
+            onChange={(event) => updateForm("scheduleMode", event.target.value)}
           >
-            {WEEK_DAYS.map((day) => (
-              <option key={day.value} value={day.value}>
-                {day.label}
-              </option>
-            ))}
+            <option value="SINGLE_DAY">Chỉ ngày này</option>
+            <option value="SCHOOL_YEAR">Từ ngày này đến hết năm học</option>
           </PrettySelect>
         </StaffField>
 
@@ -316,12 +438,19 @@ function StaffTimetableCreatePage() {
             required
           >
             <option value="">Chọn môn học</option>
-            {lookups.subjects.map((subject) => (
+            {teacherSubjectOptions.map((subject) => (
               <option key={subject.subjectId} value={subject.subjectId}>
                 {subject.subjectName}
               </option>
             ))}
           </PrettySelect>
+          {form.teacherMode === "SELECTED_TEACHER" &&
+            form.teacherId &&
+            teacherSubjectOptions.length === 0 && (
+              <p className="mt-2 text-sm text-red-600">
+                Giáo viên này chưa có môn chuyên môn để xếp lịch.
+              </p>
+            )}
         </StaffField>
 
         <StaffField label="Cách chọn giáo viên">
@@ -346,12 +475,17 @@ function StaffTimetableCreatePage() {
               required
             >
               <option value="">Chọn giáo viên</option>
-              {lookups.teachers.map((teacher) => (
+              {subjectTeachers.map((teacher) => (
                 <option key={teacher.teacherId} value={teacher.teacherId}>
                   {teacher.fullName}
                 </option>
               ))}
             </PrettySelect>
+            {form.subjectId && subjectTeachers.length === 0 && (
+              <p className="mt-2 text-sm text-red-600">
+                Chưa có giáo viên nào được phân công dạy môn này.
+              </p>
+            )}
           </StaffField>
         )}
 

@@ -48,15 +48,19 @@ export function useParentMessages(refreshKey = 0) {
   };
 }
 
-export function useParentThread(conversationId, refreshKey = 0) {
+export function useParentThread(conversationId) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(Boolean(conversationId));
   const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
+
+  const reload = () => setReloadKey((current) => current + 1);
 
   useEffect(() => {
     if (!conversationId) {
       setData(null);
       setLoading(false);
+      setError("");
       return undefined;
     }
 
@@ -66,7 +70,7 @@ export function useParentThread(conversationId, refreshKey = 0) {
     setError("");
 
     parentApi
-      .getThread(conversationId)
+      .getThread(conversationId, { limit: 100 })
       .then((response) => {
         if (isMounted) {
           setData(response.data);
@@ -86,11 +90,13 @@ export function useParentThread(conversationId, refreshKey = 0) {
     return () => {
       isMounted = false;
     };
-  }, [conversationId, refreshKey]);
+  }, [conversationId, reloadKey]);
 
   return {
     data,
+    setData,
     loading,
     error,
+    reload,
   };
 }

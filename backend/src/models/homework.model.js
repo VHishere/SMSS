@@ -14,6 +14,8 @@ async function findTeachingAssignments(teacherId) {
      INNER JOIN school_class sc
        ON sc.class_id = tc.class_id
        AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy
+       ON sy.school_year_id = sc.school_year_id
      INNER JOIN grade g
        ON g.grade_id = sc.grade_id
      INNER JOIN subject sub
@@ -21,6 +23,8 @@ async function findTeachingAssignments(teacherId) {
        AND sub.status = 'ACTIVE'
      WHERE tc.teacher_id = ?
        AND tc.subject_id IS NOT NULL
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      ORDER BY sc.class_name ASC, sub.subject_name ASC`,
     [teacherId],
   );
@@ -34,9 +38,13 @@ async function isAssignmentValid(teacherId, classId, subjectId) {
      INNER JOIN school_class sc
        ON sc.class_id = tc.class_id
        AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy
+       ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ?
        AND tc.class_id = ?
        AND tc.subject_id = ?
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, classId, subjectId],
   );
@@ -782,6 +790,8 @@ async function submitStudentSubmission({
          h.homework_id AS homeworkId,
          h.title,
          h.status,
+         h.due_date AS dueDate,
+         (h.due_date < NOW()) AS isOverdue,
          h.teacher_id AS teacherId,
          t.user_id AS teacherUserId
        FROM homework h
@@ -804,6 +814,12 @@ async function submitStudentSubmission({
 
     if (!["OPEN", "PUBLISHED", "ACTIVE"].includes(homework.status)) {
       const error = new Error("Bài tập hiện không mở để nộp bài");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (Boolean(homework.isOverdue)) {
+      const error = new Error("Bài tập đã quá hạn nộp");
       error.statusCode = 409;
       throw error;
     }

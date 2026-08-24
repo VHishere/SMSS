@@ -7,6 +7,7 @@ import StaffDataTable from "../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../components/staff/StaffPageHeader";
 import StatusBadge from "../../components/staff/StatusBadge";
 import PrettySelect from "../../components/molecules/PrettySelect";
+import AdminFeeCategoriesPage from "./AdminFeeCategoriesPage";
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -105,7 +106,7 @@ function AdminFeesPage() {
   return (
     <>
       <StaffPageHeader
-        title="Theo dõi học phí"
+        title="Quản lý học phí"
       />
 
       {error && (
@@ -173,6 +174,10 @@ function AdminFeesPage() {
         rows={fees.map((item) => ({ ...item, id: item.feePlanId }))}
         emptyMessage="Chưa có khoản học phí nào"
       />
+
+      <div className="mt-8">
+        <AdminFeeCategoriesPage embedded />
+      </div>
     </>
   );
 }

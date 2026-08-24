@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { adminApi, staffApi } from "../../api/client";
 import { formatRoleLabel, ROLE_LABELS } from "../../utils/formatters";
 import Modal from "../../components/atoms/Modal";
+import ConfirmModal from "../../components/atoms/ConfirmModal";
 import PrettySelect from "../../components/molecules/PrettySelect";
 
 // FSchool Admin Portal — Stitch design tokens (matches the parent/teacher portal)
@@ -94,15 +95,26 @@ function EditUserModal({ user, roles, students, onClose, onSaved }) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     adminApi
       .getUserDetail(user.userId)
       .then((res) => {
+        if (cancelled) return;
         setDetail(res.data);
         setSelectedRoleIds(res.data.roles.map((r) => r.roleId));
         setChildren(res.data.children || []);
       })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [user.userId]);
 
   const parentRoleId = roles.find((r) => r.roleName === "PARENT")?.roleId;
@@ -151,6 +163,10 @@ function EditUserModal({ user, roles, students, onClose, onSaved }) {
   };
 
   const handleSave = async () => {
+    if (!window.confirm(`Xác nhận cập nhật vai trò cho "${user.fullName}"?`)) {
+      return;
+    }
+
     setSaving(true);
     setError("");
 
@@ -332,9 +348,11 @@ function AdminUsersPage() {
   const [error, setError] = useState("");
   const [pendingUserId, setPendingUserId] = useState(null);
   const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, page: 1, limit: PAGE_SIZE, totalPages: 1 });
   const [roles, setRoles] = useState([]);
   const [students, setStudents] = useState([]);
   const [editingUser, setEditingUser] = useState(null);
+  const [statusConfirmUser, setStatusConfirmUser] = useState(null);
 
   useEffect(() => {
     adminApi.getRoles().then((res) => setRoles(res.data)).catch(() => {});
@@ -347,9 +365,10 @@ function AdminUsersPage() {
   const loadUsers = () => {
     setLoading(true);
     adminApi
-      .getUsers({ search, status, role, dateFrom, dateTo })
+      .getUsers({ search, status, role, dateFrom, dateTo, page, limit: PAGE_SIZE })
       .then((response) => {
-        setUsers(response.data);
+        setUsers(response.data.items);
+        setPagination(response.data.pagination);
         setError("");
       })
       .catch((err) => setError(err.message))
@@ -360,7 +379,7 @@ function AdminUsersPage() {
     const timer = setTimeout(loadUsers, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, status, role, dateFrom, dateTo]);
+  }, [search, status, role, dateFrom, dateTo, page]);
 
   const updateFilter = (setter) => (value) => {
     setter(value);
@@ -376,16 +395,16 @@ function AdminUsersPage() {
     setPage(1);
   };
 
-  const toggleAccountStatus = async (user) => {
+  const requestToggleAccountStatus = (user) => {
     if (user.status === "INACTIVE") return;
+    setStatusConfirmUser(user);
+  };
+
+  const confirmToggleAccountStatus = async () => {
+    const user = statusConfirmUser;
+    if (!user) return;
 
     const nextStatus = user.status === "ACTIVE" ? "LOCKED" : "ACTIVE";
-    const confirmMessage =
-      nextStatus === "LOCKED"
-        ? `Khóa tài khoản của "${user.fullName}"?`
-        : `Mở khóa tài khoản của "${user.fullName}"?`;
-
-    if (!window.confirm(confirmMessage)) return;
 
     setPendingUserId(user.userId);
 
@@ -398,6 +417,7 @@ function AdminUsersPage() {
             : item,
         ),
       );
+      setStatusConfirmUser(null);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -407,12 +427,9 @@ function AdminUsersPage() {
 
   const rows = useMemo(() => users, [users]);
 
-  const totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pagedRows = useMemo(
-    () => rows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
-    [rows, currentPage],
-  );
+  const totalPages = pagination.totalPages;
+  const currentPage = pagination.page;
+  const pagedRows = rows;
 
   return (
     <div className="space-y-6">
@@ -631,7 +648,7 @@ function AdminUsersPage() {
                             <button
                               type="button"
                               disabled={pendingUserId === user.userId}
-                              onClick={() => toggleAccountStatus(user)}
+                              onClick={() => requestToggleAccountStatus(user)}
                               className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold transition hover:opacity-80 disabled:opacity-60"
                               style={
                                 isLocked
@@ -663,6 +680,7 @@ function AdminUsersPage() {
               <PrettySelect
                 value={currentPage}
                 onChange={(event) => setPage(Number(event.target.value))}
+                dropUp
                 className="cursor-pointer rounded-lg border bg-white px-2 py-1 text-sm font-semibold outline-none"
                 style={{ borderColor: C.outlineVariant, color: C.onSurface }}
               >
@@ -714,6 +732,21 @@ function AdminUsersPage() {
           }}
         />
       )}
+
+      <ConfirmModal
+        open={Boolean(statusConfirmUser)}
+        title={statusConfirmUser?.status === "ACTIVE" ? "Khóa tài khoản" : "Mở khóa tài khoản"}
+        message={
+          statusConfirmUser?.status === "ACTIVE"
+            ? `Khóa tài khoản của "${statusConfirmUser?.fullName}"?`
+            : `Mở khóa tài khoản của "${statusConfirmUser?.fullName}"?`
+        }
+        confirmLabel={statusConfirmUser?.status === "ACTIVE" ? "Khóa" : "Mở khóa"}
+        tone={statusConfirmUser?.status === "ACTIVE" ? "danger" : "default"}
+        loading={pendingUserId === statusConfirmUser?.userId}
+        onConfirm={confirmToggleAccountStatus}
+        onClose={() => setStatusConfirmUser(null)}
+      />
     </div>
   );
 }

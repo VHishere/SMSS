@@ -40,20 +40,38 @@ function Ms({ name, className = "", style, fill = false }) {
 
 // Nhãn ngắn + màu active của pill trạng thái (theo design Stitch)
 const STATUS_PILL = {
-  PRESENT:          { label: "Hiện diện", bg: "#F2712315", text: "#9F4200", border: "#F27123" },
+  PRESENT:          { label: "Có mặt", bg: "#F2712315", text: "#9F4200", border: "#F27123" },
   LATE:             { label: "Muộn",      bg: "#4A5F8215", text: "#4A5F82", border: "#4A5F82" },
-  ABSENT_UNEXCUSED: { label: "Vắng",      bg: "#BA1A1A15", text: "#BA1A1A", border: "#BA1A1A" },
-  ABSENT_EXCUSED:   { label: "Phép",      bg: "#225DAD15", text: "#225DAD", border: "#225DAD" },
+  ABSENT_UNEXCUSED: { label: "Nghỉ",      bg: "#BA1A1A15", text: "#BA1A1A", border: "#BA1A1A" },
+  ABSENT_EXCUSED:   { label: "Vắng có phép", bg: "#225DAD15", text: "#225DAD", border: "#225DAD" },
   EARLY_LEAVE:      { label: "Về sớm",    bg: "#8298BE20", text: "#4A5F82", border: "#8298BE" },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const ATTENDANCE_LABELS = {
+  PRESENT: "Có mặt",
+  LATE: "Muộn",
+  ABSENT_EXCUSED: "Vắng có phép",
+  ABSENT_UNEXCUSED: "Nghỉ",
+  EARLY_LEAVE: "Về sớm",
+};
+
+STATUS_PILL.PRESENT.label = ATTENDANCE_LABELS.PRESENT;
+STATUS_PILL.LATE.label = ATTENDANCE_LABELS.LATE;
+STATUS_PILL.ABSENT_EXCUSED.label = ATTENDANCE_LABELS.ABSENT_EXCUSED;
+STATUS_PILL.ABSENT_UNEXCUSED.label = ATTENDANCE_LABELS.ABSENT_UNEXCUSED;
+STATUS_PILL.EARLY_LEAVE.label = ATTENDANCE_LABELS.EARLY_LEAVE;
 
 function toISO(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+function isValidDateString(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value || "");
 }
 
 function getMonthRange(offsetMonths = 0) {
@@ -343,10 +361,10 @@ function PeriodSheet({ period, date, onBack }) {
   }
 
   const statCards = [
-    { label: "Hiện diện", count: counts.PRESENT,          accent: C.primary,   iconName: "check_circle", iconColor: C.primaryContainer, iconBg: "rgba(242,113,35,0.10)" },
-    { label: "Vắng mặt",  count: counts.ABSENT_UNEXCUSED, accent: C.error,     iconName: "cancel",       iconColor: C.error,            iconBg: "rgba(255,218,214,0.4)" },
-    { label: "Đi muộn",   count: counts.LATE,             accent: C.tertiary,  iconName: "schedule",     iconColor: C.tertiary,         iconBg: "rgba(130,152,190,0.2)" },
-    { label: "Nghỉ phép", count: counts.ABSENT_EXCUSED,   accent: C.secondary, iconName: "event_busy",   iconColor: C.secondary,        iconBg: "rgba(119,169,254,0.2)" },
+    { label: ATTENDANCE_LABELS.PRESENT, count: counts.PRESENT,          accent: C.primary,   iconName: "check_circle", iconColor: C.primaryContainer, iconBg: "rgba(242,113,35,0.10)" },
+    { label: ATTENDANCE_LABELS.ABSENT_UNEXCUSED, count: counts.ABSENT_UNEXCUSED, accent: C.error,     iconName: "cancel",       iconColor: C.error,            iconBg: "rgba(255,218,214,0.4)" },
+    { label: ATTENDANCE_LABELS.LATE, count: counts.LATE,             accent: C.tertiary,  iconName: "schedule",     iconColor: C.tertiary,         iconBg: "rgba(130,152,190,0.2)" },
+    { label: ATTENDANCE_LABELS.ABSENT_EXCUSED, count: counts.ABSENT_EXCUSED,   accent: C.secondary, iconName: "event_busy",   iconColor: C.secondary,        iconBg: "rgba(119,169,254,0.2)" },
   ];
 
   return (
@@ -354,8 +372,14 @@ function PeriodSheet({ period, date, onBack }) {
       {/* Period header + back */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-[2rem] border bg-white p-4 shadow-sm" style={{ borderColor: C.outlineVariant }}>
         <div className="flex items-center gap-3">
-          <button type="button" onClick={onBack} className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-[#E8E8E8]" style={{ color: C.onSurfaceVariant }}>
-            <Ms name="arrow_back" />
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-2 rounded-full border bg-white px-4 py-2 text-sm font-bold shadow-sm transition-colors hover:bg-[#F3F3F3]"
+            style={{ borderColor: C.outlineVariant, color: C.secondary }}
+          >
+            <Ms name="arrow_back" className="!text-[18px]" />
+            Quay lại danh sách tiết
           </button>
           <div>
             <div className="flex items-center gap-2">
@@ -571,9 +595,9 @@ const ANALYTICS_PERIODS = [
 
 const TYPE_LABEL = {
   PRESENT:          { label: "Có mặt",         color: "#059669" },
-  LATE:             { label: "Đi muộn",         color: "#D97706" },
+  LATE:             { label: "Muộn",            color: "#D97706" },
   ABSENT_EXCUSED:   { label: "Vắng có phép",    color: "#08509F" },
-  ABSENT_UNEXCUSED: { label: "Vắng không phép", color: "#DC2626" },
+  ABSENT_UNEXCUSED: { label: "Nghỉ",            color: "#DC2626" },
   EARLY_LEAVE:      { label: "Về sớm",          color: "#7C3AED" },
 };
 const ALL_TYPES = ["PRESENT", "LATE", "ABSENT_EXCUSED", "ABSENT_UNEXCUSED", "EARLY_LEAVE"];
@@ -877,7 +901,7 @@ function AnalyticsTab({ classId }) {
                     <thead className="text-white" style={{ backgroundColor: C.deepBlue }}>
                       <tr>
                         <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Học sinh</th>
-                        {["Có mặt", "Đi muộn", "Vắng có phép", "Vắng không phép", "Về sớm"].map((h) => (
+                        {["Có mặt", "Muộn", "Vắng có phép", "Nghỉ", "Về sớm"].map((h) => (
                           <th key={h} className="px-6 py-4 text-center text-xs font-bold uppercase tracking-wider">{h}</th>
                         ))}
                         <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider">Chuyên cần</th>
@@ -928,7 +952,7 @@ function AnalyticsTab({ classId }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 // Danh sách tiết dạy của giáo viên trong 1 ngày (điểm danh theo tiết).
-function PeriodList({ date, onSelect }) {
+function PeriodList({ date, selectedTimetableId, onSelect }) {
   const [periods, setPeriods] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -943,6 +967,14 @@ function PeriodList({ date, onSelect }) {
     return () => { m = false; };
   }, [date]);
 
+  useEffect(() => {
+    if (!periods?.length || !selectedTimetableId) return;
+    const selected = periods.find(
+      (period) => String(period.timetableId) === String(selectedTimetableId),
+    );
+    if (selected) onSelect(selected);
+  }, [periods, selectedTimetableId, onSelect]);
+
   if (loading) return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map((n) => <div key={n} className="h-32 animate-pulse rounded-[2rem] bg-slate-200/60" />)}</div>;
   if (error) return <div className="rounded-[2rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
   if (!periods) return null;
@@ -954,42 +986,55 @@ function PeriodList({ date, onSelect }) {
   );
 
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {periods.map((p) => {
-        const done = p.markedCount > 0;
-        return (
-          <button
-            key={p.timetableId}
-            type="button"
-            onClick={() => onSelect(p)}
-            className="flex flex-col gap-3 rounded-[2rem] border bg-white p-5 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.99]"
-            style={{ borderColor: C.outlineVariant }}
-          >
-            <div className="flex items-center justify-between">
-              <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ backgroundColor: C.deepBlue }}>Tiết {p.periodNo}</span>
-              {p.isSubstitute && <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: "rgba(242,113,35,0.12)", color: C.primaryContainer }}>Dạy thay</span>}
-            </div>
-            <div>
-              <h4 className="text-base font-semibold" style={{ color: C.onSurface }}>{p.subjectName}</h4>
-              <p className="text-sm" style={{ color: C.onSurfaceVariant }}>Lớp {p.className} · {p.studentCount} học sinh</p>
-              {p.startTime && <p className="text-xs" style={{ color: C.onSurfaceVariant }}>{p.startTime}–{p.endTime}{p.roomName ? ` · Phòng ${p.roomName}` : ""}</p>}
-            </div>
-            <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: done ? C.primary : C.onSurfaceVariant }}>
-              <Ms name={done ? "check_circle" : "radio_button_unchecked"} className="!text-[16px]" />
-              {done ? `Đã điểm danh ${p.markedCount}/${p.studentCount}` : "Chưa điểm danh"}
-            </div>
-          </button>
-        );
-      })}
-    </div>
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[2rem] border bg-white px-5 py-4 shadow-sm" style={{ borderColor: C.outlineVariant }}>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest" style={{ color: C.onSurfaceVariant }}>Ngày điểm danh</p>
+          <h3 className="text-xl font-bold" style={{ color: C.onSurface }}>{formatDateVN(date)}</h3>
+        </div>
+        <span className="rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: "rgba(34,93,173,0.1)", color: C.secondary }}>
+          {periods.length} tiết cần xử lý
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {periods.map((p) => {
+          const done = p.markedCount > 0;
+          return (
+            <button
+              key={p.timetableId}
+              type="button"
+              onClick={() => onSelect(p)}
+              className="flex flex-col gap-3 rounded-[2rem] border bg-white p-5 text-left shadow-sm transition-all hover:shadow-md active:scale-[0.99]"
+              style={{ borderColor: C.outlineVariant }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ backgroundColor: C.deepBlue }}>Tiết {p.periodNo}</span>
+                {p.isSubstitute && <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: "rgba(242,113,35,0.12)", color: C.primaryContainer }}>Dạy thay</span>}
+              </div>
+              <div>
+                <h4 className="text-base font-semibold" style={{ color: C.onSurface }}>{p.subjectName}</h4>
+                <p className="text-sm" style={{ color: C.onSurfaceVariant }}>Lớp {p.className} · {p.studentCount} học sinh</p>
+                {p.startTime && <p className="text-xs" style={{ color: C.onSurfaceVariant }}>{p.startTime}–{p.endTime}{p.roomName ? ` · Phòng ${p.roomName}` : ""}</p>}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: done ? C.primary : C.onSurfaceVariant }}>
+                <Ms name={done ? "check_circle" : "radio_button_unchecked"} className="!text-[16px]" />
+                {done ? `Đã điểm danh ${p.markedCount}/${p.studentCount}` : "Chưa điểm danh"}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
 // GVCN: tổng hợp điểm danh toàn tiết/môn của lớp chủ nhiệm + ngưỡng nghỉ.
 const ABS_LEVEL = {
-  OVER: { label: "Vượt ngưỡng", bg: "#FFDAD6", text: "#93000A" },
-  WARN: { label: "Cảnh báo",    bg: "#FEF3C7", text: "#B45309" },
-  OK:   { label: "Bình thường", bg: "#DCFCE7", text: "#15803D" },
+  OVER:  { label: "Vượt ngưỡng", bg: "#FFDAD6", text: "#93000A" },
+  LIMIT: { label: "Chạm ngưỡng", bg: "#FFE9CC", text: "#9A4A00" },
+  WARN:  { label: "Cảnh báo",    bg: "#FEF3C7", text: "#B45309" },
+  OK:    { label: "Bình thường", bg: "#DCFCE7", text: "#15803D" },
 };
 
 function OverviewTab({ homeroomClasses }) {
@@ -997,9 +1042,6 @@ function OverviewTab({ homeroomClasses }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [genMsg, setGenMsg] = useState("");
-  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     if (!classId) return undefined;
@@ -1009,16 +1051,7 @@ function OverviewTab({ homeroomClasses }) {
       .catch((e) => { if (m) setError(e.message); })
       .finally(() => { if (m) setLoading(false); });
     return () => { m = false; };
-  }, [classId, refresh]);
-
-  async function handleGenerate() {
-    setGenerating(true); setGenMsg("");
-    try {
-      const res = await teacherApi.generateAbsenceWarnings(classId);
-      setGenMsg(`Đã cập nhật ${res.data.generated} cảnh báo & thông báo phụ huynh.`);
-      setRefresh((k) => k + 1);
-    } catch (e) { setGenMsg(e.message); } finally { setGenerating(false); }
-  }
+  }, [classId]);
 
   const th = "px-4 py-3 text-xs font-medium tracking-wider text-white";
   return (
@@ -1030,12 +1063,11 @@ function OverviewTab({ homeroomClasses }) {
             {homeroomClasses.map((c) => <option key={c.classId} value={c.classId}>Lớp {c.className}</option>)}
           </PrettySelect>
         ) : <span />}
-        <button type="button" onClick={handleGenerate} disabled={generating || !classId}
-          className="flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-sm transition active:scale-95 disabled:opacity-50" style={{ backgroundColor: C.deepBlue }}>
-          <Ms name={generating ? "sync" : "notifications_active"} className={`!text-[18px] ${generating ? "animate-spin" : ""}`} /> {generating ? "Đang quét..." : "Quét cảnh báo & báo PH"}
-        </button>
+        <div className="flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-xs font-semibold text-emerald-700">
+          <Ms name="notifications_active" className="!text-[17px]" />
+          Cảnh báo 36/45 buổi được gửi tự động
+        </div>
       </div>
-      {genMsg && <p className="text-xs font-medium text-green-600">{genMsg}</p>}
 
       {loading && <div className="h-64 animate-pulse rounded-[2rem] bg-slate-200/60" />}
       {error && <div className="rounded-[2rem] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
@@ -1044,7 +1076,7 @@ function OverviewTab({ homeroomClasses }) {
         <>
           <div className="rounded-[2rem] p-4 text-sm" style={{ backgroundColor: "#FFF7F2", color: C.onSurface }}>
             <span className="font-semibold">Ngưỡng nghỉ:</span> tối đa {data.policy.maxAbsentSessions} buổi/năm (1 buổi = {data.policy.periodsPerSession} tiết) · cảnh báo từ {data.warnThreshold} buổi.
-            {" "}<span style={{ color: "#93000A" }}>{data.summary.over} vượt ngưỡng</span> · <span style={{ color: "#B45309" }}>{data.summary.warn} cần lưu ý</span> / {data.summary.total} HS.
+            {" "}<span style={{ color: "#93000A" }}>{data.summary.over} vượt ngưỡng</span> · <span style={{ color: "#9A4A00" }}>{data.summary.limit || 0} chạm ngưỡng</span> · <span style={{ color: "#B45309" }}>{data.summary.warn} cảnh báo</span> / {data.summary.total} HS.
           </div>
 
           <div className="overflow-hidden rounded-[2rem] border bg-white shadow-sm" style={{ borderColor: C.outlineVariant }}>
@@ -1054,9 +1086,9 @@ function OverviewTab({ homeroomClasses }) {
                   <tr>
                     <th className={th}>Học sinh</th>
                     <th className={`${th} text-center`}>Tiết đã ĐD</th>
-                    <th className={`${th} text-center`}>Đi muộn</th>
+                    <th className={`${th} text-center`}>Muộn</th>
                     <th className={`${th} text-center`}>Vắng CP</th>
-                    <th className={`${th} text-center`}>Vắng KP</th>
+                    <th className={`${th} text-center`}>Nghỉ</th>
                     <th className={`${th} text-center`}>Quy đổi buổi nghỉ</th>
                     <th className={`${th} text-center`}>Trạng thái</th>
                   </tr>
@@ -1100,9 +1132,27 @@ function AttendancePage() {
   const activeTab = searchParams.get("tab") || "roll-call";
 
   const todayStr = useMemo(() => toISO(new Date()), []);
-  const [date, setDate] = useState(todayStr);
+  const dateParam = searchParams.get("date");
+  const selectedTimetableId = searchParams.get("timetableId");
+  const initialDate =
+    isValidDateString(dateParam) && dateParam <= todayStr
+      ? dateParam
+      : todayStr;
+
+  const [date, setDate] = useState(initialDate);
   const [selectedPeriod, setSelectedPeriod] = useState(null);
   const [selectedClassId, setSelectedClassId] = useState(null);
+
+  useEffect(() => {
+    const nextDate =
+      isValidDateString(dateParam) && dateParam <= todayStr
+        ? dateParam
+        : todayStr;
+    if (nextDate !== date) {
+      setDate(nextDate);
+      setSelectedPeriod(null);
+    }
+  }, [date, dateParam, todayStr]);
 
   // Đổi ngày → bỏ chọn tiết (tiết khác nhau theo ngày).
   useEffect(() => { setSelectedPeriod(null); }, [date]);
@@ -1128,7 +1178,33 @@ function AttendancePage() {
     };
   }, [profile, user]);
 
-  function setTab(key) { setSearchParams({ tab: key }); }
+  const handleSelectPeriod = useCallback(
+    (period) => {
+      setSelectedPeriod(period);
+      setSearchParams({
+        tab: "roll-call",
+        date,
+        timetableId: String(period.timetableId),
+      });
+    },
+    [date, setSearchParams],
+  );
+
+  function updateRollCallDate(nextDate) {
+    setDate(nextDate);
+    setSelectedPeriod(null);
+    setSearchParams({ tab: "roll-call", date: nextDate });
+  }
+
+  function backToPeriodList() {
+    setSelectedPeriod(null);
+    setSearchParams({ tab: "roll-call", date });
+  }
+
+  function setTab(key) {
+    setSelectedPeriod(null);
+    setSearchParams(key === "roll-call" ? { tab: key, date } : { tab: key });
+  }
 
   return (
     <DashboardShell
@@ -1176,7 +1252,7 @@ function AttendancePage() {
                     type="date"
                     value={date}
                     max={todayStr}
-                    onChange={(e) => setDate(e.target.value)}
+                    onChange={(e) => updateRollCallDate(e.target.value)}
                     className="cursor-pointer border-none bg-transparent p-1 text-sm font-medium outline-none"
                     style={{ color: C.onSurface }}
                   />
@@ -1217,8 +1293,14 @@ function AttendancePage() {
 
           {activeTab === "roll-call" && (
             selectedPeriod
-              ? <PeriodSheet period={selectedPeriod} date={date} onBack={() => setSelectedPeriod(null)} />
-              : <PeriodList date={date} onSelect={setSelectedPeriod} />
+              ? <PeriodSheet period={selectedPeriod} date={date} onBack={backToPeriodList} />
+              : (
+                <PeriodList
+                  date={date}
+                  selectedTimetableId={selectedTimetableId}
+                  onSelect={handleSelectPeriod}
+                />
+              )
           )}
           {activeTab === "analytics" && (
             profile.classes.length === 0

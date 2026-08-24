@@ -44,6 +44,7 @@ async function findProfileByUserId(userId) {
        ON ce.class_id = sc.class_id
        AND ce.status = 'ACTIVE'
      WHERE tc.teacher_id = ?
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      GROUP BY
        sc.class_id, sc.class_name, sc.room_name,
        g.grade_name, sy.school_year_id, sy.year_name
@@ -247,7 +248,9 @@ async function findStudentAlertFeed(teacherId) {
   const homeroomJoin = `
     INNER JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
     INNER JOIN teacher_class tc ON tc.class_id = ce.class_id AND tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
-    INNER JOIN school_class sc ON sc.class_id = ce.class_id`;
+    INNER JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+    INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
+    AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())`;
 
   const [academic] = await pool.query(
     `SELECT aw.warning_id AS warningId, 'ACADEMIC' AS source, aw.warning_type AS warningType,
@@ -298,9 +301,11 @@ async function findHomeroomAnnouncements(teacherId) {
      FROM announcement a
      INNER JOIN teacher_class tc ON tc.class_id = a.class_id
        AND tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
-     INNER JOIN school_class sc ON sc.class_id = a.class_id
+     INNER JOIN school_class sc ON sc.class_id = a.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
      INNER JOIN user_account ua ON ua.user_id = a.created_by
      WHERE a.status = 'PUBLISHED'
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      ORDER BY a.is_pinned DESC, a.published_at DESC
      LIMIT 30`,
     [teacherId],

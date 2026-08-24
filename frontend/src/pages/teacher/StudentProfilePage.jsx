@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import DashboardShell from "../../components/templates/DashboardShell";
 import PrettySelect from "../../components/molecules/PrettySelect";
+import GoalCommentModal from "../../components/organisms/GoalCommentModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useStudentProfile } from "../../hooks/useStudentProfile";
@@ -86,9 +87,11 @@ function StudentProfilePage() {
   const effSem = prof?.targetSemesterId ? String(prof.targetSemesterId) : semParam;
   const { data: acad } = useStudentAcademic(studentId, effSem);
   const { data: beh } = useStudentBehaviour(studentId, effSem);
-  const { data: goals } = useStudentGoals(studentId, {});
+  const [goalRefreshKey, setGoalRefreshKey] = useState(0);
+  const { data: goals } = useStudentGoals(studentId, {}, goalRefreshKey);
 
   const [editHint, setEditHint] = useState(false);
+  const [selectedGoalForComment, setSelectedGoalForComment] = useState(null);
 
   const headerUser = useMemo(() => {
     const roleEntry = user?.roles?.find((r) => ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"].includes(r.roleName));
@@ -201,12 +204,23 @@ function StudentProfilePage() {
               <div className="rounded-3xl border bg-white p-6 shadow-sm" style={{ borderColor: C.border, minHeight: 560 }}>
                 {tab === "overview" && <OverviewTab acad={acad} att={att} beh={beh} />}
                 {tab === "academic" && <AcademicTab acad={acad} beh={beh} semesters={prof.semesters ?? []} effSem={effSem} setSem={setSem} />}
-                {tab === "roadmap" && <RoadmapTab goals={goals} acad={acad} />}
+                {tab === "roadmap" && <RoadmapTab goals={goals} acad={acad} onComment={setSelectedGoalForComment} />}
                 {tab === "rewards" && <RewardsTab beh={beh} note={teacherNote} teacher={headerUser.name} />}
               </div>
             </div>
           </div>
         </>
+      )}
+
+      {selectedGoalForComment && (
+        <GoalCommentModal
+          goal={{ ...selectedGoalForComment, studentName: p?.fullName }}
+          onClose={() => setSelectedGoalForComment(null)}
+          onSaved={() => {
+            setSelectedGoalForComment(null);
+            setGoalRefreshKey((current) => current + 1);
+          }}
+        />
       )}
     </DashboardShell>
   );
@@ -361,91 +375,166 @@ function AcademicTab({ acad, beh, semesters, effSem, setSem }) {
 }
 
 // ─── Roadmap (goals + derived competency + goal-based timeline) ───────────────
-function RoadmapTab({ goals, acad }) {
+function RoadmapTab({ goals, acad, onComment }) {
   const gs = goals ?? [];
-  const active = gs.filter((g) => g.status === "IN_PROGRESS" || g.status === "COMPLETED");
   const skillTags = useMemo(() => {
     const tags = new Set();
-    for (const g of gs) if (GOAL_TYPE_LABEL[g.goalType]) tags.add(GOAL_TYPE_LABEL[g.goalType]);
-    for (const s of acad?.current?.subjects ?? []) if (s.average >= 8) tags.add(s.subjectName);
+    for (const goal of gs) {
+      if (GOAL_TYPE_LABEL[goal.goalType]) tags.add(GOAL_TYPE_LABEL[goal.goalType]);
+    }
+    for (const subject of acad?.current?.subjects ?? []) {
+      if (subject.average >= 8) tags.add(subject.subjectName);
+    }
     return [...tags].slice(0, 8);
   }, [gs, acad]);
+
   const tagColors = [
-    { bg: "rgba(242,113,35,0.1)", text: C.orange }, { bg: "rgba(34,93,173,0.1)", text: C.secondary },
-    { bg: "#DCFCE7", text: "#15803D" }, { bg: "#FEF3C7", text: "#B45309" }, { bg: "#EBF3FF", text: "#225DAD" },
+    { bg: "rgba(242,113,35,0.1)", text: C.orange },
+    { bg: "rgba(34,93,173,0.1)", text: C.secondary },
+    { bg: "#DCFCE7", text: "#15803D" },
+    { bg: "#FEF3C7", text: "#B45309" },
+    { bg: "#EBF3FF", text: "#225DAD" },
   ];
 
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Goals */}
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="flex items-center gap-2 font-bold" style={{ color: C.onSurface }}><Ms name="track_changes" style={{ color: C.orange }} /> Mục tiêu hiện tại</h3>
+            <h3 className="flex items-center gap-2 font-bold" style={{ color: C.onSurface }}>
+              <Ms name="track_changes" style={{ color: C.orange }} />
+              Mục tiêu của học sinh
+            </h3>
           </div>
-          {active.length === 0 ? (
-            <p className="rounded-2xl border border-dashed px-4 py-6 text-center text-sm text-slate-400" style={{ borderColor: C.border }}>Học sinh chưa thiết lập mục tiêu nào.</p>
+
+          {gs.length === 0 ? (
+            <p className="rounded-2xl border border-dashed px-4 py-6 text-center text-sm text-slate-400" style={{ borderColor: C.border }}>
+              Học sinh chưa tự tạo mục tiêu nào.
+            </p>
           ) : (
             <div className="space-y-4">
-              {active.map((g) => {
-                const done = g.status === "COMPLETED";
-                const col = done ? "#16A34A" : (g.goalType === "ACADEMIC" ? C.orange : C.secondary);
-                return (
-                  <div key={g.goalId} className="rounded-2xl border p-4" style={{ backgroundColor: C.surfaceLow, borderColor: "rgba(223,192,178,0.4)" }}>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <span className="text-sm font-bold" style={{ color: C.onSurface }}>{g.title}</span>
-                      <span className="text-xs font-bold" style={{ color: col }}>{g.progress}%</span>
+              {gs.map((goal) => (
+                <div
+                  key={goal.goalId}
+                  className="rounded-2xl border p-4"
+                  style={{
+                    backgroundColor: C.surfaceLow,
+                    borderColor: "rgba(223,192,178,0.4)",
+                  }}
+                >
+                  <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: "rgba(34,93,173,0.1)", color: C.secondary }}>
+                        {GOAL_TYPE_LABEL[goal.goalType] ?? goal.goalType}
+                      </span>
+                      <p className="mt-2 text-sm font-bold" style={{ color: C.onSurface }}>
+                        {goal.title}
+                      </p>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full" style={{ backgroundColor: "rgba(223,192,178,0.3)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${g.progress}%`, backgroundColor: col }} />
-                    </div>
-                    {g.description && <p className="mt-2 text-[10px] italic" style={{ color: C.muted }}>Kế hoạch: {g.description}</p>}
+
+                    <button
+                      type="button"
+                      onClick={() => onComment(goal)}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition hover:opacity-80"
+                      style={{
+                        backgroundColor: goal.teacherRemark ? "#EBF3FF" : "#FFF7ED",
+                        color: goal.teacherRemark ? C.secondary : C.orange,
+                      }}
+                    >
+                      <Ms name={goal.teacherRemark ? "edit_note" : "rate_review"} className="!text-[15px]" />
+                      {goal.teacherRemark ? "Sửa nhận xét" : "Nhận xét"}
+                    </button>
                   </div>
-                );
-              })}
+
+                  {goal.description && (
+                    <p className="mt-2 text-xs leading-5" style={{ color: C.muted }}>
+                      {goal.description}
+                    </p>
+                  )}
+
+                  <div className="mt-3 flex items-center gap-1.5 text-xs" style={{ color: C.muted }}>
+                    <Ms name="event" className="!text-[14px]" style={{ color: C.orange }} />
+                    Hạn: {goal.targetDate ? formatDateVN(goal.targetDate) : "—"}
+                  </div>
+
+                  {goal.teacherRemark && (
+                    <div className="mt-3 rounded-xl bg-blue-50 px-3 py-2.5">
+                      <p className="mb-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: C.secondary }}>
+                        Nhận xét của GVCN
+                      </p>
+                      <p className="text-xs leading-5 text-blue-800">{goal.teacherRemark}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
 
-        {/* Competency (derived from real goals + strong subjects) */}
         <div>
-          <h3 className="mb-4 flex items-center gap-2 font-bold" style={{ color: C.onSurface }}><Ms name="psychology" style={{ color: C.secondary }} /> Đánh giá năng lực</h3>
+          <h3 className="mb-4 flex items-center gap-2 font-bold" style={{ color: C.onSurface }}>
+            <Ms name="psychology" style={{ color: C.secondary }} />
+            Định hướng nổi bật
+          </h3>
           <div className="rounded-2xl border p-6" style={{ backgroundColor: C.surfaceLow, borderColor: "rgba(223,192,178,0.4)" }}>
             {skillTags.length === 0 ? (
-              <p className="text-center text-sm text-slate-400">Chưa có dữ liệu năng lực.</p>
+              <p className="text-center text-sm text-slate-400">Chưa có dữ liệu định hướng.</p>
             ) : (
               <div className="flex flex-wrap justify-center gap-2">
-                {skillTags.map((t, i) => {
-                  const c = tagColors[i % tagColors.length];
-                  return <span key={t} className="rounded-full px-3 py-1 text-xs font-bold" style={{ backgroundColor: c.bg, color: c.text }}>{t}</span>;
+                {skillTags.map((tag, index) => {
+                  const color = tagColors[index % tagColors.length];
+                  return (
+                    <span
+                      key={tag}
+                      className="rounded-full px-3 py-1 text-xs font-bold"
+                      style={{ backgroundColor: color.bg, color: color.text }}
+                    >
+                      {tag}
+                    </span>
+                  );
                 })}
               </div>
             )}
-            <p className="mt-4 text-center text-[11px] italic" style={{ color: C.muted }}>Suy ra từ mục tiêu &amp; môn học nổi bật (điểm ≥ 8).</p>
+            <p className="mt-4 text-center text-[11px] italic" style={{ color: C.muted }}>
+              Tham khảo từ loại mục tiêu học sinh đã chọn và các môn học nổi bật.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Development timeline from real goal target dates */}
       <div>
-        <h3 className="mb-6 flex items-center gap-2 font-bold" style={{ color: C.onSurface }}><Ms name="rocket_launch" style={{ color: C.orange }} /> Lộ trình mục tiêu</h3>
-        {gs.filter((g) => g.targetDate).length === 0 ? (
-          <p className="rounded-2xl border border-dashed px-4 py-6 text-center text-sm text-slate-400" style={{ borderColor: C.border }}>Chưa có mục tiêu gắn mốc thời gian.</p>
+        <h3 className="mb-6 flex items-center gap-2 font-bold" style={{ color: C.onSurface }}>
+          <Ms name="rocket_launch" style={{ color: C.orange }} />
+          Lộ trình theo thời hạn
+        </h3>
+
+        {gs.filter((goal) => goal.targetDate).length === 0 ? (
+          <p className="rounded-2xl border border-dashed px-4 py-6 text-center text-sm text-slate-400" style={{ borderColor: C.border }}>
+            Chưa có mục tiêu gắn mốc thời gian.
+          </p>
         ) : (
           <div className="relative overflow-x-auto p-4">
             <div className="flex gap-6">
-              {[...gs].filter((g) => g.targetDate).sort((a, b) => String(a.targetDate).localeCompare(String(b.targetDate))).slice(0, 5).map((g, i) => {
-                const done = g.status === "COMPLETED";
-                return (
-                  <div key={g.goalId} className="flex min-w-[120px] flex-col items-center text-center">
-                    <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full border-4 border-white text-white shadow-sm" style={{ backgroundColor: done ? "#16A34A" : (i === 0 ? C.orange : C.secondary) }}>
-                      <Ms name={done ? "check" : "flag"} className="!text-[18px]" />
+              {[...gs]
+                .filter((goal) => goal.targetDate)
+                .sort((first, second) => String(first.targetDate).localeCompare(String(second.targetDate)))
+                .slice(0, 6)
+                .map((goal, index) => (
+                  <div key={goal.goalId} className="flex min-w-[130px] flex-col items-center text-center">
+                    <div
+                      className="mb-2 flex h-10 w-10 items-center justify-center rounded-full border-4 border-white text-white shadow-sm"
+                      style={{ backgroundColor: index === 0 ? C.orange : C.secondary }}
+                    >
+                      <Ms name="flag" className="!text-[18px]" />
                     </div>
-                    <p className="text-[11px] font-bold" style={{ color: C.onSurface }}>{g.title}</p>
-                    <p className="text-[10px] uppercase" style={{ color: C.muted }}>{formatDateVN(g.targetDate)}</p>
+                    <p className="text-[11px] font-bold" style={{ color: C.onSurface }}>
+                      {goal.title}
+                    </p>
+                    <p className="text-[10px] uppercase" style={{ color: C.muted }}>
+                      {formatDateVN(goal.targetDate)}
+                    </p>
                   </div>
-                );
-              })}
+                ))}
             </div>
           </div>
         )}

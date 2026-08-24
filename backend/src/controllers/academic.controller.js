@@ -176,7 +176,7 @@ async function getScoreLog(req, res) {
     const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
 
     const { total, rows } = await academicModel.findScoreLog({
-      studentId, subjectId, semesterId, page: parsedPage, limit: parsedLimit,
+      studentId, subjectId, semesterId, teacherId: profile.teacherId, page: parsedPage, limit: parsedLimit,
     });
 
     return res.json({
@@ -236,6 +236,11 @@ async function getTrend(req, res) {
     const profile = await resolveTeacher(req.user.userId);
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
+    if (!classId) return res.status(400).json({ success: false, message: "Thiếu tham số lớp" });
+    const assignments = await academicModel.findTeachingAssignments(profile.teacherId);
+    const teachesClass = assignments.some((a) => a.classId === parseInt(classId, 10));
+    if (!teachesClass) return res.status(403).json({ success: false, message: "Bạn không phụ trách lớp này" });
+
     const data = await academicService.getClassTrend({ classId: parseInt(classId, 10) });
     return res.json({ success: true, data });
   } catch (error) {
@@ -254,7 +259,7 @@ async function getWarnings(req, res) {
     const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
 
     const { total, rows } = await academicModel.findWarnings({
-      classId, semesterId, status, page: parsedPage, limit: parsedLimit,
+      classId, semesterId, status, teacherId: profile.teacherId, page: parsedPage, limit: parsedLimit,
     });
 
     return res.json({
@@ -297,6 +302,12 @@ async function updateWarning(req, res) {
     const warningId = parseInt(req.params.warningId, 10);
     const profile = await resolveTeacher(req.user.userId);
     if (!profile) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
+
+    // Ownership: cảnh báo phải thuộc HS trong lớp GV này dạy (chống IDOR sửa lớp khác).
+    const warning = await academicModel.findWarningById(warningId);
+    if (!warning) return res.status(404).json({ success: false, message: "Không tìm thấy cảnh báo" });
+    const allowed = await academicModel.isTeacherForStudent(profile.teacherId, warning.studentId);
+    if (!allowed) return res.status(403).json({ success: false, message: "Bạn không phụ trách học sinh này" });
 
     const result = await academicService.updateWarning({ warningId, payload: req.body });
     return res.json({ success: true, message: "Cập nhật cảnh báo thành công", data: result });

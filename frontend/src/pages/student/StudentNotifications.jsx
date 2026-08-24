@@ -25,8 +25,10 @@ function NotificationCard({
 }) {
   const [submitting, setSubmitting] = useState(false);
 
+  // Bấm vào cả thẻ để đánh dấu đã đọc (giống trang admin), không cần nút riêng.
+  // markNotificationRead cũng phát "notifications:changed" → badge chuông trừ ngay.
   async function markRead() {
-    if (item.isRead) return;
+    if (item.isRead || submitting) return;
 
     setSubmitting(true);
 
@@ -39,13 +41,15 @@ function NotificationCard({
   }
 
   return (
-    <article
+    <button
+      type="button"
+      onClick={markRead}
       className={`
-        rounded-2xl border p-5 shadow-sm
+        w-full rounded-2xl border p-5 text-left shadow-sm transition
         ${
           item.isRead
-            ? "border-orange-100 bg-white"
-            : "border-[#F27123]/40 bg-[#FFF7F2]"
+            ? "cursor-default border-orange-100 bg-white"
+            : "cursor-pointer border-[#F27123]/40 bg-[#FFF7F2] hover:brightness-95"
         }
       `}
     >
@@ -64,7 +68,11 @@ function NotificationCard({
           </p>
         </div>
 
-        {!item.isRead && (
+        {item.isRead ? (
+          <span className="shrink-0 text-xs font-semibold text-slate-400">
+            Đã đọc
+          </span>
+        ) : (
           <StatusPill tone="orange">
             Mới
           </StatusPill>
@@ -76,28 +84,13 @@ function NotificationCard({
           {item.createdAt}
         </p>
 
-        <button
-          type="button"
-          onClick={markRead}
-          disabled={item.isRead || submitting}
-          className="
-            rounded-xl border border-[#08509F]
-            bg-white px-4 py-2
-            text-sm font-bold text-[#08509F]
-            transition hover:bg-blue-50
-            disabled:cursor-not-allowed
-            disabled:border-slate-200
-            disabled:text-slate-400
-          "
-        >
-          {item.isRead
-            ? "Đã đọc"
-            : submitting
-              ? "Đang lưu..."
-              : "Đánh dấu đã đọc"}
-        </button>
+        {!item.isRead && (
+          <span className="text-xs font-bold text-[#08509F]">
+            {submitting ? "Đang lưu..." : "Bấm để đánh dấu đã đọc"}
+          </span>
+        )}
       </div>
-    </article>
+    </button>
   );
 }
 

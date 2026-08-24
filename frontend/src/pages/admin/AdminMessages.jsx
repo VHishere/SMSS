@@ -1,16 +1,24 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
-  FiArchive,
+  FiCheck,
+  FiEdit3,
   FiFile,
   FiImage,
-  FiInbox,
   FiMessageSquare,
   FiPaperclip,
-  FiRefreshCw,
+  FiPhone,
   FiSearch,
   FiSend,
   FiTrash2,
+  FiVideo,
+  FiX,
 } from "react-icons/fi";
 
 import { adminApi } from "../../api/client";
@@ -20,25 +28,66 @@ import LoadingState from "../../components/atoms/LoadingState";
 import EmptyState from "../../components/molecules/EmptyState";
 import { useAuth } from "../../context/useAuth";
 import { useAdminThread } from "../../hooks/useAdminMessages";
+import {
+  emitSocketWithAck,
+  getChatSocket,
+} from "../../socket/chatSocket";
+
+const MAX_MESSAGE_LENGTH = 5000;
+const MAX_MESSAGE_FILE_SIZE = 20 * 1024 * 1024;
+const MESSAGE_FILE_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".zip",
+  ".txt",
+  ".csv",
+]);
+const MESSAGE_FILE_ACCEPT = [...MESSAGE_FILE_EXTENSIONS].join(",");
+
+function getFileExtension(fileName = "") {
+  const lastDot = fileName.lastIndexOf(".");
+  return lastDot >= 0 ? fileName.slice(lastDot).toLowerCase() : "";
+}
+
+function validateMessageFile(file) {
+  if (!file) return "";
+
+  if (file.size > MAX_MESSAGE_FILE_SIZE) {
+    return "Tệp đính kèm không được vượt quá 20 MB.";
+  }
+
+  if (!MESSAGE_FILE_EXTENSIONS.has(getFileExtension(file.name))) {
+    return "Định dạng tệp không được hỗ trợ.";
+  }
+
+  return "";
+}
+
+function normalizeText(value = "") {
+  return String(value)
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
+}
 
 function getInitials(name) {
   if (!name) return "?";
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
-}
-
-function ConversationAvatar({ name, tone = "orange" }) {
-  const toneClass =
-    tone === "blue"
-      ? "bg-blue-50 text-[#08509F]"
-      : "bg-[#FFE7D6] text-[#F27123]";
-
-  return (
-    <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold ${toneClass}`}>
-      {getInitials(name)}
-    </div>
-  );
 }
 
 function parseMessageDate(value) {
@@ -53,52 +102,292 @@ function formatMessageTime(value) {
   return new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit" }).format(date);
 }
 
+function formatConversationTime(value) {
+  const date = parseMessageDate(value);
+  if (!date) return "";
+
+  const now = new Date();
+  const difference = Math.max(0, now.getTime() - date.getTime());
+  const minutes = Math.floor(difference / 60000);
+  const hours = Math.floor(difference / 3600000);
+  const days = Math.floor(difference / 86400000);
+
+  if (minutes < 1) return "Vừa xong";
+  if (minutes < 60) return `${minutes} phút trước`;
+  if (hours < 24) return `${hours} giờ trước`;
+  if (days === 1) return "Hôm qua";
+  if (days < 7) return `${days} ngày trước`;
+
+  return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit" }).format(date);
+}
+
+function getMessageDateKey(value) {
+  const date = parseMessageDate(value);
+  if (!date) return "";
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+function formatMessageDateLabel(value) {
+  const date = parseMessageDate(value);
+  if (!date) return "";
+
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayDifference = Math.round((todayStart.getTime() - dateStart.getTime()) / 86400000);
+
+  if (dayDifference === 0) return "HÔM NAY";
+  if (dayDifference === 1) return "HÔM QUA";
+
+  return new Intl.DateTimeFormat("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
+}
+
+function hasConversationHistory(conversation) {
+  return Boolean(
+    conversation.lastContent ||
+      conversation.lastType ||
+      conversation.lastSentAt ||
+      conversation.lastMessageAt ||
+      conversation.lastMessageId ||
+      Number(conversation.unreadCount) > 0,
+  );
+}
+
+function appendUniqueMessage(messages = [], message) {
+  if (!message?.messageId) return messages;
+
+  const exists = messages.some(
+    (item) => Number(item.messageId) === Number(message.messageId),
+  );
+
+  if (exists) {
+    return messages.map((item) =>
+      Number(item.messageId) === Number(message.messageId)
+        ? { ...item, ...message }
+        : item,
+    );
+  }
+
+  return [...messages, message];
+}
+
+function getMessageSummary(conversation) {
+  if (conversation.lastIsDeleted) return "Tin nhắn đã được thu hồi";
+  if (conversation.lastType === "IMAGE") return "Đã gửi một hình ảnh";
+  if (conversation.lastType === "FILE") return "Đã gửi một tệp đính kèm";
+  return conversation.lastContent || "";
+}
+
+function getConversationPreview(conversation, currentUserId) {
+  const summary = getMessageSummary(conversation);
+  if (!summary) return "Chưa có tin nhắn";
+
+  if (Number(conversation.lastSenderId) === Number(currentUserId)) {
+    return `Bạn: ${summary}`;
+  }
+
+  // Hội thoại 1-1: tên đối phương đã nằm ngay trên dòng tiêu đề, lặp lại ở đây
+  // chỉ tốn chỗ. Nhóm thì cần, vì tiêu đề là tên nhóm chứ không phải tên người.
+  if (conversation.conversationType !== "GROUP") return summary;
+
+  return conversation.lastSenderName
+    ? `${conversation.lastSenderName}: ${summary}`
+    : summary;
+}
+
+function getContactRoleLabel(contact) {
+  const roles = contact?.roleNames || [];
+  const isStaffOnly = roles.length === 1 && roles[0] === "STAFF";
+
+  if (roles.includes("ADMIN")) return "Quản trị viên";
+  if (isStaffOnly) return "Nhân viên";
+  if (roles.includes("HOMEROOM_TEACHER")) return "Giáo viên chủ nhiệm";
+  return "Giáo viên bộ môn";
+}
+
+function ConversationAvatar({
+  name,
+  src,
+  tone = "orange",
+  size = "md",
+  className = "",
+}) {
+  // Lưu chính đường dẫn bị lỗi thay vì cờ boolean: đổi ảnh là tự động thử lại,
+  // không cần effect reset trạng thái.
+  const [failedSrc, setFailedSrc] = useState("");
+
+  const sizeClass =
+    size === "sm"
+      ? "h-8 w-8 text-[10px]"
+      : size === "lg"
+        ? "h-12 w-12 text-sm"
+        : "h-10 w-10 text-xs";
+
+  const toneClass =
+    tone === "blue"
+      ? "bg-blue-50 text-[#0756A3]"
+      : tone === "green"
+        ? "bg-emerald-50 text-emerald-700"
+        : "bg-[#FFF0E6] text-[#F27123]";
+
+  if (src && failedSrc !== src) {
+    return (
+      <img
+        src={src}
+        alt={name || "Ảnh đại diện"}
+        onError={() => setFailedSrc(src)}
+        className={`${sizeClass} shrink-0 rounded-full border border-slate-200 bg-white object-cover ${className}`}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${sizeClass} ${toneClass} flex shrink-0 items-center justify-center rounded-full font-extrabold ${className}`}
+      aria-label={name || "Ảnh đại diện"}
+    >
+      {getInitials(name)}
+    </div>
+  );
+}
+
 function MessageAttachment({ message, isMine }) {
   if (!message.fileUrl || message.isDeleted) return null;
 
   if (message.messageType === "IMAGE") {
     return (
-      <a href={message.fileUrl} target="_blank" rel="noreferrer" className="mt-2 block">
-        <img src={message.fileUrl} alt={message.content || "Ảnh đính kèm"} className="max-h-72 max-w-full rounded-2xl object-contain" />
+      <a
+        href={message.fileUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-2 block"
+      >
+        <img
+          src={message.fileUrl}
+          alt={message.content || "Ảnh đính kèm"}
+          className="max-h-72 max-w-full rounded-xl object-contain"
+        />
       </a>
     );
   }
 
   return (
-    <div className="mt-2">
+    <div className={message.content ? "" : "mt-1"}>
       <FilePreviewLink
         compact
         fileName={message.content || "Tệp đính kèm"}
         fileUrl={message.fileUrl}
-        className={isMine ? "border-white/40 bg-white/10 text-white hover:bg-white/20" : ""}
+        className={
+          isMine
+            ? "border-white/35 bg-white/10 text-white hover:bg-white/20"
+            : "border-slate-200 bg-white text-[#0F2747]"
+        }
       />
     </div>
   );
 }
 
-function MessageBubble({ message, isMine }) {
-  const hasText = Boolean(message.content);
+function MessageDateSeparator({ sentAt }) {
+  const dateLabel = formatMessageDateLabel(sentAt);
+  if (!dateLabel) return null;
 
   return (
-    <div className={`flex w-full ${isMine ? "justify-end" : "justify-start"}`}>
-      <div className={`flex max-w-[72%] flex-col ${isMine ? "items-end" : "items-start"}`}>
-        <div className={`rounded-2xl px-4 py-3 text-sm shadow-sm ${isMine ? "rounded-br-md bg-[#F27123] text-white" : "rounded-bl-md bg-white text-[#0F2747]"}`}>
+    <div className="flex items-center justify-center py-2">
+      <span className="rounded-full bg-[#F1F2F4] px-3 py-1 text-[10px] font-bold tracking-wide text-slate-500">
+        {dateLabel}
+      </span>
+    </div>
+  );
+}
+
+function MessageBubble({ message, isMine, onRecall, avatarSrc }) {
+  const showText = Boolean(
+    message.content &&
+      (message.messageType === "TEXT" || message.messageType === "IMAGE"),
+  );
+
+  return (
+    <div
+      className={`flex w-full items-end gap-2 ${
+        isMine ? "justify-end" : "justify-start"
+      }`}
+    >
+      {!isMine && (
+        <ConversationAvatar
+          name={message.senderName}
+          src={avatarSrc}
+          tone="blue"
+          size="sm"
+          className="mb-5"
+        />
+      )}
+
+      <div
+        className={`group flex max-w-[86%] flex-col sm:max-w-[72%] ${
+          isMine ? "items-end" : "items-start"
+        }`}
+      >
+        <div
+          className={`px-4 py-3 text-sm shadow-sm ${
+            isMine
+              ? "rounded-2xl rounded-br-[5px] bg-[#0757A6] text-white"
+              : "rounded-2xl rounded-bl-[5px] bg-[#ECEDEF] text-[#172033]"
+          }`}
+        >
           {message.isDeleted ? (
-            <p className="mb-0 italic opacity-80">Tin nhắn đã được thu hồi</p>
+            <p className="mb-0 italic opacity-75">Tin nhắn đã được thu hồi</p>
           ) : (
             <>
-              {hasText && <p className="mb-0 whitespace-pre-wrap leading-6">{message.content}</p>}
-              {!hasText && message.fileUrl && (
-                <p className="mb-0 flex items-center gap-2 font-semibold">
+              {showText && (
+                <p className="mb-0 whitespace-pre-wrap wrap-break-word leading-6">
+                  {message.content}
+                </p>
+              )}
+
+              {!message.content && message.fileUrl && (
+                <p className="mb-2 flex items-center gap-2 font-semibold">
                   {message.messageType === "IMAGE" ? <FiImage /> : <FiFile />}
                   Tệp đính kèm
                 </p>
               )}
+
               <MessageAttachment message={message} isMine={isMine} />
             </>
           )}
         </div>
-        <p className="mt-1 mb-0 text-[11px] text-slate-400">{formatMessageTime(message.sentAt)}</p>
+
+        <div
+          className={`mt-1 flex min-h-4 items-center gap-1.5 text-[10px] text-slate-400 ${
+            isMine ? "justify-end" : "justify-start"
+          }`}
+        >
+          <span>{formatMessageTime(message.sentAt)}</span>
+
+          {isMine && !message.isDeleted && (
+            <span
+              className={`inline-flex items-center gap-0.5 ${
+                message.receipt === "READ"
+                  ? "font-semibold text-[#F27123]"
+                  : "text-slate-400"
+              }`}
+            >
+              <FiCheck size={11} />
+              {message.receipt === "READ" ? "Đã đọc" : "Đã gửi"}
+            </span>
+          )}
+
+          {isMine && !message.isDeleted && (
+            <button
+              type="button"
+              onClick={() => onRecall(message.messageId)}
+              className="hidden text-slate-300 transition hover:text-red-500 group-hover:inline-flex"
+              title="Thu hồi tin nhắn"
+              aria-label="Thu hồi tin nhắn"
+            >
+              <FiTrash2 size={11} />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -108,35 +397,76 @@ function SelectedFilePreview({ file, onClear }) {
   if (!file) return null;
 
   return (
-    <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-orange-100 bg-[#FFF7F2] px-4 py-3 text-sm text-[#0F2747]">
+    <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-orange-100 bg-[#FFF7F2] px-4 py-3 text-sm text-[#0F2747]">
       <div className="flex min-w-0 items-center gap-2">
-        {file.type?.startsWith("image/") ? <FiImage className="shrink-0 text-[#F27123]" /> : <FiFile className="shrink-0 text-[#F27123]" />}
+        {file.type?.startsWith("image/") ? (
+          <FiImage className="shrink-0 text-[#F27123]" />
+        ) : (
+          <FiFile className="shrink-0 text-[#F27123]" />
+        )}
+
         <span className="min-w-0 truncate font-semibold">{file.name}</span>
       </div>
-      <button type="button" onClick={onClear} className="shrink-0 text-slate-400 transition hover:text-red-600" aria-label="Bỏ file">
-        <FiTrash2 size={16} />
+
+      <button
+        type="button"
+        onClick={onClear}
+        className="shrink-0 text-slate-400 transition hover:text-red-600"
+        aria-label="Bỏ tệp"
+      >
+        <FiX size={17} />
       </button>
     </div>
   );
 }
 
-function ThreadPanel({ conversationId, selectedConversation, archived, onSent, onArchiveChanged }) {
+function ThreadPanel({
+  api,
+  conversationId,
+  selectedConversation,
+  onConversationChanged,
+}) {
   const { user } = useAuth();
-  const fileInputRef = useRef(null);
 
-  const [refreshKey, setRefreshKey] = useState(0);
+  const fileInputRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+
   const [content, setContent] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [sendError, setSendError] = useState("");
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [typingUserIds, setTypingUserIds] = useState([]);
+  const [showMessageSearch, setShowMessageSearch] = useState(false);
+  const [messageSearch, setMessageSearch] = useState("");
 
-  const { data, loading, error } = useAdminThread(conversationId, refreshKey);
+  const { data, setData, loading, error, reload } = useAdminThread(
+    conversationId,
+    api,
+  );
 
-  const messages = data?.messages || [];
-  const participants = data?.participants || [];
+  const messages = useMemo(() => data?.messages || [], [data?.messages]);
+  const participants = useMemo(
+    () => data?.participants || [],
+    [data?.participants],
+  );
   const meta = data?.meta;
 
-  const otherParticipant = participants.find((p) => Number(p.userId) !== Number(user?.userId));
+  const otherParticipant = participants.find(
+    (participant) => Number(participant.userId) !== Number(user?.userId),
+  );
+
+  const typingNames = useMemo(
+    () =>
+      participants
+        .filter((participant) =>
+          typingUserIds.includes(Number(participant.userId)),
+        )
+        .map((participant) => participant.fullName)
+        .filter(Boolean),
+    [participants, typingUserIds],
+  );
 
   const chatName =
     selectedConversation?.title ||
@@ -145,394 +475,1150 @@ function ThreadPanel({ conversationId, selectedConversation, archived, onSent, o
     otherParticipant?.fullName ||
     "Cuộc trò chuyện";
 
+  const chatAvatar = selectedConversation?.avatar || "";
+
+  const renderedMessages = useMemo(() => {
+    const keyword = normalizeText(messageSearch);
+    if (!keyword) return messages;
+
+    return messages.filter((message) =>
+      normalizeText(message.content).includes(keyword),
+    );
+  }, [messageSearch, messages]);
+
+  const markConversationRead = useCallback(() => {
+    if (!conversationId) return;
+
+    emitSocketWithAck("conversation:read", { conversationId }).catch(
+      () => {},
+    );
+  }, [conversationId]);
+
+  useEffect(() => {
+    if (!conversationId) return undefined;
+
+    const socket = getChatSocket();
+
+    const handleConnect = () => {
+      setSocketConnected(true);
+      socket.emit("conversation:join", { conversationId }, () => {});
+    };
+
+    const handleDisconnect = () => setSocketConnected(false);
+    const handleConnectError = () => setSocketConnected(false);
+
+    const handleNewMessage = (message) => {
+      if (Number(message.conversationId) !== Number(conversationId)) return;
+
+      setData((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          messages: appendUniqueMessage(current.messages, message),
+        };
+      });
+
+      if (Number(message.senderId) !== Number(user?.userId)) {
+        markConversationRead();
+      }
+
+      onConversationChanged?.();
+    };
+
+    const handleReadReceipt = ({
+      conversationId: receiptConversationId,
+      userId: readerId,
+      readAt,
+    }) => {
+      if (
+        Number(receiptConversationId) !== Number(conversationId) ||
+        Number(readerId) === Number(user?.userId)
+      ) {
+        return;
+      }
+
+      const readTime = parseMessageDate(readAt)?.getTime();
+      if (!readTime) return;
+
+      setData((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          messages: current.messages.map((message) => {
+            if (Number(message.senderId) !== Number(user?.userId)) {
+              return message;
+            }
+
+            const sentTime = parseMessageDate(message.sentAt)?.getTime();
+            if (!sentTime || sentTime > readTime) return message;
+
+            return { ...message, receipt: "READ" };
+          }),
+        };
+      });
+    };
+
+    const handleDeletedMessage = ({
+      conversationId: deletedConversationId,
+      messageId,
+    }) => {
+      if (Number(deletedConversationId) !== Number(conversationId)) return;
+
+      setData((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          messages: current.messages.map((message) =>
+            Number(message.messageId) === Number(messageId)
+              ? {
+                  ...message,
+                  isDeleted: true,
+                  content: null,
+                  fileUrl: null,
+                }
+              : message,
+          ),
+        };
+      });
+
+      onConversationChanged?.();
+    };
+
+    const handleTypingStart = ({
+      conversationId: typingConversationId,
+      userId: typingUserId,
+    }) => {
+      if (
+        Number(typingConversationId) !== Number(conversationId) ||
+        Number(typingUserId) === Number(user?.userId)
+      ) {
+        return;
+      }
+
+      setTypingUserIds((current) =>
+        current.includes(Number(typingUserId))
+          ? current
+          : [...current, Number(typingUserId)],
+      );
+    };
+
+    const handleTypingStop = ({
+      conversationId: typingConversationId,
+      userId: typingUserId,
+    }) => {
+      if (Number(typingConversationId) !== Number(conversationId)) return;
+
+      setTypingUserIds((current) =>
+        current.filter((currentId) => currentId !== Number(typingUserId)),
+      );
+    };
+
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
+    socket.on("connect_error", handleConnectError);
+    socket.on("message:new", handleNewMessage);
+    socket.on("message:read", handleReadReceipt);
+    socket.on("message:deleted", handleDeletedMessage);
+    socket.on("typing:start", handleTypingStart);
+    socket.on("typing:stop", handleTypingStop);
+
+    if (socket.connected) handleConnect();
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+      }
+
+      socket.emit("typing:stop", { conversationId });
+      socket.emit("conversation:leave", { conversationId });
+
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.off("connect_error", handleConnectError);
+      socket.off("message:new", handleNewMessage);
+      socket.off("message:read", handleReadReceipt);
+      socket.off("message:deleted", handleDeletedMessage);
+      socket.off("typing:start", handleTypingStart);
+      socket.off("typing:stop", handleTypingStop);
+    };
+  }, [
+    conversationId,
+    markConversationRead,
+    onConversationChanged,
+    setData,
+    user?.userId,
+  ]);
+
+  useEffect(() => {
+    if (!scrollContainerRef.current || messageSearch.trim()) return;
+
+    scrollContainerRef.current.scrollTop =
+      scrollContainerRef.current.scrollHeight;
+  }, [messages.length, conversationId, messageSearch]);
+
+  useEffect(() => {
+    if (!conversationId || loading || error) return;
+    markConversationRead();
+  }, [conversationId, error, loading, markConversationRead]);
+
+  function handleContentChange(event) {
+    const nextContent = event.target.value.slice(0, MAX_MESSAGE_LENGTH);
+    setContent(nextContent);
+    setSendError("");
+
+    if (!conversationId) return;
+
+    const socket = getChatSocket();
+
+    if (nextContent.trim()) {
+      socket.emit("typing:start", { conversationId });
+
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = window.setTimeout(() => {
+        socket.emit("typing:stop", { conversationId });
+      }, 1200);
+    } else {
+      socket.emit("typing:stop", { conversationId });
+    }
+  }
+
+  function handleFileChange(event) {
+    const file = event.target.files?.[0] || null;
+    const validationError = validateMessageFile(file);
+
+    if (validationError) {
+      setSelectedFile(null);
+      setSendError(validationError);
+      event.target.value = "";
+      return;
+    }
+
+    setSelectedFile(file);
+    setSendError("");
+  }
+
   async function sendMessage(event) {
     event.preventDefault();
-    if (!conversationId || (!content.trim() && !selectedFile)) return;
+
+    if (
+      !conversationId ||
+      !socketConnected ||
+      (!content.trim() && !selectedFile)
+    ) {
+      return;
+    }
+
+    if (content.trim().length > MAX_MESSAGE_LENGTH) {
+      setSendError(`Tin nhắn không được vượt quá ${MAX_MESSAGE_LENGTH} ký tự.`);
+      return;
+    }
+
+    const fileError = validateMessageFile(selectedFile);
+    if (fileError) {
+      setSendError(fileError);
+      return;
+    }
 
     setSubmitting(true);
     setSendError("");
 
     try {
+      let payload = {
+        conversationId,
+        messageType: "TEXT",
+        content: content.trim(),
+        fileUrl: null,
+      };
+
       if (selectedFile) {
-        const uploadResponse = await adminApi.uploadMessageFile(selectedFile);
+        const uploadResponse = await api.uploadMessageFile(selectedFile);
         const uploaded = uploadResponse.data;
-        await adminApi.sendMessage(conversationId, {
+
+        payload = {
+          conversationId,
           messageType: uploaded.messageType,
           content: content.trim() || uploaded.fileName,
           fileUrl: uploaded.fileUrl,
-        });
-      } else {
-        await adminApi.sendMessage(conversationId, { messageType: "TEXT", content: content.trim() });
+        };
       }
+
+      const sentMessage = await emitSocketWithAck("message:send", payload);
+
+      setData((current) => {
+        if (!current) return current;
+
+        return {
+          ...current,
+          messages: appendUniqueMessage(current.messages, sentMessage),
+        };
+      });
 
       setContent("");
       setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      setRefreshKey((key) => key + 1);
-      onSent();
+
+      const socket = getChatSocket();
+      socket.emit("typing:stop", { conversationId });
+
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+      }
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      onConversationChanged?.();
     } catch (requestError) {
-      setSendError(requestError.message);
+      setSendError(requestError.message || "Không gửi được tin nhắn");
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleArchive() {
-    await adminApi.archiveConversation(conversationId, !archived);
-    onArchiveChanged();
+  async function recallMessage(messageId) {
+    const confirmed = window.confirm(
+      "Bạn có chắc muốn thu hồi tin nhắn này?",
+    );
+
+    if (!confirmed) return;
+
+    try {
+      await emitSocketWithAck("message:delete", { messageId });
+    } catch (requestError) {
+      setSendError(requestError.message || "Không thu hồi được tin nhắn");
+      reload();
+    }
   }
 
   if (!conversationId) {
     return (
-      <div className="flex min-h-162.5 items-center justify-center rounded-3xl border border-dashed border-orange-200 bg-white p-8 text-center">
-        <div>
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#FFF7F2] text-[#F27123]">
-            <FiMessageSquare size={28} />
+      <section className="flex min-h-130 min-w-0 flex-col bg-white lg:min-h-0">
+        <div className="flex flex-1 items-center justify-center px-6 py-12 text-center">
+          <div>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#EEF5FC] text-[#0757A6]">
+              <FiMessageSquare size={28} />
+            </div>
+
+            <h3 className="mb-2 text-base font-bold text-[#0F2747]">
+              Chưa chọn cuộc trò chuyện
+            </h3>
+
+            <p className="mb-0 text-sm text-slate-500">
+              Chọn một cuộc trò chuyện ở bên trái để bắt đầu nhắn tin.
+            </p>
           </div>
-          <p className="mb-1 text-base font-bold text-[#0F2747]">Chọn cuộc trò chuyện</p>
-          <p className="mb-0 text-sm text-slate-500">Tin nhắn với nhân viên và giáo viên sẽ hiển thị tại đây.</p>
         </div>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="flex min-h-162.5 flex-col overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-orange-100 bg-white px-6 py-4">
-        <div className="flex items-center gap-3">
-          <ConversationAvatar name={chatName} />
-          <div>
-            <h3 className="mb-1 text-xl font-bold text-[#0F2747]">{chatName}</h3>
-            <p className="mb-0 text-xs text-slate-500">Tin nhắn trực tiếp</p>
+    <section className="relative flex min-h-140 min-w-0 flex-col bg-white lg:min-h-0">
+      <header className="flex min-h-17.5 items-center justify-between border-b border-[#F1E4DC] bg-white px-4 py-3 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="relative">
+            <ConversationAvatar
+              name={chatName}
+              src={chatAvatar}
+              tone="blue"
+              size="md"
+            />
+            <span
+              className={`absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white ${
+                socketConnected ? "bg-emerald-500" : "bg-amber-400"
+              }`}
+            />
+          </div>
+
+          <div className="min-w-0">
+            <h3 className="mb-0.5 truncate text-sm font-extrabold text-[#172033] sm:text-base">
+              {chatName}
+            </h3>
           </div>
         </div>
 
-        <button type="button" onClick={handleArchive} className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-bold text-slate-500 transition hover:bg-slate-50">
-          <FiArchive size={15} />
-          {archived ? "Bỏ lưu trữ" : "Lưu trữ"}
-        </button>
-      </div>
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => setShowMessageSearch((current) => !current)}
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-full transition ${
+              showMessageSearch
+                ? "bg-[#EEF5FC] text-[#0757A6]"
+                : "text-[#0F2747] hover:bg-slate-100"
+            }`}
+            title="Tìm trong cuộc trò chuyện"
+            aria-label="Tìm trong cuộc trò chuyện"
+          >
+            <FiSearch size={17} />
+          </button>
 
-      <div className="flex-1 space-y-4 overflow-y-auto bg-[#F8FAFC] px-6 py-5">
+          <button
+            type="button"
+            disabled
+            className="hidden h-9 w-9 cursor-not-allowed items-center justify-center rounded-full text-[#0F2747] opacity-45 sm:inline-flex"
+            title="Chức năng gọi thoại chưa được triển khai"
+            aria-label="Gọi thoại chưa được hỗ trợ"
+          >
+            <FiPhone size={17} />
+          </button>
+
+          <button
+            type="button"
+            disabled
+            className="hidden h-9 w-9 cursor-not-allowed items-center justify-center rounded-full text-[#0F2747] opacity-45 sm:inline-flex"
+            title="Chức năng gọi video chưa được triển khai"
+            aria-label="Gọi video chưa được hỗ trợ"
+          >
+            <FiVideo size={18} />
+          </button>
+        </div>
+      </header>
+
+      {showMessageSearch && (
+        <div className="border-b border-slate-100 bg-white px-4 py-3 sm:px-6">
+          <div className="relative">
+            <FiSearch
+              size={15}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              autoFocus
+              value={messageSearch}
+              onChange={(event) => setMessageSearch(event.target.value)}
+              placeholder="Tìm nội dung tin nhắn..."
+              className="h-10 w-full rounded-full border border-slate-200 bg-slate-50 pl-10 pr-10 text-sm text-[#0F2747] outline-none transition focus:border-[#0757A6] focus:bg-white focus:ring-4 focus:ring-blue-100"
+            />
+            {messageSearch && (
+              <button
+                type="button"
+                onClick={() => setMessageSearch("")}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"
+                aria-label="Xóa nội dung tìm kiếm"
+              >
+                <FiX size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div
+        ref={scrollContainerRef}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-white px-3 py-4 sm:px-6 sm:py-5"
+      >
         {loading && <LoadingState label="Đang tải tin nhắn..." />}
+
         {!loading && error && <ErrorAlert error={error} />}
 
         {!loading && !error && messages.length === 0 && (
-          <div className="flex h-full items-center justify-center">
-            <EmptyState title="Chưa có tin nhắn" description="Gửi tin nhắn đầu tiên để bắt đầu cuộc trò chuyện." />
+          <div className="flex h-full min-h-75 items-center justify-center">
+            <EmptyState
+              title="Chưa có tin nhắn"
+              description="Gửi tin nhắn đầu tiên để bắt đầu cuộc trò chuyện."
+            />
           </div>
         )}
 
-        {!loading && !error && messages.map((message) => (
-          <MessageBubble key={message.messageId} message={message} isMine={Number(message.senderId) === Number(user?.userId)} />
-        ))}
+        {!loading &&
+          !error &&
+          messageSearch.trim() &&
+          renderedMessages.length === 0 && (
+            <div className="flex h-full min-h-65 items-center justify-center text-center">
+              <div>
+                <FiSearch
+                  size={28}
+                  className="mx-auto mb-3 text-slate-300"
+                />
+                <p className="mb-0 text-sm text-slate-500">
+                  Không tìm thấy tin nhắn phù hợp.
+                </p>
+              </div>
+            </div>
+          )}
+
+        {!loading &&
+          !error &&
+          renderedMessages.map((message, index) => {
+            const isMine =
+              Number(message.senderId) === Number(user?.userId);
+            const previousMessage = renderedMessages[index - 1];
+            const currentDateKey = getMessageDateKey(message.sentAt);
+            const previousDateKey = getMessageDateKey(
+              previousMessage?.sentAt,
+            );
+            const showDateSeparator =
+              Boolean(currentDateKey) && currentDateKey !== previousDateKey;
+
+            return (
+              <div key={message.messageId} className="space-y-3">
+                {showDateSeparator && (
+                  <MessageDateSeparator sentAt={message.sentAt} />
+                )}
+
+                <MessageBubble
+                  message={message}
+                  isMine={isMine}
+                  onRecall={recallMessage}
+                  avatarSrc={chatAvatar}
+                />
+              </div>
+            );
+          })}
       </div>
 
-      <form onSubmit={sendMessage} className="border-t border-orange-100 bg-white px-5 py-4">
-        {sendError && <p className="mb-3 text-sm text-red-600">{sendError}</p>}
+      {typingNames.length > 0 && (
+        <div className="border-t border-slate-100 bg-white px-4 pt-2 text-[11px] italic text-slate-500 sm:px-6">
+          {`${typingNames.join(", ")} đang soạn tin nhắn...`}
+        </div>
+      )}
+
+      <form
+        onSubmit={sendMessage}
+        className="border-t border-slate-100 bg-white px-3 py-3 sm:px-5 sm:py-4"
+      >
+        {sendError && (
+          <p className="mb-3 text-sm text-red-600">{sendError}</p>
+        )}
 
         <SelectedFilePreview
           file={selectedFile}
-          onClear={() => { setSelectedFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+          onClear={() => {
+            setSelectedFile(null);
+
+            if (fileInputRef.current) {
+              fileInputRef.current.value = "";
+            }
+          }}
         />
 
-        <input ref={fileInputRef} type="file" className="hidden" onChange={(event) => setSelectedFile(event.target.files?.[0] || null)} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={MESSAGE_FILE_ACCEPT}
+          className="hidden"
+          onChange={handleFileChange}
+        />
 
-        <div className="flex items-center gap-3">
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={submitting}
-            className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-orange-100 bg-[#FFF7F2] text-[#F27123] transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
-            aria-label="Đính kèm tệp">
-            <FiPaperclip size={18} />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={submitting}
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-[#0757A6] disabled:cursor-not-allowed disabled:opacity-60"
+            aria-label="Đính kèm tệp"
+          >
+            <FiPaperclip size={19} />
           </button>
 
           <input
             value={content}
-            onChange={(event) => setContent(event.target.value)}
-            placeholder={selectedFile ? "Ghi chú cho file đính kèm..." : "Nhập tin nhắn..."}
-            className="h-12 min-w-0 flex-1 rounded-full border border-slate-200 bg-slate-50 px-5 text-sm text-[#0F2747] outline-none transition focus:border-[#F27123] focus:bg-white focus:ring-4 focus:ring-orange-100"
+            maxLength={MAX_MESSAGE_LENGTH}
+            onChange={handleContentChange}
+            placeholder={
+              selectedFile
+                ? "Ghi chú cho tệp đính kèm..."
+                : "Nhập tin nhắn..."
+            }
+            className="h-11 min-w-0 flex-1 rounded-full border border-slate-200 bg-[#F5F6F7] px-5 text-sm text-[#0F2747] outline-none transition focus:border-[#0757A6] focus:bg-white focus:ring-4 focus:ring-blue-100"
           />
 
-          <button type="submit" disabled={submitting || (!content.trim() && !selectedFile)}
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#F27123] px-5 text-sm font-bold text-white shadow-lg shadow-orange-200/70 transition hover:-translate-y-0.5 hover:bg-[#d95f17] disabled:cursor-not-allowed disabled:opacity-60">
-            <FiSend size={16} />
-            {submitting ? "Đang gửi..." : "Gửi"}
+          <span className="hidden shrink-0 text-[10px] text-slate-400 lg:inline">
+            {content.length}/{MAX_MESSAGE_LENGTH}
+          </span>
+
+          <button
+            type="submit"
+            disabled={
+              submitting ||
+              !socketConnected ||
+              (!content.trim() && !selectedFile)
+            }
+            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#0757A6] text-white shadow-sm transition hover:bg-[#064A8D] disabled:cursor-not-allowed disabled:opacity-50"
+            aria-label="Gửi tin nhắn"
+          >
+            <FiSend size={17} />
           </button>
         </div>
       </form>
-    </div>
+    </section>
   );
 }
 
-function ContactRow({ contact, onClick }) {
-  const isStaffOnly = contact.roleNames.length === 1 && contact.roleNames[0] === "STAFF";
-  const roleLabel = isStaffOnly
-    ? "Nhân viên"
-    : contact.roleNames.includes("HOMEROOM_TEACHER")
-      ? "Giáo viên chủ nhiệm"
-      : "Giáo viên bộ môn";
+function ConversationItem({ conversation, active, onClick }) {
+  const { user } = useAuth();
 
   return (
-    <button type="button" onClick={onClick} className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition hover:bg-slate-50">
-      <ConversationAvatar name={contact.fullName} tone="blue" />
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative flex w-full gap-3 border-b border-slate-100 px-4 py-3 text-left transition sm:px-5 ${
+        active ? "bg-[#FFF7F2]" : "bg-white hover:bg-slate-50"
+      }`}
+      aria-current={active ? "true" : undefined}
+    >
+      {active && (
+        <span className="absolute inset-y-0 left-0 w-0.75 bg-[#F27123]" />
+      )}
+
+      <ConversationAvatar
+        name={conversation.displayName}
+        src={conversation.avatar}
+        tone="blue"
+        size="md"
+        className="mt-0.5"
+      />
+
       <div className="min-w-0 flex-1">
-        <p className="mb-1 truncate text-sm font-bold text-[#0F2747]">{contact.fullName}</p>
-        <p className="mb-0 truncate text-xs text-slate-500">{roleLabel}{contact.email ? ` · ${contact.email}` : ""}</p>
+        <div className="flex items-start justify-between gap-2">
+          <p className="mb-1 min-w-0 truncate text-[12px] font-extrabold text-[#172033] sm:text-[13px]">
+            {conversation.displayName}
+            {conversation.roleLabel && (
+              <span className="font-semibold text-slate-500"> ({conversation.roleLabel})</span>
+            )}
+          </p>
+
+          <span className="shrink-0 pt-0.5 text-[9px] text-slate-400">
+            {formatConversationTime(conversation.lastSentAt)}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between gap-2">
+          <p
+            className={`mb-0 min-w-0 truncate text-[11px] ${
+              Number(conversation.unreadCount) > 0
+                ? "font-semibold text-[#172033]"
+                : "text-slate-500"
+            }`}
+          >
+            {getConversationPreview(conversation, user?.userId)}
+          </p>
+
+          {Number(conversation.unreadCount) > 0 && (
+            <span className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-[#F27123] px-1.5 py-0.5 text-[9px] font-bold text-white">
+              {Number(conversation.unreadCount) > 99
+                ? "99+"
+                : conversation.unreadCount}
+            </span>
+          )}
+        </div>
       </div>
     </button>
   );
 }
 
-function AdminMessages() {
+function NewConversationModal({
+  open,
+  onClose,
+  staffSectionLabel,
+  teacherSectionLabel,
+  staff,
+  teachers,
+  searchValue,
+  setSearchValue,
+  onStartContact,
+}) {
+  if (!open) return null;
+
+  const hasSearchKeyword = Boolean(searchValue.trim());
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4 py-6 backdrop-blur-[1px]">
+      <div className="max-h-[88vh] w-full max-w-2xl overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
+          <div>
+            <h3 className="mb-1 text-base font-extrabold text-[#172033]">
+              Tạo cuộc trò chuyện
+            </h3>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSearchValue("");
+              onClose();
+            }}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-red-600"
+            aria-label="Đóng"
+          >
+            <FiX size={20} />
+          </button>
+        </div>
+
+        <div className="border-b border-slate-100 px-4 py-3 sm:px-6">
+          <div className="relative">
+            <FiSearch
+              size={16}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+
+            <input
+              autoFocus
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
+              placeholder="Tìm người nhận..."
+              className="h-11 w-full rounded-full border border-slate-200 bg-slate-50 pl-11 pr-10 text-sm text-[#0F2747] outline-none transition focus:border-[#F27123] focus:bg-white focus:ring-4 focus:ring-orange-100"
+            />
+
+            {searchValue && (
+              <button
+                type="button"
+                onClick={() => setSearchValue("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-[#F27123]"
+                aria-label="Xóa từ khóa tìm kiếm"
+              >
+                <FiX size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="max-h-[66vh] overflow-y-auto px-4 py-5 sm:px-6">
+          <div className="mb-7">
+            <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">
+              {staffSectionLabel}
+            </p>
+
+            {staff.length > 0 ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {staff.map((contact) => (
+                  <button
+                    key={contact.userId}
+                    type="button"
+                    onClick={() => onStartContact(contact)}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
+                  >
+                    <ConversationAvatar name={contact.fullName} src={contact.avatar} tone="green" />
+
+                    <div className="min-w-0">
+                      <p className="mb-1 truncate text-sm font-bold text-[#0F2747]">
+                        {contact.fullName}
+                      </p>
+
+                      <p className="mb-0 truncate text-xs text-slate-500">
+                        {getContactRoleLabel(contact)}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
+                {hasSearchKeyword
+                  ? `Không tìm thấy ${staffSectionLabel.toLowerCase()} phù hợp.`
+                  : `Chưa có ${staffSectionLabel.toLowerCase()}.`}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <p className="mb-3 text-xs font-black uppercase tracking-wide text-slate-400">
+              {teacherSectionLabel}
+            </p>
+
+            {teachers.length > 0 ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {teachers.map((contact) => (
+                  <button
+                    key={contact.userId}
+                    type="button"
+                    onClick={() => onStartContact(contact)}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
+                  >
+                    <ConversationAvatar
+                      name={contact.fullName}
+                      src={contact.avatar}
+                      tone="blue"
+                    />
+
+                    <div className="min-w-0">
+                      <p className="mb-1 truncate text-sm font-bold text-[#0F2747]">
+                        {contact.fullName}
+                      </p>
+
+                      <p className="mb-0 truncate text-xs text-slate-500">
+                        {getContactRoleLabel(contact)}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
+                {hasSearchKeyword
+                  ? `Không tìm thấy ${teacherSectionLabel.toLowerCase()} phù hợp.`
+                  : `Chưa có ${teacherSectionLabel.toLowerCase()}.`}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminMessages({
+  api = adminApi,
+  staffSectionLabel = "Nhân viên",
+  teacherSectionLabel = "Giáo viên",
+}) {
   const [contacts, setContacts] = useState(null);
   const [conversations, setConversations] = useState([]);
-
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [refreshKey, setRefreshKey] = useState(0);
-  const [activeConversationId, setActiveConversationId] = useState(null);
-  const [selectedConversation, setSelectedConversation] = useState(null);
-
+  const [pickedConversationId, setPickedConversationId] = useState(null);
+  const [pickedConversation, setPickedConversation] = useState(null);
   const [contactSearch, setContactSearch] = useState("");
   const [conversationSearch, setConversationSearch] = useState("");
-  const [showArchived, setShowArchived] = useState(false);
+  const [conversationFilter, setConversationFilter] = useState("ALL");
+  const [showNewConversation, setShowNewConversation] = useState(false);
 
-  const [messageSearch, setMessageSearch] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [searchingMessages, setSearchingMessages] = useState(false);
-  const [messageSearchError, setMessageSearchError] = useState("");
+  const conversationFilters = useMemo(
+    () => [
+      { value: "ALL", label: "Tất cả" },
+      { value: "TEACHER", label: teacherSectionLabel },
+      { value: "STAFF", label: staffSectionLabel },
+      { value: "UNREAD", label: "Chưa đọc" },
+    ],
+    [staffSectionLabel, teacherSectionLabel],
+  );
 
-  async function loadData() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const [contactsResponse, conversationsResponse] = await Promise.all([
-        adminApi.getMessageContacts(),
-        adminApi.listConversations({ archived: showArchived, search: conversationSearch }),
-      ]);
-
-      setContacts(contactsResponse.data);
-      setConversations(conversationsResponse.data.items || []);
-    } catch (requestError) {
-      setError(requestError.message);
-    } finally {
-      setLoading(false);
-    }
-  }
+  const refreshConversations = useCallback(() => {
+    setRefreshKey((key) => key + 1);
+  }, []);
 
   useEffect(() => {
-    const timer = setTimeout(loadData, 0);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshKey, showArchived, conversationSearch]);
+    const socket = getChatSocket();
+    const handleConversationUpdated = () => refreshConversations();
+
+    socket.on("conversation:updated", handleConversationUpdated);
+
+    return () => {
+      socket.off("conversation:updated", handleConversationUpdated);
+    };
+  }, [refreshConversations]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMessages() {
+      setLoading(true);
+
+      try {
+        const [contactsResponse, conversationsResponse] = await Promise.all([
+          api.getMessageContacts(),
+          api.listConversations({ archived: false, limit: 50 }),
+        ]);
+
+        if (!isMounted) return;
+
+        setError("");
+        setContacts(contactsResponse.data);
+        setConversations(conversationsResponse.data.items || []);
+      } catch (requestError) {
+        if (isMounted) {
+          setError(requestError.message || "Không tải được tin nhắn");
+        }
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    }
+
+    loadMessages();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [api, refreshKey]);
+
+  const staffContacts = useMemo(
+    () => contacts?.staff || contacts?.admins || [],
+    [contacts],
+  );
+
+  const teacherContacts = useMemo(
+    () => contacts?.teachers || [],
+    [contacts],
+  );
+
+  const enrichedConversations = useMemo(
+    () =>
+      conversations.map((conversation) => {
+        const contact = [...staffContacts, ...teacherContacts].find(
+          (item) =>
+            normalizeText(item.fullName) ===
+            normalizeText(conversation.displayName || conversation.otherName),
+        );
+
+        const isStaffContact = contact
+          ? staffContacts.some((item) => item.userId === contact.userId)
+          : false;
+
+        return {
+          ...conversation,
+          avatar: contact?.avatar || "",
+          roleLabel: contact ? getContactRoleLabel(contact) : "",
+          contactKind: contact ? (isStaffContact ? "STAFF" : "TEACHER") : "",
+        };
+      }),
+    [conversations, staffContacts, teacherContacts],
+  );
+
+  const visibleConversations = useMemo(
+    () => enrichedConversations.filter(hasConversationHistory),
+    [enrichedConversations],
+  );
+
+  const filteredConversations = useMemo(() => {
+    const keyword = normalizeText(conversationSearch);
+
+    return visibleConversations.filter((conversation) => {
+      const matchesKeyword =
+        !keyword ||
+        normalizeText(
+          `${conversation.displayName} ${conversation.roleLabel} ${conversation.lastContent}`,
+        ).includes(keyword);
+
+      if (!matchesKeyword) return false;
+
+      if (conversationFilter === "TEACHER") {
+        return conversation.contactKind === "TEACHER";
+      }
+
+      if (conversationFilter === "STAFF") {
+        return conversation.contactKind === "STAFF";
+      }
+
+      if (conversationFilter === "UNREAD") {
+        return Number(conversation.unreadCount) > 0;
+      }
+
+      return true;
+    });
+  }, [conversationFilter, conversationSearch, visibleConversations]);
 
   const filteredStaff = useMemo(() => {
-    const keyword = contactSearch.trim().toLowerCase();
-    const staff = contacts?.staff || [];
-    if (!keyword) return staff;
-    return staff.filter((c) => `${c.fullName} ${c.email || ""}`.toLowerCase().includes(keyword));
-  }, [contacts, contactSearch]);
+    const keyword = normalizeText(contactSearch);
+    if (!keyword) return staffContacts;
+
+    return staffContacts.filter((contact) =>
+      normalizeText(`${contact.fullName} ${contact.email || ""}`).includes(keyword),
+    );
+  }, [staffContacts, contactSearch]);
 
   const filteredTeachers = useMemo(() => {
-    const keyword = contactSearch.trim().toLowerCase();
-    const teachers = contacts?.teachers || [];
-    if (!keyword) return teachers;
-    return teachers.filter((c) => `${c.fullName} ${c.email || ""}`.toLowerCase().includes(keyword));
-  }, [contacts, contactSearch]);
+    const keyword = normalizeText(contactSearch);
+    if (!keyword) return teacherContacts;
+
+    return teacherContacts.filter((contact) =>
+      normalizeText(`${contact.fullName} ${contact.email || ""}`).includes(keyword),
+    );
+  }, [teacherContacts, contactSearch]);
+
+  // Chưa chọn thủ công thì mặc định mở hội thoại đầu danh sách.
+  const activeConversationId =
+    pickedConversationId ?? visibleConversations[0]?.conversationId ?? null;
+
+  // Hội thoại vừa tạo chưa có trong danh sách, nên vẫn cần giữ bản ghi tạm
+  // (pickedConversation) và ưu tiên dữ liệu mới nhất từ danh sách nếu có.
+  const selectedConversation = useMemo(() => {
+    const fromList = visibleConversations.find(
+      (conversation) =>
+        Number(conversation.conversationId) === Number(activeConversationId),
+    );
+
+    const picked =
+      pickedConversation &&
+      Number(pickedConversation.conversationId) === Number(activeConversationId)
+        ? pickedConversation
+        : null;
+
+    if (fromList && picked) return { ...picked, ...fromList };
+    return fromList || picked;
+  }, [activeConversationId, pickedConversation, visibleConversations]);
 
   async function startContactConversation(contact) {
     try {
-      const response = await adminApi.startConversation(contact.userId);
+      const response = await api.startConversation(contact.userId);
+
       const conversation = {
         conversationId: response.data.conversationId,
         conversationType: "ADMIN_DIRECT",
         displayName: contact.fullName,
         title: contact.fullName,
+        avatar: contact.avatar || "",
+        roleLabel: getContactRoleLabel(contact),
       };
-      setActiveConversationId(response.data.conversationId);
-      setSelectedConversation(conversation);
-      setRefreshKey((key) => key + 1);
+
+      setPickedConversationId(response.data.conversationId);
+      setPickedConversation(conversation);
+      setShowNewConversation(false);
+      setContactSearch("");
+      refreshConversations();
     } catch (requestError) {
-      setError(requestError.message);
+      setError(requestError.message || "Không tạo được cuộc trò chuyện");
     }
   }
 
   function openConversation(conversation) {
-    setActiveConversationId(conversation.conversationId);
-    setSelectedConversation(conversation);
+    setPickedConversationId(conversation.conversationId);
+    setPickedConversation(conversation);
   }
 
-  async function handleMessageSearch(event) {
-    event.preventDefault();
-    const keyword = messageSearch.trim();
-    if (!keyword) { setSearchResults([]); return; }
-
-    setSearchingMessages(true);
-    setMessageSearchError("");
-
-    try {
-      const response = await adminApi.searchMessageHistory({ keyword, archived: showArchived });
-      setSearchResults(response.data.items || []);
-    } catch (requestError) {
-      setMessageSearchError(requestError.message);
-    } finally {
-      setSearchingMessages(false);
-    }
-  }
-
-  function refresh() { setRefreshKey((key) => key + 1); }
-
-  function handleArchiveChanged() {
-    setActiveConversationId(null);
-    setSelectedConversation(null);
-    refresh();
-  }
+  const hasLoadedData = Boolean(contacts) || conversations.length > 0;
 
   return (
     <>
-      {loading && <LoadingState label="Đang tải tin nhắn..." />}
-      {!loading && error && <ErrorAlert error={`Không tải được tin nhắn: ${error}`} />}
+      {loading && !hasLoadedData && <LoadingState label="Đang tải tin nhắn..." />}
 
-      {!loading && !error && (
-        <section className="grid gap-5 xl:grid-cols-[380px_1fr]">
-          <aside className="min-h-162.5 overflow-hidden rounded-3xl border border-orange-100 bg-white shadow-sm">
-            <div className="border-b border-orange-100 px-5 py-5">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h2 className="mb-0 text-xl font-black text-[#0F2747]">Tin nhắn</h2>
+      {!loading && error && !hasLoadedData && (
+        <ErrorAlert error={`Không tải được tin nhắn: ${error}`} />
+      )}
 
-                <button type="button" onClick={refresh} className="rounded-full p-2 text-slate-400 transition hover:bg-slate-50 hover:text-[#F27123]">
-                  <FiRefreshCw size={17} />
-                </button>
-              </div>
-
-              <div className="mb-3 flex rounded-full bg-slate-100 p-1">
-                <button type="button" onClick={() => setShowArchived(false)}
-                  className={`flex-1 rounded-full px-3 py-2 text-sm font-bold transition ${!showArchived ? "bg-white text-[#F27123] shadow-sm" : "text-slate-500"}`}>
-                  <FiInbox className="mr-1 inline" />
-                  Đang mở
-                </button>
-                <button type="button" onClick={() => setShowArchived(true)}
-                  className={`flex-1 rounded-full px-3 py-2 text-sm font-bold transition ${showArchived ? "bg-white text-[#F27123] shadow-sm" : "text-slate-500"}`}>
-                  <FiArchive className="mr-1 inline" />
-                  Lưu trữ
-                </button>
-              </div>
-
-              <div className="relative">
-                <FiSearch size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={conversationSearch}
-                  onChange={(event) => setConversationSearch(event.target.value)}
-                  placeholder="Tìm cuộc trò chuyện..."
-                  className="h-11 w-full rounded-full border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-[#0F2747] outline-none transition focus:border-[#F27123] focus:bg-white focus:ring-4 focus:ring-orange-100"
-                />
-              </div>
+      {hasLoadedData && (
+        <>
+          {error && (
+            <div className="mb-3">
+              <ErrorAlert error={`Không thể cập nhật tin nhắn: ${error}`} />
             </div>
+          )}
 
-            <div className="h-140 overflow-y-auto px-4 py-4">
-              <form onSubmit={handleMessageSearch} className="mb-4">
-                <div className="relative">
-                  <FiSearch size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    value={messageSearch}
-                    onChange={(event) => setMessageSearch(event.target.value)}
-                    placeholder="Tìm trong lịch sử tin nhắn..."
-                    className="h-11 w-full rounded-full border border-slate-200 bg-white pl-11 pr-4 text-sm text-[#0F2747] outline-none transition focus:border-[#F27123] focus:ring-4 focus:ring-orange-100"
-                  />
-                </div>
-              </form>
+          <div className="overflow-hidden rounded-3xl border border-[#EEDFD7] bg-white shadow-sm lg:grid lg:h-[calc(100vh-150px)] lg:min-h-162.5 lg:max-h-205 lg:grid-cols-[340px_minmax(0,1fr)]">
+            <aside className="flex min-h-125 flex-col border-b border-[#EEDFD7] bg-white lg:min-h-0 lg:border-b-0 lg:border-r">
+              <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
+                <div className="mb-4 flex items-center gap-2">
+                  <div className="relative min-w-0 flex-1">
+                    <FiSearch
+                      size={15}
+                      className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
 
-              {messageSearchError && <p className="mb-3 text-sm text-red-600">{messageSearchError}</p>}
-              {searchingMessages && <p className="mb-3 text-sm text-slate-500">Đang tìm kiếm...</p>}
+                    <input
+                      value={conversationSearch}
+                      onChange={(event) =>
+                        setConversationSearch(event.target.value)
+                      }
+                      placeholder="Tìm kiếm hội thoại..."
+                      className="h-9 w-full rounded-full border-0 bg-[#F4F5F6] pl-10 pr-9 text-[11px] text-[#0F2747] outline-none ring-1 ring-transparent transition focus:bg-white focus:ring-[#F27123]"
+                    />
 
-              {searchResults.length > 0 && (
-                <div className="mb-5 rounded-2xl border border-blue-100 bg-blue-50 p-3">
-                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-[#08509F]">Kết quả tìm kiếm</p>
-                  <div className="space-y-2">
-                    {searchResults.map((item) => (
-                      <button key={item.messageId} type="button"
-                        onClick={() => openConversation({
-                          conversationId: item.conversationId,
-                          conversationType: item.conversationType,
-                          title: item.displayName,
-                          displayName: item.displayName,
-                        })}
-                        className="w-full rounded-xl bg-white px-3 py-2 text-left text-sm transition hover:bg-slate-50">
-                        <p className="mb-1 font-bold text-[#0F2747]">{item.displayName}</p>
-                        <p className="mb-0 line-clamp-2 text-xs text-slate-500">{item.senderName}: {item.content || item.fileUrl}</p>
+                    {conversationSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setConversationSearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"
+                        aria-label="Xóa từ khóa tìm kiếm"
+                      >
+                        <FiX size={14} />
                       </button>
-                    ))}
+                    )}
                   </div>
                 </div>
-              )}
 
-              <div className="mb-5">
-                <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">Cuộc trò chuyện</p>
+                <div className="mb-4 flex items-center justify-between">
+                  <h4 className="mb-0 text-base font-extrabold text-[#172033]">
+                    Tin nhắn
+                  </h4>
 
-                {conversations.length > 0 ? (
-                  <div className="space-y-2">
-                    {conversations.map((conversation) => (
-                      <button key={conversation.conversationId} type="button" onClick={() => openConversation(conversation)}
-                        className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${activeConversationId === conversation.conversationId ? "bg-[#FFF7F2]" : "hover:bg-slate-50"}`}>
-                        <ConversationAvatar name={conversation.displayName} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="mb-1 truncate text-sm font-bold text-[#0F2747]">{conversation.displayName}</p>
-                            {conversation.unreadCount > 0 && (
-                              <span className="rounded-full bg-[#F27123] px-2 py-0.5 text-[11px] font-bold text-white">{conversation.unreadCount}</span>
-                            )}
-                          </div>
-                          <p className="mb-0 truncate text-xs text-slate-500">
-                            {conversation.lastType === "IMAGE" ? "Ảnh đính kèm" : conversation.lastType === "FILE" ? "Tệp đính kèm" : conversation.lastContent || "Chưa có tin nhắn"}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewConversation(true)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#F27123] text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#D95F17]"
+                    title="Tạo cuộc trò chuyện mới"
+                    aria-label="Tạo cuộc trò chuyện mới"
+                  >
+                    <FiEdit3 size={17} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  {conversationFilters.map((filter) => (
+                    <button
+                      key={filter.value}
+                      type="button"
+                      onClick={() => setConversationFilter(filter.value)}
+                      className={`flex min-h-11 items-center justify-center whitespace-normal wrap-break-word rounded-2xl px-1.5 py-1 text-center text-[10.5px] font-bold leading-tight transition ${
+                        conversationFilter === filter.value
+                          ? "bg-[#F27123] text-white"
+                          : "bg-[#ECEDEF] text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {filteredConversations.length > 0 ? (
+                  filteredConversations.map((conversation) => (
+                    <ConversationItem
+                      key={conversation.conversationId}
+                      conversation={conversation}
+                      active={
+                        Number(activeConversationId) ===
+                        Number(conversation.conversationId)
+                      }
+                      onClick={() => openConversation(conversation)}
+                    />
+                  ))
                 ) : (
-                  <EmptyState title={showArchived ? "Chưa có cuộc trò chuyện lưu trữ" : "Chưa có cuộc trò chuyện"} />
+                  <div className="flex h-full min-h-70 items-center justify-center px-6 text-center">
+                    <div>
+                      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#FFF2EA] text-[#F27123]">
+                        <FiMessageSquare size={21} />
+                      </div>
+
+                      <p className="mb-3 text-sm text-slate-500">
+                        {conversationSearch || conversationFilter !== "ALL"
+                          ? "Không có cuộc trò chuyện phù hợp."
+                          : "Bạn chưa có cuộc trò chuyện nào."}
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowNewConversation(true)}
+                        className="inline-flex items-center gap-2 rounded-full bg-[#F27123] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#D95F17]"
+                      >
+                        <FiEdit3 size={14} />
+                        Gửi tin nhắn
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
+            </aside>
 
-              {!showArchived && (
-                <div>
-                  <div className="relative mb-3">
-                    <FiSearch size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      value={contactSearch}
-                      onChange={(event) => setContactSearch(event.target.value)}
-                      placeholder="Tìm nhân viên, giáo viên..."
-                      className="h-11 w-full rounded-full border border-slate-200 bg-slate-50 pl-11 pr-4 text-sm text-[#0F2747] outline-none transition focus:border-[#F27123] focus:bg-white focus:ring-4 focus:ring-orange-100"
-                    />
-                  </div>
+            <ThreadPanel
+              key={activeConversationId ?? "empty"}
+              api={api}
+              conversationId={activeConversationId}
+              selectedConversation={selectedConversation}
+              onConversationChanged={refreshConversations}
+            />
+          </div>
 
-                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">Nhân viên</p>
-                  <div className="mb-5 space-y-2">
-                    {filteredStaff.length > 0 ? filteredStaff.map((contact) => (
-                      <ContactRow key={contact.userId} contact={contact} onClick={() => startContactConversation(contact)} />
-                    )) : <p className="mb-0 text-sm text-slate-500">Không tìm thấy nhân viên.</p>}
-                  </div>
-
-                  <p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-400">Giáo viên</p>
-                  <div className="space-y-2">
-                    {filteredTeachers.length > 0 ? filteredTeachers.map((contact) => (
-                      <ContactRow key={contact.userId} contact={contact} onClick={() => startContactConversation(contact)} />
-                    )) : <p className="mb-0 text-sm text-slate-500">Không tìm thấy giáo viên.</p>}
-                  </div>
-                </div>
-              )}
-            </div>
-          </aside>
-
-          <ThreadPanel
-            conversationId={activeConversationId}
-            selectedConversation={selectedConversation}
-            archived={showArchived}
-            onSent={refresh}
-            onArchiveChanged={handleArchiveChanged}
+          <NewConversationModal
+            open={showNewConversation}
+            onClose={() => {
+              setShowNewConversation(false);
+              setContactSearch("");
+            }}
+            staffSectionLabel={staffSectionLabel}
+            teacherSectionLabel={teacherSectionLabel}
+            staff={filteredStaff}
+            teachers={filteredTeachers}
+            searchValue={contactSearch}
+            setSearchValue={setContactSearch}
+            onStartContact={startContactConversation}
           />
-        </section>
+        </>
       )}
     </>
   );

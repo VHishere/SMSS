@@ -110,7 +110,20 @@ async function findLinkedStudentsByUserId(userId) {
     [userId],
   );
 
-  return rows;
+  // A student can temporarily have more than one ACTIVE class_enrollment
+  // row (e.g. mid school-year transition, before promotion closes the old
+  // one), which would multiply that student's row in the join above.
+  // Rows are already ordered so the best match comes first, so just keep
+  // the first row seen per student.
+  const seen = new Set();
+  const deduped = [];
+  for (const row of rows) {
+    if (seen.has(row.studentId)) continue;
+    seen.add(row.studentId);
+    deduped.push(row);
+  }
+
+  return deduped;
 }
 
 async function findStudentDetailByStudentId(studentId) {
@@ -587,6 +600,7 @@ async function findEventForChild(eventId, classId) {
           SELECT COUNT(*)
           FROM event_registration er
           WHERE er.event_id = e.event_id
+            AND COALESCE(er.attend_status, 'REGISTERED') <> 'CANCELLED'
         ) AS registeredCount
       FROM event e
       WHERE e.event_id = ?
@@ -606,19 +620,64 @@ async function findEventForChild(eventId, classId) {
   };
 }
 
+// Kiểm tra sức chứa phải nằm CÙNG transaction với lệnh ghi và khóa dòng event
+// (FOR UPDATE) — bản cũ đếm ở controller rồi mới insert nên hai phụ huynh bấm
+// cùng lúc đều lọt qua và sự kiện vượt sức chứa.
 async function registerEventForChild({ studentUserId, studentId, eventId, registeredBy }) {
-  const [result] = await pool.query(
-    `
-      INSERT INTO event_registration
-        (event_id, user_id, participant_type, student_id, registered_by, attend_status)
-      VALUES (?, ?, 'STUDENT', ?, ?, 'REGISTERED')
-      ON DUPLICATE KEY UPDATE
-        attend_status = 'REGISTERED'
-    `,
-    [eventId, studentUserId, studentId, registeredBy],
-  );
+  const connection = await pool.getConnection();
 
-  return result.insertId;
+  try {
+    await connection.beginTransaction();
+
+    const [[event]] = await connection.query(
+      "SELECT event_id AS eventId, capacity FROM event WHERE event_id = ? LIMIT 1 FOR UPDATE",
+      [eventId],
+    );
+
+    if (!event) {
+      const error = new Error("Không tìm thấy sự kiện");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (event.capacity) {
+      const [[countRow]] = await connection.query(
+        `
+          SELECT COUNT(*) AS registeredCount
+          FROM event_registration
+          WHERE event_id = ?
+            AND user_id <> ?
+            AND COALESCE(attend_status, 'REGISTERED') <> 'CANCELLED'
+        `,
+        [eventId, studentUserId],
+      );
+
+      if (Number(countRow.registeredCount || 0) >= Number(event.capacity)) {
+        const error = new Error("Sự kiện đã đủ số lượng đăng ký");
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+
+    const [result] = await connection.query(
+      `
+        INSERT INTO event_registration
+          (event_id, user_id, participant_type, student_id, registered_by, attend_status)
+        VALUES (?, ?, 'STUDENT', ?, ?, 'REGISTERED')
+        ON DUPLICATE KEY UPDATE
+          attend_status = 'REGISTERED'
+      `,
+      [eventId, studentUserId, studentId, registeredBy],
+    );
+
+    await connection.commit();
+    return result.insertId;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 module.exports = {

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { FiArrowLeft, FiPlus, FiTrash2 } from "react-icons/fi";
+import { FiArrowLeft, FiPlus } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
 import StaffFormCard, {
@@ -16,24 +17,160 @@ const ROLE_LABELS = {
   SUBJECT_TEACHER: "Giáo viên bộ môn",
 };
 
-const WEEK_DAYS = [
-  { value: 2, label: "Thứ 2" },
-  { value: 3, label: "Thứ 3" },
-  { value: 4, label: "Thứ 4" },
-  { value: 5, label: "Thứ 5" },
-  { value: 6, label: "Thứ 6" },
-  { value: 7, label: "Thứ 7" },
-];
+// Dropdown chọn nhiều học sinh — cùng kiểu thả xuống như PrettySelect (nút bo
+// tròn, panel portal) nhưng mỗi dòng là nút bấm đổi màu để chọn/bỏ chọn nhiều
+// học sinh thay vì chỉ chọn 1 giá trị.
+function StudentMultiSelectDropdown({ students, selectedIds, onToggle }) {
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState({});
+  const ref = useRef(null);
+  const menuRef = useRef(null);
 
-const PERIODS = Array.from({ length: 8 }, (_, index) => index + 1);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDoc = (event) => {
+      if (
+        (ref.current && ref.current.contains(event.target)) ||
+        (menuRef.current && menuRef.current.contains(event.target))
+      ) {
+        return;
+      }
+      setOpen(false);
+    };
+    const onEsc = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const updatePosition = () => {
+      const rect = ref.current?.getBoundingClientRect();
+      if (!rect) return;
+      const menuWidth = Math.max(rect.width, 260);
+      const left = Math.min(
+        Math.max(8, rect.left),
+        Math.max(8, window.innerWidth - menuWidth - 8),
+      );
+      setMenuStyle({
+        position: "fixed",
+        left,
+        top: rect.bottom + 6,
+        width: menuWidth,
+        zIndex: 9999,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open]);
+
+  const placeholder = selectedIds.length
+    ? `Đã chọn ${selectedIds.length} học sinh`
+    : "Chọn học sinh";
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex h-11 w-full items-center gap-2 rounded-full border bg-white pl-4 pr-2.5 text-sm font-medium shadow-sm outline-none transition-colors hover:border-[#F27123]"
+        style={{
+          borderColor: open ? "#F27123" : "#DFC0B2",
+          color: "#1A1C1C",
+          boxShadow: open ? "0 0 0 3px rgba(242,113,35,0.15)" : undefined,
+        }}
+      >
+        <span className="min-w-0 flex-1 truncate text-left">{placeholder}</span>
+        <span
+          className={`material-symbols-outlined shrink-0 !text-[20px] text-slate-400 transition-transform ${
+            open ? "rotate-180" : ""
+          }`}
+        >
+          expand_more
+        </span>
+      </button>
+
+      {open &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="overflow-hidden rounded-2xl border bg-white shadow-lg"
+            style={{ borderColor: "#DFC0B2", ...menuStyle }}
+          >
+            <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto">
+              {students.length ? (
+                students.map((student) => {
+                  const idStr = String(student.studentId);
+                  const checked = selectedIds.includes(idStr);
+                  return (
+                    <button
+                      type="button"
+                      key={student.studentId}
+                      onClick={() => onToggle(student.studentId)}
+                      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+                        checked
+                          ? "bg-[#F27123] text-white"
+                          : "bg-white text-[#1A1C1C] hover:bg-[#FFF3EB]"
+                      }`}
+                    >
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold">
+                        {student.studentCode} - {student.fullName}
+                      </span>
+                      <span
+                        className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          checked
+                            ? "bg-white/20 text-white"
+                            : student.currentClassName
+                              ? "bg-slate-100 text-slate-600"
+                              : "bg-[#FFE7D6] text-[#F27123]"
+                        }`}
+                      >
+                        {student.currentClassName || "Chưa có lớp"}
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="px-4 py-6 text-center text-sm text-slate-400">
+                  Không có học sinh để thêm
+                </p>
+              )}
+            </div>
+            <div className="border-t border-slate-100 bg-[#F9F9F9] px-4 py-2 text-right">
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-xs font-semibold text-[#08509F]"
+              >
+                Xong
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
 
 function StaffClassDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [classInfo, setClassInfo] = useState(null);
-  const [timetable, setTimetable] = useState([]);
   const [lookups, setLookups] = useState(null);
-  const [studentForm, setStudentForm] = useState({ studentId: "" });
+  const [studentForm, setStudentForm] = useState({ studentIds: [] });
   const [teacherForm, setTeacherForm] = useState({
     teacherId: "",
     roleInClass: "HOMEROOM_TEACHER",
@@ -45,13 +182,10 @@ function StaffClassDetailPage() {
 
   useEffect(() => {
     staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
-    Promise.all([
-      staffApi.getClass(id),
-      staffApi.getClassTimetable(id),
-    ])
-      .then(([classRes, timetableRes]) => {
-        setClassInfo(classRes.data);
-        setTimetable(timetableRes.data || []);
+    staffApi
+      .getClass(id)
+      .then((res) => {
+        setClassInfo(res.data);
         setError("");
       })
       .catch((err) => setError(err.message))
@@ -64,13 +198,99 @@ function StaffClassDetailPage() {
     return lookups.students.filter((student) => !enrolledIds.has(student.studentId));
   }, [classInfo, lookups]);
 
-  const timetableBySlot = useMemo(() => {
-    const slots = new Map();
-    timetable.forEach((lesson) => {
-      slots.set(`${lesson.dayOfWeek}-${lesson.periodNo}`, lesson);
+  const selectedTeacher = useMemo(
+    () =>
+      lookups?.teachers?.find(
+        (teacher) => String(teacher.teacherId) === String(teacherForm.teacherId),
+      ),
+    [lookups, teacherForm.teacherId],
+  );
+
+  const teacherSubjects = useMemo(() => {
+    if (!selectedTeacher) return lookups?.subjects || [];
+    if (!selectedTeacher.subjectIds?.length) return [];
+    const allowedIds = new Set(selectedTeacher.subjectIds.map(Number));
+    return (lookups?.subjects || []).filter((subject) =>
+      allowedIds.has(Number(subject.subjectId)),
+    );
+  }, [lookups, selectedTeacher]);
+
+  const availableTeachers = useMemo(() => {
+    const teachers = lookups?.teachers || [];
+    if (teacherForm.roleInClass !== "HOMEROOM_TEACHER" || !classInfo?.schoolYearId) {
+      return teachers;
+    }
+
+    return teachers.filter((teacher) => {
+      const homeroomAssignments = teacher.homeroomAssignments || [];
+      return !homeroomAssignments.some(
+        (assignment) =>
+          Number(assignment.schoolYearId) === Number(classInfo.schoolYearId) &&
+          Number(assignment.classId) !== Number(classInfo.classId),
+      );
     });
-    return slots;
-  }, [timetable]);
+  }, [classInfo, lookups, teacherForm.roleInClass]);
+
+  useEffect(() => {
+    if (teacherForm.roleInClass !== "SUBJECT_TEACHER") return;
+
+    if (!teacherForm.subjectId && teacherSubjects.length === 1) {
+      setTeacherForm((prev) => ({
+        ...prev,
+        subjectId: String(teacherSubjects[0].subjectId),
+      }));
+      return;
+    }
+
+    if (!teacherForm.subjectId) return;
+
+    const stillAllowed = teacherSubjects.some(
+      (subject) => String(subject.subjectId) === String(teacherForm.subjectId),
+    );
+    if (!stillAllowed) {
+      setTeacherForm((prev) => ({
+        ...prev,
+        subjectId:
+          teacherSubjects.length === 1 ? String(teacherSubjects[0].subjectId) : "",
+      }));
+    }
+  }, [teacherForm.roleInClass, teacherForm.subjectId, teacherSubjects]);
+
+  useEffect(() => {
+    if (!teacherForm.teacherId) return;
+
+    const stillAvailable = availableTeachers.some(
+      (teacher) => String(teacher.teacherId) === String(teacherForm.teacherId),
+    );
+    if (!stillAvailable) {
+      setTeacherForm((prev) => ({ ...prev, teacherId: "", subjectId: "" }));
+    }
+  }, [availableTeachers, teacherForm.teacherId]);
+
+  const updateTeacherForm = (field, value) => {
+    setTeacherForm((prev) => {
+      const next = { ...prev, [field]: value };
+      const teacherId = field === "teacherId" ? value : next.teacherId;
+      const roleInClass = field === "roleInClass" ? value : next.roleInClass;
+
+      if (field === "teacherId" || field === "roleInClass") {
+        const teacher = lookups?.teachers?.find(
+          (item) => String(item.teacherId) === String(teacherId),
+        );
+        const subjectIds = teacher?.subjectIds || [];
+
+        if (roleInClass !== "SUBJECT_TEACHER") {
+          next.subjectId = "";
+        } else if (subjectIds.length === 1) {
+          next.subjectId = String(subjectIds[0]);
+        } else if (!subjectIds.map(String).includes(String(next.subjectId))) {
+          next.subjectId = "";
+        }
+      }
+
+      return next;
+    });
+  };
 
   const addLessonUrl = useMemo(() => {
     if (!classInfo) return "/staff/timetable/new";
@@ -85,16 +305,34 @@ function StaffClassDetailPage() {
     return `/staff/timetable/new?${query.toString()}`;
   }, [classInfo, id]);
 
+  const toggleStudentSelection = (studentId) => {
+    const idStr = String(studentId);
+    setStudentForm((prev) => ({
+      studentIds: prev.studentIds.includes(idStr)
+        ? prev.studentIds.filter((value) => value !== idStr)
+        : [...prev.studentIds, idStr],
+    }));
+  };
+
   const handleEnrollStudent = (event) => {
     event.preventDefault();
-    if (!studentForm.studentId) return;
+    if (!studentForm.studentIds.length) return;
 
     setSaving(true);
     staffApi
-      .enrollStudent(id, Number(studentForm.studentId))
+      .enrollStudents(id, studentForm.studentIds.map(Number))
       .then((res) => {
-        setClassInfo(res.data);
-        setStudentForm({ studentId: "" });
+        const { enrollResults, ...classData } = res.data || {};
+        setClassInfo(classData);
+        setStudentForm({ studentIds: [] });
+        const failed = (enrollResults || []).filter((item) => !item.success);
+        setError(
+          failed.length
+            ? `Không thể thêm ${failed.length} học sinh: ${failed
+                .map((item) => item.message)
+                .join("; ")}`
+            : "",
+        );
       })
       .catch((err) => setError(err.message))
       .finally(() => setSaving(false));
@@ -137,15 +375,6 @@ function StaffClassDetailPage() {
     staffApi
       .removeTeacherFromClass(id, teacherClassId)
       .then((res) => setClassInfo(res.data))
-      .catch((err) => setError(err.message));
-  };
-
-  const handleDeleteLesson = (timetableId) => {
-    if (!window.confirm("Xóa tiết học này khỏi thời khóa biểu?")) return;
-
-    staffApi
-      .deleteClassTimetableLesson(id, timetableId)
-      .then((res) => setTimetable(res.data || []))
       .catch((err) => setError(err.message));
   };
 
@@ -195,26 +424,20 @@ function StaffClassDetailPage() {
           </Link>
         </div>
         <div className="grid gap-4 text-center sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Lớp</p>
-            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.className}</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Khối</p>
-            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.gradeName}</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Năm học</p>
-            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.schoolYearName}</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Phòng</p>
-            <p className="mb-0 font-bold text-[#0F2747]">{classInfo.roomName || "—"}</p>
-          </div>
-          <div className="rounded-xl bg-slate-50 px-4 py-3">
-            <p className="mb-1 text-xs font-semibold uppercase text-slate-500">Sĩ số</p>
-            <p className="mb-0 font-bold text-[#F27123]">{classInfo.students?.length || 0}</p>
-          </div>
+          {[
+            ["Lớp", classInfo.className],
+            ["Khối", classInfo.gradeName],
+            ["Năm học", classInfo.schoolYearName],
+            ["Phòng", classInfo.roomName || "—"],
+            ["Sĩ số", classInfo.students?.length || 0],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-xl bg-slate-50 px-4 py-3">
+              <p className="mb-1 text-xs font-semibold uppercase text-slate-500">{label}</p>
+              <p className={`mb-0 font-bold ${label === "Sĩ số" ? "text-[#F27123]" : "text-[#0F2747]"}`}>
+                {value}
+              </p>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -226,19 +449,11 @@ function StaffClassDetailPage() {
           loading={saving}
         >
           <StaffField label="Học sinh" className="md:col-span-2">
-            <PrettySelect
-              className={inputClass}
-              value={studentForm.studentId}
-              onChange={(event) => setStudentForm({ studentId: event.target.value })}
-              required
-            >
-              <option value="">Chọn học sinh</option>
-              {availableStudents.map((student) => (
-                <option key={student.studentId} value={student.studentId}>
-                  {student.studentCode} - {student.fullName}
-                </option>
-              ))}
-            </PrettySelect>
+            <StudentMultiSelectDropdown
+              students={availableStudents}
+              selectedIds={studentForm.studentIds}
+              onToggle={toggleStudentSelection}
+            />
           </StaffField>
         </StaffFormCard>
 
@@ -252,33 +467,28 @@ function StaffClassDetailPage() {
             <PrettySelect
               className={inputClass}
               value={teacherForm.teacherId}
-              onChange={(event) =>
-                setTeacherForm((prev) => ({
-                  ...prev,
-                  teacherId: event.target.value,
-                }))
-              }
+              onChange={(event) => updateTeacherForm("teacherId", event.target.value)}
               required
             >
               <option value="">Chọn giáo viên</option>
-              {lookups?.teachers?.map((teacher) => (
+              {availableTeachers.map((teacher) => (
                 <option key={teacher.teacherId} value={teacher.teacherId}>
                   {teacher.teacherCode} - {teacher.fullName}
                 </option>
               ))}
             </PrettySelect>
+            {teacherForm.roleInClass === "HOMEROOM_TEACHER" &&
+              (lookups?.teachers || []).length > availableTeachers.length && (
+                <p className="mt-2 text-sm text-slate-500">
+                  Đã ẩn giáo viên đang chủ nhiệm lớp khác trong năm học này.
+                </p>
+              )}
           </StaffField>
           <StaffField label="Vai trò">
             <PrettySelect
               className={inputClass}
               value={teacherForm.roleInClass}
-              onChange={(event) =>
-                setTeacherForm((prev) => ({
-                  ...prev,
-                  roleInClass: event.target.value,
-                  subjectId: "",
-                }))
-              }
+              onChange={(event) => updateTeacherForm("roleInClass", event.target.value)}
             >
               <option value="HOMEROOM_TEACHER">Giáo viên chủ nhiệm</option>
               <option value="SUBJECT_TEACHER">Giáo viên bộ môn</option>
@@ -298,69 +508,21 @@ function StaffClassDetailPage() {
                 required
               >
                 <option value="">Chọn môn</option>
-                {lookups?.subjects?.map((subject) => (
+                {teacherSubjects.map((subject) => (
                   <option key={subject.subjectId} value={subject.subjectId}>
                     {subject.subjectName}
                   </option>
                 ))}
               </PrettySelect>
+              {teacherForm.teacherId && teacherSubjects.length === 0 && (
+                <p className="mt-2 text-sm text-red-600">
+                  Giáo viên này chưa có chuyên môn hoặc phân công môn học.
+                </p>
+              )}
             </StaffField>
           )}
         </StaffFormCard>
       </div>
-
-      <section className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h2 className="mb-0 text-base font-bold text-[#0F2747]">Thời khóa biểu</h2>
-        </div>
-        <div className="overflow-x-auto p-4">
-          <table className="min-w-full table-fixed text-center text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th className="w-24 px-3 py-3 text-center">Tiết</th>
-                {WEEK_DAYS.map((day) => (
-                  <th key={day.value} className="min-w-40 px-3 py-3 text-center">
-                    {day.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {PERIODS.map((period) => (
-                <tr key={period} className="border-t border-slate-100 align-top">
-                  <td className="px-3 py-3 font-semibold text-[#0F2747]">Tiết {period}</td>
-                  {WEEK_DAYS.map((day) => {
-                    const lesson = timetableBySlot.get(`${day.value}-${period}`);
-
-                    return (
-                      <td key={day.value} className="px-3 py-3">
-                        {lesson ? (
-                          <div className="rounded-xl border border-slate-200 bg-white p-3">
-                            <p className="mb-1 font-semibold text-[#0F2747]">{lesson.subjectName}</p>
-                            <p className="mb-1 text-xs text-slate-500">{lesson.teacherName}</p>
-                            <p className="mb-3 text-xs text-slate-400">
-                              {lesson.roomName || classInfo.roomName || "Chưa có phòng"}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteLesson(lesson.timetableId)}
-                              className="inline-flex items-center justify-center rounded-lg border border-red-100 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
-                            >
-                              <FiTrash2 size={14} />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-300">Trống</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">

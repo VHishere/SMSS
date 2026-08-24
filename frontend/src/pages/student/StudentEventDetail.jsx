@@ -198,11 +198,16 @@ function StudentEventDetail() {
   const registeredCount = Number(event?.registeredCount || 0);
   const capacity = event?.capacity ? Number(event.capacity) : null;
   const isFull = Boolean(capacity && registeredCount >= capacity);
+  const parsedStartDate = parseApiDate(event?.startDate);
+  const hasStarted = Boolean(event?.hasStarted) || Boolean(
+    parsedStartDate && parsedStartDate <= new Date(),
+  );
   const canRegister = Boolean(
     event &&
       ["ACTIVE", "PUBLISHED", "SCHEDULED"].includes(event.status) &&
       !event.isRegistered &&
-      !isFull,
+      !isFull &&
+      !hasStarted,
   );
 
   async function register() {
@@ -442,11 +447,13 @@ function StudentEventDetail() {
                 {event.isRegistered && <FiCheckCircle />}
                 {event.isRegistered
                   ? "Đã đăng ký tham gia"
-                  : isFull
-                    ? "Sự kiện đã đủ chỗ"
-                    : registering
-                      ? "Đang đăng ký..."
-                      : "Đăng ký ngay"}
+                  : hasStarted
+                    ? "Sự kiện đã bắt đầu"
+                    : isFull
+                      ? "Sự kiện đã đủ chỗ"
+                      : registering
+                        ? "Đang đăng ký..."
+                        : "Đăng ký ngay"}
               </button>
 
               <p className="mb-0 mt-3 text-[10px] leading-4 text-slate-400">

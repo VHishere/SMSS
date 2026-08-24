@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
 import PrettySelect from "../../components/molecules/PrettySelect";
@@ -71,11 +71,13 @@ function StatCard({ label, value, accent }) {
 function StudentsOverviewPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: meta, loading: metaLoading } = useStudentMeta();
 
   const [classId,       setClassId]       = useState("");
   const [semesterId,    setSemesterId]    = useState("");
-  const [search,        setSearch]        = useState("");
+  // Khởi tạo từ ?search= (ô tìm kiếm header điều hướng tới đây kèm từ khóa).
+  const [search,        setSearch]        = useState(searchParams.get("search") ?? "");
   const [riskFilter,    setRiskFilter]    = useState("");
   const [conductFilter, setConductFilter] = useState("");
   const [sort,          setSort]          = useState({ key: "name", dir: "asc" });

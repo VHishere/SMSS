@@ -3,11 +3,11 @@ const express = require("express");
 const adminController = require("../controllers/admin.controller");
 const academicController = require("../controllers/academic.controller");
 const behaviourController = require("../controllers/behaviour.controller");
-const reportController = require("../controllers/report.controller");
 const attendanceController = require("../controllers/attendance.controller");
 const announcementController = require("../controllers/announcement.controller");
 const communicationController = require("../controllers/communication.controller");
 const eventController = require("../controllers/event.controller");
+const promotionController = require("../controllers/promotion.controller");
 
 const {
   authenticate,
@@ -22,6 +22,41 @@ router.get(
   authenticate,
   authorize("ADMIN"),
   adminController.getUsers,
+);
+
+router.get(
+  "/users/stats",
+  authenticate,
+  authorize("ADMIN"),
+  adminController.getUserStats,
+);
+
+router.get(
+  "/school-years",
+  authenticate,
+  authorize("ADMIN"),
+  adminController.getSchoolYears,
+);
+
+router.put(
+  "/school-years/:id/activate",
+  authenticate,
+  authorize("ADMIN"),
+  adminController.activateSchoolYear,
+);
+
+router.get(
+  "/school-years/:id/promotion/evaluate",
+  authenticate,
+  authorize("ADMIN"),
+  promotionController.evaluateSchoolYear,
+);
+
+router.post(
+  "/school-years/:id/close",
+  authenticate,
+  authorize("ADMIN"),
+  promotionController.closeSchoolYear,
 );
 
 router.put(
@@ -333,42 +368,7 @@ router.put(
   behaviourController.updateWarningAdmin,
 );
 
-// Reports (báo cáo) — view + export only (mirrors teacher's Reports /
-// Report Builder minus saved templates).
-router.get(
-  "/reports/meta",
-  authenticate,
-  authorize("ADMIN"),
-  reportController.getMetaAdmin,
-);
-
-router.post(
-  "/reports/generate",
-  authenticate,
-  authorize("ADMIN"),
-  reportController.generateAdmin,
-);
-
-router.post(
-  "/reports/export-excel",
-  authenticate,
-  authorize("ADMIN"),
-  reportController.exportExcelAdmin,
-);
-
-router.post(
-  "/reports/log-export",
-  authenticate,
-  authorize("ADMIN"),
-  reportController.logExportAdmin,
-);
-
-router.get(
-  "/reports/history",
-  authenticate,
-  authorize("ADMIN"),
-  reportController.getHistoryAdmin,
-);
+// Reports (báo cáo) đã chuyển hẳn sang giáo vụ — xem /staff/reports/*.
 
 // Attendance (điểm danh) — school-wide history/stats + class summary
 // (mirrors teacher's homeroom overview but for any class), plus admin can
@@ -563,28 +563,33 @@ router.patch(
   communicationController.archiveConversation,
 );
 
-// Events (sự kiện) — admin manages every event school-wide, not just its
-// own class (mirrors teacher's Events page, no ownership restriction).
-router.get("/events/meta", authenticate, authorize("ADMIN"), eventController.getMetaAdmin);
-router.get("/events/dashboard", authenticate, authorize("ADMIN"), eventController.getDashboardAdmin);
-router.get("/events/analytics", authenticate, authorize("ADMIN"), eventController.getAnalyticsAdmin);
-router.get("/events/classes/:classId/contacts", authenticate, authorize("ADMIN"), eventController.getClassContactsAdmin);
+// Events (sự kiện) — quản lý sự kiện TOÀN TRƯỜNG, không giới hạn theo lớp.
+// Mở cho ADMIN + STAFF: TẠO sự kiện là nghiệp vụ của giáo vụ (giáo viên đã bị bỏ
+// quyền tạo ở /teachers/events). Portal staff gọi thẳng các endpoint này —
+// cùng cách admin đang dùng /staff/fees, vì controller *Admin đã là scope
+// toàn trường (actor { isAdmin: true }) chứ không có logic riêng của admin.
+const eventRoles = ["ADMIN", "STAFF"];
 
-router.get("/events", authenticate, authorize("ADMIN"), eventController.listEventsAdmin);
-router.post("/events", authenticate, authorize("ADMIN"), eventController.createEventAdmin);
+router.get("/events/meta", authenticate, authorize(...eventRoles), eventController.getMetaAdmin);
+router.get("/events/dashboard", authenticate, authorize(...eventRoles), eventController.getDashboardAdmin);
+router.get("/events/analytics", authenticate, authorize(...eventRoles), eventController.getAnalyticsAdmin);
+router.get("/events/classes/:classId/contacts", authenticate, authorize(...eventRoles), eventController.getClassContactsAdmin);
 
-router.get("/events/:eventId", authenticate, authorize("ADMIN"), eventController.getDetailAdmin);
-router.put("/events/:eventId", authenticate, authorize("ADMIN"), eventController.updateEventAdmin);
-router.patch("/events/:eventId/status", authenticate, authorize("ADMIN"), eventController.changeStatusAdmin);
-router.post("/events/:eventId/duplicate", authenticate, authorize("ADMIN"), eventController.duplicateEventAdmin);
-router.post("/events/:eventId/reminder", authenticate, authorize("ADMIN"), eventController.sendReminderAdmin);
-router.put("/events/:eventId/outcome", authenticate, authorize("ADMIN"), eventController.saveOutcomeAdmin);
+router.get("/events", authenticate, authorize(...eventRoles), eventController.listEventsAdmin);
+router.post("/events", authenticate, authorize(...eventRoles), eventController.createEventAdmin);
 
-router.post("/events/:eventId/participants", authenticate, authorize("ADMIN"), eventController.addParticipantsAdmin);
-router.delete("/events/:eventId/participants/:registrationId", authenticate, authorize("ADMIN"), eventController.removeParticipantAdmin);
-router.patch("/events/:eventId/participants/:registrationId/attendance", authenticate, authorize("ADMIN"), eventController.markAttendanceAdmin);
+router.get("/events/:eventId", authenticate, authorize(...eventRoles), eventController.getDetailAdmin);
+router.put("/events/:eventId", authenticate, authorize(...eventRoles), eventController.updateEventAdmin);
+router.patch("/events/:eventId/status", authenticate, authorize(...eventRoles), eventController.changeStatusAdmin);
+router.post("/events/:eventId/duplicate", authenticate, authorize(...eventRoles), eventController.duplicateEventAdmin);
+router.post("/events/:eventId/reminder", authenticate, authorize(...eventRoles), eventController.sendReminderAdmin);
+router.put("/events/:eventId/outcome", authenticate, authorize(...eventRoles), eventController.saveOutcomeAdmin);
 
-router.post("/events/:eventId/documents", authenticate, authorize("ADMIN"), eventFileUpload, eventController.uploadDocumentAdmin);
-router.delete("/events/:eventId/documents/:attachmentId", authenticate, authorize("ADMIN"), eventController.deleteDocumentAdmin);
+router.post("/events/:eventId/participants", authenticate, authorize(...eventRoles), eventController.addParticipantsAdmin);
+router.delete("/events/:eventId/participants/:registrationId", authenticate, authorize(...eventRoles), eventController.removeParticipantAdmin);
+router.patch("/events/:eventId/participants/:registrationId/attendance", authenticate, authorize(...eventRoles), eventController.markAttendanceAdmin);
+
+router.post("/events/:eventId/documents", authenticate, authorize(...eventRoles), eventFileUpload, eventController.uploadDocumentAdmin);
+router.delete("/events/:eventId/documents/:attachmentId", authenticate, authorize(...eventRoles), eventController.deleteDocumentAdmin);
 
 module.exports = router;

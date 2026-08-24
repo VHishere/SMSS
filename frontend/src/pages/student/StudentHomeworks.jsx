@@ -10,7 +10,7 @@ import {
   FiFileText,
   FiFilter,
 } from "react-icons/fi";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import ErrorAlert from "../../components/atoms/ErrorAlert";
 import LoadingState from "../../components/atoms/LoadingState";
@@ -224,6 +224,13 @@ function HomeworkCard({ homework }) {
 
 function StudentHomeworks() {
   const { data, loading, error } = useStudentHomeworks();
+  const [searchParams] = useSearchParams();
+  // Từ khóa từ ?search= (ô tìm kiếm header) — lọc theo tên bài tập / môn học.
+  const searchKw = (searchParams.get("search") ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim();
 
   const [activeTab, setActiveTab] = useState("all");
   const [subjectId, setSubjectId] = useState("all");
@@ -246,12 +253,22 @@ function StudentHomeworks() {
   }, [homeworks]);
 
   const subjectFilteredHomeworks = useMemo(() => {
-    if (subjectId === "all") return homeworks;
-
-    return homeworks.filter(
-      (homework) => String(homework.subjectId) === subjectId,
-    );
-  }, [homeworks, subjectId]);
+    const norm = (s) =>
+      String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    return homeworks.filter((homework) => {
+      if (subjectId !== "all" && String(homework.subjectId) !== subjectId) {
+        return false;
+      }
+      if (
+        searchKw &&
+        !norm(homework.title).includes(searchKw) &&
+        !norm(homework.subjectName).includes(searchKw)
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [homeworks, subjectId, searchKw]);
 
   const summary = useMemo(() => {
     return subjectFilteredHomeworks.reduce(

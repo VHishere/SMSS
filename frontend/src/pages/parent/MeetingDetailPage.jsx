@@ -40,6 +40,11 @@ function beginLoad(setLoading, setError) {
   setError("");
 }
 
+function hasMeetingStarted(meetingDate) {
+  if (!meetingDate) return false;
+  return new Date(String(meetingDate).replace(" ", "T")).getTime() <= Date.now();
+}
+
 function MeetingDetailPage() {
   const { meetingId } = useParams();
   const navigate = useNavigate();
@@ -155,19 +160,28 @@ function MeetingDetailPage() {
                 </p>
               </div>
 
-              {meeting.status === "SCHEDULED" && ["SENT", "PENDING"].includes(meeting.invitationStatus) && (
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    disabled={responding}
-                    onClick={() => handleRespond()}
-                    className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
-                    style={{ backgroundColor: "#16A34A" }}
+              {meeting.status === "SCHEDULED" &&
+                ["SENT", "PENDING"].includes(meeting.invitationStatus) &&
+                (hasMeetingStarted(meeting.meetingDate) ? (
+                  <span
+                    className="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold"
+                    style={{ backgroundColor: "#F1F5F9", color: "#64748B" }}
                   >
-                    {responding ? "..." : "Xác nhận tham dự"}
-                  </button>
-                </div>
-              )}
+                    Đã quá hạn xác nhận
+                  </span>
+                ) : (
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      disabled={responding}
+                      onClick={() => handleRespond()}
+                      className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
+                      style={{ backgroundColor: "#16A34A" }}
+                    >
+                      {responding ? "..." : "Xác nhận tham dự"}
+                    </button>
+                  </div>
+                ))}
             </div>
 
             {respondMsg.text && (

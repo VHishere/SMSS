@@ -2,6 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 
+const { pool } = require("./config/db");
+
 const authRoutes = require(
   "./routes/auth.routes",
 );
@@ -57,11 +59,25 @@ app.get("/", (_req, res) => {
   });
 });
 
-app.get("/api/health", (_req, res) => {
-  res.json({
-    success: true,
-    message: "Student Management API đang hoạt động",
-  });
+app.get("/api/health", async (_req, res) => {
+  try {
+    await pool.query("SELECT 1");
+
+    res.json({
+      success: true,
+      message: "Student Management API đang hoạt động",
+      database: "connected",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Health check database error:", error.message);
+
+    res.status(503).json({
+      success: false,
+      message: "API đang hoạt động nhưng không kết nối được database",
+      database: "disconnected",
+    });
+  }
 });
 
 app.use("/api/auth", authRoutes);

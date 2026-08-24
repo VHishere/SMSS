@@ -43,7 +43,20 @@ async function getLookups() {
 
   const [students] = await pool.query(
     `
-      SELECT s.student_id AS studentId, s.student_code AS studentCode, ua.full_name AS fullName
+      SELECT
+        s.student_id AS studentId,
+        s.student_code AS studentCode,
+        ua.full_name AS fullName,
+        (
+          SELECT sc2.class_name
+          FROM class_enrollment ce2
+          INNER JOIN school_class sc2 ON sc2.class_id = ce2.class_id
+          INNER JOIN school_year sy2 ON sy2.school_year_id = sc2.school_year_id
+          WHERE ce2.student_id = s.student_id
+            AND ce2.status = 'ACTIVE'
+            AND sy2.is_active = TRUE
+          LIMIT 1
+        ) AS currentClassName
       FROM student s
       INNER JOIN user_account ua ON ua.user_id = s.user_id
       WHERE s.status = 'ACTIVE'
@@ -79,12 +92,89 @@ async function getLookups() {
       SELECT
         t.teacher_id AS teacherId,
         t.teacher_code AS teacherCode,
+        t.subject_specialize AS subjectSpecialize,
         ua.full_name AS fullName,
-        ua.email
+        ua.email,
+        GROUP_CONCAT(
+          DISTINCT
+          CASE
+            WHEN homeroom_tc.teacher_class_id IS NOT NULL
+            THEN CONCAT(
+              homeroom_sc.school_year_id,
+              ':',
+              homeroom_sc.class_id,
+              ':',
+              homeroom_sc.class_name,
+              ':',
+              homeroom_sy.year_name
+            )
+          END
+          SEPARATOR '||'
+        ) AS homeroomAssignments,
+        GROUP_CONCAT(DISTINCT COALESCE(tc.subject_id, specialize_subject.subject_id)) AS subjectIds
       FROM teacher t
       INNER JOIN user_account ua ON ua.user_id = t.user_id
+      LEFT JOIN subject specialize_subject
+        ON (
+          LOWER(specialize_subject.subject_name) = LOWER(t.subject_specialize)
+          OR LOWER(specialize_subject.subject_code) = LOWER(t.subject_specialize)
+          OR LOWER(specialize_subject.subject_name) LIKE CONCAT('%', LOWER(TRIM(t.subject_specialize)), '%')
+          OR LOWER(TRIM(t.subject_specialize)) LIKE CONCAT('%', LOWER(specialize_subject.subject_name), '%')
+        )
+        AND specialize_subject.status = 'ACTIVE'
+      LEFT JOIN teacher_class tc
+        ON tc.teacher_id = t.teacher_id
+        AND tc.subject_id IS NOT NULL
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+      LEFT JOIN teacher_class homeroom_tc
+        ON homeroom_tc.teacher_id = t.teacher_id
+        AND homeroom_tc.role_in_class = 'HOMEROOM_TEACHER'
+        AND (homeroom_tc.end_date IS NULL OR homeroom_tc.end_date >= CURDATE())
+      LEFT JOIN school_class homeroom_sc
+        ON homeroom_sc.class_id = homeroom_tc.class_id
+        AND homeroom_sc.status = 'ACTIVE'
+      LEFT JOIN school_year homeroom_sy
+        ON homeroom_sy.school_year_id = homeroom_sc.school_year_id
       WHERE ua.status = 'ACTIVE'
+      GROUP BY t.teacher_id, t.teacher_code, t.subject_specialize, ua.full_name, ua.email
       ORDER BY ua.full_name
+    `,
+  );
+
+  const [feeCategories] = await pool.query(
+    `
+      SELECT
+        fee_category_id AS feeCategoryId,
+        code,
+        name,
+        description
+      FROM fee_category
+      WHERE status = 'ACTIVE'
+      ORDER BY fee_category_id
+    `,
+  );
+
+  const [feeRates] = await pool.query(
+    `
+      SELECT
+        fr.fee_rate_id AS feeRateId,
+        fr.fee_category_id AS feeCategoryId,
+        fc.name AS feeCategoryName,
+        fr.school_year_id AS schoolYearId,
+        fr.semester_id AS semesterId,
+        fr.scope_type AS scopeType,
+        fr.grade_id AS gradeId,
+        g.grade_name AS gradeName,
+        fr.class_id AS classId,
+        sc.class_name AS className,
+        fr.amount,
+        fr.billing_cycle AS billingCycle
+      FROM fee_rate fr
+      INNER JOIN fee_category fc ON fc.fee_category_id = fr.fee_category_id
+      LEFT JOIN grade g ON g.grade_id = fr.grade_id
+      LEFT JOIN school_class sc ON sc.class_id = fr.class_id
+      WHERE fr.status = 'ACTIVE'
+      ORDER BY fc.name, fr.created_at DESC
     `,
   );
 
@@ -98,7 +188,25 @@ async function getLookups() {
       isActive: Boolean(row.isActive),
     })),
     grades,
-    teachers,
+    teachers: teachers.map((row) => ({
+      ...row,
+      homeroomAssignments: row.homeroomAssignments
+        ? row.homeroomAssignments.split("||").map((item) => {
+            const [schoolYearId, classId, className, schoolYearName] = item.split(":");
+            return {
+              schoolYearId: Number(schoolYearId),
+              classId: Number(classId),
+              className,
+              schoolYearName,
+            };
+          })
+        : [],
+      subjectIds: row.subjectIds
+        ? row.subjectIds.split(",").map((subjectId) => Number(subjectId))
+        : [],
+    })),
+    feeCategories,
+    feeRates: feeRates.map((row) => ({ ...row, amount: Number(row.amount) })),
   };
 }
 

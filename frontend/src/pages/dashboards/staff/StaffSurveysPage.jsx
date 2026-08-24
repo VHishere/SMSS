@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import { staffApi } from "../../../api/client";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const inputCls =
   "w-full rounded-xl border border-orange-100 bg-white px-3 py-2 text-sm text-[#0F2747] outline-none focus:border-[#F27123] focus:ring-2 focus:ring-orange-100";
@@ -26,7 +27,7 @@ function AggregateModal({ survey, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="mb-1 text-lg font-bold text-[#0F2747]">Tổng hợp đánh giá (ẩn danh)</h3>
         <p className="mb-4 text-sm text-slate-500">GV {survey.teacherName}{survey.subjectName ? ` · ${survey.subjectName}` : ""} · {survey.semesterName}</p>
         {loading ? (
@@ -98,7 +99,103 @@ function StaffSurveysPage() {
     return () => { m = false; };
   }, [refresh]);
 
-  const set = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+  const selectedTeacher = useMemo(
+    () =>
+      (lookups.teachers ?? []).find(
+        (teacher) => String(teacher.teacherId) === String(form.teacherId),
+      ),
+    [form.teacherId, lookups.teachers],
+  );
+
+  const selectedSemester = useMemo(
+    () =>
+      (lookups.semesters ?? []).find(
+        (sem) => String(sem.semesterId) === String(form.semesterId),
+      ),
+    [form.semesterId, lookups.semesters],
+  );
+
+  // Chưa chọn GV: hiện tạm toàn bộ môn (không ảnh hưởng vì chưa submit được).
+  // Đã chọn GV nhưng GV đó không dạy môn nào (vd GV chủ nhiệm thuần) thì phải
+  // trả về rỗng thay vì fallback về toàn bộ môn — nếu không staff có thể chọn
+  // một môn GV không hề dạy, khiến khảo sát không khớp học sinh nào (ts.subject_id
+  // không khớp bất kỳ dòng teacher_class nào của GV đó).
+  const teacherSubjects = useMemo(() => {
+    if (!selectedTeacher) return lookups.subjects ?? [];
+    if (!selectedTeacher.subjectIds?.length) return [];
+    const allowedIds = new Set(selectedTeacher.subjectIds.map(Number));
+    return (lookups.subjects ?? []).filter((subject) =>
+      allowedIds.has(Number(subject.subjectId)),
+    );
+  }, [lookups.subjects, selectedTeacher]);
+
+  // Nhiều năm học có thể có lớp trùng tên (vd "10A1" của 2 niên khoá khác
+  // nhau) — chỉ hiện lớp thuộc đúng năm học của học kỳ đang chọn để staff
+  // không chọn nhầm lớp năm học khác, khiến khảo sát không khớp học sinh.
+  const availableClasses = useMemo(() => {
+    if (!selectedSemester) return lookups.classes ?? [];
+    return (lookups.classes ?? []).filter(
+      (c) => String(c.schoolYearId) === String(selectedSemester.schoolYearId),
+    );
+  }, [lookups.classes, selectedSemester]);
+
+  useEffect(() => {
+    if (!form.teacherId) return;
+
+    if (!form.subjectId && teacherSubjects.length === 1) {
+      setForm((prev) => ({
+        ...prev,
+        subjectId: String(teacherSubjects[0].subjectId),
+      }));
+      return;
+    }
+
+    if (!form.subjectId || !selectedTeacher?.subjectIds?.length) return;
+
+    const allowed = selectedTeacher.subjectIds
+      .map(String)
+      .includes(String(form.subjectId));
+
+    if (!allowed) {
+      setForm((prev) => ({
+        ...prev,
+        subjectId:
+          teacherSubjects.length === 1 ? String(teacherSubjects[0].subjectId) : "",
+      }));
+    }
+  }, [form.subjectId, form.teacherId, selectedTeacher, teacherSubjects]);
+
+  useEffect(() => {
+    if (!form.classId) return;
+    const stillValid = availableClasses.some(
+      (c) => String(c.classId) === String(form.classId),
+    );
+    if (!stillValid) {
+      setForm((prev) => ({ ...prev, classId: "" }));
+    }
+  }, [availableClasses, form.classId]);
+
+  const set = (k) => (e) => {
+    const value = e.target.value;
+    setForm((prev) => {
+      const next = { ...prev, [k]: value };
+
+      if (k === "teacherId") {
+        const teacher = (lookups.teachers ?? []).find(
+          (item) => String(item.teacherId) === String(value),
+        );
+        const subjectIds = teacher?.subjectIds || [];
+
+        if (subjectIds.length === 1) {
+          next.subjectId = String(subjectIds[0]);
+        } else if (!subjectIds.map(String).includes(String(next.subjectId))) {
+          next.subjectId = "";
+        }
+      }
+
+      return next;
+    });
+  };
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -126,28 +223,39 @@ function StaffSurveysPage() {
 
   return (
     <>
-      <StaffPageHeader title="Khảo sát đánh giá giáo viên" description="Tạo khảo sát cuối kỳ (học sinh đánh giá ẩn danh) và xem tổng hợp." />
+      <StaffPageHeader title="Khảo sát đánh giá giáo viên" 
+      // description="Tạo khảo sát cuối kỳ (học sinh đánh giá ẩn danh) và xem tổng hợp." 
+      />
 
       {/* Create form */}
-      <form onSubmit={handleCreate} className="mb-6 rounded-2xl border border-orange-100 bg-white p-5 shadow-sm">
+      <form onSubmit={handleCreate} className="mb-6 rounded-3xl border card-border bg-white p-5 shadow-sm">
         <h3 className="mb-3 text-base font-bold text-[#0F2747]">Tạo khảo sát mới</h3>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <select className={inputCls} value={form.semesterId} onChange={set("semesterId")}>
+          <PrettySelect className={inputCls} value={form.semesterId} onChange={set("semesterId")}>
             <option value="">— Học kỳ * —</option>
             {(lookups.semesters ?? []).map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-          </select>
-          <select className={inputCls} value={form.teacherId} onChange={set("teacherId")}>
+          </PrettySelect>
+          <PrettySelect className={inputCls} value={form.teacherId} onChange={set("teacherId")}>
             <option value="">— Giáo viên * —</option>
             {(lookups.teachers ?? []).map((t) => <option key={t.teacherId} value={t.teacherId}>{t.fullName}</option>)}
-          </select>
-          <select className={inputCls} value={form.subjectId} onChange={set("subjectId")}>
-            <option value="">— Môn (tùy chọn) —</option>
-            {(lookups.subjects ?? []).map((s) => <option key={s.subjectId} value={s.subjectId}>{s.subjectName}</option>)}
-          </select>
-          <select className={inputCls} value={form.classId} onChange={set("classId")}>
+          </PrettySelect>
+          <PrettySelect
+            className={inputCls}
+            value={form.subjectId}
+            onChange={set("subjectId")}
+            disabled={!!selectedTeacher && teacherSubjects.length === 0}
+          >
+            <option value="">
+              {selectedTeacher && teacherSubjects.length === 0
+                ? "— GV này không dạy môn nào (bỏ trống) —"
+                : "— Môn (tùy chọn) —"}
+            </option>
+            {teacherSubjects.map((s) => <option key={s.subjectId} value={s.subjectId}>{s.subjectName}</option>)}
+          </PrettySelect>
+          <PrettySelect className={inputCls} value={form.classId} onChange={set("classId")} disabled={!form.semesterId}>
             <option value="">— Lớp (tùy chọn, giới hạn HS) —</option>
-            {(lookups.classes ?? []).map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-          </select>
+            {availableClasses.map((c) => <option key={c.classId} value={c.classId}>{c.className} · {c.schoolYearName}</option>)}
+          </PrettySelect>
           <input className={`${inputCls} md:col-span-2`} placeholder="Tiêu đề (tùy chọn)" value={form.title} onChange={set("title")} />
         </div>
         <div className="mt-3 flex items-center gap-3">
@@ -162,11 +270,11 @@ function StaffSurveysPage() {
       {loading ? (
         <div className="h-40 animate-pulse rounded-2xl bg-slate-100" />
       ) : surveys.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-orange-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm">Chưa có khảo sát nào.</div>
+        <div className="rounded-3xl border border-dashed card-border bg-white p-10 text-center text-sm text-slate-500 shadow-sm">Chưa có khảo sát nào.</div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
+        <div className="overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
           <table className="w-full text-left text-sm">
-            <thead className="bg-[#0F2747] text-white">
+            <thead className="bg-[#00458E] text-white">
               <tr>
                 <th className="px-4 py-3 font-semibold">Giáo viên</th>
                 <th className="px-4 py-3 font-semibold">Môn / Học kỳ</th>

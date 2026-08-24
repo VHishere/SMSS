@@ -6,6 +6,7 @@ import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -29,7 +30,6 @@ const paymentMethodLabels = {
   CASH: "Tiền mặt",
   BANK_TRANSFER: "Chuyển khoản",
   CARD: "Thẻ",
-  ZALOPAY: "ZaloPay",
   OTHER: "Khác",
 };
 
@@ -150,12 +150,12 @@ function StaffFeeDetailPage() {
       )}
 
       {loading ? (
-        <div className="rounded-2xl border border-orange-100 bg-white p-8 text-center text-slate-500">
+        <div className="rounded-3xl border card-border bg-white p-8 text-center text-slate-500">
           Đang tải dữ liệu học phí...
         </div>
       ) : fee ? (
         <div className="space-y-6">
-          <section className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
+          <section className="rounded-3xl border card-border bg-white p-6 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -227,7 +227,7 @@ function StaffFeeDetailPage() {
           </section>
 
           {selectedAssignment && (
-            <section className="rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
+            <section className="rounded-3xl border card-border bg-white p-6 shadow-sm">
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="mb-1 text-base font-bold text-[#0F2747]">
@@ -277,7 +277,7 @@ function StaffFeeDetailPage() {
 
                 <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747]">
                   Hình thức
-                  <select
+                  <PrettySelect
                     className="rounded-xl border border-slate-200 bg-[#FFF7F2] px-3 py-2.5 text-sm font-normal outline-none focus:border-[#F27123] focus:bg-white"
                     value={paymentForm.paymentMethod}
                     onChange={(event) =>
@@ -287,9 +287,8 @@ function StaffFeeDetailPage() {
                     <option value="CASH">Tiền mặt</option>
                     <option value="BANK_TRANSFER">Chuyển khoản</option>
                     <option value="CARD">Thẻ</option>
-                    <option value="ZALOPAY">ZaloPay</option>
                     <option value="OTHER">Khác</option>
-                  </select>
+                  </PrettySelect>
                 </label>
 
                 <label className="flex flex-col gap-1.5 text-sm font-semibold text-[#0F2747]">

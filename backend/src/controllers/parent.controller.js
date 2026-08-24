@@ -6,6 +6,37 @@ const goalModel = require("../models/goal.model");
 const commModel = require("../models/communication.model");
 const { TIMETABLE_SLOTS, WEEK_DAYS } = require("../config/timetable.config");
 
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
+
+function formatDate(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function getStartOfCurrentWeek() {
+  const today = new Date();
+  const day = today.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = addDays(today, diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+function buildCurrentWeekDays() {
+  const monday = getStartOfCurrentWeek();
+  return WEEK_DAYS.map((day, index) => {
+    const date = addDays(monday, index);
+    return { ...day, date: formatDate(date) };
+  });
+}
+
 async function getMyProfile(req, res) {
   try {
     const parent = await parentModel.findProfileByUserId(req.user.userId);
@@ -89,13 +120,18 @@ async function getStudentTimetable(req, res) {
       });
     }
 
-    const lessons = await timetableModel.findLessonsByClassId(context.classId);
+    const weekDays = buildCurrentWeekDays();
+    const startDate = weekDays[0]?.date;
+    const endDate = weekDays[weekDays.length - 1]?.date;
+    const lessons = await timetableModel.findLessonsByClassId(context.classId, { startDate, endDate });
 
     return res.json({
       success: true,
       data: {
         context,
-        weekDays: WEEK_DAYS,
+        weekStart: startDate,
+        weekEnd: endDate,
+        weekDays,
         slots: TIMETABLE_SLOTS,
         lessons,
       },
@@ -255,6 +291,43 @@ async function markAllMyNotificationsRead(req, res) {
   }
 }
 
+// GET /parents/me/students/:studentId/notifications/feed
+async function getStudentNotificationFeed(req, res) {
+  try {
+    const student = req.linkedStudent;
+
+    const [school, rawAlerts] = await Promise.all([
+      parentModel.findAnnouncementFeedForClass(student.classId),
+      parentModel.findWarningAlertsForStudent(student.studentId),
+    ]);
+
+    const alerts = rawAlerts.map((a) => ({
+      ...a,
+      studentId: student.studentId,
+      studentName: student.studentFullName,
+      studentCode: student.studentCode,
+      className: student.className,
+    }));
+
+    const newAlerts = alerts.filter((a) => a.status === "OPEN").length;
+
+    return res.json({
+      success: true,
+      data: {
+        school,
+        alerts,
+        counts: { total: school.length + alerts.length, newAlerts },
+      },
+    });
+  } catch (error) {
+    console.error("getStudentNotificationFeed error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Không thể tải trung tâm thông báo",
+    });
+  }
+}
+
 // ── Events ────────────────────────────────────────────────────────────────────
 
 async function getStudentEvents(req, res) {
@@ -337,6 +410,11 @@ async function registerStudentEvent(req, res) {
       },
     });
   } catch (error) {
+    if (error.statusCode) {
+      return res
+        .status(error.statusCode)
+        .json({ success: false, message: error.message });
+    }
     console.error("registerStudentEvent error:", error);
     return res.status(500).json({
       success: false,
@@ -429,8 +507,7 @@ async function startMyTeacherConversation(req, res) {
       });
     }
 
-    const existing = await commModel.findAnyDirectConversation(
-      "PARENT_TEACHER",
+    const existing = await commModel.findOneToOneConversation(
       req.user.userId,
       teacherUserId,
     );
@@ -504,6 +581,7 @@ module.exports = {
   getMyNotifications,
   markMyNotificationRead,
   markAllMyNotificationsRead,
+  getStudentNotificationFeed,
   getMyMessageContacts,
   startMyTeacherConversation,
   searchMyMessages,

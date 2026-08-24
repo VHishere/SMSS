@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useStudentAcademic } from "../../hooks/useStudentAcademic";
@@ -82,7 +83,7 @@ function StudentAcademicProfilePage() {
             </div>
             {/* Semester selector */}
             {data.semesters?.length > 0 && (
-              <select
+              <PrettySelect
                 value={data.targetSemesterId ?? ""}
                 onChange={(e) => setSearchParams({ semesterId: e.target.value })}
                 className="rounded-xl border bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]"
@@ -91,7 +92,7 @@ function StudentAcademicProfilePage() {
                 {data.semesters.map((s) => (
                   <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>
                 ))}
-              </select>
+              </PrettySelect>
             )}
           </section>
 

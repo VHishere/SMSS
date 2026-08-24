@@ -53,6 +53,8 @@ function getStatusStyle(status) {
 function TimetableLessonCard({
   lesson,
   compact = false,
+  onClick,
+  actionLabel,
 }) {
   if (!lesson) {
     return (
@@ -79,19 +81,24 @@ function TimetableLessonCard({
     lesson.attendanceStatusLabel || "Chưa điểm danh";
 
   const statusStyle = getStatusStyle(attendanceStatus);
+  const CardTag = onClick ? "button" : "article";
 
   return (
-    <article
+    <CardTag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
       className={`
         relative flex w-full
         flex-col overflow-hidden rounded-xl
         ${compact ? "min-h-28" : "h-32 min-h-32"}
         border border-slate-200
-        bg-white p-3 pl-4 shadow-sm
+        bg-white p-3 pl-4 text-left shadow-sm
         transition duration-200
         hover:-translate-y-0.5
         hover:shadow-md
+        ${onClick ? "cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#F27123]/40" : ""}
       `}
+      title={actionLabel || lesson.subjectName}
     >
       <span
         className={`
@@ -166,13 +173,13 @@ function TimetableLessonCard({
         />
 
         <span className="truncate">
-          {attendanceLabel}
+          {actionLabel || attendanceLabel}
           {lesson.attendanceCheckInTime
             ? ` · ${lesson.attendanceCheckInTime}`
             : ""}
         </span>
       </div>
-    </article>
+    </CardTag>
   );
 }
 

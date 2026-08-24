@@ -1,8 +1,8 @@
 import { Outlet } from "react-router-dom";
 
-import DashboardShell from "../../../components/templates/DashboardShell";
-import { dashboardNavigation } from "../../../config/dashboardNavigation";
-import useStaffHeaderUser from "../../../hooks/useStaffHeaderUser";
+import DashboardShell from "../../components/templates/DashboardShell";
+import { dashboardNavigation } from "../../config/dashboardNavigation";
+import useStaffHeaderUser from "../../hooks/useStaffHeaderUser";
 
 function AdminDashboardLayout() {
   const headerUser = useStaffHeaderUser();

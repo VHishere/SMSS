@@ -3,12 +3,22 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  cancelLinkClass,
+  inputClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
+import {
+  resolveStaffWorkingSchoolYear,
+  setStaffWorkingSchoolYearId,
+} from "../../../utils/staffSchoolYear";
 
 const initialForm = {
   title: "",
-  feeType: "Học phí",
+  feeCategoryId: "",
+  feeRateId: "",
   schoolYearId: "",
   semesterId: "",
   amount: "",
@@ -31,6 +41,8 @@ function StaffFeeFormPage() {
     grades: [],
     classes: [],
     students: [],
+    feeCategories: [],
+    feeRates: [],
   });
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
@@ -42,14 +54,30 @@ function StaffFeeFormPage() {
       .then((res) => {
         setLookups(res.data);
         const queryYearId = searchParams.get("schoolYearId");
-        const activeYearId = res.data.schoolYears?.find((item) => item.isActive)?.schoolYearId;
+        const workingYearId =
+          queryYearId ||
+          resolveStaffWorkingSchoolYear(res.data.schoolYears || [])?.schoolYearId ||
+          "";
+        if (workingYearId) {
+          setStaffWorkingSchoolYearId(workingYearId);
+        }
         setForm((prev) => ({
           ...prev,
-          schoolYearId: queryYearId || activeYearId || "",
+          schoolYearId: workingYearId,
+          feeCategoryId:
+            prev.feeCategoryId || res.data.feeCategories?.[0]?.feeCategoryId || "",
         }));
       })
       .catch((err) => setError(err.message));
   }, [searchParams]);
+
+  const filteredFeeRates = useMemo(
+    () =>
+      lookups.feeRates?.filter(
+        (rate) => !form.schoolYearId || String(rate.schoolYearId) === String(form.schoolYearId),
+      ) || [],
+    [lookups.feeRates, form.schoolYearId],
+  );
 
   const filteredSemesters = useMemo(
     () =>
@@ -79,6 +107,10 @@ function StaffFeeFormPage() {
   }, [lookups.classes, lookups.students, form.classId]);
 
   const setField = (field, value) => {
+    if (field === "schoolYearId") {
+      setStaffWorkingSchoolYearId(value);
+    }
+
     setForm((prev) => {
       const next = { ...prev, [field]: value };
 
@@ -86,6 +118,7 @@ function StaffFeeFormPage() {
         next.semesterId = "";
         next.classId = "";
         next.gradeId = "";
+        next.feeRateId = "";
       }
 
       if (field === "gradeId") {
@@ -99,6 +132,26 @@ function StaffFeeFormPage() {
       }
 
       return next;
+    });
+  };
+
+  const selectFeeRate = (feeRateId) => {
+    setForm((prev) => {
+      if (!feeRateId) {
+        return { ...prev, feeRateId: "" };
+      }
+
+      const rate = lookups.feeRates?.find(
+        (item) => String(item.feeRateId) === String(feeRateId),
+      );
+      if (!rate) return prev;
+
+      return {
+        ...prev,
+        feeRateId,
+        feeCategoryId: rate.feeCategoryId,
+        amount: String(rate.amount),
+      };
     });
   };
 
@@ -125,7 +178,7 @@ function StaffFeeFormPage() {
         action={
           <Link
             to="/staff/fees"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-[#0F2747] no-underline hover:border-[#F27123] hover:text-[#F27123] hover:no-underline sm:w-auto"
+            className={cancelLinkClass}
           >
             <FiArrowLeft size={16} />
             Quay lại
@@ -144,6 +197,7 @@ function StaffFeeFormPage() {
         onSubmit={handleSubmit}
         submitLabel="Tạo khoản phí"
         loading={loading}
+        footer="Khoản phí sau khi công bố sẽ hiển thị cho phụ huynh và học sinh theo phạm vi đã chọn."
       >
         <StaffField label="Tên khoản phí">
           <input
@@ -155,22 +209,42 @@ function StaffFeeFormPage() {
           />
         </StaffField>
 
-        <StaffField label="Loại phí">
-          <select
+        <StaffField label="Mức thu đã cấu hình" className="md:col-span-2">
+          <PrettySelect
             className={inputClass}
-            value={form.feeType}
-            onChange={(event) => setField("feeType", event.target.value)}
+            value={form.feeRateId}
+            onChange={(event) => selectFeeRate(event.target.value)}
           >
-            <option value="Học phí">Học phí</option>
-            <option value="Bán trú">Bán trú</option>
-            <option value="Xe đưa đón">Xe đưa đón</option>
-            <option value="Hoạt động ngoại khóa">Hoạt động ngoại khóa</option>
-            <option value="Khác">Khác</option>
-          </select>
+            <option value="">Nhập tay (không dùng mức thu có sẵn)</option>
+            {filteredFeeRates.map((rate) => (
+              <option key={rate.feeRateId} value={rate.feeRateId}>
+                {rate.feeCategoryName} · {rate.amount.toLocaleString("vi-VN")}đ
+                {rate.gradeName ? ` · Khối ${rate.gradeName}` : ""}
+                {rate.className ? ` · Lớp ${rate.className}` : ""}
+              </option>
+            ))}
+          </PrettySelect>
+        </StaffField>
+
+        <StaffField label="Loại phí">
+          <PrettySelect
+            className={inputClass}
+            value={form.feeCategoryId}
+            onChange={(event) => setField("feeCategoryId", event.target.value)}
+            disabled={Boolean(form.feeRateId)}
+            required
+          >
+            <option value="">Chọn loại phí</option>
+            {lookups.feeCategories?.map((category) => (
+              <option key={category.feeCategoryId} value={category.feeCategoryId}>
+                {category.name}
+              </option>
+            ))}
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Năm học">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.schoolYearId}
             onChange={(event) => setField("schoolYearId", event.target.value)}
@@ -182,11 +256,11 @@ function StaffFeeFormPage() {
                 {year.yearName}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Học kỳ">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.semesterId}
             onChange={(event) => setField("semesterId", event.target.value)}
@@ -197,17 +271,19 @@ function StaffFeeFormPage() {
                 {semester.semesterName}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Số tiền">
           <input
             type="number"
-            min="0"
+            min="1000"
             step="1000"
             className={inputClass}
             value={form.amount}
             onChange={(event) => setField("amount", event.target.value)}
+            disabled={Boolean(form.feeRateId)}
+            title={form.feeRateId ? "Số tiền lấy theo mức thu đã chọn ở trên" : undefined}
             required
           />
         </StaffField>
@@ -234,18 +310,18 @@ function StaffFeeFormPage() {
         </StaffField>
 
         <StaffField label="Trạng thái">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.status}
             onChange={(event) => setField("status", event.target.value)}
           >
             <option value="PUBLISHED">Công bố ngay</option>
             <option value="DRAFT">Lưu nháp</option>
-          </select>
+          </PrettySelect>
         </StaffField>
 
         <StaffField label="Phạm vi áp dụng">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.scopeType}
             onChange={(event) => setField("scopeType", event.target.value)}
@@ -254,12 +330,12 @@ function StaffFeeFormPage() {
             <option value="CLASS">Theo lớp</option>
             <option value="GRADE">Theo khối</option>
             <option value="SCHOOL">Toàn trường</option>
-          </select>
+          </PrettySelect>
         </StaffField>
 
         {form.scopeType === "STUDENT" && (
           <StaffField label="Học sinh">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.studentId}
               onChange={(event) => setField("studentId", event.target.value)}
@@ -271,13 +347,13 @@ function StaffFeeFormPage() {
                   {student.studentCode} - {student.fullName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
 
         {(form.scopeType === "CLASS" || form.scopeType === "GRADE") && (
           <StaffField label="Khối">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.gradeId}
               onChange={(event) => setField("gradeId", event.target.value)}
@@ -289,13 +365,13 @@ function StaffFeeFormPage() {
                   {grade.gradeName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
 
         {form.scopeType === "CLASS" && (
           <StaffField label="Lớp">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.classId}
               onChange={(event) => setField("classId", event.target.value)}
@@ -307,7 +383,7 @@ function StaffFeeFormPage() {
                   {classItem.className} - {classItem.schoolYearName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
         )}
 

@@ -1,198 +1,382 @@
 import { useRef, useState } from "react";
 import {
-    FiCheckCircle,
-    FiFile,
-    FiPaperclip,
-    FiSend,
-    FiTrash2,
-    FiUploadCloud,
+  FiAlertCircle,
+  FiCheckCircle,
+  FiFile,
+  FiLink,
+  FiSend,
+  FiTrash2,
+  FiUploadCloud,
 } from "react-icons/fi";
 
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const MAX_LINK_LENGTH = 500;
+const ALLOWED_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".zip",
+  ".txt",
+  ".csv",
+]);
+const FILE_ACCEPT = [...ALLOWED_EXTENSIONS].join(",");
+
+function getFileExtension(fileName = "") {
+  const lastDot = fileName.lastIndexOf(".");
+  return lastDot >= 0 ? fileName.slice(lastDot).toLowerCase() : "";
+}
+
+function validateFile(file) {
+  if (!file) return "";
+
+  if (file.size > MAX_FILE_SIZE) {
+    return "Tệp bài làm không được vượt quá 20 MB.";
+  }
+
+  if (!ALLOWED_EXTENSIONS.has(getFileExtension(file.name))) {
+    return "Chỉ hỗ trợ ảnh, PDF, Word, Excel, PowerPoint, ZIP, TXT hoặc CSV.";
+  }
+
+  return "";
+}
+
+function isValidHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function formatFileSize(size) {
-    if (!size) return "";
+  if (!size) return "";
 
-    const kb = size / 1024;
-    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const kb = size / 1024;
 
-    const mb = kb / 1024;
-    return `${mb.toFixed(1)} MB`;
+  if (kb < 1024) {
+    return `${kb.toFixed(1)} KB`;
+  }
+
+  return `${(kb / 1024).toFixed(1)} MB`;
 }
 
 function StudentHomeworkSubmitPanel({
-    disabled = false,
-    onSubmit,
+  disabled = false,
+  disabledReason = "",
+  defaultContent = "",
+  isResubmission = false,
+  onSubmit,
 }) {
-    const fileInputRef = useRef(null);
-    const [file, setFile] = useState(null);
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState("");
+  const fileInputRef = useRef(null);
 
-    function handleSelectFile(event) {
-        const selectedFile = event.target.files?.[0];
+  const [file, setFile] = useState(null);
+  const [link, setLink] = useState(defaultContent || "");
+  const [dragging, setDragging] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-        if (!selectedFile) return;
+  function selectFile(selectedFile) {
+    if (!selectedFile) return;
 
-        setFile(selectedFile);
-        setError("");
+    const validationError = validateFile(selectedFile);
+    if (validationError) {
+      setFile(null);
+      setError(validationError);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      return;
     }
 
-    function handleRemoveFile() {
-        setFile(null);
+    setFile(selectedFile);
+    setError("");
+  }
 
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
+  function handleDrop(event) {
+    event.preventDefault();
+    setDragging(false);
+
+    if (disabled || submitting) return;
+
+    selectFile(event.dataTransfer.files?.[0]);
+  }
+
+  function removeFile() {
+    setFile(null);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+
+    if (disabled) {
+      return;
     }
 
-    async function handleSubmit(event) {
-        event.preventDefault();
+    const normalizedLink = link.trim();
 
-        if (!file) {
-            setError("Vui lòng chọn file bài làm trước khi nộp.");
-            return;
-        }
-
-        setSubmitting(true);
-        setError("");
-
-        try {
-            await onSubmit({
-                content: "",
-                file,
-            });
-
-            setFile(null);
-
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
-        } catch (requestError) {
-            setError(requestError.message || "Nộp bài thất bại.");
-        } finally {
-            setSubmitting(false);
-        }
+    if (!file && !normalizedLink) {
+      setError(
+        "Vui lòng chọn tệp hoặc nhập đường dẫn bài làm.",
+      );
+      return;
     }
 
-    return (
-        <form
-            onSubmit={handleSubmit}
-            className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm"
+    if (normalizedLink.length > MAX_LINK_LENGTH) {
+      setError("Đường dẫn bài làm không được vượt quá 500 ký tự.");
+      return;
+    }
+
+    if (normalizedLink && !isValidHttpUrl(normalizedLink)) {
+      setError("Đường dẫn phải bắt đầu bằng http:// hoặc https://.");
+      return;
+    }
+
+    const fileError = validateFile(file);
+    if (fileError) {
+      setError(fileError);
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+
+    try {
+      await onSubmit({
+        content: normalizedLink,
+        file,
+      });
+
+      setFile(null);
+
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (requestError) {
+      setError(
+        requestError.message || "Nộp bài thất bại.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="
+        rounded-3xl border card-border
+        bg-white p-5 shadow-sm
+      "
+    >
+      <h3 className="mb-4 text-xl font-black text-[#0F2747]">
+        Nộp bài
+      </h3>
+
+      {error && (
+        <p
+          className="
+            mb-4 rounded-xl border border-red-100 bg-red-50
+            px-4 py-3 text-sm font-semibold leading-6 text-red-600
+          "
         >
-            <div className="mb-5 flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#FFF7F2] text-[#F27123]">
-                    <FiUploadCloud size={22} />
-                </div>
+          {error}
+        </p>
+      )}
 
-                <div>
-                    <h4 className="mb-1 text-xl font-black text-[#0F2747]">
-                        Nộp bài tập
-                    </h4>
+      {disabled && (
+        <div
+          className="
+            mb-4 flex items-start gap-3 rounded-xl
+            border border-amber-200 bg-amber-50
+            px-4 py-3 text-amber-800
+          "
+        >
+          <FiAlertCircle
+            className="mt-0.5 shrink-0"
+            size={18}
+          />
 
-                    <p className="mb-0 text-sm leading-6 text-slate-500">
-                        Chọn file bài làm của bạn và gửi cho giáo viên.
-                    </p>
-                </div>
+          <p className="mb-0 text-sm font-semibold leading-6">
+            {disabledReason ||
+              "Bài tập hiện không cho phép nộp hoặc cập nhật bài."}
+          </p>
+        </div>
+      )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={FILE_ACCEPT}
+        disabled={disabled || submitting}
+        className="hidden"
+        onChange={(event) =>
+          selectFile(event.target.files?.[0])
+        }
+      />
+
+      {!file ? (
+        <button
+          type="button"
+          disabled={disabled || submitting}
+          onClick={() => fileInputRef.current?.click()}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            setDragging(true);
+          }}
+          onDragOver={(event) => event.preventDefault()}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
+          className={`
+            mb-4 flex min-h-40 w-full flex-col items-center
+            justify-center rounded-xl border border-dashed
+            px-4 py-6 text-center transition
+            disabled:cursor-not-allowed disabled:opacity-55
+            ${
+              dragging
+                ? "border-[#F27123] bg-orange-50"
+                : "border-slate-300 bg-slate-50 hover:border-orange-300 hover:bg-orange-50/50"
+            }
+          `}
+        >
+          <span
+            className="
+              mb-3 grid h-11 w-11 place-items-center rounded-full
+              bg-white text-[#F27123] shadow-sm
+            "
+          >
+            <FiUploadCloud size={21} />
+          </span>
+
+          <strong className="text-sm text-[#0F2747]">
+            Kéo thả tệp vào đây
+          </strong>
+
+          <span className="mt-1 text-xs text-slate-400">
+            hoặc nhấn để chọn tệp từ máy tính
+          </span>
+        </button>
+      ) : (
+        <div
+          className="
+            mb-4 rounded-xl border border-emerald-100
+            bg-emerald-50 p-4
+          "
+        >
+          <div className="flex items-center gap-3">
+            <span
+              className="
+                grid h-11 w-11 shrink-0 place-items-center
+                rounded-lg bg-white text-emerald-600
+              "
+            >
+              <FiFile size={19} />
+            </span>
+
+            <div className="min-w-0 flex-1">
+              <p
+                className="
+                  mb-1 flex items-center gap-1.5 truncate
+                  text-sm font-extrabold text-[#0F2747]
+                "
+              >
+                <FiCheckCircle className="shrink-0 text-emerald-600" />
+                {file.name}
+              </p>
+
+              <p className="mb-0 text-xs text-slate-500">
+                {formatFileSize(file.size)} · Sẵn sàng để nộp
+              </p>
             </div>
 
-            {error && (
-                <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
-                    {error}
-                </div>
-            )}
+            <button
+              type="button"
+              onClick={removeFile}
+              disabled={disabled || submitting}
+              className="
+                grid h-8 w-8 shrink-0 place-items-center rounded-full
+                text-slate-400 transition
+                hover:bg-red-50 hover:text-red-600
+              "
+              aria-label="Xóa tệp đã chọn"
+            >
+              <FiTrash2 size={15} />
+            </button>
+          </div>
+        </div>
+      )}
 
-            {disabled && (
-                <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
-                    Bài tập đã đóng hoặc bài nộp đã được chấm, bạn không thể nộp lại.
-                </div>
-            )}
+      <label className="mb-4 block">
+        <span
+          className="
+            mb-2 flex items-center gap-1.5
+            text-xs font-extrabold uppercase
+            tracking-wide text-slate-500
+          "
+        >
+          <FiLink />
+          Link bài làm (Drive/Website)
+        </span>
 
-            <input
-                ref={fileInputRef}
-                type="file"
-                disabled={disabled || submitting}
-                className="hidden"
-                onChange={handleSelectFile}
-            />
+        <input
+          type="url"
+          value={link}
+          maxLength={MAX_LINK_LENGTH}
+          disabled={disabled || submitting}
+          onChange={(event) => {
+            setLink(event.target.value);
+            setError("");
+          }}
+          placeholder="https://docs.google.com/..."
+          className="
+            h-11 w-full rounded-xl border border-slate-200
+            px-3 text-sm text-slate-700 outline-none transition
+            placeholder:text-slate-400
+            focus:border-orange-300 focus:ring-2
+            focus:ring-orange-100 disabled:bg-slate-100
+          "
+        />
+      </label>
 
-            {!file && (
-                <button
-                    type="button"
-                    disabled={disabled || submitting}
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mb-4 flex w-full flex-col items-center justify-center rounded-3xl border border-dashed border-orange-200 bg-[#FFF7F2] px-5 py-7 text-center transition hover:border-[#F27123] hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                    <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#F27123] shadow-sm">
-                        <FiPaperclip size={22} />
-                    </div>
+      <button
+        type="submit"
+        disabled={
+          disabled ||
+          submitting ||
+          (!file && !link.trim())
+        }
+        className="
+          inline-flex h-11 w-full items-center justify-center
+          gap-2 rounded-xl bg-[#F27123] px-5
+          text-sm font-extrabold text-white shadow-sm transition
+          hover:bg-[#d95f17]
+          disabled:cursor-not-allowed disabled:bg-slate-300
+        "
+      >
+        <FiSend />
 
-                    <span className="text-sm font-black text-[#F27123]">
-                        Chọn file bài làm
-                    </span>
-
-                    <span className="mt-1 text-xs text-slate-500">
-                        PDF, Word, ảnh, file nén hoặc các định dạng bài làm khác
-                    </span>
-                </button>
-            )}
-
-            {file && (
-                <div className="mb-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-start gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-[#F27123]">
-                            <FiFile size={20} />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                            <div className="mb-1 flex items-center gap-2">
-                                <FiCheckCircle className="shrink-0 text-green-600" size={16} />
-
-                                <p className="mb-0 truncate text-sm font-black text-[#0F2747]">
-                                    {file.name}
-                                </p>
-                            </div>
-
-                            <p className="mb-0 text-xs text-slate-500">
-                                {formatFileSize(file.size)} · Sẵn sàng để nộp
-                            </p>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={handleRemoveFile}
-                            disabled={disabled || submitting}
-                            className="shrink-0 rounded-full p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-60"
-                            aria-label="Xóa file"
-                        >
-                            <FiTrash2 size={16} />
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            <div className="flex flex-wrap items-center justify-center gap-3">
-                {file && (
-                    <button
-                        type="button"
-                        disabled={disabled || submitting}
-                        onClick={() => fileInputRef.current?.click()}
-                        className="inline-flex items-center justify-center gap-2 !rounded-full border border-orange-200 bg-white px-5 py-2.5 text-sm font-bold text-[#F27123] transition hover:bg-[#FFF7F2] disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        <FiPaperclip size={16} />
-                        Chọn lại
-                    </button>
-                )}
-
-                <button
-                    type="submit"
-                    disabled={disabled || submitting || !file}
-                    className="inline-flex min-w-[150px] items-center justify-center gap-2 !rounded-full border border-[#F27123] bg-[#F27123] px-7 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#d95f17] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                    <FiSend size={16} />
-                    {submitting ? "Đang nộp..." : "Nộp bài"}
-                </button>
-            </div>
-        </form>
-    );
+        {submitting
+          ? "Đang nộp..."
+          : isResubmission
+            ? "Cập nhật bài nộp"
+            : "Nộp bài"}
+      </button>
+    </form>
+  );
 }
 
 export default StudentHomeworkSubmitPanel;

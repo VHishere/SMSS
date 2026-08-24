@@ -3,8 +3,13 @@ import { Link, useParams } from "react-router-dom";
 
 import { staffApi } from "../../../api/client";
 import StaffDetailCard, { StaffDetailItem } from "../../../components/staff/StaffDetailCard";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  cancelLinkClass,
+  inputClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const WEEK_DAYS = [
   { value: "", label: "Chưa xếp lịch" },
@@ -20,6 +25,15 @@ const SESSION_PARTS = [
   { value: "MORNING", label: "Buổi sáng" },
   { value: "AFTERNOON", label: "Buổi chiều" },
 ];
+
+function displaySessionName(session) {
+  const name = String(session.sessionName || "");
+  if (name.includes("Buá") || name.includes("Bu?") || name.includes("Bu�")) {
+    const subjectName = name.split(" - ").slice(1).join(" - ");
+    return `Buổi ${session.sessionNo}${subjectName ? ` - ${subjectName}` : ""}`;
+  }
+  return name;
+}
 
 function StaffCurriculumDetailPage() {
   const { id } = useParams();
@@ -77,7 +91,7 @@ function StaffCurriculumDetailPage() {
   const handleEditSession = (session) => {
     setEditingSession(session.sessionId);
     setSessionForm({
-      sessionName: session.sessionName,
+      sessionName: displaySessionName(session),
       dayOfWeek: session.dayOfWeek ? String(session.dayOfWeek) : "",
       periodNo: session.periodNo || "",
       startTime: session.startTime || "",
@@ -121,12 +135,8 @@ function StaffCurriculumDetailPage() {
     <>
       <StaffPageHeader
         title={curriculum.subjectName}
-        description={`${curriculum.schoolYearName} · ${curriculum.semesterName}`}
         action={
-          <Link
-            to="/staff/curriculum"
-            className="rounded-xl border border-[#08509F] px-4 py-2 text-sm font-semibold text-[#08509F] no-underline"
-          >
+          <Link to="/staff/curriculum" className={cancelLinkClass}>
             Quay lại
           </Link>
         }
@@ -161,6 +171,7 @@ function StaffCurriculumDetailPage() {
           onSubmit={handleUpdateCurriculum}
           submitLabel="Lưu chương trình"
           loading={saving}
+          footer="Thay đổi này áp dụng cho chương trình học hiện tại."
         >
           <StaffField label="Số buổi/tuần">
             <input
@@ -200,14 +211,14 @@ function StaffCurriculumDetailPage() {
                   <th className="px-4 py-2 text-left">Thứ</th>
                   <th className="px-4 py-2 text-left">Tiết</th>
                   <th className="px-4 py-2 text-left">Thời gian</th>
-                  <th className="px-4 py-2 text-left">Buổi</th>
+                  <th className="px-4 py-2 text-left">Ca học</th>
                   <th className="px-4 py-2 text-left" />
                 </tr>
               </thead>
               <tbody>
                 {curriculum.sessions.map((session) => (
                   <tr key={session.sessionId} className="border-t border-slate-100">
-                    <td className="px-4 py-3 font-semibold">{session.sessionName}</td>
+                    <td className="px-4 py-3 font-semibold">{displaySessionName(session)}</td>
                     <td className="px-4 py-3">
                       {WEEK_DAYS.find((day) => Number(day.value) === session.dayOfWeek)
                         ?.label || "—"}
@@ -248,6 +259,7 @@ function StaffCurriculumDetailPage() {
             onSubmit={handleSaveSession}
             submitLabel="Lưu buổi học"
             loading={saving}
+            footer="Cập nhật buổi học để đồng bộ với lịch học thực tế."
           >
             <StaffField label="Tên buổi học" className="md:col-span-2">
               <input
@@ -263,7 +275,7 @@ function StaffCurriculumDetailPage() {
               />
             </StaffField>
             <StaffField label="Thứ">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={sessionForm.dayOfWeek}
                 onChange={(e) =>
@@ -278,7 +290,7 @@ function StaffCurriculumDetailPage() {
                     {day.label}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </StaffField>
             <StaffField label="Tiết">
               <input
@@ -322,7 +334,7 @@ function StaffCurriculumDetailPage() {
               />
             </StaffField>
             <StaffField label="Buổi trong ngày">
-              <select
+              <PrettySelect
                 className={inputClass}
                 value={sessionForm.sessionPart}
                 onChange={(e) =>
@@ -337,13 +349,13 @@ function StaffCurriculumDetailPage() {
                     {part.label}
                   </option>
                 ))}
-              </select>
+              </PrettySelect>
             </StaffField>
             <div className="md:col-span-2 flex justify-end">
               <button
                 type="button"
                 onClick={() => setEditingSession(null)}
-                className="mr-3 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600"
+                className={cancelLinkClass}
               >
                 Hủy
               </button>

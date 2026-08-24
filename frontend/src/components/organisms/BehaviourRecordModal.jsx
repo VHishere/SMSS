@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { behaviourApi, homeworkApi } from "../../api/client";
@@ -14,13 +15,31 @@ function todayLocal() {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// Mức độ vi phạm được suy ra từ điểm trừ + danh mục đang chọn, thay vì phải
+// đọc số điểm bên cạnh từng danh mục rồi tự chọn. Danh mục vốn đã được admin
+// đánh dấu "mặc định ảnh hưởng hạnh kiểm" luôn là nghiêm trọng; còn lại xếp
+// theo thang điểm trừ (khớp mức điểm seed: 2 → nhẹ, 5 → trung bình, 10 → nặng).
+const SEVERITY_THRESHOLDS = [
+  { min: 10, level: "HIGH" },
+  { min: 5, level: "MEDIUM" },
+];
+
+function suggestSeverity(points, category) {
+  if (category?.affectsConductDefault) return "HIGH";
+  const p = Number(points);
+  if (!Number.isFinite(p)) return "LOW";
+  return SEVERITY_THRESHOLDS.find((t) => p >= t.min)?.level ?? "LOW";
+}
+
+const SEVERITY_LABEL = { LOW: "Nhẹ", MEDIUM: "Trung bình", HIGH: "Nghiêm trọng" };
+
 /**
  * mode: "create" | "edit"
  * behaviorType: "POSITIVE" | "VIOLATION"
  * students: [{ studentId, studentName, studentCode }]  (create mode)
  * record: existing record (edit mode)
  */
-function BehaviourRecordModal({ mode, behaviorType, students = [], record = null, categories = [], onClose, onSaved }) {
+function BehaviourRecordModal({ mode, behaviorType, students = [], record = null, categories = [], api = behaviourApi, onClose, onSaved }) {
   const isEdit = mode === "edit";
   const type = isEdit ? record.behaviorType : behaviorType;
   const isMerit = type === "POSITIVE";
@@ -30,6 +49,8 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
   const [category,     setCategory]     = useState(record?.category ?? "");
   const [points,       setPoints]       = useState(record?.points ?? (isMerit ? 5 : 2));
   const [severityLevel, setSeverityLevel] = useState(record?.severityLevel ?? "LOW");
+  // Khi người dùng tự chọn mức độ thì ngừng ghi đè tự động.
+  const [severityTouched, setSeverityTouched] = useState(false);
   const [affectsConduct, setAffectsConduct] = useState(record?.affectsConduct ?? false);
   const [recordDate,   setRecordDate]   = useState(toLocalDate(record?.recordDate) || new Date().toISOString().slice(0, 10));
   const [description,  setDescription]  = useState(record?.description ?? "");
@@ -84,9 +105,9 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
         evidenceUrl: evidence?.fileUrl ?? null,
       };
       if (isEdit) {
-        await behaviourApi.updateRecord(record.behaviorId, body);
+        await api.updateRecord(record.behaviorId, body);
       } else {
-        await behaviourApi.createRecord({ ...body, studentId: Number(studentId), behaviorType: type });
+        await api.createRecord({ ...body, studentId: Number(studentId), behaviorType: type });
       }
       onSaved();
     } catch (err) {
@@ -94,6 +115,22 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
     } finally {
       setSaving(false);
     }
+  }
+
+  const selectedCategory = categories.find((c) => c.key === category) ?? null;
+  const autoSeverity = suggestSeverity(points, selectedCategory);
+
+  function applyCategory(nextCategory) {
+    setCategory(nextCategory);
+    const match = categories.find((c) => c.key === nextCategory) ?? null;
+    const nextPoints = match?.points ? match.points : points;
+    if (match?.points) setPoints(match.points);
+    if (!isMerit && !severityTouched) setSeverityLevel(suggestSeverity(nextPoints, match));
+  }
+
+  function applyPoints(nextPoints) {
+    setPoints(nextPoints);
+    if (!isMerit && !severityTouched) setSeverityLevel(suggestSeverity(nextPoints, selectedCategory));
   }
 
   const accent = isMerit ? "#16A34A" : "#DC2626";
@@ -114,10 +151,10 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
           {!isEdit ? (
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Học sinh <span className="text-red-500">*</span></label>
-              <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
+              <PrettySelect value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
                 <option value="">— Chọn học sinh —</option>
                 {students.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName} ({s.studentCode})</option>)}
-              </select>
+              </PrettySelect>
             </div>
           ) : (
             <div className="rounded-3xl px-3 py-2 text-sm" style={{ backgroundColor: "#F3F3F3", border: "1px solid #DFC0B2", color: "#1A1C1C" }}>
@@ -133,10 +170,12 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
 
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Danh mục <span className="text-red-500">*</span></label>
-            <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
+            <PrettySelect value={category} onChange={(e) => applyCategory(e.target.value)} className={inputCls}>
               <option value="">— Chọn danh mục —</option>
-              {categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-            </select>
+              {categories.map((c) => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </PrettySelect>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -144,7 +183,8 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
               <label className="mb-1.5 block text-xs font-medium text-slate-600">
                 {isMerit ? "Điểm thưởng" : "Điểm trừ"} <span className="text-red-500">*</span>
               </label>
-              <input type="number" min="1" step="1" value={points} onChange={(e) => setPoints(e.target.value)} className={inputCls} />
+              <input type="number" min="1" step="1" value={points} onChange={(e) => applyPoints(e.target.value)} className={inputCls} />
+              <p className="mt-1 text-xs text-slate-400">Điền sẵn theo danh mục, có thể sửa.</p>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Ngày <span className="text-red-500">*</span></label>
@@ -155,11 +195,29 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
           {!isMerit && (
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Mức độ</label>
-              <select value={severityLevel} onChange={(e) => setSeverityLevel(e.target.value)} className={inputCls}>
+              <PrettySelect
+                value={severityLevel}
+                onChange={(e) => { setSeverityTouched(true); setSeverityLevel(e.target.value); }}
+                className={inputCls}
+              >
                 <option value="LOW">Nhẹ</option>
                 <option value="MEDIUM">Trung bình</option>
                 <option value="HIGH">Nghiêm trọng</option>
-              </select>
+              </PrettySelect>
+              {severityTouched && severityLevel !== autoSeverity ? (
+                <p className="mt-1 text-xs text-slate-400">
+                  Đang đặt thủ công (tự động: {SEVERITY_LABEL[autoSeverity]}).{" "}
+                  <button
+                    type="button"
+                    onClick={() => { setSeverityTouched(false); setSeverityLevel(autoSeverity); }}
+                    className="font-semibold text-[#225DAD] hover:underline"
+                  >
+                    Dùng mức tự động
+                  </button>
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-slate-400">Tự động theo điểm trừ và danh mục đã chọn.</p>
+              )}
               <label className="mt-2.5 flex items-start gap-2 text-sm" style={{ color: "#1A1C1C" }}>
                 <input type="checkbox" checked={affectsConduct} onChange={(e) => setAffectsConduct(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[#DC2626]" />
                 <span>

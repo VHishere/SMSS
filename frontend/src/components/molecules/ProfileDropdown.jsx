@@ -1,20 +1,13 @@
 import { forwardRef } from "react";
-
 import Dropdown from "react-bootstrap/Dropdown";
-
 import { useNavigate } from "react-router-dom";
-
 import {
   FiChevronDown,
   FiLogOut,
-  FiSettings,
   FiUser,
 } from "react-icons/fi";
 
-import {
-  useAuth,
-} from "../../context/useAuth";
-
+import { useAuth } from "../../context/useAuth";
 import UserAvatar from "../atoms/UserAvatar";
 
 const ProfileToggle = forwardRef(
@@ -27,8 +20,6 @@ const ProfileToggle = forwardRef(
     ref,
   ) {
     if (variant === "stitch") {
-      // FSchool Teacher Portal (Stitch design):
-      // right-aligned name + uppercase role, avatar with orange ring
       return (
         <button
           ref={ref}
@@ -113,9 +104,30 @@ function ProfileDropdown({ user, variant = "default" }) {
   const canViewStudentProfile =
     roleNames.includes("STUDENT");
 
+  const canViewAdminProfile =
+    roleNames.includes("ADMIN");
+
+  const canViewStaffProfile =
+    roleNames.includes("STAFF");
+
+  const canViewProfile =
+    canViewStudentProfile ||
+    canViewAdminProfile ||
+    canViewStaffProfile;
+
   const handleViewProfile = () => {
     if (canViewStudentProfile) {
       navigate("/student/profile");
+      return;
+    }
+
+    if (canViewAdminProfile) {
+      navigate("/admin/profile");
+      return;
+    }
+
+    if (canViewStaffProfile) {
+      navigate("/staff/profile");
     }
   };
 
@@ -152,34 +164,29 @@ function ProfileDropdown({ user, variant = "default" }) {
           </p>
         </div>
 
-        <Dropdown.Item
-          as="button"
-          onClick={handleViewProfile}
-          disabled={!canViewStudentProfile}
-          className="
-            flex items-center gap-3
-            rounded-lg px-3 py-2
-            text-sm
-          "
-        >
-          <FiUser size={17} />
-          Hồ sơ cá nhân
-        </Dropdown.Item>
+        {/* Chỉ hiện "Hồ sơ cá nhân" khi role đó THỰC SỰ có trang hồ sơ
+            (student / admin / staff). Các role còn lại (giáo viên, phụ huynh,
+            quản nhiệm) chưa có trang hồ sơ → menu chỉ còn nút Đăng xuất, thay vì
+            hiện mục xám bấm không được. Mục "Cài đặt" cũng bỏ vì luôn disabled,
+            không có chức năng. */}
+        {canViewProfile && (
+          <>
+            <Dropdown.Item
+              as="button"
+              onClick={handleViewProfile}
+              className="
+                flex items-center gap-3
+                rounded-lg px-3 py-2
+                text-sm
+              "
+            >
+              <FiUser size={17} />
+              Hồ sơ cá nhân
+            </Dropdown.Item>
 
-        <Dropdown.Item
-          as="button"
-          disabled
-          className="
-            flex items-center gap-3
-            rounded-lg px-3 py-2
-            text-sm
-          "
-        >
-          <FiSettings size={17} />
-          Cài đặt
-        </Dropdown.Item>
-
-        <Dropdown.Divider />
+            <Dropdown.Divider />
+          </>
+        )}
 
         <Dropdown.Item
           as="button"

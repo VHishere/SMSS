@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import BehaviourRecordModal from "../../components/organisms/BehaviourRecordModal";
 import ConductEvaluationModal from "../../components/organisms/ConductEvaluationModal";
 import BehaviourWarningModal from "../../components/organisms/BehaviourWarningModal";
@@ -136,10 +137,10 @@ function OverviewTab({ records, warnings, students, meritCategories, catMap, onC
       <div className="overflow-hidden rounded-3xl bg-white shadow-sm lg:col-span-2" style={{ border: `1px solid ${C.border}` }}>
         <div className="flex items-center justify-between border-b p-5" style={{ borderColor: C.border }}>
           <h4 className="font-bold" style={{ color: C.onSurface }}>Ghi nhận gần đây</h4>
-          <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="rounded-lg border bg-white px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={selStyle}>
+          <PrettySelect value={catFilter} onChange={(e) => setCatFilter(e.target.value)} className="rounded-lg border bg-white px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={selStyle}>
             <option value="">Tất cả các mục</option>
             {catOptions.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-          </select>
+          </PrettySelect>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -218,10 +219,10 @@ function OverviewTab({ records, warnings, students, meritCategories, catMap, onC
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-xs" style={{ color: C.muted }}>Học sinh</label>
-              <select value={qaStudent} onChange={(e) => setQaStudent(e.target.value)} className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={selStyle}>
+              <PrettySelect value={qaStudent} onChange={(e) => setQaStudent(e.target.value)} className="w-full rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={selStyle}>
                 <option value="">Chọn học sinh...</option>
                 {students.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName}</option>)}
-              </select>
+              </PrettySelect>
             </div>
             <div>
               <label className="mb-1 block text-xs" style={{ color: C.muted }}>Mức điểm</label>
@@ -445,12 +446,12 @@ function WarningsTab({ classId, semesterId }) {
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls} style={selStyle}>
+        <PrettySelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={selectCls} style={selStyle}>
           <option value="">Tất cả trạng thái</option>
           <option value="OPEN">Mở</option>
           <option value="IN_PROGRESS">Đang can thiệp</option>
           <option value="RESOLVED">Đã xử lý</option>
-        </select>
+        </PrettySelect>
         <div className="flex items-center gap-3">
           {genMsg && <span className="text-xs text-slate-500">{genMsg}</span>}
           <button type="button" onClick={handleGenerate} disabled={generating}
@@ -584,12 +585,12 @@ function BehaviourPage() {
             <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
               <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Quản lý nề nếp</h2>
               <div className="flex flex-wrap items-center gap-2">
-                <select value={effClassId} onChange={(e) => setClassId(e.target.value)} className={selectCls} style={selStyle}>
+                <PrettySelect value={effClassId} onChange={(e) => setClassId(e.target.value)} className={selectCls} style={selStyle}>
                   {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-                </select>
-                <select value={effSemesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls} style={selStyle}>
+                </PrettySelect>
+                <PrettySelect value={effSemesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls} style={selStyle}>
                   {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-                </select>
+                </PrettySelect>
                 <button type="button" onClick={exportCsv} className="flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90" style={{ backgroundColor: C.secondary }}>
                   <Ms name="file_download" className="!text-[18px]" /> Xuất báo cáo
                 </button>

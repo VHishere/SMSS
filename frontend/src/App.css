@@ -49,19 +49,20 @@
     margin-bottom: 0.5rem;
 }
 
-.brand-mark {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 3rem;
-    height: 2rem;
-    padding: 0 0.75rem;
-    border-radius: 999px;
-    background: var(--orange);
-    color: #fff;
-    font-size: 0.8rem;
-    font-weight: 800;
-    letter-spacing: 0.06em;
+.login-brand {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+}
+
+.login-brand .brand-logo {
+    align-self: center;
+}
+
+.brand-logo {
+    height: 4.5rem;
+    width: auto;
+    object-fit: contain;
 }
 
 .eyebrow {

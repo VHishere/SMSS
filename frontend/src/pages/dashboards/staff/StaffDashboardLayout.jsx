@@ -14,9 +14,7 @@ function StaffDashboardLayout() {
     staffApi
       .getOverview()
       .then((response) => {
-        setSchoolYearName(
-          response.data.schoolYearName || "Chưa cập nhật",
-        );
+        setSchoolYearName(response.data.schoolYearName || "Chưa cập nhật");
       })
       .catch(() => {
         setSchoolYearName("Chưa cập nhật");

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import DashboardShell from "../../components/templates/DashboardShell";
 import WeeklyTimetable from "../../components/organisms/WeeklyTimetable";
 import SubstitutionModal from "../../components/organisms/SubstitutionModal";
@@ -12,6 +13,25 @@ function Ms({ name, className = "", style }) {
   return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>;
 }
 function initials(n) { const p = (n || "").trim().split(/\s+/); return p.length ? (p.length === 1 ? p[0][0] : p[0][0] + p[p.length - 1][0]).toUpperCase() : "?"; }
+function normalizeText(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+function canTeachLesson(candidate, lesson) {
+  const subjectId = Number(lesson?.subjectId);
+  if (subjectId && candidate.subjectIds?.map(Number).includes(subjectId)) return true;
+  const specialize = normalizeText(candidate.subjectSpecialize);
+  const subjectName = normalizeText(lesson?.subjectName);
+  const subjectCode = normalizeText(lesson?.subjectCode);
+  if (!specialize || (!subjectName && !subjectCode)) return false;
+  return specialize === subjectName
+    || specialize === subjectCode
+    || specialize.includes(subjectName)
+    || subjectName.includes(specialize);
+}
 
 const TABS = [
   { key: "schedule", label: "Thời khóa biểu", ms: "calendar_month" },
@@ -34,6 +54,7 @@ const AVA = ["#00458E", "#225DAD", "#4A5F82", "#F27123"];
 
 function TeacherTimetablePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState("schedule");
   const [subTab, setSubTab] = useState("create");
   const [tt, setTt] = useState(null);
@@ -68,6 +89,15 @@ function TeacherTimetablePage() {
   }, [tt, user]);
 
   const myLessons = tt?.lessons ?? [];
+  const matchingCandidates = useMemo(
+    () => meta.candidates
+      .map((candidate) => ({
+        ...candidate,
+        matchedLesson: myLessons.find((lesson) => canTeachLesson(candidate, lesson)),
+      }))
+      .filter((candidate) => candidate.matchedLesson),
+    [meta.candidates, myLessons],
+  );
   const items = subs?.items ?? [];
   const processing = items.filter((s) => s.status === "PENDING");
   const history = items.filter((s) => ["APPROVED", "REJECTED", "CANCELLED"].includes(s.status));
@@ -75,6 +105,30 @@ function TeacherTimetablePage() {
   async function cancel(id) {
     if (!window.confirm("Hủy yêu cầu này?")) return;
     try { await timetableApi.cancelSubstitution(id); setRefresh((k) => k + 1); } catch (e) { alert(e.message); }
+  }
+
+  const todayKey = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }, []);
+
+  function getLessonDate(lesson, day) {
+    return lesson?.lessonDate || day?.date || todayKey;
+  }
+
+  function canOpenAttendance(lesson, day) {
+    return getLessonDate(lesson, day) <= todayKey;
+  }
+
+  function openAttendance(lesson, day) {
+    if (!lesson || !canOpenAttendance(lesson, day)) return;
+    const lessonDate = getLessonDate(lesson, day);
+    navigate(
+      `/teacher/attendance?tab=roll-call&date=${lessonDate}&timetableId=${lesson.timetableId}`,
+    );
   }
 
   function reqCard(s) {
@@ -125,7 +179,17 @@ function TeacherTimetablePage() {
           {!loading && !error && tt && (
             tt.lessons.length === 0
               ? <div className="rounded-3xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: `1px solid ${C.border}` }}>Chưa có tiết dạy nào trong thời khóa biểu.</div>
-              : <WeeklyTimetable weekDays={tt.weekDays} slots={tt.slots} lessons={tt.lessons} />
+              : (
+                <WeeklyTimetable
+                  weekDays={tt.weekDays}
+                  slots={tt.slots}
+                  lessons={tt.lessons}
+                  onLessonClick={(lesson, day) => openAttendance(lesson, day)}
+                  getLessonActionLabel={(lesson, day) =>
+                    canOpenAttendance(lesson, day) ? "Mở điểm danh" : undefined
+                  }
+                />
+              )
           )}
         </>
       )}
@@ -172,7 +236,7 @@ function TeacherTimetablePage() {
               <div className="col-span-12 lg:col-span-8">
                 <h3 className="mb-4 font-bold" style={{ color: C.onSurface }}>Đồng nghiệp có thể nhận dạy thay</h3>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {meta.candidates.map((c, i) => (
+                  {matchingCandidates.map((c, i) => (
                     <div key={c.teacherId} className="flex flex-col rounded-3xl bg-white p-4 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
                       <div className="mb-3 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-3">
@@ -181,7 +245,7 @@ function TeacherTimetablePage() {
                         </div>
                         <span className="rounded px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: "rgba(34,93,173,0.1)", color: C.secondary }}>Có thể nhận</span>
                       </div>
-                      <button type="button" onClick={() => setModal({ initialMode: "SPECIFIC", initialTeacherId: c.teacherId })} className="mt-auto flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-bold text-white transition-all hover:opacity-90 active:scale-95" style={{ backgroundColor: C.orange }}>
+                      <button type="button" onClick={() => setModal({ initialMode: "SPECIFIC", initialTeacherId: c.teacherId, initialTimetableId: c.matchedLesson?.timetableId })} className="mt-auto flex items-center justify-center gap-2 rounded-full py-2.5 text-sm font-bold text-white transition-all hover:opacity-90 active:scale-95" style={{ backgroundColor: C.orange }}>
                         Đề nghị dạy thay <Ms name="arrow_forward" className="!text-[16px]" />
                       </button>
                     </div>
@@ -192,7 +256,7 @@ function TeacherTimetablePage() {
                     <button type="button" onClick={() => setModal({ initialMode: "BOARD" })} className="rounded-full border px-4 py-1.5 text-xs font-bold" style={{ borderColor: C.orange, color: C.orange }}>Đăng yêu cầu chung</button>
                   </div>
                 </div>
-                {meta.candidates.length === 0 && <p className="mt-3 text-xs text-slate-400">Chưa có đồng nghiệp khả dụng — bạn vẫn có thể “Đăng yêu cầu chung” để quản lý sắp xếp.</p>}
+                {matchingCandidates.length === 0 && <p className="mt-3 text-xs text-slate-400">Chưa có đồng nghiệp cùng chuyên môn phù hợp. Bạn vẫn có thể đăng yêu cầu chung để quản lý sắp xếp.</p>}
               </div>
             </div>
           )}

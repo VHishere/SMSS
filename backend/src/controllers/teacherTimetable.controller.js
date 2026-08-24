@@ -5,6 +5,50 @@ const { WEEK_DAYS, TIMETABLE_SLOTS } = require("../config/timetable.config");
 
 const REQUEST_TYPES = ["SUBSTITUTE", "SWAP", "CANCEL"];
 
+function toDateOnly(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateOrToday(value) {
+  if (!value) return new Date();
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function getSchoolWeek(dateValue) {
+  const start = parseDateOrToday(dateValue);
+  const day = start.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  start.setDate(start.getDate() + diffToMonday);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 5);
+
+  return {
+    startDate: toDateOnly(start),
+    endDate: toDateOnly(end),
+  };
+}
+
+function withWeekDates(startDate) {
+  const start = new Date(`${startDate}T00:00:00`);
+  return WEEK_DAYS.map((day, index) => {
+    const current = new Date(start);
+    current.setDate(start.getDate() + index);
+    const isoDate = toDateOnly(current);
+    const [, month, date] = isoDate.split("-");
+    return {
+      ...day,
+      date: isoDate,
+      dateLabel: `${date}/${month}`,
+    };
+  });
+}
+
 async function resolveTeacher(userId) {
   const profile = await teacherModel.findProfileByUserId(userId);
   if (!profile) return null;
@@ -31,12 +75,13 @@ async function getMyTimetable(req, res) {
     const teacher = await resolveTeacher(req.user.userId);
     if (!teacher) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
-    const lessons = await timetableModel.findLessonsByTeacherId(teacher.teacherId);
+    const week = getSchoolWeek(req.query.date);
+    const lessons = await timetableModel.findLessonsByTeacherId(teacher.teacherId, week);
     return res.json({
       success: true,
       data: {
-        context: { fullName: teacher.fullName },
-        weekDays: WEEK_DAYS.map((d) => ({ value: d.value, label: d.label })),
+        context: { fullName: teacher.fullName, ...week },
+        weekDays: withWeekDates(week.startDate),
         slots: TIMETABLE_SLOTS,
         lessons,
       },
@@ -52,8 +97,9 @@ async function getSubstitutionMeta(req, res) {
     const teacher = await resolveTeacher(req.user.userId);
     if (!teacher) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ giáo viên" });
 
+    const week = getSchoolWeek(req.query.date);
     const [lessons, candidates] = await Promise.all([
-      timetableModel.findLessonsByTeacherId(teacher.teacherId),
+      timetableModel.findLessonsByTeacherId(teacher.teacherId, week),
       timetableModel.findTeacherCandidates(teacher.teacherId),
     ]);
 
@@ -127,11 +173,17 @@ async function createSubstitution(req, res) {
     }
 
     if (requestType === "SUBSTITUTE") {
-      if (!substituteTeacherId) {
-        return res.status(400).json({ success: false, message: "Vui lòng chọn giáo viên dạy thay" });
-      }
-      if (parseInt(substituteTeacherId, 10) === teacher.teacherId) {
+      if (substituteTeacherId && parseInt(substituteTeacherId, 10) === teacher.teacherId) {
         return res.status(400).json({ success: false, message: "Giáo viên dạy thay phải khác giáo viên yêu cầu" });
+      }
+      if (substituteTeacherId) {
+        const canTeach = await timetableModel.teacherCanTeachSubject(
+          parseInt(substituteTeacherId, 10),
+          lesson.subjectId,
+        );
+        if (!canTeach) {
+          return res.status(400).json({ success: false, message: "Giáo viên dạy thay không đúng chuyên môn của tiết học" });
+        }
       }
     }
     if (requestType === "SWAP" && !swapTimetableId) {
@@ -142,6 +194,13 @@ async function createSubstitution(req, res) {
       if (!swapLesson || swapLesson.teacherId !== teacher.teacherId) {
         return res.status(400).json({ success: false, message: "Tiết hoán đổi không hợp lệ" });
       }
+    }
+    const hasOpenRequest = await timetableModel.hasOpenSubstitutionForLesson(
+      parseInt(timetableId, 10),
+      targetDate,
+    );
+    if (hasOpenRequest) {
+      return res.status(409).json({ success: false, message: "Tiết học này đã có yêu cầu đang chờ duyệt hoặc đã duyệt" });
     }
 
     const substitutionId = await timetableModel.createSubstitution({
@@ -154,10 +213,10 @@ async function createSubstitution(req, res) {
       reason: reason.trim(),
     });
 
-    // Notify admins for review (UC-84 is the Admin side)
+    // Staff reviews the request before the selected lesson/date changes.
     try {
-      const admins = await timetableModel.findAdminUserIds();
-      await notify(admins, "Yêu cầu đổi tiết mới",
+      const staffUsers = await timetableModel.findStaffUserIds();
+      await notify(staffUsers, "Yêu cầu đổi tiết mới",
         `${teacher.fullName} gửi yêu cầu ${requestType} cho tiết ${lesson.subjectName} (${lesson.className}) ngày ${targetDate}.`);
     } catch (e) { console.error("substitution notify (non-critical):", e); }
 

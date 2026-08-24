@@ -4,13 +4,20 @@
 // dropdowns...) imports one source of truth instead of redeclaring the role
 // list in each file.
 export const STITCH_ROLES = [
+  "STAFF",
   "HOMEROOM_TEACHER",
   "SUBJECT_TEACHER",
   "DORM_SUPERVISOR",
   "PARENT",
   "ADMIN",
+  "STUDENT",
 ];
 
 export function isStitchUser(user) {
-  return Boolean(user?.roles?.some((r) => STITCH_ROLES.includes(r.roleName)));
+  return Boolean(
+    user?.roles?.some((role) => {
+      const roleName = typeof role === "string" ? role : role.roleName;
+      return STITCH_ROLES.includes(roleName);
+    }),
+  );
 }

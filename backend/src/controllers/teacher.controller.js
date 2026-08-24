@@ -1,4 +1,6 @@
 const teacherModel = require("../models/teacher.model");
+const notificationModel = require("../models/notification.model");
+const { toIsoDate } = require("../utils/date");
 
 async function getMyProfile(req, res) {
   try {
@@ -62,13 +64,13 @@ async function getDashboardSummary(req, res) {
     }
 
     const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
+    const todayStr = toIsoDate(now);
 
     const dayOfWeek = now.getDay();
     const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const monday = new Date(now);
     monday.setDate(now.getDate() - daysFromMonday);
-    const mondayStr = monday.toISOString().split("T")[0];
+    const mondayStr = toIsoDate(monday);
 
     const [
       todayAttendance,
@@ -150,10 +152,11 @@ async function getNotifications(req, res) {
       });
     }
 
-    const [alerts, school, pendingLeaveRequests] = await Promise.all([
+    const [alerts, school, pendingLeaveRequests, readKeys] = await Promise.all([
       teacherModel.findStudentAlertFeed(profile.teacherId),
       teacherModel.findHomeroomAnnouncements(profile.teacherId),
       teacherModel.findPendingLeaveRequestCount(profile.teacherId),
+      notificationModel.findReadFeedKeys(req.user.userId),
     ]);
 
     const system = [];
@@ -169,6 +172,13 @@ async function getNotifications(req, res) {
 
     const newAlerts = alerts.filter((a) => a.status === "OPEN").length;
 
+    // Chưa đọc = mục còn phải xử lý VÀ chưa được đánh dấu đã đọc
+    // (notification_read_state — bền theo tài khoản, không phụ thuộc trình duyệt).
+    const readSet = new Set(readKeys);
+    const unread =
+      system.filter((t) => !readSet.has(`sys-${t.key}`)).length +
+      alerts.filter((a) => a.status === "OPEN" && !readSet.has(`alert-${a.warningId}`)).length;
+
     return res.json({
       success: true,
       data: {
@@ -176,8 +186,9 @@ async function getNotifications(req, res) {
         counts: {
           total: school.length + alerts.length + system.length,
           newAlerts,
-          unread: newAlerts + system.length,
+          unread,
         },
+        readKeys,
         school,
         alerts,
         system,
@@ -192,4 +203,20 @@ async function getNotifications(req, res) {
   }
 }
 
-module.exports = { getMyProfile, getDashboardSummary, getNotifications };
+// ── POST /teachers/notifications/read  body: { key } ─────────────────────────
+// Đánh dấu 1 mục trong feed GVCN là đã đọc (ghi notification_read_state).
+async function markNotificationRead(req, res) {
+  try {
+    const key = String(req.body?.key || "").trim();
+    if (!key || key.length > 100) {
+      return res.status(400).json({ success: false, message: "Khoá thông báo không hợp lệ" });
+    }
+    await notificationModel.markFeedKeyRead(req.user.userId, key);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("teacher.markNotificationRead error:", error);
+    return res.status(500).json({ success: false, message: "Không thể đánh dấu đã đọc" });
+  }
+}
+
+module.exports = { getMyProfile, getDashboardSummary, getNotifications, markNotificationRead };

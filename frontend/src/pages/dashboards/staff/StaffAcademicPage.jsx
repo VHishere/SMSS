@@ -66,7 +66,6 @@ function StaffAcademicPage() {
     <>
       <StaffPageHeader
         title="Quản lý thông tin học tập"
-        description="Theo dõi điểm số, môn học và học kỳ của học sinh"
         action={
           <button
             type="button"
@@ -86,7 +85,6 @@ function StaffAcademicPage() {
 
       <StaffDataTable
         title="Kết quả học tập"
-        description={`${rows.length} bản ghi điểm`}
         searchValue={search}
         onSearchChange={setSearch}
         searchPlaceholder="Tìm theo học sinh, môn học, học kỳ..."

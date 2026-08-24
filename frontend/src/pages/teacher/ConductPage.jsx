@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import ConductEvaluationModal from "../../components/organisms/ConductEvaluationModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
@@ -206,7 +207,7 @@ function ConductPage() {
                 Quản lý hạnh kiểm
               </h1>
               <div className="flex flex-wrap items-center gap-2">
-                <select
+                <PrettySelect
                   value={effClassId}
                   onChange={(e) => setClassId(e.target.value)}
                   className={selectCls}
@@ -217,8 +218,8 @@ function ConductPage() {
                       {c.className}
                     </option>
                   ))}
-                </select>
-                <select
+                </PrettySelect>
+                <PrettySelect
                   value={effSemesterId}
                   onChange={(e) => setSemesterId(e.target.value)}
                   className={selectCls}
@@ -229,7 +230,7 @@ function ConductPage() {
                       {s.semesterName} · {s.schoolYearName}
                     </option>
                   ))}
-                </select>
+                </PrettySelect>
                 <button
                   type="button"
                   onClick={exportCsv}

@@ -12,6 +12,8 @@ import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentBehaviourSemesters } from "../../hooks/useParentBehaviourSemesters";
 import { useParentBehaviourConduct } from "../../hooks/useParentBehaviourConduct";
 import { useParentBehaviourRecords } from "../../hooks/useParentBehaviourRecords";
+import PrettySelect from "../../components/molecules/PrettySelect";
+import { formatDateVN } from "../../utils/datetime";
 
 const TABS = [
   { key: "overview",   label: "Tổng quan", icon: FiUser },
@@ -547,13 +549,12 @@ function BehaviourTab({ studentId, semesterId, semester }) {
 
 // ─── Goals Tab ────────────────────────────────────────────────────────────────
 
-const GOAL_STATUS = {
-  IN_PROGRESS: { label: "Đang thực hiện", bg: "#FFF7ED", text: "#F27123" },
-  COMPLETED:   { label: "Hoàn thành",     bg: "#ECFDF5", text: "#16A34A" },
-  FAILED:      { label: "Không đạt",      bg: "#FEF2F2", text: "#DC2626" },
-  ARCHIVED:    { label: "Đã lưu trữ",     bg: "#F1F5F9", text: "#475569" },
+const GOAL_TYPE_LABEL = {
+  ACADEMIC: "Học tập",
+  BEHAVIOUR: "Hạnh kiểm",
+  ATTENDANCE: "Chuyên cần",
+  PERSONAL: "Phát triển cá nhân",
 };
-const GOAL_TYPE_LABEL = { ACADEMIC: "Học tập", BEHAVIOUR: "Hạnh kiểm", ATTENDANCE: "Chuyên cần", PERSONAL: "Phát triển cá nhân" };
 
 function GoalsTab({ studentId }) {
   const [goals, setGoals] = useState(null);
@@ -561,57 +562,102 @@ function GoalsTab({ studentId }) {
   const loading = goals === null && !error;
 
   useEffect(() => {
-    if (!studentId) return;
-    let m = true;
-    parentApi.getStudentGoals(studentId)
-      .then((res) => { if (m) setGoals(res.data); })
-      .catch((err) => { if (m) setError(err.message); });
-    return () => { m = false; };
+    if (!studentId) return undefined;
+
+    let mounted = true;
+
+    parentApi
+      .getStudentGoals(studentId)
+      .then((response) => {
+        if (mounted) setGoals(response.data);
+      })
+      .catch((requestError) => {
+        if (mounted) setError(requestError.message);
+      });
+
+    return () => {
+      mounted = false;
+    };
   }, [studentId]);
 
-  if (loading) return <div className="space-y-2">{[0, 1, 2].map((n) => <div key={n} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}</div>;
-  if (error)   return <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>;
-  if (!goals)  return null;
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        {[0, 1, 2].map((number) => (
+          <div key={number} className="h-24 animate-pulse rounded-xl bg-slate-100" />
+        ))}
+      </div>
+    );
+  }
 
-  if (!goals.length) return (
-    <div className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-      Chưa có mục tiêu nào được giáo viên thiết lập.
-    </div>
-  );
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+        {error}
+      </div>
+    );
+  }
+
+  if (!goals) return null;
+
+  if (!goals.length) {
+    return (
+      <div
+        className="rounded-2xl bg-white p-10 text-center text-sm text-slate-400 shadow-sm"
+        style={{ border: "1px solid #FFE7D6" }}
+      >
+        Học sinh chưa tự tạo mục tiêu nào.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
-      {goals.map((g) => {
-        const st = GOAL_STATUS[g.status] ?? GOAL_STATUS.IN_PROGRESS;
-        return (
-          <div key={g.goalId} className="rounded-2xl bg-white p-4 shadow-sm" style={{ border: "1px solid #FFE7D6" }}>
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}>{GOAL_TYPE_LABEL[g.goalType] ?? g.goalType}</span>
-                  <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
-                </div>
-                <h4 className="mt-1.5 text-sm font-bold text-[#0F2747]">{g.title}</h4>
-                {g.description && <p className="text-xs text-slate-500">{g.description}</p>}
-                {g.targetDate && <p className="mt-0.5 text-xs text-slate-400">Hạn: {g.targetDate}</p>}
-              </div>
-            </div>
+      {goals.map((goal) => (
+        <div
+          key={goal.goalId}
+          className="rounded-2xl bg-white p-4 shadow-sm"
+          style={{ border: "1px solid #FFE7D6" }}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <span
+                className="rounded-full px-2 py-0.5 text-xs font-medium"
+                style={{ backgroundColor: "#EBF3FF", color: "#08509F" }}
+              >
+                {GOAL_TYPE_LABEL[goal.goalType] ?? goal.goalType}
+              </span>
 
-            <div className="mt-3">
-              <div className="mb-1 flex justify-between text-xs text-slate-500"><span>Tiến độ</span><span className="font-semibold">{g.progress}%</span></div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full" style={{ width: `${g.progress}%`, backgroundColor: g.status === "FAILED" ? "#DC2626" : g.status === "COMPLETED" ? "#16A34A" : "#F27123" }} />
-              </div>
-            </div>
+              <h4 className="mt-1.5 text-sm font-bold text-[#0F2747]">
+                {goal.title}
+              </h4>
 
-            {g.finalComment && (
-              <p className="mt-2 rounded-lg px-3 py-2 text-xs text-slate-600" style={{ backgroundColor: "#FFF7F2" }}>
-                <span className="font-semibold">Đánh giá: </span>{g.finalComment}
-              </p>
-            )}
+              {goal.description && (
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  {goal.description}
+                </p>
+              )}
+
+              {goal.targetDate && (
+                <p className="mt-2 text-xs text-slate-400">
+                  Hạn hoàn thành: {formatDateVN(goal.targetDate)}
+                </p>
+              )}
+            </div>
           </div>
-        );
-      })}
+
+          {goal.teacherRemark && (
+            <div className="mt-3 rounded-xl bg-blue-50 px-3 py-2.5">
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-blue-600">
+                Nhận xét của GVCN
+              </p>
+              <p className="text-xs leading-5 text-blue-700">
+                {goal.teacherRemark}
+              </p>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
@@ -717,12 +763,12 @@ function StudentProfilePage() {
               <p className="text-sm text-slate-500">{profile.studentCode} · {profile.className ?? "—"} · {profile.gradeName ?? ""}</p>
             </div>
             {semesters.length > 0 && (
-              <select value={effSemId} onChange={(e) => changeSemester(e.target.value)}
+              <PrettySelect value={effSemId} onChange={(e) => changeSemester(e.target.value)}
                 className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-[#0F2747] shadow-sm outline-none focus:border-[#08509F] focus:ring-1 focus:ring-[#08509F]">
                 {semesters.map((s) => (
                   <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>
                 ))}
-              </select>
+              </PrettySelect>
             )}
           </section>
 

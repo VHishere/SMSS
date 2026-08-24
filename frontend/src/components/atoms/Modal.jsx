@@ -21,7 +21,7 @@ function Modal({ open, title, onClose, children, maxWidth = "max-w-lg" }) {
       onClick={onClose}
     >
       <div
-        className={`w-full ${maxWidth} max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-xl`}
+        className={`w-full ${maxWidth} max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">

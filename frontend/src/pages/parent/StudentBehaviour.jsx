@@ -9,6 +9,7 @@ import { useParentBehaviourSemesters } from "../../hooks/useParentBehaviourSemes
 import { useParentBehaviourRecords } from "../../hooks/useParentBehaviourRecords";
 import { useParentBehaviourConduct } from "../../hooks/useParentBehaviourConduct";
 import { getCurrentSchoolYearLabel } from "../../utils/formatters";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 // ─── FSchool Stitch design tokens (matches the teacher behaviour portal) ─────
 
@@ -169,11 +170,11 @@ function OverviewTab({ records, conduct }) {
       <div className="overflow-hidden rounded-3xl bg-white shadow-sm lg:col-span-2" style={{ border: `1px solid ${C.border}` }}>
         <div className="flex items-center justify-between border-b p-5" style={{ borderColor: C.border }}>
           <h4 className="font-bold" style={{ color: C.onSurface }}>Ghi nhận gần đây</h4>
-          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-lg border bg-white px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={selStyle}>
+          <PrettySelect value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-lg border bg-white px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={selStyle}>
             <option value="">Tất cả các loại</option>
             <option value="POSITIVE">Khen thưởng</option>
             <option value="VIOLATION">Vi phạm</option>
-          </select>
+          </PrettySelect>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
@@ -398,17 +399,17 @@ function StudentBehaviour() {
         <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Hạnh kiểm</h2>
         <div className="flex flex-wrap items-center gap-2">
           {!studentsLoading && students.length > 1 && (
-            <select value={effStudentId} onChange={(e) => selectStudent(e.target.value)} className={selectCls} style={selStyle}>
+            <PrettySelect value={effStudentId} onChange={(e) => selectStudent(e.target.value)} className={selectCls} style={selStyle}>
               {students.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentFullName}</option>)}
-            </select>
+            </PrettySelect>
           )}
-          <select value={effSemesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls} style={selStyle}>
+          <PrettySelect value={effSemesterId} onChange={(e) => setSelectedSemesterId(e.target.value)} className={selectCls} style={selStyle}>
             {semestersLoading ? (
               <option>Đang tải...</option>
             ) : (
               semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)
             )}
-          </select>
+          </PrettySelect>
         </div>
       </div>
 

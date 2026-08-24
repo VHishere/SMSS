@@ -1,4 +1,4 @@
-const PORTAL_KEY = 'kidcare_last_portal';
+const PORTAL_KEY = 'smss_last_portal';
 
 export function saveLastPortal(portal) {
     if (portal === 'school' || portal === 'parent') {

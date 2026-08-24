@@ -15,6 +15,7 @@ import {
 } from "react-icons/fi";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import GradeSubmissionModal from "../../components/organisms/GradeSubmissionModal";
 import HomeworkFormModal from "../../components/organisms/HomeworkFormModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
@@ -230,17 +231,17 @@ function SubmissionsTab({ homeworkId, maxScore, refreshKey, onGraded }) {
           <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: "#FEF2F2", color: "#DC2626" }}>Chưa nộp: {counts.missing}</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className={selectCls}>
+          <PrettySelect value={statusF} onChange={(e) => setStatusF(e.target.value)} className={selectCls}>
             <option value="">Tất cả trạng thái</option>
             <option value="GRADED">Đã chấm</option>
             <option value="SUBMITTED">Chờ chấm</option>
             <option value="MISSING">Chưa nộp</option>
-          </select>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={selectCls}>
+          </PrettySelect>
+          <PrettySelect value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={selectCls}>
             <option value="name">Tên A→Z</option>
             <option value="score_desc">Điểm cao → thấp</option>
             <option value="score_asc">Điểm thấp → cao</option>
-          </select>
+          </PrettySelect>
         </div>
       </div>
 

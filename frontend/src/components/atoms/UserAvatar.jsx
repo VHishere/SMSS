@@ -4,6 +4,7 @@ function UserAvatar({ name = "User", src, size = "md" }) {
     sm: "h-8 w-8 text-xs",
     md: "h-10 w-10 text-sm",
     lg: "h-12 w-12 text-base",
+    xl: "h-20 w-20 text-xl",
   };
 
   const initials = name

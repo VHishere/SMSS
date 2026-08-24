@@ -16,7 +16,7 @@ export function DashboardLayout({ title, subtitle, children }) {
         <div className="dashboard">
             <header className="dashboard-header">
                 <div className="dashboard-brand-block">
-                    <p className="brand">FPT School · KidCare</p>
+                    <p className="brand">FPT School</p>
                     <h1>{title}</h1>
                     {subtitle && <p className="subtitle">{subtitle}</p>}
                 </div>

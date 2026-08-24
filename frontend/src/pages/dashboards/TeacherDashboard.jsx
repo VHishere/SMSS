@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import WelcomeBanner from "../../components/molecules/WelcomeBanner";
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
@@ -241,6 +242,9 @@ function TeacherDashboard() {
           Tài khoản chưa được phân công lớp học. Vui lòng liên hệ quản trị viên.
         </div>
       )}
+
+      {/* ── Welcome Banner (component dùng chung cho mọi portal) ── */}
+      <WelcomeBanner name={headerUser.name} />
 
       {/* ── Welcome Header (Stitch) ── */}
       <div className="mb-8 flex flex-wrap items-end justify-between gap-3">

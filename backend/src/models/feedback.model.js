@@ -59,6 +59,27 @@ async function findStudentFeedback(studentId, limit = 100) {
 
 // ── Teacher survey (HS → GV, ẩn danh) ─────────────────────────────────────────
 
+// Kiểm tra GV có thực sự dạy lớp/môn này không, trước khi tạo khảo sát —
+// tránh tạo khảo sát "vô hình" (không học sinh nào thoả điều kiện join ở
+// findOpenSurveysForStudent) do staff chọn nhầm tổ hợp GV/lớp/môn.
+async function teacherClassAssignmentExists({ teacherId, classId, subjectId }) {
+  const conditions = ["tc.teacher_id = ?", "(tc.end_date IS NULL OR tc.end_date >= CURRENT_DATE)"];
+  const params = [teacherId];
+  if (classId) {
+    conditions.push("tc.class_id = ?");
+    params.push(classId);
+  }
+  if (subjectId) {
+    conditions.push("tc.subject_id = ?");
+    params.push(subjectId);
+  }
+  const [[row]] = await pool.query(
+    `SELECT 1 AS ok FROM teacher_class tc WHERE ${conditions.join(" AND ")} LIMIT 1`,
+    params,
+  );
+  return Boolean(row);
+}
+
 async function createSurvey(s) {
   const [r] = await pool.query(
     `INSERT INTO teacher_survey (semester_id, teacher_id, subject_id, class_id, title, status, opened_at, created_by)
@@ -88,23 +109,69 @@ async function findSurveyById(surveyId) {
 // Khảo sát ĐANG MỞ mà 1 học sinh có thể đánh giá (GV dạy lớp HS) + đã nộp chưa.
 async function findOpenSurveysForStudent(studentId) {
   const [rows] = await pool.query(
-    `SELECT
-       ts.survey_id AS surveyId, ts.title, sub.subject_name AS subjectName,
+    `SELECT DISTINCT
+       ts.survey_id AS surveyId,
+       ts.title,
+       sub.subject_name AS subjectName,
        ua.full_name AS teacherName,
-       CASE WHEN b.student_id IS NULL THEN 0 ELSE 1 END AS submitted
+       CASE WHEN b.student_id IS NULL THEN 0 ELSE 1 END AS submitted,
+       -- Phải có trong SELECT vì ORDER BY dùng nó: MySQL strict mode báo
+       -- ER_FIELD_IN_ORDER_NOT_SELECT khi ORDER BY cột ngoài SELECT của DISTINCT.
+       ts.created_at AS createdAt
      FROM teacher_survey ts
      INNER JOIN teacher t ON t.teacher_id = ts.teacher_id
      INNER JOIN user_account ua ON ua.user_id = t.user_id
+     INNER JOIN semester sem ON sem.semester_id = ts.semester_id
      LEFT JOIN subject sub ON sub.subject_id = ts.subject_id
-     INNER JOIN class_enrollment ce ON ce.student_id = ? AND ce.status = 'ACTIVE'
-       AND (ts.class_id IS NULL OR ts.class_id = ce.class_id)
-     LEFT JOIN teacher_survey_ballot b ON b.survey_id = ts.survey_id AND b.student_id = ?
+     INNER JOIN class_enrollment ce
+       ON ce.student_id = ?
+       AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc
+       ON sc.class_id = ce.class_id
+       AND sc.school_year_id = sem.school_year_id
+     INNER JOIN teacher_class tc
+       ON tc.class_id = ce.class_id
+       AND tc.teacher_id = ts.teacher_id
+       AND (tc.end_date IS NULL OR tc.end_date >= CURRENT_DATE)
+       AND (ts.subject_id IS NULL OR tc.subject_id = ts.subject_id)
+     LEFT JOIN teacher_survey_ballot b
+       ON b.survey_id = ts.survey_id
+       AND b.student_id = ?
      WHERE ts.status = 'OPEN'
-     GROUP BY ts.survey_id, ts.title, sub.subject_name, ua.full_name, submitted
+       AND (ts.opened_at IS NULL OR ts.opened_at <= NOW())
+       AND (ts.closed_at IS NULL OR ts.closed_at > NOW())
+       AND (ts.class_id IS NULL OR ts.class_id = ce.class_id)
      ORDER BY ts.created_at DESC`,
     [studentId, studentId],
   );
-  return rows.map((r) => ({ ...r, submitted: Boolean(r.submitted) }));
+  return rows.map((row) => ({ ...row, submitted: Boolean(row.submitted) }));
+}
+
+async function canStudentSubmitSurvey(surveyId, studentId) {
+  const [[row]] = await pool.query(
+    `SELECT 1 AS eligible
+     FROM teacher_survey ts
+     INNER JOIN semester sem ON sem.semester_id = ts.semester_id
+     INNER JOIN class_enrollment ce
+       ON ce.student_id = ?
+       AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc
+       ON sc.class_id = ce.class_id
+       AND sc.school_year_id = sem.school_year_id
+     INNER JOIN teacher_class tc
+       ON tc.class_id = ce.class_id
+       AND tc.teacher_id = ts.teacher_id
+       AND (tc.end_date IS NULL OR tc.end_date >= CURRENT_DATE)
+       AND (ts.subject_id IS NULL OR tc.subject_id = ts.subject_id)
+     WHERE ts.survey_id = ?
+       AND ts.status = 'OPEN'
+       AND (ts.opened_at IS NULL OR ts.opened_at <= NOW())
+       AND (ts.closed_at IS NULL OR ts.closed_at > NOW())
+       AND (ts.class_id IS NULL OR ts.class_id = ce.class_id)
+     LIMIT 1`,
+    [studentId, surveyId],
+  );
+  return Boolean(row);
 }
 
 async function hasSubmitted(surveyId, studentId) {
@@ -188,10 +255,12 @@ module.exports = {
   bulkUpsertLessonFeedback,
   findPeriodFeedback,
   findStudentFeedback,
+  teacherClassAssignmentExists,
   createSurvey,
   setSurveyStatus,
   findSurveyById,
   findOpenSurveysForStudent,
+  canStudentSubmitSurvey,
   hasSubmitted,
   submitSurveyResponse,
   findSurveyAggregate,

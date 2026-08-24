@@ -13,13 +13,45 @@ export function useStudentDashboard(refreshKey = 0) {
     setLoading(true);
     setError("");
 
-    studentApi
-      .getMyDashboard()
-      .then((response) => {
-        if (isMounted) {
-          setData(response.data);
-        }
-      })
+    Promise.all([
+      studentApi.getMyDashboard(),
+
+      studentApi
+        .getMyTimetable()
+        .catch(() => ({
+          data: null,
+        })),
+
+      studentApi
+        .getMyHomeworks()
+        .catch(() => ({
+          data: null,
+        })),
+
+      studentApi
+        .getMyBehaviour()
+        .catch(() => ({
+          data: null,
+        })),
+    ])
+      .then(
+        ([
+          dashboardResponse,
+          timetableResponse,
+          homeworkResponse,
+          behaviourResponse,
+        ]) => {
+          if (!isMounted) return;
+
+          setData({
+            ...dashboardResponse.data,
+            timetable: timetableResponse.data,
+            homeworkItems:
+              homeworkResponse.data?.homeworks || [],
+            behaviour: behaviourResponse.data,
+          });
+        },
+      )
       .catch((requestError) => {
         if (isMounted) {
           setError(requestError.message);

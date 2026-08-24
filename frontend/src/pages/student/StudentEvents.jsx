@@ -273,12 +273,17 @@ function EventFeatureCard({ event, onRegistered }) {
   const registeredCount = Number(event.registeredCount || 0);
   const capacity = event.capacity ? Number(event.capacity) : null;
   const isFull = Boolean(capacity && registeredCount >= capacity);
+  const startDate = parseApiDate(event.startDate);
+  const hasStarted = Boolean(event.hasStarted) || Boolean(
+    startDate && startDate <= new Date(),
+  );
   const detailPath = `/student/events/${event.eventId}`;
 
   const canRegister =
     ["ACTIVE", "PUBLISHED", "SCHEDULED"].includes(event.status) &&
     !event.isRegistered &&
-    !isFull;
+    !isFull &&
+    !hasStarted;
 
   function openDetail() {
     navigate(detailPath);
@@ -420,11 +425,13 @@ function EventFeatureCard({ event, onRegistered }) {
                   : "cursor-not-allowed bg-slate-300"
               }`}
             >
-              {isFull
-                ? "Đã đủ chỗ"
-                : submitting
-                  ? "Đang đăng ký..."
-                  : "Đăng ký ngay"}
+              {hasStarted
+                ? "Sự kiện đã bắt đầu"
+                : isFull
+                  ? "Đã đủ chỗ"
+                  : submitting
+                    ? "Đang đăng ký..."
+                    : "Đăng ký ngay"}
             </button>
           )}
         </div>
@@ -612,6 +619,7 @@ function StudentEvents() {
 
           <input
             value={search}
+            maxLength={100}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Tìm sự kiện, địa điểm..."
             className="

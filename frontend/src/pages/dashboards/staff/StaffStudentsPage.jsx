@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { FiEye } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
@@ -8,30 +8,49 @@ import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import { formatGender, formatStatus } from "../../../utils/formatters";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import { resolveStaffWorkingSchoolYear } from "../../../utils/staffSchoolYear";
 
 const filterSelectClass =
   "h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] px-4 text-sm font-medium text-[#1A1C1C] outline-none transition hover:border-[#F27123] focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20 lg:w-44";
 
 function StaffStudentsPage() {
+  const [searchParams] = useSearchParams();
   const [students, setStudents] = useState([]);
   const [lookups, setLookups] = useState(null);
-  const [search, setSearch] = useState("");
+  // Khởi tạo từ ?search= (ô tìm kiếm trên header điều hướng tới đây kèm từ khóa).
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ gradeId: "", classId: "" });
+  const [filters, setFilters] = useState({
+    gradeId: "",
+    classId: "",
+    status: "ACTIVE",
+  });
 
   useEffect(() => {
     staffApi.getLookups().then((res) => setLookups(res.data)).catch(() => {});
   }, []);
 
+  const workingSchoolYear = useMemo(
+    () => resolveStaffWorkingSchoolYear(lookups?.schoolYears || []),
+    [lookups?.schoolYears],
+  );
+  const workingSchoolYearId = workingSchoolYear
+    ? String(workingSchoolYear.schoolYearId)
+    : "";
+
   useEffect(() => {
+    if (!lookups) return undefined;
+
     const timer = setTimeout(() => {
       setLoading(true);
       staffApi
         .getStudents({
           search,
+          schoolYearId: workingSchoolYearId,
           gradeId: filters.gradeId,
           classId: filters.classId,
+          status: filters.status,
         })
         .then((response) => {
           setStudents(response.data);
@@ -42,7 +61,14 @@ function StaffStudentsPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [search, filters.gradeId, filters.classId]);
+  }, [
+    search,
+    filters.gradeId,
+    filters.classId,
+    filters.status,
+    lookups,
+    workingSchoolYearId,
+  ]);
 
   const rows = useMemo(
     () => students.map((student) => ({ ...student, id: student.studentId })),
@@ -52,9 +78,12 @@ function StaffStudentsPage() {
   const filteredClasses = useMemo(
     () =>
       (lookups?.classes || []).filter(
-        (cls) => !filters.gradeId || String(cls.gradeId) === String(filters.gradeId),
+        (cls) =>
+          (!workingSchoolYearId ||
+            String(cls.schoolYearId) === String(workingSchoolYearId)) &&
+          (!filters.gradeId || String(cls.gradeId) === String(filters.gradeId)),
       ),
-    [filters.gradeId, lookups?.classes],
+    [filters.gradeId, lookups?.classes, workingSchoolYearId],
   );
 
   const filterToolbar = (
@@ -91,6 +120,19 @@ function StaffStudentsPage() {
             {cls.className}
           </option>
         ))}
+      </PrettySelect>
+
+      <PrettySelect
+        className={filterSelectClass}
+        value={filters.status}
+        onChange={(event) =>
+          setFilters((prev) => ({ ...prev, status: event.target.value }))
+        }
+      >
+        <option value="ACTIVE">Đang học</option>
+        <option value="INACTIVE">Ngưng học</option>
+        <option value="TRANSFERRED">Chuyển trường</option>
+        <option value="ALL">Tất cả trạng thái</option>
       </PrettySelect>
     </>
   );
@@ -134,8 +176,16 @@ function StaffStudentsPage() {
               </div>
             ),
           },
-          { key: "className", label: "Lớp" },
-          { key: "gradeName", label: "Khối" },
+          {
+            key: "className",
+            label: "Lớp",
+            render: (row) => row.className || "Chưa xếp lớp",
+          },
+          {
+            key: "gradeName",
+            label: "Khối",
+            render: (row) => row.gradeName || "-",
+          },
           {
             key: "gender",
             label: "Giới tính",
@@ -147,7 +197,10 @@ function StaffStudentsPage() {
             key: "status",
             label: "Trạng thái",
             render: (row) => (
-              <StatusBadge value={formatStatus(row.status)} tone="success" />
+              <StatusBadge
+                value={formatStatus(row.status)}
+                tone={row.status === "ACTIVE" ? "success" : "neutral"}
+              />
             ),
           },
           {

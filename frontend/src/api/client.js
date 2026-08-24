@@ -4,9 +4,19 @@ const API_BASE =
 
 function getAuthToken() {
   return (
-    sessionStorage.getItem("kidcare_token") ||
-    localStorage.getItem("kidcare_token")
+    sessionStorage.getItem("smss_token") ||
+    localStorage.getItem("smss_token")
   );
+}
+
+// Báo cho badge chuông ở header refetch NGAY khi có thao tác đọc thông báo.
+// Header (DashboardHeader) và trang thông báo là 2 cây component tách biệt, không
+// chia sẻ state — dùng window event để đồng bộ số chưa đọc tức thời (không phải
+// đợi chuyển trang). Xem listener trong DashboardHeader → NotificationDropdown.
+function emitNotificationsChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("notifications:changed"));
+  }
 }
 
 async function request(
@@ -110,10 +120,23 @@ export const adminApi = {
   getFeesDashboard: () => request("/admin/dashboard/fees"),
   getMessagesDashboard: () => request("/admin/communication/dashboard"),
 
+  getSchoolYears: () => request("/admin/school-years"),
+
+  activateSchoolYear: (id) =>
+    request(`/admin/school-years/${id}/activate`, { method: "PUT" }),
+
+  evaluateSchoolYearPromotion: (id) =>
+    request(`/admin/school-years/${id}/promotion/evaluate`),
+
+  closeSchoolYear: (id) =>
+    request(`/admin/school-years/${id}/close`, { method: "POST" }),
+
   getUsers: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
     return request(`/admin/users${qs ? `?${qs}` : ""}`);
   },
+
+  getUserStats: () => request("/admin/users/stats"),
 
   setUserStatus: (userId, status) =>
     request(`/admin/users/${userId}/status`, {
@@ -320,29 +343,6 @@ export const adminApi = {
       body: JSON.stringify(body),
     }),
 
-  // Reports (báo cáo) — view + export only
-  getReportsMeta: () => request("/admin/reports/meta"),
-
-  generateReport: (reportType, filters) =>
-    request("/admin/reports/generate", {
-      method: "POST",
-      body: JSON.stringify({ reportType, filters }),
-    }),
-
-  exportReportExcel: (reportType, filters) =>
-    downloadRequest("/admin/reports/export-excel", { reportType, filters }, "bao_cao.xlsx"),
-
-  logReportExport: (reportType, filters, format) =>
-    request("/admin/reports/log-export", {
-      method: "POST",
-      body: JSON.stringify({ reportType, filters, format }),
-    }),
-
-  getReportHistory: (params = {}) => {
-    const qs = new URLSearchParams(params).toString();
-    return request(`/admin/reports/history${qs ? `?${qs}` : ""}`);
-  },
-
   // Attendance (điểm danh) — school-wide history/stats + class summary/warnings
   getAttendanceMeta: () => request("/admin/attendance/meta"),
 
@@ -374,12 +374,12 @@ export const adminApi = {
   markNotificationRead: (notificationId) =>
     request(`/admin/me/notifications/${notificationId}/read`, {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   markAllNotificationsRead: () =>
     request("/admin/me/notifications/read-all", {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   // Announcements (soạn thông báo) — school-wide / grade-wide / class-wide
   getAnnouncementsMeta: () => request("/admin/announcements/meta"),
@@ -624,6 +624,12 @@ export const studentApi = {
     return request(`/students/me/attendance/analytics${qs ? `?${qs}` : ""}`);
   },
 
+  getMyLeaveRequests: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/leave-requests${qs ? `?${qs}` : ""}`);
+  },
+
   getMyBehaviour: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
 
@@ -645,14 +651,11 @@ export const studentApi = {
       body: JSON.stringify(body),
     }),
 
-  updateMyGoalProgress: (goalId, body) =>
-    request(`/students/me/goals/${goalId}/progress`, {
-      method: "PATCH",
+  updateMyGoal: (goalId, body) =>
+    request(`/students/me/goals/${goalId}`, {
+      method: "PUT",
       body: JSON.stringify(body),
     }),
-
-  getMyGoalLog: (goalId) =>
-    request(`/students/me/goals/${goalId}/log`),
 
   getMyEvents: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
@@ -677,12 +680,12 @@ export const studentApi = {
   markNotificationRead: (notificationId) =>
     request(`/students/me/notifications/${notificationId}/read`, {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   markAllNotificationsRead: () =>
     request("/students/me/notifications/read-all", {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   getMessageContacts: () =>
     request("/students/me/communication/contacts"),
@@ -740,6 +743,13 @@ export const teacherApi = {
   // Trung tâm thông báo GVCN (thông báo lớp + cảnh báo HS + việc cần xử lý)
   getNotifications: () =>
     request("/teachers/notifications"),
+
+  // Đánh dấu 1 mục trong feed là đã đọc (lưu DB notification_read_state)
+  markNotificationRead: (key) =>
+    request("/teachers/notifications/read", {
+      method: "POST",
+      body: JSON.stringify({ key }),
+    }),
 
   // Điểm danh theo tiết (per-period)
   getMyPeriods: (date) =>
@@ -1200,40 +1210,11 @@ export const goalApi = {
     );
   },
 
-  create: (studentId, body) =>
-    request(`/teachers/students/${studentId}/goals`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  update: (goalId, body) =>
-    request(`/teachers/goals/${goalId}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }),
-
-  updateProgress: (goalId, body) =>
-    request(`/teachers/goals/${goalId}/progress`, {
+  comment: (goalId, comment) =>
+    request(`/teachers/goals/${goalId}/comment`, {
       method: "PATCH",
-      body: JSON.stringify(body),
+      body: JSON.stringify({ comment }),
     }),
-
-  evaluate: (goalId, body) =>
-    request(`/teachers/goals/${goalId}/evaluate`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  archive: (goalId, note) =>
-    request(`/teachers/goals/${goalId}/archive`, {
-      method: "POST",
-      body: JSON.stringify({
-        note,
-      }),
-    }),
-
-  getLog: (goalId) =>
-    request(`/teachers/goals/${goalId}/log`),
 };
 
 async function downloadRequest(path, body, fallbackName) {
@@ -1611,33 +1592,15 @@ export const eventApi = {
     );
   },
 
-  create: (body) =>
-    request("/teachers/events", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+  // KHÔNG có create/duplicate: tạo (và nhân bản) sự kiện là nghiệp vụ của giáo vụ
+  // (staff) — route POST /teachers/events đã được gỡ ở backend. Trang giáo vụ
+  // dùng adminApi.createEvent / duplicateEvent (đã mở cho ADMIN + STAFF).
 
   getDetail: (id) =>
     request(`/teachers/events/${id}`),
 
-  update: (id, body) =>
-    request(`/teachers/events/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }),
-
-  changeStatus: (id, status) =>
-    request(`/teachers/events/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status,
-      }),
-    }),
-
-  duplicate: (id) =>
-    request(`/teachers/events/${id}/duplicate`, {
-      method: "POST",
-    }),
+  // KHÔNG có update / changeStatus: sửa nội dung và đổi trạng thái sự kiện là
+  // quyền của giáo vụ (route PUT + PATCH status ở /teachers/events đã gỡ).
 
   sendReminder: (id) =>
     request(`/teachers/events/${id}/reminder`, {
@@ -1688,11 +1651,15 @@ export const eventApi = {
 };
 
 export const timetableApi = {
-  getMyTimetable: () =>
-    request("/teachers/timetable"),
+  getMyTimetable: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/teachers/timetable${qs ? `?${qs}` : ""}`);
+  },
 
-  getSubstitutionMeta: () =>
-    request("/teachers/timetable/substitutions/meta"),
+  getSubstitutionMeta: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/teachers/timetable/substitutions/meta${qs ? `?${qs}` : ""}`);
+  },
 
   listSubstitutions: (params = {}) => {
     const cleaned = Object.fromEntries(
@@ -1858,12 +1825,12 @@ export const parentApi = {
   markNotificationRead: (notificationId) =>
     request(`/parents/me/notifications/${notificationId}/read`, {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   markAllNotificationsRead: () =>
     request("/parents/me/notifications/read-all", {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   getStudentNotificationFeed: (studentId) =>
     request(`/parents/me/students/${studentId}/notifications/feed`),
@@ -1941,9 +1908,106 @@ export const parentApi = {
 };
 
 export const staffApi = {
-  getOverview: () => request("/staff/overview"),
+  getOverview: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/overview${query ? `?${query}` : ""}`);
+  },
 
   getLookups: () => request("/staff/lookups"),
+
+  getMessagesDashboard: () => request("/staff/communication/dashboard"),
+
+  getMessageContacts: () => request("/staff/communication/contacts"),
+
+  searchMessageHistory: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/communication/search${qs ? `?${qs}` : ""}`);
+  },
+
+  listConversations: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/communication/conversations${qs ? `?${qs}` : ""}`);
+  },
+
+  startConversation: (userId) =>
+    request("/staff/communication/conversations", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }),
+
+  uploadMessageFile: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return uploadRequest("/staff/communication/upload", formData);
+  },
+
+  getThread: (conversationId, params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/communication/conversations/${conversationId}${qs ? `?${qs}` : ""}`);
+  },
+
+  sendMessage: (conversationId, body) =>
+    request(`/staff/communication/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  deleteMessage: (messageId) =>
+    request(`/staff/communication/messages/${messageId}`, {
+      method: "DELETE",
+    }),
+
+  archiveConversation: (conversationId, archived) =>
+    request(`/staff/communication/conversations/${conversationId}/archive`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived }),
+    }),
+  // Thông báo (bảng notification chung — is_read thật, giống student/parent/admin)
+  getMyNotifications: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/staff/me/notifications${qs ? `?${qs}` : ""}`);
+  },
+
+  markNotificationRead: (notificationId) =>
+    request(`/staff/me/notifications/${notificationId}/read`, {
+      method: "PATCH",
+    }).then((res) => { emitNotificationsChanged(); return res; }),
+
+  markAllNotificationsRead: () =>
+    request("/staff/me/notifications/read-all", {
+      method: "PATCH",
+    }).then((res) => { emitNotificationsChanged(); return res; }),
+
+  // Báo cáo (báo cáo) — xem + xuất, không lưu mẫu
+  getReportsMeta: () => request("/staff/reports/meta"),
+
+  generateReport: (reportType, filters) =>
+    request("/staff/reports/generate", {
+      method: "POST",
+      body: JSON.stringify({ reportType, filters }),
+    }),
+
+  exportReportExcel: (reportType, filters) =>
+    downloadRequest("/staff/reports/export-excel", { reportType, filters }, "bao_cao.xlsx"),
+
+  logReportExport: (reportType, filters, format) =>
+    request("/staff/reports/log-export", {
+      method: "POST",
+      body: JSON.stringify({ reportType, filters, format }),
+    }),
+
+  getReportHistory: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/staff/reports/history${qs ? `?${qs}` : ""}`);
+  },
 
   // Khảo sát đánh giá giáo viên (ẩn danh)
   listTeacherSurveys: () => request("/staff/surveys"),
@@ -2037,14 +2101,14 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
-  activateSchoolYear: (id) =>
-    request(`/staff/school-years/${id}/activate`, { method: "PUT" }),
-
   updateSchoolYear: (id, payload) =>
     request(`/staff/school-years/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+
+  initializeSchoolYear: (id) =>
+    request(`/staff/school-years/${id}/initialize`, { method: "POST" }),
 
   getClasses: (params = {}) => {
     const query = new URLSearchParams(
@@ -2067,10 +2131,15 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
-  enrollStudent: (classId, studentId) =>
+  deleteClass: (id) =>
+    request(`/staff/classes/${id}`, {
+      method: "DELETE",
+    }),
+
+  enrollStudents: (classId, studentIds) =>
     request(`/staff/classes/${classId}/students`, {
       method: "POST",
-      body: JSON.stringify({ studentId }),
+      body: JSON.stringify({ studentIds }),
     }),
 
   removeStudentFromClass: (classId, studentId) =>
@@ -2089,8 +2158,14 @@ export const staffApi = {
       method: "DELETE",
     }),
 
-  getClassTimetable: (classId) =>
-    request(`/staff/classes/${classId}/timetable`),
+  getClassTimetable: (classId, params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(
+      `/staff/classes/${classId}/timetable${query ? `?${query}` : ""}`,
+    );
+  },
 
   createClassTimetableLesson: (classId, payload) =>
     request(`/staff/classes/${classId}/timetable`, {
@@ -2111,6 +2186,22 @@ export const staffApi = {
 
   createTimetableLessons: (payload) =>
     request("/staff/timetable", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getTimetableSubstitutions: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/timetable/substitutions${query ? `?${query}` : ""}`);
+  },
+
+  getTimetableSubstitution: (id) =>
+    request(`/staff/timetable/substitutions/${id}`),
+
+  reviewTimetableSubstitution: (id, payload) =>
+    request(`/staff/timetable/substitutions/${id}/decision`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -2177,6 +2268,15 @@ export const staffApi = {
 // ── Giáo viên Quản nhiệm (GVQN / DORM_SUPERVISOR) ────────────────────────────
 export const supervisorApi = {
   getDashboard: () => request("/supervisor/dashboard"),
+
+  getNotifications: () => request("/supervisor/notifications"),
+
+  // Đánh dấu 1 mục trong feed là đã đọc (lưu DB notification_read_state)
+  markNotificationRead: (key) =>
+    request("/supervisor/notifications/read", {
+      method: "POST",
+      body: JSON.stringify({ key }),
+    }),
 
   getAreas: () => request("/supervisor/areas"),
 

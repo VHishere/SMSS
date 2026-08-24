@@ -13,6 +13,23 @@ function httpError(message, statusCode) {
   return err;
 }
 
+// Thang điểm do client gửi lên và được dùng làm mẫu số khi quy đổi về hệ 10
+// (gpa.service.normalize), nên phải có trần — nếu không một thang 100000 sẽ
+// làm mọi điểm quy đổi về gần 0.
+const MAX_SCORE_LIMIT = 100;
+
+async function assertSemesterEditable(semesterId) {
+  const state = await academicModel.findSemesterState(Number(semesterId));
+  if (!state) throw httpError("Không tìm thấy học kỳ", 404);
+
+  if (["LOCKED", "CLOSED"].includes(state.schoolYearStatus)) {
+    throw httpError(
+      `Năm học ${state.schoolYearName} đã được chốt nên không thể thay đổi điểm.`,
+      409,
+    );
+  }
+}
+
 // ── Score input / bulk ────────────────────────────────────────────────────────
 
 async function submitScores({ teacherId, actorUserId, payload }) {
@@ -21,12 +38,16 @@ async function submitScores({ teacherId, actorUserId, payload }) {
   if (!classId || !subjectId || !semesterId) {
     throw httpError("Thiếu thông tin lớp / môn / học kỳ", 400);
   }
+  await assertSemesterEditable(semesterId);
   if (!SCORE_TYPES.includes(scoreType)) {
     throw httpError("Loại điểm không hợp lệ", 400);
   }
   const max = Number(maxScore);
   if (!Number.isFinite(max) || max <= 0) {
     throw httpError("Điểm tối đa phải lớn hơn 0", 400);
+  }
+  if (max > MAX_SCORE_LIMIT) {
+    throw httpError(`Điểm tối đa không được vượt quá ${MAX_SCORE_LIMIT}`, 400);
   }
   if (!Array.isArray(records) || records.length === 0) {
     throw httpError("Không có điểm nào để lưu", 400);
@@ -52,11 +73,11 @@ async function submitScores({ teacherId, actorUserId, payload }) {
 
   if (clean.length === 0) throw httpError("Không có điểm hợp lệ để lưu", 400);
 
-  // Notifications to each scored student + their parents
+  // Notifications to each scored student + their parents — batched (2 query thay vì N).
   const notifications = [];
+  const recipientsMap = await academicModel.findRecipientsForStudents(clean.map((r) => r.studentId));
   for (const r of clean) {
-    const recipients = await academicModel.findStudentRecipients(r.studentId);
-    for (const receiverId of recipients) {
+    for (const receiverId of recipientsMap.get(r.studentId) || []) {
       notifications.push({
         receiverId,
         title:   "Điểm mới được cập nhật",
@@ -84,6 +105,8 @@ async function updateScore({ teacherId, actorUserId, resultId, payload }) {
   const prev = await academicModel.findResultById(resultId);
   if (!prev) throw httpError("Không tìm thấy điểm", 404);
 
+  await assertSemesterEditable(prev.semesterId);
+
   const ok = await academicModel.isTeacherForStudentSubject(teacherId, prev.studentId, prev.subjectId);
   if (!ok) throw httpError("Bạn không có quyền sửa điểm này", 403);
 
@@ -91,7 +114,9 @@ async function updateScore({ teacherId, actorUserId, resultId, payload }) {
   const max = payload.maxScore !== undefined ? Number(payload.maxScore) : prev.maxScore;
 
   if (!Number.isFinite(newScore) || newScore < 0) throw httpError("Điểm không được âm", 400);
-  if (max <= 0) throw httpError("Điểm tối đa phải lớn hơn 0", 400);
+  // Number.isFinite bắt cả NaN: `NaN <= 0` là false nên bản cũ ghi thẳng NaN vào DB.
+  if (!Number.isFinite(max) || max <= 0) throw httpError("Điểm tối đa phải lớn hơn 0", 400);
+  if (max > MAX_SCORE_LIMIT) throw httpError(`Điểm tối đa không được vượt quá ${MAX_SCORE_LIMIT}`, 400);
   if (newScore > max) throw httpError(`Điểm không được vượt quá điểm tối đa (${max})`, 400);
 
   await academicModel.updateSingleScore({
@@ -128,6 +153,8 @@ async function updateScore({ teacherId, actorUserId, resultId, payload }) {
 async function deleteScore({ teacherId, actorUserId, resultId, reason }) {
   const prev = await academicModel.findResultById(resultId);
   if (!prev) throw httpError("Không tìm thấy điểm", 404);
+
+  await assertSemesterEditable(prev.semesterId);
 
   const ok = await academicModel.isTeacherForStudentSubject(teacherId, prev.studentId, prev.subjectId);
   if (!ok) throw httpError("Bạn không có quyền xóa điểm này", 403);

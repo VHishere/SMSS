@@ -137,7 +137,9 @@ function attachAttendanceToLessons({
   const attendanceMap = buildAttendanceMap(attendanceRows);
 
   return lessons.map((lesson) => {
-    const lessonDate = dayDateMap.get(Number(lesson.dayOfWeek));
+    const lessonDate =
+      lesson.lessonDate ||
+      dayDateMap.get(Number(lesson.dayOfWeek));
     const attendanceKey = `${lessonDate}-${lesson.timetableId}`;
     const attendance = attendanceMap.get(attendanceKey);
 
@@ -212,6 +214,7 @@ async function getMyTimetable(req, res) {
     const lessons =
       await timetableModel.findLessonsByClassId(
         context.classId,
+        { startDate, endDate },
       );
 
     const attendanceRows =

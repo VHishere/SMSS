@@ -4,10 +4,15 @@ const zalopayService = require("../services/zalopay.service");
 
 function handleError(res, error, fallbackMessage) {
   console.error(fallbackMessage, error);
-  return res.status(error.statusCode || 500).json({
-    success: false,
-    message: error.message || fallbackMessage,
-  });
+
+  if (error.statusCode) {
+    return res.status(error.statusCode).json({
+      success: false,
+      message: error.message,
+    });
+  }
+
+  return res.status(500).json({ success: false, message: fallbackMessage });
 }
 
 function notFound(res, message = "Không tìm thấy khoản phí hoặc bạn không có quyền xem") {

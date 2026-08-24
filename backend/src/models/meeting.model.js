@@ -5,8 +5,17 @@ const { pool } = require("../config/db");
 // Họp phụ huynh do GVCN tổ chức → chỉ GVCN của lớp mới được thao tác.
 async function isTeacherForClass(teacherId, classId) {
   const [[row]] = await pool.query(
-    `SELECT 1 AS ok FROM teacher_class
-     WHERE teacher_id = ? AND class_id = ? AND role_in_class = 'HOMEROOM_TEACHER' LIMIT 1`,
+    `SELECT 1 AS ok
+     FROM teacher_class tc
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+     WHERE tc.teacher_id = ?
+       AND tc.class_id = ?
+       AND tc.role_in_class = 'HOMEROOM_TEACHER'
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+     LIMIT 1`,
     [teacherId, classId],
   );
   return Boolean(row);
@@ -18,8 +27,12 @@ async function findTeacherClasses(teacherId) {
     `SELECT DISTINCT sc.class_id AS classId, sc.class_name AS className, g.grade_name AS gradeName
      FROM teacher_class tc
      INNER JOIN school_class sc ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      INNER JOIN grade g ON g.grade_id = sc.grade_id
-     WHERE tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
+     WHERE tc.teacher_id = ?
+       AND tc.role_in_class = 'HOMEROOM_TEACHER'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      ORDER BY sc.class_name`,
     [teacherId],
   );
@@ -205,9 +218,11 @@ async function findInvitations(meetingId) {
 
 async function respondToInvitation(meetingId, userId, status) {
   const [result] = await pool.query(
-    `UPDATE meeting_invitation
-     SET status = ?, responded_at = NOW()
-     WHERE meeting_id = ? AND user_id = ? AND status IN ('SENT','PENDING')`,
+    `UPDATE meeting_invitation mi
+     INNER JOIN parent_meeting pm ON pm.meeting_id = mi.meeting_id
+     SET mi.status = ?, mi.responded_at = NOW()
+     WHERE mi.meeting_id = ? AND mi.user_id = ? AND mi.status IN ('SENT','PENDING')
+       AND pm.meeting_date > NOW()`,
     [status, meetingId, userId],
   );
   return result.affectedRows;

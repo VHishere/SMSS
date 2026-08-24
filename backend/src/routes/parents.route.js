@@ -63,14 +63,6 @@ router.get(
 );
 
 router.get(
-  "/me/students/:studentId/attendance/stats",
-  authenticate,
-  authorize("PARENT"),
-  ensureParentOwnsStudent,
-  attendanceController.getStudentAttendanceStats,
-);
-
-router.get(
   "/me/students/:studentId/attendance/history",
   authenticate,
   authorize("PARENT"),

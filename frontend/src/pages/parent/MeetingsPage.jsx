@@ -62,6 +62,10 @@ function startsIn(meetingDate, status) {
 }
 const nowMs = () => Date.now();
 function beginLoad(setLoading) { setLoading(true); }
+function hasMeetingStarted(meetingDate) {
+  if (!meetingDate) return false;
+  return new Date(String(meetingDate).replace(" ", "T")).getTime() <= nowMs();
+}
 
 // ─── Detail pane (right) ──────────────────────────────────────────────────────
 function ParentDetailPane({ meetingId, onChanged }) {
@@ -97,7 +101,9 @@ function ParentDetailPane({ meetingId, onChanged }) {
   const minutes = d.minutes;
   const actions = d.actions ?? [];
   const invSt = INVITE_STATUS[mt.invitationStatus];
-  const canRespond = mt.status === "SCHEDULED" && ["SENT", "PENDING"].includes(mt.invitationStatus);
+  const expired = hasMeetingStarted(mt.meetingDate);
+  const canRespond = mt.status === "SCHEDULED" && ["SENT", "PENDING"].includes(mt.invitationStatus) && !expired;
+  const showExpiredBadge = mt.status === "SCHEDULED" && ["SENT", "PENDING"].includes(mt.invitationStatus) && expired;
 
   async function respond() {
     setResponding(true); setRespondMsg({ text: "", ok: true });
@@ -135,7 +141,10 @@ function ParentDetailPane({ meetingId, onChanged }) {
                   {responding ? "..." : "Xác nhận tham dự"}
                 </button>
               )}
-              {!canRespond && invSt && (
+              {showExpiredBadge && (
+                <span className="rounded-full px-3 py-1.5 text-xs font-bold" style={{ backgroundColor: "rgba(255,255,255,0.18)" }}>Đã quá hạn xác nhận</span>
+              )}
+              {!canRespond && !showExpiredBadge && invSt && (
                 <span className="rounded-full px-3 py-1.5 text-xs font-bold" style={{ backgroundColor: invSt.bg }}>{invSt.label}</span>
               )}
               <button type="button" onClick={() => window.print()} title="In" className="rounded-lg bg-white/10 p-2 transition-colors hover:bg-white/20"><Ms name="print" className="text-[18px]!" /></button>

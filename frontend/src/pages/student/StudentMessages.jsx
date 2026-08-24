@@ -43,6 +43,46 @@ const CONVERSATION_FILTERS = [
   { value: "UNREAD", label: "Chưa đọc" },
 ];
 
+const MAX_MESSAGE_LENGTH = 5000;
+const MAX_MESSAGE_FILE_SIZE = 20 * 1024 * 1024;
+const MESSAGE_FILE_EXTENSIONS = new Set([
+  ".jpg",
+  ".jpeg",
+  ".png",
+  ".webp",
+  ".gif",
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".zip",
+  ".txt",
+  ".csv",
+]);
+const MESSAGE_FILE_ACCEPT = [...MESSAGE_FILE_EXTENSIONS].join(",");
+
+function getFileExtension(fileName = "") {
+  const lastDot = fileName.lastIndexOf(".");
+  return lastDot >= 0 ? fileName.slice(lastDot).toLowerCase() : "";
+}
+
+function validateMessageFile(file) {
+  if (!file) return "";
+
+  if (file.size > MAX_MESSAGE_FILE_SIZE) {
+    return "Tệp đính kèm không được vượt quá 20 MB.";
+  }
+
+  if (!MESSAGE_FILE_EXTENSIONS.has(getFileExtension(file.name))) {
+    return "Định dạng tệp không được hỗ trợ.";
+  }
+
+  return "";
+}
+
 function normalizeText(value = "") {
   return String(value)
     .normalize("NFD")
@@ -217,10 +257,28 @@ function getTeacherSubtitle(teacher) {
     : "Giáo viên";
 }
 
-function getConversationPreview(conversation) {
+function getMessageSummary(conversation) {
+  if (conversation.lastIsDeleted) return "Tin nhắn đã được thu hồi";
   if (conversation.lastType === "IMAGE") return "Đã gửi một hình ảnh";
   if (conversation.lastType === "FILE") return "Đã gửi một tệp đính kèm";
-  return conversation.lastContent || "Chưa có tin nhắn";
+  return conversation.lastContent || "";
+}
+
+function getConversationPreview(conversation, currentUserId) {
+  const summary = getMessageSummary(conversation);
+  if (!summary) return "Chưa có tin nhắn";
+
+  if (Number(conversation.lastSenderId) === Number(currentUserId)) {
+    return `Bạn: ${summary}`;
+  }
+
+  // Hội thoại 1-1: tên đối phương đã nằm ngay trên dòng tiêu đề, lặp lại ở đây
+  // chỉ tốn chỗ. Nhóm thì cần, vì tiêu đề là tên nhóm chứ không phải tên người.
+  if (conversation.conversationType !== "GROUP") return summary;
+
+  return conversation.lastSenderName
+    ? `${conversation.lastSenderName}: ${summary}`
+    : summary;
 }
 
 function ConversationAvatar({
@@ -709,8 +767,9 @@ function ThreadPanel({
   }, [conversationId, error, loading, markConversationRead]);
 
   function handleContentChange(event) {
-    const nextContent = event.target.value;
+    const nextContent = event.target.value.slice(0, MAX_MESSAGE_LENGTH);
     setContent(nextContent);
+    setSendError("");
 
     if (!conversationId) return;
 
@@ -731,6 +790,21 @@ function ThreadPanel({
     }
   }
 
+  function handleFileChange(event) {
+    const file = event.target.files?.[0] || null;
+    const validationError = validateMessageFile(file);
+
+    if (validationError) {
+      setSelectedFile(null);
+      setSendError(validationError);
+      event.target.value = "";
+      return;
+    }
+
+    setSelectedFile(file);
+    setSendError("");
+  }
+
   async function sendMessage(event) {
     event.preventDefault();
 
@@ -739,6 +813,17 @@ function ThreadPanel({
       !socketConnected ||
       (!content.trim() && !selectedFile)
     ) {
+      return;
+    }
+
+    if (content.trim().length > MAX_MESSAGE_LENGTH) {
+      setSendError(`Tin nhắn không được vượt quá ${MAX_MESSAGE_LENGTH} ký tự.`);
+      return;
+    }
+
+    const fileError = validateMessageFile(selectedFile);
+    if (fileError) {
+      setSendError(fileError);
       return;
     }
 
@@ -1037,10 +1122,9 @@ function ThreadPanel({
         <input
           ref={fileInputRef}
           type="file"
+          accept={MESSAGE_FILE_ACCEPT}
           className="hidden"
-          onChange={(event) =>
-            setSelectedFile(event.target.files?.[0] || null)
-          }
+          onChange={handleFileChange}
         />
 
         <div className="flex items-center gap-2 sm:gap-3">
@@ -1056,6 +1140,7 @@ function ThreadPanel({
 
           <input
             value={content}
+            maxLength={MAX_MESSAGE_LENGTH}
             onChange={handleContentChange}
             placeholder={
               selectedFile
@@ -1064,6 +1149,10 @@ function ThreadPanel({
             }
             className="h-11 min-w-0 flex-1 rounded-full border border-slate-200 bg-[#F5F6F7] px-5 text-sm text-[#0F2747] outline-none transition focus:border-[#0757A6] focus:bg-white focus:ring-4 focus:ring-blue-100"
           />
+
+          <span className="hidden shrink-0 text-[10px] text-slate-400 lg:inline">
+            {content.length}/{MAX_MESSAGE_LENGTH}
+          </span>
 
           <button
             type="submit"
@@ -1084,6 +1173,8 @@ function ThreadPanel({
 }
 
 function ConversationItem({ conversation, active, onClick }) {
+  const { user } = useAuth();
+
   const roleLabel =
     conversation.conversationType === "GROUP"
       ? "Nhóm"
@@ -1130,7 +1221,7 @@ function ConversationItem({ conversation, active, onClick }) {
                 : "text-slate-500"
             }`}
           >
-            {getConversationPreview(conversation)}
+            {getConversationPreview(conversation, user?.userId)}
           </p>
 
           {Number(conversation.unreadCount) > 0 && (
@@ -1227,7 +1318,7 @@ function NewConversationModal({
                     key={group.conversationId}
                     type="button"
                     onClick={() => onOpenGroup(group)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
+                    className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
                   >
                     <ConversationAvatar name={group.title} tone="green" />
 
@@ -1269,7 +1360,7 @@ function NewConversationModal({
                     }
                     type="button"
                     onClick={() => onStartTeacher(teacher)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
+                    className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-orange-200 hover:bg-[#FFF7F2]"
                   >
                     <ConversationAvatar
                       name={teacher.teacherName}
@@ -1593,7 +1684,7 @@ function StudentMessages() {
                       key={filter.value}
                       type="button"
                       onClick={() => setConversationFilter(filter.value)}
-                      className={`min-h-8 rounded-full px-2 py-1 !text-[15px] transition sm:text-[10px] ${
+                      className={`flex min-h-11 items-center justify-center whitespace-normal break-words rounded-2xl px-1.5 py-1 text-center text-[10.5px] font-bold leading-tight transition ${
                         conversationFilter === filter.value
                           ? "bg-[#F27123] text-white"
                           : "bg-[#ECEDEF] text-slate-600 hover:bg-slate-200"

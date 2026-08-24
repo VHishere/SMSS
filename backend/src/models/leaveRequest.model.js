@@ -15,9 +15,15 @@ async function findHomeroomTeacherUserIdByClassId(classId) {
         ON t.teacher_id = tc.teacher_id
       INNER JOIN user_account ua
         ON ua.user_id = t.user_id
+      INNER JOIN school_class sc
+        ON sc.class_id = tc.class_id
+        AND sc.status = 'ACTIVE'
+      INNER JOIN school_year sy
+        ON sy.school_year_id = sc.school_year_id
+        AND sy.is_active = 1
       WHERE tc.class_id = ?
         AND tc.role_in_class = 'HOMEROOM_TEACHER'
-        AND tc.end_date IS NULL
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
       LIMIT 1
     `,
     [classId],
@@ -407,7 +413,11 @@ async function findTeacherClassesForFilter(teacherId) {
      INNER JOIN school_class sc
        ON sc.class_id = tc.class_id
        AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy
+       ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ?
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      ORDER BY sc.class_name ASC`,
     [teacherId],
   );

@@ -43,7 +43,9 @@ const ATT_STATUS = {
 const PTYPE = { STUDENT: "Học sinh", PARENT: "Phụ huynh", TEACHER: "Giáo viên" };
 const inputCls = "w-full rounded-xl border border-[#DFC0B2] px-3 py-2.5 text-sm text-[#1A1C1C] outline-none focus:ring-1 focus:ring-[#00458E]";
 
-function AdminEventDetailPage() {
+// basePath: portal đang render ("/admin" hoặc "/staff") — xem chú thích ở
+// AdminEventsPage. Dùng chung endpoint + UI, chỉ khác đường điều hướng.
+function AdminEventDetailPage({ basePath = "/admin" }) {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -83,7 +85,7 @@ function AdminEventDetailPage() {
     try { await adminApi.changeEventStatus(eventId, status); refetch(); } catch (e) { alert(e.message); }
   }
   async function duplicate() {
-    try { const res = await adminApi.duplicateEvent(eventId); navigate(`/admin/events/${res.data.eventId}`); } catch (e) { alert(e.message); }
+    try { const res = await adminApi.duplicateEvent(eventId); navigate(`${basePath}/events/${res.data.eventId}`); } catch (e) { alert(e.message); }
   }
   async function reminder() {
     try { const res = await adminApi.sendEventReminder(eventId); alert(`Đã gửi nhắc nhở tới ${res.data.sent} người.`); } catch (e) { alert(e.message); }
@@ -94,7 +96,7 @@ function AdminEventDetailPage() {
 
   return (
     <>
-      <button type="button" onClick={() => navigate("/admin/events")} className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-[#1A1C1C]">
+      <button type="button" onClick={() => navigate(`${basePath}/events`)} className="mb-4 flex items-center gap-1.5 text-sm font-medium text-slate-500 transition hover:text-[#1A1C1C]">
         <Ms name="arrow_back" className="text-[18px]!" /> Về danh sách
       </button>
 

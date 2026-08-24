@@ -6,6 +6,18 @@ function httpError(message, statusCode) {
   return err;
 }
 
+const MAX_MESSAGE_LENGTH = 5000;
+const MAX_FILE_URL_LENGTH = 500;
+
+function isValidHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 const { pool } = require("../config/db");
 async function notify(receivers, title, content, conversationId) {
   if (!receivers.length) return;
@@ -35,7 +47,7 @@ async function startConversation({ teacher, target }) {
 
   const type = kind === "PARENT" ? "PARENT_TEACHER" : "TEACHER_STUDENT";
 
-  const existing = await commModel.findDirectConversation(type, teacher.userId, otherUserId, studentId ?? null);
+  const existing = await commModel.findOneToOneConversation(teacher.userId, otherUserId);
   if (existing) return { conversationId: existing, created: false };
 
   const conversationId = await commModel.createConversation({
@@ -71,6 +83,9 @@ async function createGroup({ teacher, title, classId, audience }) {
     title: title.trim(),
     studentId: null,
     createdBy: teacher.userId,
+    // Recorded for traceability only. groupKind stays null so the roster sync
+    // never touches a group the teacher curates by hand.
+    classId,
     participants: participantIds.map((uid) => ({
       userId: uid,
       role: uid === teacher.userId ? "TEACHER" : "MEMBER",
@@ -83,31 +98,68 @@ async function createGroup({ teacher, title, classId, audience }) {
 // ── Send message ──────────────────────────────────────────────────────────────
 
 async function sendMessage({ userId, conversationId, messageType, content, fileUrl }) {
-  const ok = await commModel.isParticipant(conversationId, userId);
+  const parsedConversationId = Number.parseInt(conversationId, 10);
+  if (!Number.isInteger(parsedConversationId) || parsedConversationId <= 0) {
+    throw httpError("Cuộc trò chuyện không hợp lệ", 400);
+  }
+
+  const ok = await commModel.isParticipant(parsedConversationId, userId);
   if (!ok) throw httpError("Bạn không thuộc cuộc trò chuyện này", 403);
 
-  const type = ["TEXT", "FILE", "IMAGE"].includes(messageType) ? messageType : "TEXT";
-  if (type === "TEXT" && (!content || !content.trim())) throw httpError("Nội dung tin nhắn trống", 400);
-  if ((type === "FILE" || type === "IMAGE") && !fileUrl) throw httpError("Thiếu tệp đính kèm", 400);
+  const type = ["TEXT", "FILE", "IMAGE"].includes(messageType)
+    ? messageType
+    : "TEXT";
+  const normalizedContent = String(content || "").trim();
+  const normalizedFileUrl = String(fileUrl || "").trim();
+
+  if (normalizedContent.length > MAX_MESSAGE_LENGTH) {
+    throw httpError(`Tin nhắn không được vượt quá ${MAX_MESSAGE_LENGTH} ký tự`, 400);
+  }
+
+  if (type === "TEXT" && !normalizedContent) {
+    throw httpError("Nội dung tin nhắn trống", 400);
+  }
+
+  if (type === "FILE" || type === "IMAGE") {
+    if (!normalizedFileUrl) {
+      throw httpError("Thiếu tệp đính kèm", 400);
+    }
+
+    if (
+      normalizedFileUrl.length > MAX_FILE_URL_LENGTH ||
+      !isValidHttpUrl(normalizedFileUrl)
+    ) {
+      throw httpError("Đường dẫn tệp đính kèm không hợp lệ", 400);
+    }
+  }
 
   const msg = await commModel.insertMessage({
-    conversationId, senderId: userId, messageType: type,
-    content: content ? content.trim() : null, fileUrl: fileUrl ?? null,
+    conversationId: parsedConversationId,
+    senderId: userId,
+    messageType: type,
+    content: normalizedContent || null,
+    fileUrl: normalizedFileUrl || null,
   });
 
-  // Mark the sender's own read pointer up-to-date, then notify others.
-  await commModel.markRead(conversationId, userId);
+  await commModel.markRead(parsedConversationId, userId);
 
   try {
-    const participants = await commModel.findParticipants(conversationId);
-    const meta = await commModel.findConversationMeta(conversationId);
+    const participants = await commModel.findParticipants(parsedConversationId);
+    const meta = await commModel.findConversationMeta(parsedConversationId);
     const sender = participants.find((p) => p.userId === userId);
-    const receivers = participants.filter((p) => p.userId !== userId).map((p) => p.userId);
-    const preview = type === "TEXT" ? (content || "").slice(0, 80) : "[Tệp đính kèm]";
-    const title = meta?.conversationType === "GROUP" ? `Tin nhắn nhóm: ${meta.title}` : `Tin nhắn từ ${sender?.fullName ?? "giáo viên"}`;
-    await notify(receivers, title, preview, conversationId);
-  } catch (e) {
-    console.error("sendMessage notification (non-critical):", e);
+    const receivers = participants
+      .filter((p) => p.userId !== userId)
+      .map((p) => p.userId);
+    const preview = type === "TEXT"
+      ? normalizedContent.slice(0, 80)
+      : "[Tệp đính kèm]";
+    const title = meta?.conversationType === "GROUP"
+      ? `Tin nhắn nhóm: ${meta.title}`
+      : `Tin nhắn từ ${sender?.fullName ?? "giáo viên"}`;
+
+    await notify(receivers, title, preview, parsedConversationId);
+  } catch (error) {
+    console.error("sendMessage notification (non-critical):", error);
   }
 
   return msg;
@@ -123,19 +175,19 @@ async function getThread({ userId, conversationId, page, limit }) {
   const participants = await commModel.findParticipants(conversationId);
   const { total, rows } = await commModel.findMessages(conversationId, { page, limit });
 
-  // Read receipt: a message I sent is "read" if every OTHER participant's
-  // last_read_at >= the message sent time.
+  // Read receipt: a message I sent is "read" once every OTHER participant has
+  // read at least that far. Compared by message_id, matching how unread counts
+  // are computed — sent_at is not dependable enough to order messages by.
   const others = participants.filter((p) => p.userId !== userId);
-  const minOtherRead = others.reduce((min, p) => {
-    const t = p.lastReadRaw ? new Date(p.lastReadRaw).getTime() : 0;
-    return Math.min(min, t);
-  }, Number.POSITIVE_INFINITY);
+  const minOtherRead = others.reduce(
+    (min, p) => Math.min(min, Number(p.lastReadMessageId) || 0),
+    Number.POSITIVE_INFINITY,
+  );
 
   const messages = rows.map((m) => {
     let receipt = null;
     if (m.senderId === userId) {
-      const sentTime = new Date(m.sentRaw).getTime();
-      receipt = others.length > 0 && minOtherRead >= sentTime ? "READ" : "SENT";
+      receipt = others.length > 0 && minOtherRead >= m.messageId ? "READ" : "SENT";
     }
     const { sentRaw, ...rest } = m;
     return { ...rest, receipt };
@@ -146,7 +198,7 @@ async function getThread({ userId, conversationId, page, limit }) {
 
   return {
     meta,
-    participants: participants.map(({ lastReadRaw, ...p }) => p),
+    participants: participants.map(({ lastReadMessageId, ...p }) => p),
     messages,
     pagination: { total, page: Number(page) || 1, limit: Number(limit) || 50 },
   };

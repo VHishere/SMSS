@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { FiArrowLeft } from "react-icons/fi";
 
 import { staffApi } from "../../../api/client";
 import StaffDetailCard, { StaffDetailItem } from "../../../components/staff/StaffDetailCard";
@@ -57,8 +58,9 @@ function StaffTeacherDetailPage() {
             </button>
             <Link
               to="/staff/teachers"
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50 hover:text-[#08509F]"
             >
+              <FiArrowLeft size={16} />
               Quay lại
             </Link>
           </div>

@@ -1,6 +1,15 @@
 const { pool } = require("../config/db");
+const { toIsoDate } = require("../utils/date");
 
-async function listUsers({ search = "", role = "", status = "", dateFrom = "", dateTo = "" } = {}) {
+async function listUsers({
+  search = "",
+  role = "",
+  status = "",
+  dateFrom = "",
+  dateTo = "",
+  page = 1,
+  limit = 20,
+} = {}) {
   const conditions = [];
   const params = [];
 
@@ -44,6 +53,15 @@ async function listUsers({ search = "", role = "", status = "", dateFrom = "", d
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
 
+  const parsedPage = Math.max(1, parseInt(page, 10) || 1);
+  const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+  const offset = (parsedPage - 1) * parsedLimit;
+
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM user_account ua ${whereClause}`,
+    params,
+  );
+
   const [rows] = await pool.query(
     `
       SELECT
@@ -63,14 +81,36 @@ async function listUsers({ search = "", role = "", status = "", dateFrom = "", d
       ${whereClause}
       GROUP BY ua.user_id
       ORDER BY ua.created_at DESC
+      LIMIT ? OFFSET ?
     `,
-    params,
+    [...params, parsedLimit, offset],
   );
 
-  return rows.map((row) => ({
-    ...row,
-    roleNames: row.roleNames ? row.roleNames.split(",") : [],
-  }));
+  return {
+    items: rows.map((row) => ({
+      ...row,
+      roleNames: row.roleNames ? row.roleNames.split(",") : [],
+    })),
+    pagination: {
+      total,
+      page: parsedPage,
+      limit: parsedLimit,
+      totalPages: Math.max(1, Math.ceil(total / parsedLimit)),
+    },
+  };
+}
+
+async function getUserStatusCounts() {
+  const [rows] = await pool.query(
+    "SELECT status, COUNT(*) AS count FROM user_account GROUP BY status",
+  );
+
+  const counts = { total: 0, ACTIVE: 0, LOCKED: 0, INACTIVE: 0 };
+  for (const row of rows) {
+    counts[row.status] = Number(row.count);
+    counts.total += Number(row.count);
+  }
+  return counts;
 }
 
 async function listRoles() {
@@ -405,8 +445,8 @@ async function getOperationsSummary() {
   );
 
   const today = new Date();
-  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-  const monthEnd = today.toISOString().slice(0, 10);
+  const monthStart = toIsoDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  const monthEnd = toIsoDate(today);
 
   const [[attendance]] = await pool.query(
     `SELECT
@@ -457,6 +497,7 @@ async function getOperationsSummary() {
 
 module.exports = {
   listUsers,
+  getUserStatusCounts,
   listRoles,
   getUserDetail,
   updateUserRoles,

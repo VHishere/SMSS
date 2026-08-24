@@ -11,7 +11,7 @@ const {
 
 const {
   homeworkFileUpload,
-  messageFileUpload,
+  studentMessageFileUpload,
 } = require("../middleware/upload.middleware");
 
 const router = express.Router();
@@ -71,6 +71,12 @@ router.get(
 );
 
 router.get(
+  "/me/leave-requests",
+  ...studentOnly,
+  studentController.getMyLeaveRequests,
+);
+
+router.get(
   "/me/behaviour",
   ...studentOnly,
   studentController.getMyBehaviour,
@@ -114,16 +120,10 @@ router.post(
   studentController.createMyGoal,
 );
 
-router.patch(
-  "/me/goals/:goalId/progress",
+router.put(
+  "/me/goals/:goalId",
   ...studentOnly,
-  studentController.updateMyGoalProgress,
-);
-
-router.get(
-  "/me/goals/:goalId/log",
-  ...studentOnly,
-  studentController.getMyGoalLog,
+  studentController.updateMyGoal,
 );
 
 router.get(
@@ -183,7 +183,7 @@ router.post(
 router.post(
   "/me/communication/upload",
   ...studentOnly,
-  messageFileUpload,
+  studentMessageFileUpload,
   communicationController.uploadFile,
 );
 

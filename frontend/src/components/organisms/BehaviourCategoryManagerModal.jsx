@@ -139,7 +139,6 @@ function BehaviourCategoryManagerModal({ onClose }) {
         <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: `1px solid ${C.border}` }}>
           <div>
             <h3 className="text-base font-bold" style={{ color: C.onSurface }}>Danh mục khen thưởng / vi phạm</h3>
-            <p className="text-xs text-slate-500">Mức điểm cộng/trừ của từng danh mục — dùng làm căn cứ tính điểm hạnh kiểm.</p>
           </div>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600"><Ms name="close" className="!text-[20px]" /></button>
         </div>

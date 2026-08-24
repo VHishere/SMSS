@@ -4,7 +4,6 @@ import {
   FiArrowLeft,
   FiBookOpen,
   FiCalendar,
-  FiCheckCircle,
   FiClock,
   FiFileText,
   FiMessageCircle,
@@ -83,17 +82,17 @@ function getHomeworkStatus(homework) {
     };
   }
 
-  if (homework?.submissionStatus === "SUBMITTED") {
-    return {
-      label: "Đã nộp",
-      className: "bg-blue-50 text-blue-700",
-    };
-  }
-
   if (homework?.submissionStatus === "LATE" || homework?.isLate) {
     return {
       label: "Nộp muộn",
       className: "bg-red-50 text-red-600",
+    };
+  }
+
+  if (homework?.submissionStatus === "SUBMITTED") {
+    return {
+      label: "Đã nộp",
+      className: "bg-blue-50 text-blue-700",
     };
   }
 

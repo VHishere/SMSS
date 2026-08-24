@@ -15,6 +15,10 @@ import StaffStatCard from "../../../components/staff/StaffStatCard";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import { useAuth } from "../../../context/useAuth";
 import { formatStatus } from "../../../utils/formatters";
+import {
+  resolveStaffWorkingSchoolYear,
+  setStaffWorkingSchoolYearId,
+} from "../../../utils/staffSchoolYear";
 
 function StaffOverviewPage() {
   const { user } = useAuth();
@@ -28,12 +32,27 @@ function StaffOverviewPage() {
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([
-      staffApi.getOverview(),
-      staffApi.getStudents(),
-      staffApi.getParents(),
-      staffApi.getClasses(),
-    ])
+    staffApi
+      .getSchoolYears()
+      .then((schoolYearsRes) => {
+        const workingYear = resolveStaffWorkingSchoolYear(
+          schoolYearsRes.data || [],
+        );
+        const schoolYearId = workingYear
+          ? String(workingYear.schoolYearId)
+          : "";
+
+        if (schoolYearId) {
+          setStaffWorkingSchoolYearId(schoolYearId);
+        }
+
+        return Promise.all([
+          staffApi.getOverview({ schoolYearId }),
+          staffApi.getStudents({ schoolYearId }),
+          staffApi.getParents({ schoolYearId }),
+          staffApi.getClasses({ schoolYearId }),
+        ]);
+      })
       .then(([overviewRes, studentsRes, parentsRes, classesRes]) => {
         if (!isMounted) return;
 
@@ -100,14 +119,17 @@ function StaffOverviewPage() {
       <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <StaffDataTable
           title="Lớp học"
-          description="Danh sách lớp theo năm học hiện tại"
           showSearch={false}
           searchValue=""
           onSearchChange={() => {}}
           isLoading={loading}
           getRowLink={(row) => `/staff/classes/${row.classId}`}
           columns={[
-            { key: "className", label: "Lớp" },
+            {
+              key: "className",
+              label: "Lớp",
+              render: (row) => row.className || "Chưa xếp lớp",
+            },
             { key: "gradeName", label: "Khối" },
             { key: "studentCount", label: "HS" },
             { key: "teacherCount", label: "GV" },
@@ -117,7 +139,6 @@ function StaffOverviewPage() {
 
         <StaffDataTable
           title="Học sinh mới nhất"
-          description="Hồ sơ học sinh trong hệ thống"
           showSearch={false}
           searchValue=""
           onSearchChange={() => {}}
@@ -140,7 +161,6 @@ function StaffOverviewPage() {
 
       <StaffDataTable
         title="Phụ huynh liên kết"
-        description="Thông tin phụ huynh và học sinh tương ứng"
         showSearch={false}
         searchValue=""
         onSearchChange={() => {}}

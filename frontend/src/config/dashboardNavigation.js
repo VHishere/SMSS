@@ -12,9 +12,9 @@ import {
   FiGrid,
   FiLifeBuoy,
   FiMessageSquare,
+  FiRefreshCw,
   FiShield,
   FiStar,
-  FiTag,
   FiUserCheck,
   FiUsers,
 } from "react-icons/fi";
@@ -93,6 +93,12 @@ export const dashboardNavigation = {
       end: true,
     },
     {
+      label: "Năm học",
+      path: "/admin/school-years",
+      icon: FiCalendar,
+      ms: "calendar_month",
+    },
+    {
       label: "Tài khoản",
       path: "/admin/users",
       icon: FiUsers,
@@ -129,22 +135,10 @@ export const dashboardNavigation = {
       ms: "workspace_premium",
     },
     {
-      label: "Báo cáo",
-      path: "/admin/reports",
-      icon: FiBarChart2,
-      ms: "assessment",
-    },
-    {
-      label: "Theo dõi học phí",
+      label: "Quản lý học phí",
       path: "/admin/fees",
       icon: FiCreditCard,
       ms: "payments",
-    },
-    {
-      label: "Loại phí",
-      path: "/admin/fee-categories",
-      icon: FiTag,
-      ms: "sell",
     },
     {
       label: "Sự kiện",
@@ -153,7 +147,7 @@ export const dashboardNavigation = {
       ms: "celebration",
     },
     {
-      label: "Tin nhắn",
+      label: "Liên lạc",
       path: "/admin/messages",
       icon: FiMessageSquare,
       ms: "chat",
@@ -205,6 +199,12 @@ export const dashboardNavigation = {
       ms: "schedule",
     },
     {
+      label: "Yêu cầu đổi tiết",
+      path: "/staff/timetable-substitutions",
+      icon: FiRefreshCw,
+      ms: "published_with_changes",
+    },
+    {
       label: "Học phí",
       path: "/staff/fees",
       icon: FiCreditCard,
@@ -227,6 +227,24 @@ export const dashboardNavigation = {
       path: "/staff/surveys",
       icon: FiEdit3,
       ms: "rate_review",
+    },
+    {
+      label: "Liên lạc",
+      path: "/staff/messages",
+      icon: FiMessageSquare,
+      ms: "chat",
+    },
+    {
+      label: "Sự kiện",
+      path: "/staff/events",
+      icon: FiCalendar,
+      ms: "event",
+    },
+    {
+      label: "Thông báo",
+      path: "/staff/notifications",
+      icon: FiBell,
+      ms: "notifications",
     },
   ],
 
@@ -417,7 +435,7 @@ export const dashboardNavigation = {
       ms: "groups",
     },
     {
-      label: "Tin nhắn",
+      label: "Liên lạc",
       path: "/parent/messages",
       icon: FiMessageSquare,
       ms: "chat",

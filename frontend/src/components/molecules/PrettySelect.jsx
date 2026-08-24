@@ -1,4 +1,5 @@
 import { Children, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 // Dropdown tuỳ biến thay cho <select> native (không bo tròn/style được).
 // DROP-IN: nhận <option> children + phát onChange({ target: { value } }) như select
@@ -29,18 +30,59 @@ function PrettySelect({
   title,
   required = false,
   name,
+  dropUp = false,
 }) {
   const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState({});
   const ref = useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     if (!open) return undefined;
-    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onDoc = (e) => {
+      if (
+        (ref.current && ref.current.contains(e.target)) ||
+        (menuRef.current && menuRef.current.contains(e.target))
+      ) {
+        return;
+      }
+      setOpen(false);
+    };
     const onEsc = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", onDoc);
     document.addEventListener("keydown", onEsc);
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onEsc); };
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const updatePosition = () => {
+      const rect = ref.current?.getBoundingClientRect();
+      if (!rect) return;
+      const menuWidth = Math.max(rect.width, 160);
+      const left = Math.min(
+        Math.max(8, rect.left),
+        Math.max(8, window.innerWidth - menuWidth - 8),
+      );
+      setMenuStyle({
+        position: "fixed",
+        left,
+        top: dropUp ? rect.top - 6 : rect.bottom + 6,
+        width: menuWidth,
+        zIndex: 9999,
+        transform: dropUp ? "translateY(-100%)" : undefined,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, dropUp]);
 
   // Nguồn options: prop `options` [{value,label,disabled}] hoặc parse từ <option> children
   const opts = options ?? Children.toArray(children)
@@ -93,10 +135,11 @@ function PrettySelect({
         <span className={`material-symbols-outlined shrink-0 !text-[20px] text-slate-400 transition-transform ${open ? "rotate-180" : ""}`}>expand_more</span>
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
-          className="absolute left-0 top-[calc(100%+6px)] z-30 max-h-64 w-full min-w-[10rem] overflow-y-auto rounded-2xl border bg-white p-1 shadow-lg"
-          style={{ borderColor: C.border }}
+          ref={menuRef}
+          className="max-h-64 min-w-[10rem] overflow-y-auto rounded-2xl border bg-white p-1 shadow-lg"
+          style={{ borderColor: C.border, ...menuStyle }}
           role="listbox"
         >
           {opts.length === 0 && <div className="px-3 py-2 text-sm text-slate-400">Không có lựa chọn</div>}
@@ -120,7 +163,8 @@ function PrettySelect({
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

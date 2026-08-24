@@ -1,49 +1,12 @@
 const attendanceModel = require("../models/attendance.model");
+const attendanceWarningService = require("../services/attendanceWarning.service");
 const studentProfileModel = require("../models/studentProfile.model");
+const { toIsoDate } = require("../utils/date");
 
 function handleAdminError(res, error, fallback) {
   if (error.statusCode) return res.status(error.statusCode).json({ success: false, message: error.message });
   console.error(`${fallback}:`, error);
   return res.status(500).json({ success: false, message: fallback });
-}
-
-async function getStudentAttendanceStats(req, res) {
-  try {
-    const studentId = parseInt(req.params.studentId, 10);
-
-    const { startDate, endDate, context } = req.query;
-
-    const rawStats = await attendanceModel.findStatsByStudentId(studentId, {
-      startDate,
-      endDate,
-      context,
-    });
-
-    const byType = {};
-    const byContext = {};
-    let total = 0;
-
-    for (const row of rawStats) {
-      const count = Number(row.count);
-      total += count;
-
-      byType[row.typeName] = (byType[row.typeName] || 0) + count;
-
-      if (!byContext[row.context]) byContext[row.context] = {};
-      byContext[row.context][row.typeName] = (byContext[row.context][row.typeName] || 0) + count;
-    }
-
-    return res.json({
-      success: true,
-      data: { total, byType, byContext },
-    });
-  } catch (error) {
-    console.error("getStudentAttendanceStats error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Không thể lấy thống kê điểm danh",
-    });
-  }
 }
 
 async function getStudentAttendanceHistory(req, res) {
@@ -97,9 +60,8 @@ async function getStudentAttendanceAnalytics(req, res) {
     const studentId = parseInt(req.params.studentId, 10);
 
     const now          = new Date();
-    const defaultEnd   = now.toISOString().split("T")[0];
-    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      .toISOString().split("T")[0];
+    const defaultEnd   = toIsoDate(now);
+    const defaultStart = toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
 
     const startDate = req.query.startDate || defaultStart;
     const endDate   = req.query.endDate   || defaultEnd;
@@ -213,8 +175,8 @@ async function getAnalytics(req, res) {
     const classId = parseInt(req.params.classId, 10);
 
     const now = new Date();
-    const defaultEnd = now.toISOString().split("T")[0];
-    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+    const defaultEnd = toIsoDate(now);
+    const defaultStart = toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1));
 
     const startDate = req.query.startDate || defaultStart;
     const endDate = req.query.endDate || defaultEnd;
@@ -306,8 +268,9 @@ function buildAbsenceStudents(rows, policy) {
   const students = rows.map((r) => {
     const absentPeriods = r.absentUnexcused + (policy.countExcused ? r.absentExcused : 0);
     const absentSessions = Math.round((absentPeriods / policy.periodsPerSession) * 100) / 100;
-    const level = absentSessions >= policy.maxAbsentSessions ? "OVER"
-      : absentSessions >= warnThreshold ? "WARN" : "OK";
+    const level = absentSessions > policy.maxAbsentSessions ? "OVER"
+      : absentSessions >= policy.maxAbsentSessions ? "LIMIT"
+        : absentSessions >= warnThreshold ? "WARN" : "OK";
     return { ...r, absentPeriods, absentSessions, level };
   });
   return { students, warnThreshold };
@@ -341,6 +304,7 @@ async function getClassOverview(req, res) {
         summary: {
           total: students.length,
           over: students.filter((s) => s.level === "OVER").length,
+          limit: students.filter((s) => s.level === "LIMIT").length,
           warn: students.filter((s) => s.level === "WARN").length,
         },
       },
@@ -363,49 +327,25 @@ async function generateWarnings(req, res) {
     const year = await attendanceModel.findActiveSchoolYear();
     if (!year) return res.status(404).json({ success: false, message: "Chưa có năm học đang hoạt động" });
 
-    const policy = await attendanceModel.findAbsencePolicy(year.schoolYearId);
-    const rows = await attendanceModel.findClassAttendanceOverview(classId, year.startDate, year.endDate);
-    const { students } = buildAbsenceStudents(rows, policy);
-    const atRisk = students.filter((s) => s.level !== "OK");
+    const students = await attendanceModel.findEnrolledStudents(classId);
+    const results = await attendanceWarningService.evaluateStudents({
+      studentIds: students.map((student) => student.studentId),
+      attendanceDate: year.endDate,
+      actorUserId: req.user.userId,
+    });
+    const generated = results.filter((item) => item.level !== "OK").length;
 
-    for (const s of atRisk) {
-      await attendanceModel.upsertAbsenceWarning({
-        studentId: s.studentId,
-        schoolYearId: year.schoolYearId,
-        absentPeriods: s.absentPeriods,
-        absentSessions: s.absentSessions,
-        thresholdSessions: policy.maxAbsentSessions,
-        note: `Nghỉ ${s.absentSessions} buổi (quy đổi từ ${s.absentPeriods} tiết), ngưỡng ${policy.maxAbsentSessions} buổi/năm.`,
-        createdBy: req.user.userId,
-      });
-    }
-
-    try {
-      const overIds = atRisk.map((s) => s.studentId);
-      if (overIds.length) {
-        const parents = await attendanceModel.findStudentParentUserIds(overIds);
-        const nameMap = {};
-        for (const s of atRisk) nameMap[s.studentId] = s;
-        const notifications = parents.map((p) => ({
-          receiverId: p.parentUserId,
-          relatedId: p.studentId,
-          title: "Cảnh báo số buổi nghỉ",
-          content: `${nameMap[p.studentId]?.fullName ?? "Học sinh"} đã nghỉ ~${nameMap[p.studentId]?.absentSessions} buổi (ngưỡng ${policy.maxAbsentSessions} buổi/năm). Vui lòng lưu ý điều kiện lên lớp.`,
-        }));
-        await attendanceModel.createAbsenceNotifications(notifications);
-      }
-    } catch (notifErr) {
-      console.error("absence warning notifications (non-critical):", notifErr);
-    }
-
-    return res.json({ success: true, message: `Đã cập nhật ${atRisk.length} cảnh báo nghỉ học`, data: { generated: atRisk.length } });
+    return res.json({
+      success: true,
+      message: `Đã kiểm tra ${students.length} học sinh; ${generated} học sinh đang ở mức cảnh báo trở lên.`,
+      data: { generated },
+    });
   } catch (error) {
     return handleAdminError(res, error, "Không thể tạo cảnh báo nghỉ học");
   }
 }
 
 module.exports = {
-  getStudentAttendanceStats,
   getStudentAttendanceHistory,
   getStudentAttendanceAnalytics,
   getMeta,

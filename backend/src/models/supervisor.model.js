@@ -39,7 +39,11 @@ async function findAreaIds(supervisorId) {
 // Xác nhận 1 khu thuộc GVQN (chống truy cập khu người khác)
 async function ownsArea(supervisorId, areaId) {
   const [[row]] = await pool.query(
-    `SELECT 1 AS ok FROM supervisor_area WHERE supervisor_id = ? AND area_id = ?`,
+    `SELECT 1 AS ok
+     FROM supervisor_area
+     WHERE supervisor_id = ?
+       AND area_id = ?
+       AND status = 'ACTIVE'`,
     [supervisorId, areaId],
   );
   return Boolean(row);
@@ -55,14 +59,26 @@ async function findDashboardStats(areaIds) {
     `SELECT COUNT(*) total,
             SUM(attendance_type_id = 1) present,
             SUM(attendance_type_id IN (3, 4)) absent
-     FROM attendance
-     WHERE area_id IN (${ph}) AND attendance_context = 'DORM' AND attendance_date = CURDATE()`,
+     FROM attendance a
+     WHERE a.area_id IN (${ph})
+       AND a.attendance_context = 'DORM'
+       AND a.attendance_date = CURDATE()
+       AND EXISTS (
+         SELECT 1
+         FROM student_area sa
+         WHERE sa.student_id = a.student_id
+           AND sa.area_id = a.area_id
+           AND sa.status = 'ACTIVE'
+       )`,
     areaIds,
   );
   const [[vio]] = await pool.query(
     `SELECT COUNT(DISTINCT br.behavior_id) c
      FROM behavior_record br
-     JOIN student_area sa ON sa.student_id = br.student_id AND sa.area_id IN (${ph})
+     JOIN student_area sa
+       ON sa.student_id = br.student_id
+       AND sa.area_id IN (${ph})
+       AND sa.status = 'ACTIVE'
      WHERE br.behavior_type = 'VIOLATION'
        AND br.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`,
     areaIds,
@@ -260,17 +276,30 @@ async function findAreas(supervisorId) {
     `SELECT sa.area_id AS areaId, sa.area_name AS areaName, sa.area_type AS areaType,
             sa.description, sa.status,
             (SELECT COUNT(*) FROM room r WHERE r.area_id = sa.area_id) AS roomCount,
-            (SELECT COUNT(*) FROM student_area st WHERE st.area_id = sa.area_id) AS studentCount
+            (SELECT COUNT(DISTINCT st.student_id)
+             FROM student_area st
+             WHERE st.area_id = sa.area_id
+               AND st.status = 'ACTIVE') AS studentCount
      FROM supervisor_area sa
      WHERE sa.supervisor_id = ?
+       AND sa.status = 'ACTIVE'
      ORDER BY sa.area_id`,
     [supervisorId],
   );
   for (const a of rows) {
     const [[p]] = await pool.query(
       `SELECT COUNT(*) total, SUM(attendance_type_id = 1) present
-       FROM attendance
-       WHERE area_id = ? AND attendance_context = 'DORM' AND attendance_date = CURDATE()`,
+       FROM attendance att
+       WHERE att.area_id = ?
+         AND att.attendance_context = 'DORM'
+         AND att.attendance_date = CURDATE()
+         AND EXISTS (
+           SELECT 1
+           FROM student_area st
+           WHERE st.student_id = att.student_id
+             AND st.area_id = att.area_id
+             AND st.status = 'ACTIVE'
+         )`,
       [a.areaId],
     );
     a.presentRate = p.total ? Math.round((p.present / p.total) * 100) : null;
@@ -282,10 +311,26 @@ async function findAreaSummary(areaIds) {
   if (!areaIds.length) return { areaCount: 0, roomCount: 0, studentCount: 0, presentRate: null };
   const ph = areaIds.map(() => "?").join(",");
   const [[room]] = await pool.query(`SELECT COUNT(*) c FROM room WHERE area_id IN (${ph})`, areaIds);
-  const [[stu]] = await pool.query(`SELECT COUNT(*) c FROM student_area WHERE area_id IN (${ph})`, areaIds);
+  const [[stu]] = await pool.query(
+    `SELECT COUNT(DISTINCT student_id) c
+     FROM student_area
+     WHERE area_id IN (${ph})
+       AND status = 'ACTIVE'`,
+    areaIds,
+  );
   const [[att]] = await pool.query(
     `SELECT COUNT(*) total, SUM(attendance_type_id = 1) present
-     FROM attendance WHERE area_id IN (${ph}) AND attendance_context = 'DORM' AND attendance_date = CURDATE()`,
+     FROM attendance a
+     WHERE a.area_id IN (${ph})
+       AND a.attendance_context = 'DORM'
+       AND a.attendance_date = CURDATE()
+       AND EXISTS (
+         SELECT 1
+         FROM student_area sa
+         WHERE sa.student_id = a.student_id
+           AND sa.area_id = a.area_id
+           AND sa.status = 'ACTIVE'
+       )`,
     areaIds,
   );
   return {
@@ -325,7 +370,8 @@ async function findAttendanceRoster(areaId, { date, roomId, floor, q }) {
      LEFT JOIN attendance a ON a.student_id = s.student_id AND a.area_id = st.area_id
             AND a.attendance_context = 'DORM' AND a.attendance_date = ?
      LEFT JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
-     WHERE st.area_id = ?${extra}
+     WHERE st.area_id = ?
+       AND st.status = 'ACTIVE'${extra}
      ORDER BY r.room_name, ua.full_name`,
     params,
   );
@@ -340,18 +386,39 @@ async function bulkUpsertAttendance(userId, { areaId, date, records }) {
     const ids = records.map((r) => r.studentId);
     if (ids.length) {
       const ph = ids.map(() => "?").join(",");
+      const [[scope]] = await conn.query(
+        `SELECT COUNT(DISTINCT student_id) AS total
+         FROM student_area
+         WHERE area_id = ?
+           AND status = 'ACTIVE'
+           AND student_id IN (${ph})`,
+        [areaId, ...ids],
+      );
+      if (Number(scope.total || 0) !== new Set(ids).size) {
+        const error = new Error("Danh sách điểm danh có học sinh không thuộc khu đang hoạt động");
+        error.statusCode = 400;
+        throw error;
+      }
       await conn.query(
         `DELETE FROM attendance
          WHERE area_id = ? AND attendance_context = 'DORM' AND attendance_date = ? AND student_id IN (${ph})`,
         [areaId, date, ...ids],
       );
-      for (const rec of records) {
-        await conn.query(
-          `INSERT INTO attendance (student_id, area_id, attendance_type_id, attendance_date, attendance_context, check_in_time, created_by)
-           VALUES (?,?,?,?, 'DORM', NOW(), ?)`,
-          [rec.studentId, areaId, rec.typeId, date, userId],
-        );
-      }
+      await conn.query(
+        `INSERT INTO attendance (student_id, area_id, attendance_type_id, attendance_date, attendance_context, check_in_time, created_by)
+         VALUES ?`,
+        [
+          records.map((rec) => [
+            rec.studentId,
+            areaId,
+            rec.typeId,
+            date,
+            "DORM",
+            new Date(),
+            userId,
+          ]),
+        ],
+      );
     }
     await conn.commit();
     return ids.length;
@@ -366,13 +433,29 @@ async function bulkUpsertAttendance(userId, { areaId, date, records }) {
 async function findAttendanceSummary(areaIds, date) {
   if (!areaIds.length) return { present: 0, absentUnexcused: 0, absentExcused: 0, notYet: 0, totalStudents: 0 };
   const ph = areaIds.map(() => "?").join(",");
-  const [[tot]] = await pool.query(`SELECT COUNT(*) c FROM student_area WHERE area_id IN (${ph})`, areaIds);
+  const [[tot]] = await pool.query(
+    `SELECT COUNT(DISTINCT student_id) c
+     FROM student_area
+     WHERE area_id IN (${ph})
+       AND status = 'ACTIVE'`,
+    areaIds,
+  );
   const [[a]] = await pool.query(
     `SELECT SUM(attendance_type_id = 1) present,
             SUM(attendance_type_id = 4) absentUnexcused,
             SUM(attendance_type_id = 3) absentExcused,
             COUNT(*) marked
-     FROM attendance WHERE area_id IN (${ph}) AND attendance_context = 'DORM' AND attendance_date = ?`,
+     FROM attendance a
+     WHERE a.area_id IN (${ph})
+       AND a.attendance_context = 'DORM'
+       AND a.attendance_date = ?
+       AND EXISTS (
+         SELECT 1
+         FROM student_area sa
+         WHERE sa.student_id = a.student_id
+           AND sa.area_id = a.area_id
+           AND sa.status = 'ACTIVE'
+       )`,
     [...areaIds, date],
   );
   const present = Number(a.present || 0);
@@ -577,9 +660,102 @@ async function findAreaContacts(areaIds) {
   return rows;
 }
 
+// Đơn nghỉ ĐANG CHỜ GVQN duyệt (GVCN đã duyệt, GVQN chưa xử lý) — lọc ngay trong
+// SQL bằng HAVING. KHÔNG dùng findLeaveApprovals rồi filter ở JS: hàm đó có
+// LIMIT nên lấy N đơn mới nhất trước, đơn chờ duyệt cũ hơn sẽ bị cắt → chuông
+// đếm thiếu. Điều kiện ở đây khớp đúng bucket "pending_gvqn" của màn Duyệt nghỉ.
+async function findPendingGvqnLeaveRequests(areaIds, { limit = 50 } = {}) {
+  if (!areaIds.length) return [];
+  const ph = areaIds.map(() => "?").join(",");
+  const [rows] = await pool.query(
+    `SELECT lr.leave_request_id AS id, lr.leave_type AS leaveType, lr.status,
+            lr.start_date AS startDate, lr.end_date AS endDate,
+            stu.full_name AS studentName, sc.class_name AS className,
+            MAX(CASE WHEN la.role = 'HOMEROOM_TEACHER' THEN la.action END) AS gvcnAction,
+            MAX(CASE WHEN la.role = 'DORM_SUPERVISOR'  THEN la.action END) AS gvqnAction
+     FROM leave_request lr
+     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph})
+     JOIN student s ON s.student_id = lr.student_id
+     JOIN user_account stu ON stu.user_id = s.user_id
+     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+     LEFT JOIN leave_approval la ON la.leave_request_id = lr.leave_request_id
+     WHERE lr.status <> 'CANCELLED'
+     GROUP BY lr.leave_request_id, lr.leave_type, lr.status, lr.start_date, lr.end_date,
+              lr.created_at, stu.full_name, sc.class_name
+     HAVING gvcnAction = 'APPROVE' AND gvqnAction IS NULL
+     ORDER BY lr.created_at DESC
+     LIMIT ?`,
+    [...areaIds, limit],
+  );
+  return rows;
+}
+
+// ── Danh bạ cho CHAT (kèm user_id để bắt đầu hội thoại) — scope theo khu ───────
+async function findAreaMessageStudents(areaIds) {
+  if (!areaIds.length) return [];
+  const ph = areaIds.map(() => "?").join(",");
+  const [rows] = await pool.query(
+    `SELECT DISTINCT s.user_id AS studentUserId, s.student_id AS studentId,
+            ua.full_name AS studentName, ua.avatar AS studentAvatar,
+            s.student_code AS studentCode, sc.class_name AS className
+     FROM student_area saa
+     JOIN student s ON s.student_id = saa.student_id
+     JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
+     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+     WHERE saa.area_id IN (${ph})
+     ORDER BY ua.full_name`,
+    areaIds,
+  );
+  return rows;
+}
+
+async function findAreaMessageParents(areaIds) {
+  if (!areaIds.length) return [];
+  const ph = areaIds.map(() => "?").join(",");
+  const [rows] = await pool.query(
+    `SELECT DISTINCT ppu.user_id AS parentUserId, ppu.full_name AS parentName,
+            ppu.avatar AS parentAvatar,
+            s.student_id AS studentId, stu.full_name AS studentName,
+            sc.class_name AS className, spr.relationship, spr.is_primary AS isPrimary
+     FROM student_area saa
+     JOIN student s ON s.student_id = saa.student_id
+     JOIN user_account stu ON stu.user_id = s.user_id
+     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+     JOIN student_parent spr ON spr.student_id = s.student_id
+     JOIN parent_profile pp ON pp.parent_id = spr.parent_id
+     JOIN user_account ppu ON ppu.user_id = pp.user_id AND ppu.status = 'ACTIVE'
+     WHERE saa.area_id IN (${ph})
+     ORDER BY stu.full_name, spr.is_primary DESC`,
+    areaIds,
+  );
+  return rows;
+}
+
+// Phụ huynh (theo user_id) có con thuộc khu GVQN — chống nhắn ngoài khu.
+async function parentInArea(areaIds, parentUserId) {
+  if (!areaIds.length) return false;
+  const ph = areaIds.map(() => "?").join(",");
+  const [[row]] = await pool.query(
+    `SELECT 1 AS ok
+     FROM student_area saa
+     JOIN student_parent spr ON spr.student_id = saa.student_id
+     JOIN parent_profile pp ON pp.parent_id = spr.parent_id
+     WHERE pp.user_id = ? AND saa.area_id IN (${ph}) LIMIT 1`,
+    [parentUserId, ...areaIds],
+  );
+  return Boolean(row);
+}
+
 module.exports = {
   SHIFTS,
   dbToday,
+  findPendingGvqnLeaveRequests,
+  findAreaMessageStudents,
+  findAreaMessageParents,
+  parentInArea,
   dbUpcomingSaturday,
   findWeekendRegistrations,
   setWeekendStatus,

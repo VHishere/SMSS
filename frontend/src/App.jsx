@@ -14,6 +14,8 @@ import { TeacherDashboard } from "./pages/dashboards/TeacherDashboard";
 
 import AdminDashboardLayout from "./pages/admin/AdminDashboardLayout";
 import AdminOverviewPage from "./pages/admin/AdminOverviewPage";
+import AdminProfilePage from "./pages/admin/AdminProfilePage";
+import AdminSchoolYearsPage from "./pages/admin/AdminSchoolYearsPage";
 import AdminUsersPage from "./pages/admin/AdminUsersPage";
 import AdminFeesPage from "./pages/admin/AdminFeesPage";
 import AdminFeeDetailPage from "./pages/admin/AdminFeeDetailPage";
@@ -23,7 +25,6 @@ import AdminStudentProfilePage from "./pages/admin/AdminStudentProfilePage";
 import AdminAcademicPage from "./pages/admin/AdminAcademicPage";
 import AdminBehaviourPage from "./pages/admin/AdminBehaviourPage";
 import AdminDisciplinePage from "./pages/admin/AdminDisciplinePage";
-import AdminReportsPage from "./pages/admin/AdminReportsPage";
 import AdminAttendancePage from "./pages/admin/AdminAttendancePage";
 import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage";
 import AdminMessages from "./pages/admin/AdminMessages";
@@ -38,6 +39,7 @@ import StaffStudentsPage from "./pages/dashboards/staff/StaffStudentsPage";
 import StaffParentsPage from "./pages/dashboards/staff/StaffParentsPage";
 import StaffReportsPage from "./pages/dashboards/staff/StaffReportsPage";
 import StaffSurveysPage from "./pages/dashboards/staff/StaffSurveysPage";
+import StaffNotificationsPage from "./pages/dashboards/staff/StaffNotificationsPage";
 import StaffSchoolYearsPage from "./pages/dashboards/staff/StaffSchoolYearsPage";
 import StaffClassesPage from "./pages/dashboards/staff/StaffClassesPage";
 import StaffClassDetailPage from "./pages/dashboards/staff/StaffClassDetailPage";
@@ -52,9 +54,13 @@ import StaffCurriculumPage from "./pages/dashboards/staff/StaffCurriculumPage";
 import StaffCurriculumDetailPage from "./pages/dashboards/staff/StaffCurriculumDetailPage";
 import StaffTimetablePage from "./pages/dashboards/staff/StaffTimetablePage";
 import StaffTimetableCreatePage from "./pages/dashboards/staff/StaffTimetableCreatePage";
+import StaffTimetableSubstitutionsPage from "./pages/dashboards/staff/StaffTimetableSubstitutionsPage";
+import StaffTimetableSubstitutionDetailPage from "./pages/dashboards/staff/StaffTimetableSubstitutionDetailPage";
 import StaffFeesPage from "./pages/dashboards/staff/StaffFeesPage";
 import StaffFeeFormPage from "./pages/dashboards/staff/StaffFeeFormPage";
 import StaffFeeDetailPage from "./pages/dashboards/staff/StaffFeeDetailPage";
+import StaffProfilePage from "./pages/dashboards/staff/StaffProfilePage";
+import StaffMessagesPage from "./pages/dashboards/staff/StaffMessagesPage";
 
 import StudentProfile from "./pages/student/StudentProfile";
 import StudentTimetable from "./pages/student/StudentTimetable";
@@ -116,14 +122,12 @@ import SupervisionLog from "./pages/supervisor/SupervisionLog";
 import SupervisorLeave from "./pages/supervisor/SupervisorLeave";
 import SupervisorWeekend from "./pages/supervisor/SupervisorWeekend";
 import SupervisorSupport from "./pages/supervisor/SupervisorSupport";
-import SupervisorContacts from "./pages/supervisor/SupervisorContacts";
 
 import "./App.css";
 
 const TEACHER_ROLES = [
   "HOMEROOM_TEACHER",
   "SUBJECT_TEACHER",
-  "DORM_SUPERVISOR",
 ];
 
 const SUPERVISOR_ROLES = ["DORM_SUPERVISOR"];
@@ -156,6 +160,8 @@ function App() {
             }
           >
             <Route index element={<AdminOverviewPage />} />
+            <Route path="profile" element={<AdminProfilePage />} />
+            <Route path="school-years" element={<AdminSchoolYearsPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="fees" element={<AdminFeesPage />} />
             <Route path="fees/:id" element={<AdminFeeDetailPage />} />
@@ -166,7 +172,6 @@ function App() {
             <Route path="discipline" element={<AdminDisciplinePage />} />
             <Route path="behaviour" element={<AdminBehaviourPage />} />
             <Route path="attendance" element={<AdminAttendancePage />} />
-            <Route path="reports" element={<AdminReportsPage />} />
             <Route path="notifications" element={<AdminNotificationsPage />} />
             <Route path="messages" element={<AdminMessages />} />
             <Route path="events" element={<AdminEventsPage />} />
@@ -176,12 +181,19 @@ function App() {
           <Route
             path="/staff"
             element={
-              <ProtectedRoute allowedRoles={["STAFF", "ADMIN"]}>
+              <ProtectedRoute allowedRoles={["STAFF"]}>
                 <StaffDashboardLayout />
               </ProtectedRoute>
             }
           >
             <Route index element={<StaffOverviewPage />} />
+            <Route path="profile" element={<StaffProfilePage />} />
+            <Route path="notifications" element={<StaffNotificationsPage />} />
+            {/* Sự kiện: TẠO sự kiện là nghiệp vụ giáo vụ. Dùng lại đúng UI của
+                admin (cùng endpoint /admin/events đã mở cho STAFF), chỉ truyền
+                basePath để điều hướng ở lại portal staff. */}
+            <Route path="events" element={<AdminEventsPage basePath="/staff" />} />
+            <Route path="events/:eventId" element={<AdminEventDetailPage basePath="/staff" />} />
             <Route path="students" element={<StaffStudentsPage />} />
             <Route path="students/new" element={<StaffStudentFormPage />} />
             <Route path="students/:id" element={<StaffStudentDetailPage />} />
@@ -198,9 +210,12 @@ function App() {
             <Route path="curriculum/:id" element={<StaffCurriculumDetailPage />} />
             <Route path="timetable" element={<StaffTimetablePage />} />
             <Route path="timetable/new" element={<StaffTimetableCreatePage />} />
+            <Route path="timetable-substitutions" element={<StaffTimetableSubstitutionsPage />} />
+            <Route path="timetable-substitutions/:id" element={<StaffTimetableSubstitutionDetailPage />} />
             <Route path="fees" element={<StaffFeesPage />} />
             <Route path="fees/new" element={<StaffFeeFormPage />} />
             <Route path="fees/:id" element={<StaffFeeDetailPage />} />
+            <Route path="messages" element={<StaffMessagesPage />} />
             <Route path="school-years" element={<StaffSchoolYearsPage />} />
             <Route path="classes" element={<StaffClassesPage />} />
             <Route path="classes/:id" element={<StaffClassDetailPage />} />
@@ -675,7 +690,7 @@ function App() {
           <Route path="/supervisor/leave-approvals" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorLeave /></ProtectedRoute>} />
           <Route path="/supervisor/weekend" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorWeekend /></ProtectedRoute>} />
           <Route path="/supervisor/support" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorSupport /></ProtectedRoute>} />
-          <Route path="/supervisor/messages" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorContacts /></ProtectedRoute>} />
+          <Route path="/supervisor/messages" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><MessagesPage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

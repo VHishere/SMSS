@@ -42,6 +42,16 @@ async function findProfileByUserId(userId) {
       LEFT JOIN class_enrollment ce
         ON ce.student_id = s.student_id
         AND ce.status = 'ACTIVE'
+        -- Enrollments pile up year after year, so scope to the active year.
+        -- Without this the profile falls back to last year's class.
+        AND ce.class_id IN (
+          SELECT sc2.class_id
+          FROM school_class sc2
+          INNER JOIN school_year sy2
+            ON sy2.school_year_id = sc2.school_year_id
+            AND sy2.is_active = 1
+          WHERE sc2.status = 'ACTIVE'
+        )
 
       LEFT JOIN school_class sc
         ON sc.class_id = ce.class_id
@@ -56,7 +66,10 @@ async function findProfileByUserId(userId) {
       LEFT JOIN teacher_class htc
         ON htc.class_id = sc.class_id
         AND htc.role_in_class = 'HOMEROOM_TEACHER'
-        AND htc.end_date IS NULL
+        AND (
+          htc.end_date IS NULL
+          OR htc.end_date >= CURDATE()
+        )
 
       LEFT JOIN teacher ht
         ON ht.teacher_id = htc.teacher_id
@@ -217,10 +230,10 @@ async function findStudentContextByUserId(userId) {
       WHERE s.user_id = ?
         AND s.status = 'ACTIVE'
         AND ua.status = 'ACTIVE'
+        AND sy.is_active = 1
       ORDER BY
-        sy.is_active DESC,
-        sy.start_date DESC,
-        ce.enrollment_date DESC
+        ce.enrollment_date DESC,
+        ce.enrollment_id DESC
       LIMIT 1
     `,
     [userId],
@@ -508,6 +521,7 @@ async function findDashboardSemesterAnalytics(studentId) {
         ON a.attendance_date BETWEEN sm.start_date AND sm.end_date
       WHERE a.student_id = ?
         AND a.attendance_context = 'CLASS'
+        AND a.attendance_date <= CURDATE()
       GROUP BY sm.semester_id
     `,
     [studentId],
@@ -677,6 +691,7 @@ async function findDashboardByUserId(userId) {
         ON at.attendance_type_id = a.attendance_type_id
       WHERE a.student_id = ?
         AND a.attendance_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        AND a.attendance_date <= CURDATE()
     `,
     [context.studentId],
   );
@@ -685,12 +700,11 @@ async function findDashboardByUserId(userId) {
     `
       SELECT
         COUNT(*) AS totalGoals,
-        SUM(CASE WHEN status = 'IN_PROGRESS' THEN 1 ELSE 0 END) AS inProgressGoals,
-        SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) AS completedGoals,
-        ROUND(AVG(progress), 0) AS averageProgress
+        SUM(CASE WHEN teacher_remark IS NOT NULL AND TRIM(teacher_remark) <> '' THEN 1 ELSE 0 END) AS reviewedGoals,
+        SUM(CASE WHEN target_date IS NOT NULL AND target_date < CURDATE() THEN 1 ELSE 0 END) AS overdueGoals,
+        SUM(CASE WHEN target_date IS NULL OR target_date >= CURDATE() THEN 1 ELSE 0 END) AS upcomingGoals
       FROM student_goal
       WHERE student_id = ?
-        AND status <> 'ARCHIVED'
     `,
     [context.studentId],
   );
@@ -870,6 +884,7 @@ async function findBehaviourByUserId(userId, filters = {}) {
       LEFT JOIN user_account ua
         ON ua.user_id = ce.evaluated_by
       WHERE ce.student_id = ?
+        AND ce.status = 'APPROVED'
         ${conductClause}
       ORDER BY sy.start_date DESC, sm.start_date DESC, ce.evaluation_id DESC
       LIMIT 1
@@ -931,6 +946,7 @@ async function findEventsByUserId(userId, filters = {}) {
         e.capacity,
         e.outcome,
         e.status,
+        (e.start_date IS NOT NULL AND e.start_date <= NOW()) AS hasStarted,
         sc.class_name AS className,
         er.registration_id AS registrationId,
         er.attend_status AS attendStatus,
@@ -961,6 +977,7 @@ async function findEventsByUserId(userId, filters = {}) {
     events: events.map((event) => ({
       ...event,
       registeredCount: Number(event.registeredCount || 0),
+      hasStarted: Boolean(event.hasStarted),
       isRegistered:
         Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
     })),
@@ -1031,6 +1048,7 @@ async function findEventDetailByUserId(userId, eventId) {
         e.capacity,
         e.outcome,
         e.status,
+        (e.start_date IS NOT NULL AND e.start_date <= NOW()) AS hasStarted,
         e.class_id AS classId,
         sc.class_name AS className,
         er.registration_id AS registrationId,
@@ -1096,6 +1114,7 @@ async function findEventDetailByUserId(userId, eventId) {
     event: {
       ...event,
       registeredCount: Number(event.registeredCount || 0),
+      hasStarted: Boolean(event.hasStarted),
       isRegistered:
         Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
     },
@@ -1115,6 +1134,7 @@ async function registerEvent({ userId, studentId, eventId }) {
           e.event_id AS eventId,
           e.status,
           e.capacity,
+          (e.start_date IS NOT NULL AND e.start_date <= NOW()) AS hasStarted,
           existing.registration_id AS registrationId,
           existing.attend_status AS attendStatus
         FROM event e
@@ -1154,6 +1174,12 @@ async function registerEvent({ userId, studentId, eventId }) {
         registrationId: event.registrationId,
         alreadyRegistered: true,
       };
+    }
+
+    if (Boolean(event.hasStarted)) {
+      const error = new Error("Sự kiện đã bắt đầu, không thể đăng ký");
+      error.statusCode = 409;
+      throw error;
     }
 
     if (event.capacity) {

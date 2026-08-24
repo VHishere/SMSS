@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
-import EventFormModal from "../../components/organisms/EventFormModal";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { eventApi } from "../../api/client";
@@ -47,7 +47,6 @@ function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
-  const [showEdit, setShowEdit] = useState(false);
   const [meta, setMeta] = useState({ classes: [], categories: [] });
 
   useEffect(() => {
@@ -69,13 +68,8 @@ function EventDetailPage() {
   function setTab(k) { setSearchParams({ tab: k }); }
   function refetch() { setRefresh((k) => k + 1); }
 
-  async function changeStatus(status) {
-    if (status === "CANCELLED" && !window.confirm("Hủy sự kiện này?")) return;
-    try { await eventApi.changeStatus(eventId, status); refetch(); } catch (e) { alert(e.message); }
-  }
-  async function duplicate() {
-    try { const res = await eventApi.duplicate(eventId); navigate(`/teacher/events/${res.data.eventId}`); } catch (e) { alert(e.message); }
-  }
+  // Đã bỏ: "Nhân bản" (= tạo mới), "Sửa" và đổi trạng thái sự kiện — đều là
+  // quyền của giáo vụ; các route tương ứng ở /teachers/events đã được gỡ.
   async function reminder() {
     try { const res = await eventApi.sendReminder(eventId); alert(`Đã gửi nhắc nhở tới ${res.data.sent} người.`); } catch (e) { alert(e.message); }
   }
@@ -108,14 +102,11 @@ function EventDetailPage() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                {/* Giáo viên KHÔNG sửa được sự kiện: bỏ nút Sửa / Hoàn thành /
+                    Hủy / Lưu trữ — sửa & đổi trạng thái là quyền của giáo vụ
+                    (route PUT + PATCH status ở /teachers/events đã gỡ). Giáo viên
+                    chỉ nhắc nhở, quản lý người tham dự và điểm danh. */}
                 <button type="button" onClick={reminder} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium" style={{ backgroundColor: C.surfaceLow, color: C.orange }}><Ms name="notifications" className="!text-[16px]" /> Nhắc</button>
-                <button type="button" onClick={duplicate} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#EBF3FF", color: C.secondary }}><Ms name="content_copy" className="!text-[16px]" /> Nhân bản</button>
-                {!readOnly && event.status === "ACTIVE" && <>
-                  <button type="button" onClick={() => setShowEdit(true)} className="flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: C.deepBlue }}><Ms name="edit" className="!text-[16px]" /> Sửa</button>
-                  <button type="button" onClick={() => changeStatus("COMPLETED")} className="rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#16A34A" }}>Hoàn thành</button>
-                  <button type="button" onClick={() => changeStatus("CANCELLED")} className="rounded-full px-3 py-2 text-sm font-medium text-white" style={{ backgroundColor: "#DC2626" }}>Hủy</button>
-                </>}
-                {event.status === "COMPLETED" && <button type="button" onClick={() => changeStatus("ARCHIVED")} className="rounded-full px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#F1F5F9", color: "#475569" }}>Lưu trữ</button>}
               </div>
             </div>
             {event.description && <p className="mt-3 rounded-3xl px-4 py-3 text-sm text-slate-600" style={{ backgroundColor: C.surfaceLow }}>{event.description}</p>}
@@ -139,9 +130,6 @@ function EventDetailPage() {
         </>
       )}
 
-      {showEdit && event && (
-        <EventFormModal mode="edit" classes={meta.classes} categories={meta.categories} event={event} onClose={() => setShowEdit(false)} onSaved={() => { setShowEdit(false); refetch(); }} />
-      )}
     </DashboardShell>
   );
 }
@@ -201,9 +189,9 @@ function ParticipantsTab({ eventId, event, participants, classes, readOnly, onCh
 
       {showAdd && (
         <div className="mb-4 rounded-3xl p-3" style={{ border: `1px solid ${C.border}`, backgroundColor: C.surfaceLow }}>
-          <select value={addClassId} onChange={(e) => { setAddClassId(e.target.value); setSelected(new Set()); }} className={`${inputCls} mb-2`}>
+          <PrettySelect value={addClassId} onChange={(e) => { setAddClassId(e.target.value); setSelected(new Set()); }} className={`${inputCls} mb-2`}>
             {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-          </select>
+          </PrettySelect>
           <div className="max-h-40 space-y-1 overflow-y-auto">
             {[...contacts.students.map((s) => ({ key: `STUDENT::${s.userId}::${s.studentId}`, userId: s.userId, name: s.name, sub: `HS · ${s.code}` })),
               ...contacts.parents.map((p) => ({ key: `PARENT::${p.userId}::${p.studentId ?? ""}`, userId: p.userId, name: p.name, sub: `PH · ${p.studentName}` }))]
@@ -229,9 +217,9 @@ function ParticipantsTab({ eventId, event, participants, classes, readOnly, onCh
                 <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
                 {!readOnly && (
                   <>
-                    <select value={p.attendStatus} onChange={(e) => mark(p, e.target.value)} className="rounded-xl border px-2 py-1 text-xs outline-none" style={{ borderColor: C.border }}>
+                    <PrettySelect value={p.attendStatus} onChange={(e) => mark(p, e.target.value)} className="rounded-xl border px-2 py-1 text-xs outline-none" style={{ borderColor: C.border }}>
                       {Object.entries(ATT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-                    </select>
+                    </PrettySelect>
                     <button type="button" onClick={() => remove(p)} className="text-slate-300 hover:text-red-500"><Ms name="delete" className="!text-[16px]" /></button>
                   </>
                 )}

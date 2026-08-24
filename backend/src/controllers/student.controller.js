@@ -6,6 +6,62 @@ const { GOAL_TYPES } = require("../services/goal.service");
 const studentModel = require("../models/students");
 const homeworkModel = require("../models/homework.model");
 const feedbackModel = require("../models/feedback.model");
+const leaveRequestModel = require("../models/leaveRequest.model");
+const cloudinary = require("../config/cloudinary");
+
+const ALLOWED_ATTENDANCE_CONTEXTS = new Set([
+  "CLASS",
+  "DORM",
+  "EVENT",
+  "SELF_STUDY",
+]);
+
+const ALLOWED_STUDENT_EVENT_STATUSES = new Set([
+  "ACTIVE",
+  "PUBLISHED",
+  "SCHEDULED",
+  "COMPLETED",
+  "DONE",
+  "CANCELLED",
+]);
+
+function isValidHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+async function cleanupUploadedFile(file) {
+  if (!file?.cloudinaryPublicId) return;
+
+  try {
+    await cloudinary.uploader.destroy(file.cloudinaryPublicId, {
+      resource_type: file.cloudinaryResourceType || "raw",
+      invalidate: true,
+    });
+  } catch (cleanupError) {
+    console.error("Không thể xóa tệp upload không được sử dụng:", cleanupError);
+  }
+}
+
+function validateAttendanceDateRange(startDate, endDate) {
+  if (startDate && !isValidIsoDate(startDate)) {
+    return "Ngày bắt đầu không hợp lệ";
+  }
+
+  if (endDate && !isValidIsoDate(endDate)) {
+    return "Ngày kết thúc không hợp lệ";
+  }
+
+  if (startDate && endDate && startDate > endDate) {
+    return "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc";
+  }
+
+  return null;
+}
 
 function handleError(res, error, fallback) {
   if (error.statusCode) {
@@ -25,6 +81,69 @@ function handleError(res, error, fallback) {
 
 async function resolveStudentContext(userId) {
   return studentModel.findStudentContextByUserId(userId);
+}
+
+function formatDateInVietnam(date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function parsePositiveInteger(value, fallback = null) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function isValidIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
+function clampEndDateToToday(endDate) {
+  const today = formatDateInVietnam(new Date());
+  if (!endDate || endDate > today) return today;
+  return endDate;
+}
+
+function emptyAttendanceHistory(context, page, limit) {
+  return {
+    success: true,
+    data: {
+      context,
+      items: [],
+      pagination: {
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+      },
+    },
+  };
+}
+
+function emptyAttendanceAnalytics(context, startDate, endDate) {
+  const byType = {};
+  for (const type of ["PRESENT", "LATE", "ABSENT_EXCUSED", "ABSENT_UNEXCUSED", "EARLY_LEAVE"]) {
+    byType[type] = { count: 0, rate: 0 };
+  }
+  return {
+    success: true,
+    data: {
+      context,
+      period: { startDate, endDate },
+      summary: { totalRecords: 0, byType },
+      timeline: [],
+    },
+  };
 }
 
 async function getMyProfile(req, res) {
@@ -118,7 +237,7 @@ async function getMyHomeworkDetail(req, res) {
 
     const homeworkId = parseInt(req.params.homeworkId, 10);
 
-    if (!Number.isInteger(homeworkId)) {
+    if (!Number.isInteger(homeworkId) || homeworkId <= 0) {
       return res.status(400).json({
         success: false,
         message: "Mã bài tập không hợp lệ",
@@ -154,10 +273,13 @@ async function getMyHomeworkDetail(req, res) {
 }
 
 async function submitMyHomework(req, res) {
+  let submissionPersisted = false;
+
   try {
     const context = await resolveStudentContext(req.user.userId);
 
     if (!context) {
+      await cleanupUploadedFile(req.file);
       return res.status(404).json({
         success: false,
         message: "Không tìm thấy hồ sơ học sinh",
@@ -166,7 +288,8 @@ async function submitMyHomework(req, res) {
 
     const homeworkId = parseInt(req.params.homeworkId, 10);
 
-    if (!Number.isInteger(homeworkId)) {
+    if (!Number.isInteger(homeworkId) || homeworkId <= 0) {
+      await cleanupUploadedFile(req.file);
       return res.status(400).json({
         success: false,
         message: "Mã bài tập không hợp lệ",
@@ -177,9 +300,26 @@ async function submitMyHomework(req, res) {
     const fileUrl = req.file?.cloudinaryUrl || null;
 
     if (!content && !fileUrl) {
+      await cleanupUploadedFile(req.file);
       return res.status(400).json({
         success: false,
-        message: "Vui lòng nhập nội dung hoặc đính kèm tệp bài làm",
+        message: "Vui lòng nhập đường dẫn hoặc đính kèm tệp bài làm",
+      });
+    }
+
+    if (content.length > 500) {
+      await cleanupUploadedFile(req.file);
+      return res.status(400).json({
+        success: false,
+        message: "Đường dẫn bài làm không được vượt quá 500 ký tự",
+      });
+    }
+
+    if (content && !isValidHttpUrl(content)) {
+      await cleanupUploadedFile(req.file);
+      return res.status(400).json({
+        success: false,
+        message: "Đường dẫn bài làm phải bắt đầu bằng http:// hoặc https://",
       });
     }
 
@@ -190,6 +330,7 @@ async function submitMyHomework(req, res) {
       content,
       fileUrl,
     });
+    submissionPersisted = true;
 
     const homework = await homeworkModel.findDetailWithStudentSubmission(
       homeworkId,
@@ -208,6 +349,10 @@ async function submitMyHomework(req, res) {
       },
     });
   } catch (error) {
+    if (!submissionPersisted) {
+      await cleanupUploadedFile(req.file);
+    }
+
     return handleError(
       res,
       error,
@@ -262,18 +407,53 @@ async function getMyAttendanceHistory(req, res) {
       limit = "30",
     } = req.query;
 
-    const parsedPage = Math.max(1, parseInt(page, 10));
-    const parsedLimit = Math.min(100, Math.max(1, parseInt(limit, 10)));
+    const dateError = validateAttendanceDateRange(startDate, endDate);
+    if (dateError) {
+      return res.status(400).json({ success: false, message: dateError });
+    }
+
+    const normalizedContext = attendanceContext
+      ? String(attendanceContext).trim().toUpperCase()
+      : null;
+
+    if (
+      normalizedContext &&
+      !ALLOWED_ATTENDANCE_CONTEXTS.has(normalizedContext)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Ngữ cảnh điểm danh không hợp lệ",
+      });
+    }
+
+    const parsedTypeId = typeId == null || typeId === ""
+      ? null
+      : parsePositiveInteger(typeId);
+
+    if (typeId != null && typeId !== "" && !parsedTypeId) {
+      return res.status(400).json({
+        success: false,
+        message: "Loại điểm danh không hợp lệ",
+      });
+    }
+
+    const parsedPage = parsePositiveInteger(page, 1);
+    const parsedLimit = Math.min(100, parsePositiveInteger(limit, 30));
+    const effectiveEndDate = clampEndDateToToday(endDate || null);
+
+    if (startDate && startDate > effectiveEndDate) {
+      return res.json(emptyAttendanceHistory(context, parsedPage, parsedLimit));
+    }
 
     const { total, rows } = await attendanceModel.findHistoryByStudentId(
       context.studentId,
       {
         page: parsedPage,
         limit: parsedLimit,
-        startDate,
-        endDate,
-        context: attendanceContext,
-        typeId,
+        startDate: startDate || null,
+        endDate: effectiveEndDate,
+        context: normalizedContext,
+        typeId: parsedTypeId,
       },
     );
 
@@ -311,14 +491,35 @@ async function getMyAttendanceAnalytics(req, res) {
     }
 
     const now = new Date();
-    const defaultEnd = now.toISOString().split("T")[0];
-    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      .toISOString()
-      .split("T")[0];
+    const defaultEnd = formatDateInVietnam(now);
+    const vietnamParts = defaultEnd.split("-").map(Number);
+    const defaultStart = `${vietnamParts[0]}-${String(vietnamParts[1]).padStart(2, "0")}-01`;
 
     const startDate = req.query.startDate || defaultStart;
-    const endDate = req.query.endDate || defaultEnd;
-    const attendanceContext = req.query.context || null;
+    const endDate = clampEndDateToToday(req.query.endDate || defaultEnd);
+    const dateError = validateAttendanceDateRange(startDate, endDate);
+
+    if (dateError) {
+      return res.status(400).json({ success: false, message: dateError });
+    }
+
+    if (startDate > endDate) {
+      return res.json(emptyAttendanceAnalytics(context, startDate, endDate));
+    }
+
+    const attendanceContext = req.query.context
+      ? String(req.query.context).trim().toUpperCase()
+      : null;
+
+    if (
+      attendanceContext &&
+      !ALLOWED_ATTENDANCE_CONTEXTS.has(attendanceContext)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Ngữ cảnh điểm danh không hợp lệ",
+      });
+    }
 
     const { typeSummary, timeline } =
       await attendanceModel.findStudentAttendanceAnalytics(
@@ -383,13 +584,85 @@ async function getMyAttendanceAnalytics(req, res) {
   }
 }
 
+
+async function getMyLeaveRequests(req, res) {
+  try {
+    const context = await resolveStudentContext(req.user.userId);
+
+    if (!context) {
+      return res.status(404).json({
+        success: false,
+        message: "Không tìm thấy hồ sơ học sinh",
+      });
+    }
+
+    const { status, page = "1", limit = "20" } = req.query;
+    const normalizedStatus = status ? String(status).toUpperCase() : null;
+    const allowedStatuses = new Set([
+      "PENDING",
+      "APPROVED",
+      "REJECTED",
+      "CANCELLED",
+    ]);
+
+    if (normalizedStatus && !allowedStatuses.has(normalizedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: "Trạng thái đơn xin nghỉ không hợp lệ",
+      });
+    }
+
+    const parsedPage = parsePositiveInteger(page, 1);
+    const parsedLimit = Math.min(100, parsePositiveInteger(limit, 20));
+
+    const { total, rows } = await leaveRequestModel.findByStudentId(
+      context.studentId,
+      {
+        page: parsedPage,
+        limit: parsedLimit,
+        status: normalizedStatus,
+      },
+    );
+
+    return res.json({
+      success: true,
+      data: {
+        context,
+        items: rows,
+        pagination: {
+          total,
+          page: parsedPage,
+          limit: parsedLimit,
+          totalPages: Math.ceil(total / parsedLimit),
+        },
+      },
+    });
+  } catch (error) {
+    return handleError(
+      res,
+      error,
+      "Không thể lấy danh sách đơn xin nghỉ",
+    );
+  }
+}
+
 async function getMyBehaviour(req, res) {
   try {
+    const rawSemesterId = req.query.semesterId;
+    const semesterId = rawSemesterId == null || rawSemesterId === ""
+      ? null
+      : parsePositiveInteger(rawSemesterId);
+
+    if (rawSemesterId != null && rawSemesterId !== "" && !semesterId) {
+      return res.status(400).json({
+        success: false,
+        message: "Học kỳ không hợp lệ",
+      });
+    }
+
     const result = await studentModel.findBehaviourByUserId(
       req.user.userId,
-      {
-        semesterId: req.query.semesterId,
-      },
+      { semesterId },
     );
 
     if (!result) {
@@ -440,9 +713,17 @@ async function getMyGoals(req, res) {
       });
     }
 
+    const goalType = String(req.query.goalType || "").trim().toUpperCase();
+
+    if (goalType && !GOAL_TYPES.includes(goalType)) {
+      return res.status(400).json({
+        success: false,
+        message: "Loại mục tiêu không hợp lệ",
+      });
+    }
+
     const goals = await goalModel.findByStudent(context.studentId, {
-      status: req.query.status,
-      goalType: req.query.goalType,
+      goalType: goalType || null,
     });
 
     return res.json({
@@ -475,10 +756,7 @@ async function createMyGoal(req, res) {
     const result = await goalService.createGoal({
       actorUserId: req.user.userId,
       studentId: context.studentId,
-      payload: {
-        ...req.body,
-        teacherRemark: null,
-      },
+      payload: req.body,
     });
 
     return res.status(201).json({
@@ -506,7 +784,7 @@ async function assertMyGoal(req, res, goalId) {
     return null;
   }
 
-  if (goal.studentUserId !== req.user.userId) {
+  if (Number(goal.studentUserId) !== Number(req.user.userId)) {
     res.status(403).json({
       success: false,
       message: "Bạn không có quyền thao tác mục tiêu này",
@@ -517,16 +795,24 @@ async function assertMyGoal(req, res, goalId) {
   return goal;
 }
 
-async function updateMyGoalProgress(req, res) {
+async function updateMyGoal(req, res) {
   try {
-    const goalId = parseInt(req.params.goalId, 10);
+    const goalId = parsePositiveInteger(req.params.goalId);
+
+    if (!goalId) {
+      return res.status(400).json({
+        success: false,
+        message: "Mã mục tiêu không hợp lệ",
+      });
+    }
+
     const goal = await assertMyGoal(req, res, goalId);
 
     if (!goal) {
       return undefined;
     }
 
-    const result = await goalService.updateProgress({
+    const result = await goalService.updateGoal({
       actorUserId: req.user.userId,
       goalId,
       payload: req.body,
@@ -534,49 +820,42 @@ async function updateMyGoalProgress(req, res) {
 
     return res.json({
       success: true,
-      message: "Đã cập nhật tiến độ",
+      message: "Đã cập nhật mục tiêu",
       data: result,
     });
   } catch (error) {
     return handleError(
       res,
       error,
-      "Không thể cập nhật tiến độ mục tiêu",
-    );
-  }
-}
-
-async function getMyGoalLog(req, res) {
-  try {
-    const goalId = parseInt(req.params.goalId, 10);
-    const goal = await assertMyGoal(req, res, goalId);
-
-    if (!goal) {
-      return undefined;
-    }
-
-    const log = await goalModel.findGoalLog(goalId);
-
-    return res.json({
-      success: true,
-      data: log,
-    });
-  } catch (error) {
-    return handleError(
-      res,
-      error,
-      "Không thể lấy nhật ký mục tiêu",
+      "Không thể cập nhật mục tiêu",
     );
   }
 }
 
 async function getMyEvents(req, res) {
   try {
+    const status = String(req.query.status || "").trim().toUpperCase();
+    const search = String(req.query.search || "").trim();
+
+    if (status && !ALLOWED_STUDENT_EVENT_STATUSES.has(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Trạng thái sự kiện không hợp lệ",
+      });
+    }
+
+    if (search.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Từ khóa tìm kiếm không được vượt quá 100 ký tự",
+      });
+    }
+
     const result = await studentModel.findEventsByUserId(
       req.user.userId,
       {
-        status: req.query.status,
-        search: req.query.search,
+        status: status || null,
+        search: search || null,
       },
     );
 
@@ -600,48 +879,75 @@ async function getMyEvents(req, res) {
   }
 }
 
-async function registerMyEvent(req, res) {
+async function getMyEventDetail(req, res) {
   try {
     const eventId = parseInt(req.params.eventId, 10);
-    const resolved = await studentModel.findEventForStudent(
+
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Mã sự kiện không hợp lệ",
+      });
+    }
+
+    const result = await studentModel.findEventDetailByUserId(
       req.user.userId,
       eventId,
     );
 
-    if (!resolved) {
+    if (!result) {
       return res.status(404).json({
         success: false,
-        message: "Không tìm thấy sự kiện hoặc bạn không có quyền đăng ký",
+        message: "Không tìm thấy sự kiện hoặc bạn không có quyền xem",
       });
     }
 
-    const { context, event } = resolved;
+    return res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return handleError(
+      res,
+      error,
+      "Không thể tải chi tiết sự kiện",
+    );
+  }
+}
 
-    if (!["ACTIVE", "PUBLISHED", "SCHEDULED"].includes(event.status)) {
-      return res.status(409).json({
+async function registerMyEvent(req, res) {
+  try {
+    const eventId = parseInt(req.params.eventId, 10);
+
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+      return res.status(400).json({
         success: false,
-        message: "Sự kiện hiện không mở đăng ký",
+        message: "Mã sự kiện không hợp lệ",
       });
     }
 
-    if (event.capacity && event.registeredCount >= event.capacity) {
-      return res.status(409).json({
+    const context = await resolveStudentContext(req.user.userId);
+    if (!context) {
+      return res.status(404).json({
         success: false,
-        message: "Sự kiện đã đủ số lượng đăng ký",
+        message: "Không tìm thấy hồ sơ học sinh",
       });
     }
 
-    await studentModel.registerEvent({
+    const registration = await studentModel.registerEvent({
       userId: req.user.userId,
       studentId: context.studentId,
       eventId,
     });
 
-    return res.status(201).json({
+    return res.status(registration.alreadyRegistered ? 200 : 201).json({
       success: true,
-      message: "Đã đăng ký sự kiện",
+      message: registration.alreadyRegistered
+        ? "Bạn đã đăng ký sự kiện này"
+        : "Đã đăng ký sự kiện",
       data: {
         eventId,
+        registrationId: registration.registrationId,
       },
     });
   } catch (error) {
@@ -678,7 +984,10 @@ async function getMyNotifications(req, res) {
 
 async function markMyNotificationRead(req, res) {
   try {
-    const notificationId = parseInt(req.params.notificationId, 10);
+    const notificationId = parsePositiveInteger(req.params.notificationId);
+    if (!notificationId) {
+      return res.status(400).json({ success: false, message: "Mã thông báo không hợp lệ" });
+    }
 
     const affectedRows = await studentModel.markNotificationRead(
       req.user.userId,
@@ -781,11 +1090,9 @@ async function startMyTeacherConversation(req, res) {
 
     const { context } = resolved;
 
-    const existing = await commModel.findDirectConversation(
-      "TEACHER_STUDENT",
+    const existing = await commModel.findOneToOneConversation(
       req.user.userId,
       teacherUserId,
-      context.studentId,
     );
 
     if (existing) {
@@ -844,29 +1151,51 @@ async function updateMyProfile(req, res) {
       });
     }
 
-    const allowedGenders = ["MALE", "FEMALE", "OTHER"];
+    const phone = String(req.body.phone || "").trim();
+    const dateOfBirth = String(req.body.dateOfBirth || "").trim();
+    const gender = String(req.body.gender || "").toUpperCase();
+    const address = String(req.body.address || "").trim();
+    const allowedGenders = new Set(["MALE", "FEMALE", "OTHER"]);
 
-    const payload = {
-      fullName: String(req.body.fullName || "").trim(),
-      phone: String(req.body.phone || "").trim(),
-      avatar: req.file?.cloudinaryUrl || currentProfile.avatar || null,
-      dateOfBirth: req.body.dateOfBirth || null,
-      gender: allowedGenders.includes(req.body.gender)
-        ? req.body.gender
-        : "OTHER",
-      address: String(req.body.address || "").trim(),
-    };
-
-    if (!payload.fullName) {
+    if (phone && !/^0\d{9}$/.test(phone)) {
       return res.status(400).json({
         success: false,
-        message: "Họ và tên không được để trống",
+        message: "Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng 0",
       });
+    }
+
+    if (!allowedGenders.has(gender)) {
+      return res.status(400).json({
+        success: false,
+        message: "Giới tính không hợp lệ",
+      });
+    }
+
+    if (address.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: "Địa chỉ không được vượt quá 500 ký tự",
+      });
+    }
+
+    if (dateOfBirth) {
+      const today = formatDateInVietnam(new Date());
+      if (!isValidIsoDate(dateOfBirth) || dateOfBirth > today) {
+        return res.status(400).json({
+          success: false,
+          message: "Ngày sinh không hợp lệ hoặc nằm trong tương lai",
+        });
+      }
     }
 
     const updatedProfile = await studentModel.updateProfileByUserId(
       req.user.userId,
-      payload,
+      {
+        phone,
+        dateOfBirth: dateOfBirth || null,
+        gender,
+        address,
+      },
     );
 
     return res.json({
@@ -875,6 +1204,10 @@ async function updateMyProfile(req, res) {
       data: updatedProfile,
     });
   } catch (error) {
+    if (error.code === "ER_DUP_ENTRY") {
+      error.statusCode = 409;
+      error.message = "Số điện thoại đã được tài khoản khác sử dụng";
+    }
     return handleError(
       res,
       error,
@@ -894,11 +1227,15 @@ async function searchMyMessages(req, res) {
       });
     }
 
-    const page = Math.max(1, parseInt(req.query.page || "1", 10));
-    const limit = Math.min(
-      50,
-      Math.max(1, parseInt(req.query.limit || "20", 10)),
-    );
+    if (keyword.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Từ khóa tìm kiếm không được vượt quá 100 ký tự",
+      });
+    }
+
+    const page = parsePositiveInteger(req.query.page, 1);
+    const limit = Math.min(50, parsePositiveInteger(req.query.limit, 20));
 
     const items = await commModel.searchMessages(req.user.userId, {
       keyword,
@@ -951,28 +1288,58 @@ async function submitMySurvey(req, res) {
   try {
     const surveyId = parseInt(req.params.surveyId, 10);
     const { score, comment } = req.body;
-    const numScore = score == null || score === "" ? null : Number(score);
-    if (numScore !== null && (!Number.isInteger(numScore) || numScore < 1 || numScore > 5)) {
-      return res.status(400).json({ success: false, message: "Điểm đánh giá phải từ 1 đến 5" });
-    }
-    const context = await resolveStudentContext(req.user.userId);
-    if (!context) return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ học sinh" });
+    const normalizedComment = String(comment || "").trim();
+    const numScore = Number(score);
 
-    const survey = await feedbackModel.findSurveyById(surveyId);
-    if (!survey || survey.status !== "OPEN") {
-      return res.status(404).json({ success: false, message: "Khảo sát không tồn tại hoặc đã đóng" });
+    if (!Number.isInteger(surveyId) || surveyId <= 0) {
+      return res.status(400).json({ success: false, message: "Mã khảo sát không hợp lệ" });
     }
+
+    if (!Number.isInteger(numScore) || numScore < 1 || numScore > 5) {
+      return res.status(400).json({
+        success: false,
+        message: "Vui lòng chọn điểm đánh giá từ 1 đến 5",
+      });
+    }
+
+    if (normalizedComment.length > 2000) {
+      return res.status(400).json({
+        success: false,
+        message: "Nhận xét không được vượt quá 2000 ký tự",
+      });
+    }
+
+    const context = await resolveStudentContext(req.user.userId);
+    if (!context) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy hồ sơ học sinh" });
+    }
+
+    const eligible = await feedbackModel.canStudentSubmitSurvey(
+      surveyId,
+      context.studentId,
+    );
+    if (!eligible) {
+      return res.status(404).json({
+        success: false,
+        message: "Khảo sát không tồn tại, đã đóng hoặc không dành cho lớp của bạn",
+      });
+    }
+
     try {
       await feedbackModel.submitSurveyResponse({
-        surveyId, studentId: context.studentId, score: numScore, comment: (comment || "").trim() || null,
+        surveyId,
+        studentId: context.studentId,
+        score: numScore,
+        comment: normalizedComment || null,
       });
-    } catch (e) {
-      if (e.code === "ER_DUP_ENTRY") {
+    } catch (error) {
+      if (error.code === "ER_DUP_ENTRY") {
         return res.status(409).json({ success: false, message: "Bạn đã gửi đánh giá cho khảo sát này rồi" });
       }
-      throw e;
+      throw error;
     }
-    return res.json({ success: true, message: "Đã gửi đánh giá (ẩn danh). Cảm ơn bạn!" });
+
+    return res.json({ success: true, message: "Đã gửi đánh giá ẩn danh. Cảm ơn bạn!" });
   } catch (error) {
     return handleError(res, error, "Không thể gửi đánh giá");
   }
@@ -988,13 +1355,14 @@ module.exports = {
   getMyGrades,
   getMyAttendanceHistory,
   getMyAttendanceAnalytics,
+  getMyLeaveRequests,
   getMyBehaviour,
   getGoalTypes,
   getMyGoals,
   createMyGoal,
-  updateMyGoalProgress,
-  getMyGoalLog,
+  updateMyGoal,
   getMyEvents,
+  getMyEventDetail,
   registerMyEvent,
   getMyNotifications,
   markMyNotificationRead,

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import HomeworkFormModal from "../../components/organisms/HomeworkFormModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
@@ -296,22 +297,22 @@ function HomeworkPage() {
             {/* Collapsible filters */}
             {showFilters && (
               <div className="flex flex-wrap items-center gap-2 border-b bg-white px-6 py-3" style={{ borderColor: C.border }}>
-                <select value={classId} onChange={(e) => { setClassId(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                <PrettySelect value={classId} onChange={(e) => { setClassId(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
                   <option value="">Tất cả lớp</option>
                   {classOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <select value={subjectId} onChange={(e) => { setSubjectId(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                </PrettySelect>
+                <PrettySelect value={subjectId} onChange={(e) => { setSubjectId(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
                   <option value="">Tất cả môn</option>
                   {subjectOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-                <select value={status} onChange={(e) => { setStatus(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                </PrettySelect>
+                <PrettySelect value={status} onChange={(e) => { setStatus(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
                   <option value="">Mọi trạng thái</option>
                   <option value="OPEN">Đang mở</option>
                   <option value="CLOSED">Đã đóng</option>
-                </select>
-                <select value={sort} onChange={(e) => { setSort(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
+                </PrettySelect>
+                <PrettySelect value={sort} onChange={(e) => { setSort(e.target.value); resetPage(); }} className={selectCls} style={{ borderColor: C.border, color: C.onSurface }}>
                   {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
+                </PrettySelect>
                 <form onSubmit={submitSearch} className="flex">
                   <input
                     type="text"
@@ -439,7 +440,7 @@ function HomeworkPage() {
               <h4 className="text-lg font-bold" style={{ color: "#0F172A" }}>Nộp bài gần đây</h4>
               {recent && <p className="mt-0.5 truncate text-[11px] text-slate-400">{recent.title}</p>}
               <div className="mt-4 flex items-center gap-2">
-                <select
+                <PrettySelect
                   value={subFilter}
                   onChange={(e) => setSubFilter(e.target.value)}
                   className="flex-1 rounded-full border bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600 outline-none"
@@ -449,7 +450,7 @@ function HomeworkPage() {
                   <option value="PENDING">Chờ chấm</option>
                   <option value="GRADED">Đã chấm</option>
                   <option value="LATE">Nộp muộn</option>
-                </select>
+                </PrettySelect>
                 <button
                   type="button"
                   onClick={() => setSubSort((v) => !v)}

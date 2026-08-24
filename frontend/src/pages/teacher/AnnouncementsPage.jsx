@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import AnnouncementFormModal from "../../components/organisms/AnnouncementFormModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
@@ -96,7 +97,7 @@ function FeedItem({ item, unread }) {
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
         style={{ backgroundColor: item.iconBg, color: item.accent }}
       >
-        <Ms name={item.icon} className="!text-[22px]" />
+        <Ms name={item.icon} className="text-[22px]!" />
       </div>
 
       <div className="min-w-0 flex-1">
@@ -343,7 +344,7 @@ function AnnouncementsPage() {
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Trung tâm thông báo</h2>
-          <p className="mt-1 text-sm text-slate-500">Tổng hợp thông báo của lớp, cảnh báo học sinh và việc cần xử lý.</p>
+          <p className="mt-1 text-sm text-slate-500"></p>
         </div>
         <div className="flex items-center gap-2">
           {/* Segmented: Bảng tin / Quản lý */}
@@ -381,16 +382,16 @@ function AnnouncementsPage() {
               })}
             </div>
             <div className="flex items-center gap-2">
-              <select value={category} onChange={(e) => setCategory(e.target.value)}
+              <PrettySelect value={category} onChange={(e) => setCategory(e.target.value)}
                 className="rounded-full border bg-white px-4 py-2 text-sm font-medium shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]" style={{ borderColor: C.border, color: C.onSurface }}>
                 <option value="all">Tất cả danh mục</option>
                 <option value="school">Thông báo nhà trường</option>
                 <option value="alerts">Cảnh báo học sinh</option>
                 <option value="system">Cập nhật hệ thống</option>
-              </select>
+              </PrettySelect>
               <button type="button" onClick={markAllRead} disabled={unreadCount === 0}
                 className="flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold text-white shadow-sm transition-all hover:opacity-90 active:scale-95 disabled:opacity-40" style={{ backgroundColor: C.orange }}>
-                <Ms name="done_all" className="!text-[18px]" /> Đánh dấu đã đọc tất cả
+                <Ms name="done_all" className="text-[18px]!" /> Đánh dấu đã đọc tất cả
               </button>
             </div>
           </div>
@@ -410,7 +411,7 @@ function AnnouncementsPage() {
             </div>
             <button type="button" onClick={() => { setCategory("alerts"); setFeedFilter("all"); }}
               className="flex items-center gap-1.5 rounded-full bg-white/15 px-5 py-2.5 text-sm font-bold backdrop-blur transition-all hover:bg-white/25 active:scale-95">
-              Xem tất cả <Ms name="arrow_forward" className="!text-[18px]" />
+              Xem tất cả <Ms name="arrow_forward" className="text-[18px]!" />
             </button>
           </div>
 

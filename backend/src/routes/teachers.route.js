@@ -49,6 +49,14 @@ router.get(
   teacherController.getNotifications,
 );
 
+// Đánh dấu 1 mục trong feed thông báo là đã đọc (notification_read_state)
+router.post(
+  "/notifications/read",
+  authenticate,
+  authorize(...TEACHER_ROLES),
+  teacherController.markNotificationRead,
+);
+
 // ── Attendance: điểm danh theo tiết (per-period) ──────────────────────────────
 
 router.get(
@@ -419,34 +427,10 @@ router.get(
   goalController.listClassGoals,
 );
 
-router.get(
-  "/goals/:goalId/log",
-  authenticate, authorize(...TEACHER_ROLES),
-  goalController.getGoalLog,
-);
-
-router.put(
-  "/goals/:goalId",
-  authenticate, authorize(...TEACHER_ROLES),
-  goalController.updateGoal,
-);
-
 router.patch(
-  "/goals/:goalId/progress",
+  "/goals/:goalId/comment",
   authenticate, authorize(...TEACHER_ROLES),
-  goalController.updateProgress,
-);
-
-router.post(
-  "/goals/:goalId/evaluate",
-  authenticate, authorize(...TEACHER_ROLES),
-  goalController.evaluateGoal,
-);
-
-router.post(
-  "/goals/:goalId/archive",
-  authenticate, authorize(...TEACHER_ROLES),
-  goalController.archiveGoal,
+  goalController.updateComment,
 );
 
 router.get(
@@ -465,12 +449,6 @@ router.get(
   "/students/:studentId/goals",
   authenticate, authorize(...TEACHER_ROLES),
   goalController.listStudentGoals,
-);
-
-router.post(
-  "/students/:studentId/goals",
-  authenticate, authorize(...TEACHER_ROLES),
-  goalController.createGoal,
 );
 
 // ── Reporting & Export ────────────────────────────────────────────────────────
@@ -726,12 +704,20 @@ router.get("/events/analytics", authenticate, authorize(...TEACHER_ROLES), event
 router.get("/events/classes/:classId/contacts", authenticate, authorize(...TEACHER_ROLES), eventController.getClassContacts);
 
 router.get("/events",  authenticate, authorize(...TEACHER_ROLES), eventController.listEvents);
-router.post("/events", authenticate, authorize(...TEACHER_ROLES), eventController.createEvent);
+
+// TẠO sự kiện là việc của GIÁO VỤ (staff) — giáo viên KHÔNG được tạo.
+// Đã bỏ: POST /events (createEvent) và POST /events/:eventId/duplicate — cả hai
+// đều sinh sự kiện mới. Giáo viên vẫn xem, quản lý người tham dự / điểm danh /
+// kết quả của sự kiện. Endpoint tạo nằm ở /admin/events (mở cho ADMIN + STAFF).
 
 router.get("/events/:eventId",        authenticate, authorize(...TEACHER_ROLES), eventController.getDetail);
-router.put("/events/:eventId",        authenticate, authorize(...TEACHER_ROLES), eventController.updateEvent);
-router.patch("/events/:eventId/status", authenticate, authorize(...TEACHER_ROLES), eventController.changeStatus);
-router.post("/events/:eventId/duplicate", authenticate, authorize(...TEACHER_ROLES), eventController.duplicateEvent);
+
+// Giáo viên KHÔNG được SỬA sự kiện. Đã gỡ thêm:
+//   PUT   /events/:eventId          (updateEvent)  — sửa nội dung sự kiện
+//   PATCH /events/:eventId/status   (changeStatus) — hoàn thành/hủy/lưu trữ
+// Sửa & đổi trạng thái thuộc giáo vụ (/admin/events, mở cho ADMIN + STAFF).
+// Giáo viên còn: xem, nhắc nhở, quản lý người tham dự, điểm danh, ghi kết quả.
+
 router.post("/events/:eventId/reminder",  authenticate, authorize(...TEACHER_ROLES), eventController.sendReminder);
 router.put("/events/:eventId/outcome",    authenticate, authorize(...TEACHER_ROLES), eventController.saveOutcome);
 

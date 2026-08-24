@@ -1,13 +1,51 @@
 const { pool } = require("../config/db");
 
-async function create({ title, content, audience, classId, status, scheduledAt, createdBy }) {
+async function create({ title, content, audience, classId, gradeId, status, scheduledAt, createdBy }) {
   const [result] = await pool.query(
-    `INSERT INTO announcement (title, content, audience, class_id, status, scheduled_at, published_at, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [title, content ?? null, audience, classId ?? null, status, scheduledAt ?? null,
+    `INSERT INTO announcement (title, content, audience, class_id, grade_id, status, scheduled_at, published_at, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [title, content ?? null, audience, classId ?? null, gradeId ?? null, status, scheduledAt ?? null,
      status === "PUBLISHED" ? new Date() : null, createdBy],
   );
   return result.insertId;
+}
+
+// Every announcement school-wide, not scoped to a single creator (admin
+// manage-mode view — mirrors findByCreator but unfiltered).
+async function findAll({ status, page = 1, limit = 20 } = {}) {
+  const offset = (page - 1) * limit;
+  const params = [];
+  let where = "1=1";
+  if (status) { where += " AND a.status = ?"; params.push(status); }
+
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM announcement a WHERE ${where}`,
+    params,
+  );
+  const [rows] = await pool.query(
+    `SELECT
+       a.announcement_id AS announcementId,
+       a.title, a.content, a.audience, a.class_id AS classId, a.grade_id AS gradeId,
+       a.status, a.is_pinned AS isPinned,
+       DATE_FORMAT(a.scheduled_at, '%Y-%m-%d %H:%i') AS scheduledAt,
+       DATE_FORMAT(a.published_at, '%Y-%m-%d %H:%i') AS publishedAt,
+       DATE_FORMAT(a.created_at, '%Y-%m-%d %H:%i') AS createdAt,
+       sc.class_name AS className,
+       g.grade_name AS gradeName,
+       ua.full_name AS createdByName
+     FROM announcement a
+     LEFT JOIN school_class sc ON sc.class_id = a.class_id
+     LEFT JOIN grade g ON g.grade_id = a.grade_id
+     LEFT JOIN user_account ua ON ua.user_id = a.created_by
+     WHERE ${where}
+     ORDER BY a.is_pinned DESC, a.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset],
+  );
+  return {
+    total: Number(total),
+    rows: rows.map((r) => ({ ...r, isPinned: Boolean(r.isPinned) })),
+  };
 }
 
 async function findByCreator(createdBy, { status, page = 1, limit = 20 } = {}) {
@@ -45,7 +83,7 @@ async function findByCreator(createdBy, { status, page = 1, limit = 20 } = {}) {
 async function findById(announcementId) {
   const [[row]] = await pool.query(
     `SELECT
-       announcement_id AS announcementId, title, content, audience, class_id AS classId,
+       announcement_id AS announcementId, title, content, audience, class_id AS classId, grade_id AS gradeId,
        status, is_pinned AS isPinned, scheduled_at AS scheduledRaw, created_by AS createdBy
      FROM announcement WHERE announcement_id = ?`,
     [announcementId],
@@ -54,12 +92,12 @@ async function findById(announcementId) {
   return { ...row, isPinned: Boolean(row.isPinned) };
 }
 
-async function update(announcementId, { title, content, audience, classId, scheduledAt, status }) {
+async function update(announcementId, { title, content, audience, classId, gradeId, scheduledAt, status }) {
   const [result] = await pool.query(
     `UPDATE announcement
-     SET title = ?, content = ?, audience = ?, class_id = ?, scheduled_at = ?, status = ?
+     SET title = ?, content = ?, audience = ?, class_id = ?, grade_id = ?, scheduled_at = ?, status = ?
      WHERE announcement_id = ? AND status <> 'ARCHIVED'`,
-    [title, content ?? null, audience, classId ?? null, scheduledAt ?? null, status, announcementId],
+    [title, content ?? null, audience, classId ?? null, gradeId ?? null, scheduledAt ?? null, status, announcementId],
   );
   return result.affectedRows;
 }
@@ -85,7 +123,7 @@ async function setPinned(announcementId, isPinned) {
 // Scheduled announcements whose time has arrived (used by an external/cron runner).
 async function findDue() {
   const [rows] = await pool.query(
-    `SELECT announcement_id AS announcementId, title, content, audience, class_id AS classId, created_by AS createdBy
+    `SELECT announcement_id AS announcementId, title, content, audience, class_id AS classId, grade_id AS gradeId, created_by AS createdBy
      FROM announcement
      WHERE status = 'SCHEDULED' AND scheduled_at IS NOT NULL AND scheduled_at <= NOW()`,
   );
@@ -127,6 +165,7 @@ async function insertNotifications(receivers, title, content, announcementId) {
 
 module.exports = {
   create,
+  findAll,
   findByCreator,
   findById,
   update,

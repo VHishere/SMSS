@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import DashboardHeader from "../organisms/DashboardHeader";
 import DashboardSidebar from "../organisms/DashboardSidebar";
+import useAutoCollapseSidebar from "../../hooks/useAutoCollapseSidebar";
 import { useAuth } from "../../context/useAuth";
 import { isStitchUser } from "../../config/sidebarRoles";
 
@@ -10,6 +11,7 @@ function DashboardShell({
   menuItems,
   sidebarFooterLabel,
   sidebarFooterValue,
+  sidebarVariant = "auto",
   children,
 }) {
   const [
@@ -17,8 +19,19 @@ function DashboardShell({
     setShowMobileSidebar,
   ] = useState(false);
 
+  const {
+    collapsed,
+    sidebarRef,
+    onContentMouseDown,
+    onSidebarMouseDown,
+  } = useAutoCollapseSidebar();
+
   const { user: authUser } = useAuth();
   const isStitch = isStitchUser(authUser);
+
+  const useStitchSidebar =
+    sidebarVariant === "stitch" ||
+    (sidebarVariant === "auto" && isStitch);
 
   const isHomeroom = authUser?.roles?.some(
     (role) => role.roleName === "HOMEROOM_TEACHER",
@@ -31,22 +44,33 @@ function DashboardShell({
   const rootClass = isStitch
     ? "min-h-screen bg-[#F3F3F3] text-[#1A1C1C] [font-family:'Inter',sans-serif]"
     : "min-h-screen bg-[#FFF7F2] text-[#0F2747]";
-
-  const contentPad = isStitch
-    ? "lg:pl-[280px]"
-    : "lg:pl-80";
+  // Gộp 2 nhánh khi merge: giữ chế độ thu gọn (76px) VÀ prop sidebarVariant mới.
+  const contentPad = collapsed
+    ? "lg:pl-[76px]"
+    : useStitchSidebar
+      ? "lg:pl-[280px]"
+      : "lg:pl-80";
 
   return (
     <div className={rootClass}>
       <DashboardSidebar
         items={visibleItems}
+        variant={sidebarVariant}
         footerLabel={sidebarFooterLabel}
         footerValue={sidebarFooterValue}
         showMobile={showMobileSidebar}
-        onCloseMobile={() => setShowMobileSidebar(false)}
+        onCloseMobile={() =>
+          setShowMobileSidebar(false)
+        }
+        collapsed={collapsed}
+        sidebarRef={sidebarRef}
+        onSidebarMouseDown={onSidebarMouseDown}
       />
 
-      <div className={`min-h-screen ${contentPad}`}>
+      <div
+        className={`min-h-screen transition-[padding] duration-500 ease-in-out ${contentPad}`}
+        onMouseDown={onContentMouseDown}
+      >
         <DashboardHeader
           user={user}
           onOpenSidebar={() => setShowMobileSidebar(true)}

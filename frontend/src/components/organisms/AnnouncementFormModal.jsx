@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { announcementApi } from "../../api/client";
@@ -80,15 +81,15 @@ function AnnouncementFormModal({ classes, announcement = null, onClose, onSaved 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Lớp</label>
-              <select value={classId} onChange={(e) => setClassId(e.target.value)} className={inputCls}>
+              <PrettySelect value={classId} onChange={(e) => setClassId(e.target.value)} className={inputCls}>
                 {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-              </select>
+              </PrettySelect>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Đối tượng</label>
-              <select value={audience} onChange={(e) => setAudience(e.target.value)} className={inputCls}>
+              <PrettySelect value={audience} onChange={(e) => setAudience(e.target.value)} className={inputCls}>
                 {AUDIENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           </div>
           <div>

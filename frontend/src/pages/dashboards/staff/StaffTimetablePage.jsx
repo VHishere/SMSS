@@ -11,6 +11,11 @@ import {
 import { staffApi } from "../../../api/client";
 import { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
+import {
+  resolveStaffWorkingSchoolYear,
+  setStaffWorkingSchoolYearId,
+} from "../../../utils/staffSchoolYear";
 
 const WEEK_DAYS = [
   { value: 2, label: "Thứ 2", offset: 0 },
@@ -40,19 +45,40 @@ function toDateInputValue(date) {
   ].join("-");
 }
 
+function parseLocalDate(value) {
+  if (value instanceof Date) {
+    const date = new Date(value);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ""));
+  if (match) {
+    return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  }
+
+  const date = new Date(value || Date.now());
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 function formatDate(date) {
-  return new Intl.DateTimeFormat("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-  }).format(date);
+  return [
+    String(date.getDate()).padStart(2, "0"),
+    String(date.getMonth() + 1).padStart(2, "0"),
+  ].join("/");
 }
 
 function getMonday(value = new Date()) {
-  const date = new Date(value);
+  const date = parseLocalDate(value);
   const day = date.getDay();
   date.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
   date.setHours(0, 0, 0, 0);
   return date;
+}
+
+function getPreferredDateForSchoolYear() {
+  return parseLocalDate();
 }
 
 function addDays(date, amount) {
@@ -67,6 +93,7 @@ function slotKey(dayOfWeek, periodNo) {
 
 function StaffTimetablePage() {
   const [searchParams] = useSearchParams();
+  const selectedDateParam = searchParams.get("selectedDate") || "";
   const [lookups, setLookups] = useState({
     schoolYears: [],
     grades: [],
@@ -79,8 +106,12 @@ function StaffTimetablePage() {
     gradeId: searchParams.get("gradeId") || "",
     classId: searchParams.get("classId") || "",
   });
-  const [weekStart, setWeekStart] = useState(getMonday());
+  const [selectedDate, setSelectedDate] = useState(
+    selectedDateParam ? parseLocalDate(selectedDateParam) : parseLocalDate(),
+  );
   const [error, setError] = useState("");
+  const weekStart = useMemo(() => getMonday(selectedDate), [selectedDate]);
+  const weekEnd = useMemo(() => addDays(weekStart, 5), [weekStart]);
 
   useEffect(() => {
     staffApi
@@ -88,15 +119,23 @@ function StaffTimetablePage() {
       .then((res) => {
         setLookups(res.data);
         if (!filters.schoolYearId) {
-          const activeYear =
-            res.data.schoolYears?.find((year) => year.isActive) ||
-            res.data.schoolYears?.[0];
-          if (activeYear) {
+          const activeYear = (res.data.schoolYears || []).find(
+            (year) => year.isActive,
+          );
+          const workingYear = resolveStaffWorkingSchoolYear(
+            res.data.schoolYears || [],
+            activeYear?.schoolYearId,
+          );
+          if (workingYear) {
+            const workingYearId = String(workingYear.schoolYearId);
             setFilters((prev) => ({
               ...prev,
-              schoolYearId: String(activeYear.schoolYearId),
+              schoolYearId: workingYearId,
             }));
+            setStaffWorkingSchoolYearId(workingYearId);
           }
+        } else {
+          setStaffWorkingSchoolYearId(filters.schoolYearId);
         }
       })
       .catch((err) => setError(err.message));
@@ -135,7 +174,10 @@ function StaffTimetablePage() {
 
     Promise.all([
       staffApi.getClass(filters.classId),
-      staffApi.getClassTimetable(filters.classId),
+      staffApi.getClassTimetable(filters.classId, {
+        startDate: toDateInputValue(weekStart),
+        endDate: toDateInputValue(weekEnd),
+      }),
     ])
       .then(([classRes, timetableRes]) => {
         setClassInfo(classRes.data);
@@ -143,14 +185,17 @@ function StaffTimetablePage() {
         setError("");
       })
       .catch((err) => setError(err.message));
-  }, [filters.classId]);
+  }, [filters.classId, weekEnd, weekStart]);
 
   useEffect(() => {
     if (!filters.classId) return;
 
     Promise.all([
       staffApi.getClass(filters.classId),
-      staffApi.getClassTimetable(filters.classId),
+      staffApi.getClassTimetable(filters.classId, {
+        startDate: toDateInputValue(weekStart),
+        endDate: toDateInputValue(weekEnd),
+      }),
     ])
       .then(([classRes, timetableRes]) => {
         setClassInfo(classRes.data);
@@ -158,7 +203,7 @@ function StaffTimetablePage() {
         setError("");
       })
       .catch((err) => setError(err.message));
-  }, [filters.classId]);
+  }, [filters.classId, weekEnd, weekStart]);
 
   const selectedYear = useMemo(
     () =>
@@ -167,6 +212,16 @@ function StaffTimetablePage() {
       ),
     [filters.schoolYearId, lookups.schoolYears],
   );
+
+  useEffect(() => {
+    if (selectedYear) {
+      setSelectedDate(
+        selectedDateParam
+          ? parseLocalDate(selectedDateParam)
+          : getPreferredDateForSchoolYear(),
+      );
+    }
+  }, [selectedDateParam, selectedYear?.schoolYearId]);
 
   const weekDays = useMemo(
     () =>
@@ -186,6 +241,10 @@ function StaffTimetablePage() {
   }, [timetable]);
 
   const updateFilter = (key, value) => {
+    if (key === "schoolYearId") {
+      setStaffWorkingSchoolYearId(value);
+    }
+
     setFilters((prev) => ({
       ...prev,
       [key]: value,
@@ -202,6 +261,8 @@ function StaffTimetablePage() {
       schoolYearId: filters.schoolYearId,
       gradeId: filters.gradeId,
       classId: filters.classId,
+      lessonDate: toDateInputValue(selectedDate),
+      selectedDate: toDateInputValue(selectedDate),
       ...extra,
     });
     [...query.entries()].forEach(([key, value]) => {
@@ -215,8 +276,10 @@ function StaffTimetablePage() {
 
     staffApi
       .deleteClassTimetableLesson(filters.classId, lesson.timetableId)
-      .then((res) => {
-        setTimetable(res.data || []);
+      .then(() => {
+        setTimetable((prev) =>
+          prev.filter((item) => item.timetableId !== lesson.timetableId),
+        );
       })
       .catch((err) => setError(err.message));
   };
@@ -252,10 +315,10 @@ function StaffTimetablePage() {
         </div>
       )}
 
-      <section className="mb-5 rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
+      <section className="mb-5 rounded-3xl border card-border bg-white p-4 shadow-sm">
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[repeat(4,minmax(0,1fr))]">
           <StaffField label="Năm học">
-            <select
+            <PrettySelect
               className={inputClass}
               value={filters.schoolYearId}
               onChange={(event) => updateFilter("schoolYearId", event.target.value)}
@@ -265,10 +328,10 @@ function StaffTimetablePage() {
                   {year.yearName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
           <StaffField label="Khối">
-            <select
+            <PrettySelect
               className={inputClass}
               value={filters.gradeId}
               onChange={(event) => updateFilter("gradeId", event.target.value)}
@@ -279,10 +342,10 @@ function StaffTimetablePage() {
                   {grade.gradeName}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
           <StaffField label="Lớp">
-            <select
+            <PrettySelect
               className={inputClass}
               value={filters.classId}
               onChange={(event) => updateFilter("classId", event.target.value)}
@@ -293,12 +356,12 @@ function StaffTimetablePage() {
                   {item.className}
                 </option>
               ))}
-            </select>
+            </PrettySelect>
           </StaffField>
           <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-2">
             <button
               type="button"
-              onClick={() => setWeekStart((prev) => addDays(prev, -7))}
+              onClick={() => setSelectedDate((prev) => addDays(prev, -7))}
               className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#08509F] transition hover:bg-blue-50"
               title="Tuần trước"
             >
@@ -308,13 +371,15 @@ function StaffTimetablePage() {
               <input
                 type="date"
                 className={inputClass}
-                value={toDateInputValue(weekStart)}
-                onChange={(event) => setWeekStart(getMonday(event.target.value))}
+                value={toDateInputValue(selectedDate)}
+                onChange={(event) =>
+                  setSelectedDate(parseLocalDate(event.target.value))
+                }
               />
             </StaffField>
             <button
               type="button"
-              onClick={() => setWeekStart((prev) => addDays(prev, 7))}
+              onClick={() => setSelectedDate((prev) => addDays(prev, 7))}
               className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#08509F] transition hover:bg-blue-50"
               title="Tuần sau"
             >
@@ -335,7 +400,7 @@ function StaffTimetablePage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
         <div className="border-b border-orange-100 px-5 py-4">
           <h2 className="mb-1 text-lg font-bold text-[#0F2747]">
             Thời khóa biểu tuần
@@ -345,11 +410,11 @@ function StaffTimetablePage() {
         <div className="overflow-x-auto p-4">
           <table className="w-full min-w-[960px] border-separate border-spacing-0 overflow-hidden rounded-2xl border border-slate-200">
             <thead>
-              <tr className="bg-[#0F2747] text-white">
-                <th className="sticky left-0 z-30 w-24 border-r border-white/10 bg-[#0F2747] px-4 py-4 text-center text-sm font-bold">
+              <tr className="bg-[#00458E] text-white">
+                <th className="sticky left-0 z-30 w-24 border-r border-white/10 bg-[#00458E] px-4 py-4 text-center text-sm font-bold">
                   Tiết
                 </th>
-                <th className="sticky left-24 z-30 w-40 border-r border-white/10 bg-[#0F2747] px-4 py-4 text-left text-sm font-bold">
+                <th className="sticky left-24 z-30 w-40 border-r border-white/10 bg-[#00458E] px-4 py-4 text-left text-sm font-bold">
                   Thời gian
                 </th>
                 {weekDays.map((day) => (
@@ -416,7 +481,8 @@ function StaffTimetablePage() {
                         ) : (
                           <Link
                             to={buildCreateLink({
-                              dayOfWeek: String(day.value),
+                              lessonDate: toDateInputValue(day.date),
+                              selectedDate: toDateInputValue(day.date),
                               periodNo: String(period.periodNo),
                             })}
                             className="flex min-h-28 w-full items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white/75 text-sm font-semibold text-slate-400 no-underline transition hover:border-[#F27123] hover:bg-[#FFF7F2] hover:text-[#F27123]"

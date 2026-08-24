@@ -1,23 +1,18 @@
+import PrettySelect from "../molecules/PrettySelect";
+
+// Bộ lọc dạng "nhãn + dropdown". Dropdown dùng PrettySelect (pill bo tròn) cho
+// giống toàn hệ thống — không dùng select native vì không style được panel.
+// Dùng <div> thay <label>: PrettySelect render <button>, nếu bọc trong <label>
+// thì click vào nhãn sẽ vừa đóng vừa mở lại dropdown.
 function FilterSelect({ label, value, onChange, children }) {
   return (
-    <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+    <div className="flex flex-col gap-1 text-xs font-medium text-slate-500">
       {label}
 
-      <select
-        value={value}
-        onChange={onChange}
-        className="
-          rounded-xl border border-orange-100
-          bg-white px-3 py-2
-          text-sm font-semibold text-[#0F2747]
-          shadow-sm outline-none
-          focus:border-[#F27123]
-          focus:ring-1 focus:ring-[#F27123]
-        "
-      >
+      <PrettySelect value={value} onChange={onChange} title={label}>
         {children}
-      </select>
-    </label>
+      </PrettySelect>
+    </div>
   );
 }
 

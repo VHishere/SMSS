@@ -6,10 +6,14 @@ import { staffApi } from "../../../api/client";
 import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 import {
   formatAccountStatus,
   formatTeacherType,
 } from "../../../utils/formatters";
+
+const filterSelectClass =
+  "h-12 w-full rounded-full border border-[#DFC0B2] bg-[#F9F9F9] px-4 text-sm font-medium text-[#1A1C1C] outline-none transition hover:border-[#F27123] focus:border-[#F27123] focus:bg-white focus:ring-2 focus:ring-[#F27123]/20 lg:w-44";
 
 function StaffTeachersPage() {
   const [teachers, setTeachers] = useState([]);
@@ -44,11 +48,7 @@ function StaffTeachersPage() {
   }, [search, filters.gradeId, filters.classId]);
 
   const rows = useMemo(
-    () =>
-      teachers.map((teacher) => ({
-        ...teacher,
-        id: teacher.teacherId,
-      })),
+    () => teachers.map((teacher) => ({ ...teacher, id: teacher.teacherId })),
     [teachers],
   );
 
@@ -56,16 +56,15 @@ function StaffTeachersPage() {
     () =>
       (lookups?.classes || []).filter(
         (cls) =>
-          !filters.gradeId ||
-          String(cls.gradeId) === String(filters.gradeId),
+          (!filters.gradeId || String(cls.gradeId) === String(filters.gradeId)),
       ),
     [filters.gradeId, lookups?.classes],
   );
 
   const filterToolbar = (
     <>
-      <select
-        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
+      <PrettySelect
+        className={filterSelectClass}
         value={filters.gradeId}
         onChange={(event) =>
           setFilters((prev) => ({
@@ -81,9 +80,10 @@ function StaffTeachersPage() {
             {grade.gradeName}
           </option>
         ))}
-      </select>
-      <select
-        className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-[#0F2747] transition hover:border-slate-300"
+      </PrettySelect>
+
+      <PrettySelect
+        className={filterSelectClass}
         value={filters.classId}
         onChange={(event) =>
           setFilters((prev) => ({ ...prev, classId: event.target.value }))
@@ -95,7 +95,7 @@ function StaffTeachersPage() {
             {cls.className}
           </option>
         ))}
-      </select>
+      </PrettySelect>
     </>
   );
 
@@ -106,7 +106,7 @@ function StaffTeachersPage() {
         action={
           <Link
             to="/staff/teachers/new"
-            className="rounded-xl bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline"
+            className="rounded-full bg-[#F27123] px-4 py-2.5 text-sm font-semibold text-white no-underline hover:bg-[#E55C0A] hover:text-white"
           >
             + Thêm giáo viên
           </Link>
@@ -167,7 +167,7 @@ function StaffTeachersPage() {
             render: (row) => (
               <Link
                 to={`/staff/teachers/${row.teacherId}`}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#DFC0B2] bg-white text-[#08509F] no-underline transition hover:border-[#08509F] hover:bg-blue-50 hover:text-[#08509F]"
                 title="Xem chi tiết"
               >
                 <FiEye size={18} />

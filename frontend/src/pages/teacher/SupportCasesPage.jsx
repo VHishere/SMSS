@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { supportCaseApi, studentProfileApi } from "../../api/client";
@@ -207,10 +208,10 @@ function SupportCasesPage() {
                   ))}
                 </div>
                 {classes.length > 0 && (
-                  <select value={classF} onChange={(e) => setClassF(e.target.value)} className="rounded-xl border border-[#DFC0B2] bg-white px-3 py-2 text-sm text-[#1A1C1C] shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]">
+                  <PrettySelect value={classF} onChange={(e) => setClassF(e.target.value)} className="rounded-xl border border-[#DFC0B2] bg-white px-3 py-2 text-sm text-[#1A1C1C] shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]">
                     <option value="">Ca của tôi</option>
                     {classes.map((c) => <option key={c.classId} value={c.classId}>Lớp {c.className}</option>)}
-                  </select>
+                  </PrettySelect>
                 )}
               </div>
             </div>
@@ -328,24 +329,24 @@ function CreateCaseModal({ classes, defaultSeverity = "MEDIUM", onClose, onSaved
         <div className="space-y-3 px-6 py-5">
           <div className="grid grid-cols-2 gap-3">
             <div><label className="mb-1 block text-xs font-medium text-slate-600">Lớp</label>
-              <select value={classId} onChange={(e) => setClassId(e.target.value)} className={inputCls}>
+              <PrettySelect value={classId} onChange={(e) => setClassId(e.target.value)} className={inputCls}>
                 {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-              </select></div>
+              </PrettySelect></div>
             <div><label className="mb-1 block text-xs font-medium text-slate-600">Học sinh <span className="text-red-500">*</span></label>
-              <select value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
+              <PrettySelect value={studentId} onChange={(e) => setStudentId(e.target.value)} className={inputCls}>
                 <option value="">— Chọn —</option>
                 {students.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName}</option>)}
-              </select></div>
+              </PrettySelect></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="mb-1 block text-xs font-medium text-slate-600">Danh mục</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
+              <PrettySelect value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
                 {Object.entries(CATEGORY).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select></div>
+              </PrettySelect></div>
             <div><label className="mb-1 block text-xs font-medium text-slate-600">Mức độ</label>
-              <select value={severity} onChange={(e) => setSeverity(e.target.value)} className={inputCls}>
+              <PrettySelect value={severity} onChange={(e) => setSeverity(e.target.value)} className={inputCls}>
                 {Object.entries(SEVERITY).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select></div>
+              </PrettySelect></div>
           </div>
           <div><label className="mb-1 block text-xs font-medium text-slate-600">Tiêu đề <span className="text-red-500">*</span></label>
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="VD: Sa sút học tập đột ngột" className={inputCls} /></div>
@@ -433,12 +434,12 @@ function CaseDetailModal({ caseItem, onClose, onChanged }) {
         <div className="space-y-2 px-6 py-4" style={{ borderTop: "1px solid #FFE7D6" }}>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Ghi nhận tiến triển / can thiệp..." className={`${inputCls} resize-none`} />
           <div className="flex gap-2">
-            <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)} className={inputCls}>
+            <PrettySelect value={newStatus} onChange={(e) => setNewStatus(e.target.value)} className={inputCls}>
               <option value="">Giữ trạng thái</option>
               <option value="OPEN">Đang mở</option>
               <option value="MONITORING">Đang theo dõi</option>
               <option value="RESOLVED">Đã xử lý</option>
-            </select>
+            </PrettySelect>
             <button type="button" onClick={submit} disabled={busy || !note.trim()} className="shrink-0 rounded-full px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 disabled:opacity-50" style={{ backgroundColor: "#F27123" }}>Cập nhật</button>
           </div>
         </div>

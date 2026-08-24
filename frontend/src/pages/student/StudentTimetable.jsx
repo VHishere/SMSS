@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import {
   FiBookOpen,
-  FiCalendar,
   FiGrid,
   FiUsers,
 } from "react-icons/fi";
@@ -13,6 +12,11 @@ import {
   useAuth,
 } from "../../context/useAuth";
 import { useStudentTimetable } from "../../hooks/useStudentTimetable";
+
+// Bảng màu chuẩn của hệ thống (giống các trang teacher). Viền đặt qua inline
+// style vì utility `border-*` của Tailwind bị CSS unlayered của Bootstrap ghi đè
+// (đo được: border-orange-100 ra #DEE2E6 xám thay vì #DFC0B2).
+const C = { onSurface: "#1A1C1C", border: "#DFC0B2" };
 
 function InfoItem({
   icon: Icon,
@@ -87,102 +91,53 @@ function StudentTimetable() {
         "Chưa cập nhật"
       }
     >
-      <section className="mb-4 flex justify-stretch sm:justify-end">
-        <div
-          className="
-    flex w-full flex-col gap-4
-    rounded-2xl border border-orange-100
-    bg-white px-4 py-4 shadow-sm
-    sm:px-5
-    lg:flex-row lg:flex-wrap
-    lg:items-center lg:justify-between
-    lg:gap-6 lg:px-6
-  "
-        >
-          <div className="flex items-center gap-5">
-            <div
-              className="
-                flex h-20 w-20 shrink-0
-                items-center justify-center
-                rounded-full bg-[#FFE7D6]
-                text-[#F27123]
-              "
-            >
-              <FiCalendar size={34} />
-            </div>
+      <h1
+        className="mb-6 text-2xl font-extrabold tracking-tight sm:text-3xl"
+        style={{ color: C.onSurface }}
+      >
+        Thời khóa biểu
+      </h1>
 
-            <div>
-              <p
-                className="
-                  mb-2 text-xs font-bold
-                  uppercase tracking-[0.18em]
-                  text-[#F27123]
-                "
-              >
-                Học tập
-              </p>
+      <section
+        className="
+          mb-6 grid gap-4 rounded-3xl bg-white px-5 py-4 shadow-sm
+          sm:grid-cols-3
+        "
+        style={{ border: `1px solid ${C.border}` }}
+      >
+        <InfoItem
+          icon={FiUsers}
+          label="Lớp"
+          value={data?.context?.className}
+          colorClass="bg-orange-50 text-[#F27123]"
+        />
 
-              <h1 className="mb-2 text-3xl font-bold text-[#0F2747]">
-                Thời khóa biểu
-              </h1>
+        <InfoItem
+          icon={FiGrid}
+          label="Khối"
+          value={data?.context?.gradeName}
+          colorClass="bg-blue-50 text-[#08509F]"
+        />
 
-            </div>
-          </div>
-
-          <div
-            className="
-              grid w-full gap-4 rounded-2xl
-              border border-orange-100
-              bg-white px-5 py-4
-              shadow-sm
-              sm:grid-cols-3 lg:w-auto
-              lg:min-w-[560px]
-            "
-          >
-            <InfoItem
-              icon={FiUsers}
-              label="Lớp"
-              value={data?.context?.className}
-              colorClass="bg-orange-50 text-[#F27123]"
-            />
-
-            <InfoItem
-              icon={FiGrid}
-              label="Khối"
-              value={data?.context?.gradeName}
-              colorClass="bg-blue-50 text-[#08509F]"
-            />
-
-            <InfoItem
-              icon={FiBookOpen}
-              label="Năm học"
-              value={data?.context?.schoolYearName}
-              colorClass="bg-green-50 text-green-600"
-            />
-          </div>
-        </div>
+        <InfoItem
+          icon={FiBookOpen}
+          label="Năm học"
+          value={data?.context?.schoolYearName}
+          colorClass="bg-green-50 text-green-600"
+        />
       </section>
 
       {loading && (
         <div
-          className="
-            rounded-2xl border border-orange-100
-            bg-white p-8 text-center
-            text-sm text-slate-500 shadow-sm
-          "
+          className="rounded-3xl bg-white p-8 text-center text-sm text-slate-500 shadow-sm"
+          style={{ border: `1px solid ${C.border}` }}
         >
           Đang tải thời khóa biểu...
         </div>
       )}
 
       {error && (
-        <div
-          className="
-            rounded-2xl border border-red-200
-            bg-red-50 px-5 py-4
-            text-sm text-red-600
-          "
-        >
+        <div className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-600">
           Không tải được thời khóa biểu: {error}
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { eventApi } from "../../api/client";
@@ -18,7 +19,7 @@ const EVENT_TYPES = [
 
 function toLocalInput(value) { return value ? value.replace(" ", "T").slice(0, 16) : ""; }
 
-function EventFormModal({ mode, classes = [], categories = [], event = null, onClose, onSaved }) {
+function EventFormModal({ mode, classes = [], categories = [], event = null, api = eventApi, onClose, onSaved }) {
   const isEdit = mode === "edit";
 
   const [title, setTitle] = useState(event?.title ?? "");
@@ -38,11 +39,13 @@ function EventFormModal({ mode, classes = [], categories = [], event = null, onC
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    if (isEdit || !classId) { setContacts({ students: [], parents: [] }); return; }
     let m = true;
-    eventApi.getClassContacts(classId).then((res) => { if (m) setContacts(res.data); }).catch(() => {});
-    return () => { m = false; };
-  }, [classId, isEdit]);
+    const timer = setTimeout(() => {
+      if (isEdit || !classId) { setContacts({ students: [], parents: [] }); return; }
+      api.getClassContacts(classId).then((res) => { if (m) setContacts(res.data); }).catch(() => {});
+    }, 0);
+    return () => { m = false; clearTimeout(timer); };
+  }, [classId, isEdit, api]);
 
   function toggle(key) {
     setSelected((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
@@ -73,8 +76,8 @@ function EventFormModal({ mode, classes = [], categories = [], event = null, onC
         organizer: organizer.trim(), capacity: capacity ? Number(capacity) : null,
         description: description || null,
       };
-      if (isEdit) await eventApi.update(event.eventId, body);
-      else await eventApi.create({ ...body, participants: participantsPayload() });
+      if (isEdit) await api.update(event.eventId, body);
+      else await api.create({ ...body, participants: participantsPayload() });
       onSaved();
     } catch (err) { setErrorMsg(err.message); } finally { setBusy(false); }
   }
@@ -97,25 +100,25 @@ function EventFormModal({ mode, classes = [], categories = [], event = null, onC
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Loại sự kiện <span className="text-red-500">*</span></label>
-              <select value={eventType} onChange={(e) => setEventType(e.target.value)} className={inputCls}>
+              <PrettySelect value={eventType} onChange={(e) => setEventType(e.target.value)} className={inputCls}>
                 <option value="">— Chọn loại —</option>
                 {EVENT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+              </PrettySelect>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-slate-600">Danh mục <span className="text-red-500">*</span></label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
+              <PrettySelect value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
                 <option value="">— Chọn danh mục —</option>
                 {categories.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-              </select>
+              </PrettySelect>
             </div>
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Lớp (để trống = toàn trường)</label>
-            <select value={classId} onChange={(e) => { setClassId(e.target.value); setSelected(new Set()); }} className={inputCls} disabled={isEdit}>
+            <PrettySelect value={classId} onChange={(e) => { setClassId(e.target.value); setSelected(new Set()); }} className={inputCls} disabled={isEdit}>
               <option value="">Toàn trường</option>
               {classes.map((c) => <option key={c.classId} value={c.classId}>{c.className}</option>)}
-            </select>
+            </PrettySelect>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

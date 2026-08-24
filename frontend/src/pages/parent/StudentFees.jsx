@@ -9,6 +9,7 @@ import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentStudentFees } from "../../hooks/useParentStudentFees";
 import { parentApi } from "../../api/client";
 import { getCurrentSchoolYearLabel } from "../../utils/formatters";
+import PrettySelect from "../../components/molecules/PrettySelect";
 
 // ─── FSchool Stitch design tokens (matches the other parent portal pages) ────
 
@@ -119,79 +120,14 @@ function SummaryCard({ label, value, caption, iconName, accent }) {
   );
 }
 
-function CopyField({ label, value }) {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    navigator.clipboard?.writeText(value).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }
-
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg px-3 py-2" style={{ backgroundColor: C.surfaceLow }}>
-      <div className="min-w-0">
-        <p className="text-[11px] font-medium uppercase tracking-wider" style={{ color: C.onSurfaceVariant }}>{label}</p>
-        <p className="truncate text-sm font-semibold" style={{ color: C.onSurface }}>{value}</p>
-      </div>
-      <button
-        type="button"
-        onClick={handleCopy}
-        className="flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold transition"
-        style={{ backgroundColor: copied ? "rgba(5,150,105,0.15)" : "rgba(242,113,35,0.15)", color: copied ? "#059669" : C.primary }}
-      >
-        <Ms name={copied ? "check" : "content_copy"} className="!text-[14px]!" />
-        {copied ? "Đã chép" : "Sao chép"}
-      </button>
-    </div>
-  );
-}
-
 // ─── VietQR payment panel ──────────────────────────────────────────────────
 
-function VietQrPanel({ feeAssignmentId }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
-    parentApi
-      .createVietQrPayment(feeAssignmentId)
-      .then((res) => { if (isMounted) setData(res.data); })
-      .catch((err) => { if (isMounted) setError(err.message); })
-      .finally(() => { if (isMounted) setLoading(false); });
-    return () => { isMounted = false; };
-  }, [feeAssignmentId]);
-
-  if (loading) return <p className="py-6 text-center text-sm text-slate-400">Đang tạo mã VietQR...</p>;
-  if (error) return <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>;
-  if (!data) return null;
-
+function VietQrPanel() {
   return (
-    <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-      <div className="flex shrink-0 flex-col items-center gap-2 rounded-2xl border p-3" style={{ borderColor: C.outlineVariant }}>
-        <img src={data.qrImageUrl} alt="Mã VietQR" className="h-52 w-52 rounded-lg object-contain" />
-        <span className="text-xs font-semibold" style={{ color: C.onSurfaceVariant }}>Quét bằng app ngân hàng bất kỳ</span>
-      </div>
-
-      <div className="flex w-full flex-col gap-2">
-        <CopyField label="Ngân hàng (BIN)" value={data.bankBin} />
-        <CopyField label="Số tài khoản" value={data.accountNo} />
-        <CopyField label="Chủ tài khoản" value={data.accountName} />
-        <CopyField label="Số tiền" value={formatCurrency(data.amount)} />
-        <CopyField label="Nội dung chuyển khoản" value={data.addInfo} />
-
-        <div className="mt-2 flex items-start gap-2 rounded-lg px-3 py-2 text-xs" style={{ backgroundColor: "rgba(242,113,35,0.1)", color: C.primary }}>
-          <Ms name="info" className="!text-[16px]! mt-0.5 shrink-0" />
-          <span>
-            Sau khi chuyển khoản, nhà trường sẽ đối soát và xác nhận khoản đóng trong thời gian sớm nhất.
-            Vui lòng giữ đúng nội dung chuyển khoản để việc đối soát nhanh hơn.
-          </span>
-        </div>
-      </div>
+    <div className="rounded-3xl border border-dashed card-border bg-white p-10 text-center shadow-sm">
+      <p className="mb-0 text-sm font-medium text-slate-500">
+        Thanh toán qua VietQR đang được phát triển
+      </p>
     </div>
   );
 }
@@ -204,6 +140,7 @@ function ZaloPayPanel({ feeAssignmentId, onPaid }) {
   const [status, setStatus] = useState(null); // null | PENDING | SUCCESS | FAILED
   const [error, setError] = useState("");
   const pollRef = useRef(null);
+  const pollStartedAtRef = useRef(null);
 
   useEffect(() => {
     return () => clearInterval(pollRef.current);
@@ -212,22 +149,31 @@ function ZaloPayPanel({ feeAssignmentId, onPaid }) {
   function stopPolling() {
     clearInterval(pollRef.current);
     pollRef.current = null;
+    pollStartedAtRef.current = null;
   }
 
   function startPolling(appTransId) {
     stopPolling();
+    pollStartedAtRef.current = Date.now();
     pollRef.current = setInterval(async () => {
+      if (Date.now() - pollStartedAtRef.current >= 15 * 60 * 1000) {
+        setStatus("TIMEOUT");
+        stopPolling();
+        return;
+      }
+
       try {
         const res = await parentApi.getZaloPayOrderStatus(feeAssignmentId, appTransId);
         setStatus(res.data.status);
         if (res.data.status === "SUCCESS") {
           stopPolling();
           onPaid?.();
-        } else if (res.data.status === "FAILED") {
+        } else if (["FAILED", "CANCELLED", "EXPIRED"].includes(res.data.status)) {
+          setError(res.data.errorMessage || "Giao dịch không thành công.");
           stopPolling();
         }
-      } catch {
-        // transient network hiccup — keep polling until it succeeds or times out
+      } catch (requestError) {
+        setError(requestError.message || "Tạm thời chưa kiểm tra được trạng thái giao dịch.");
       }
     }, 3000);
   }
@@ -284,7 +230,11 @@ function ZaloPayPanel({ feeAssignmentId, onPaid }) {
   return (
     <div className="flex flex-col items-center gap-4">
       <div className="flex flex-col items-center gap-2 rounded-2xl border p-4" style={{ borderColor: C.outlineVariant }}>
-        <QRCodeSVG value={order.qrCode} size={200} />
+        {order.qrCode ? (
+          <QRCodeSVG value={order.qrCode} size={200} />
+        ) : (
+          <Ms name="account_balance_wallet" className="!text-[96px]!" style={{ color: C.secondary }} />
+        )}
         <span className="text-xs font-semibold" style={{ color: C.onSurfaceVariant }}>
           Quét bằng ZaloPay hoặc app ngân hàng NAPAS
         </span>
@@ -302,8 +252,12 @@ function ZaloPayPanel({ feeAssignmentId, onPaid }) {
       </a>
 
       <div className="flex items-center gap-2 text-xs" style={{ color: C.onSurfaceVariant }}>
-        {status === "FAILED" ? (
-          <span className="font-semibold" style={{ color: C.error }}>Giao dịch thất bại hoặc đã hết hạn.</span>
+        {["FAILED", "CANCELLED", "EXPIRED", "TIMEOUT"].includes(status) ? (
+          <span className="font-semibold" style={{ color: C.error }}>
+            {status === "TIMEOUT"
+              ? "Chưa nhận được xác nhận sau 15 phút."
+              : error || "Giao dịch thất bại hoặc đã hết hạn."}
+          </span>
         ) : (
           <>
             <span className="h-2 w-2 animate-pulse rounded-full" style={{ backgroundColor: C.secondary }} />
@@ -312,10 +266,10 @@ function ZaloPayPanel({ feeAssignmentId, onPaid }) {
         )}
       </div>
 
-      {status === "FAILED" && (
+      {["FAILED", "CANCELLED", "EXPIRED", "TIMEOUT"].includes(status) && (
         <button
           type="button"
-          onClick={() => { setOrder(null); setStatus(null); }}
+          onClick={() => { setOrder(null); setStatus(null); setError(""); }}
           className="text-xs font-bold hover:underline"
           style={{ color: C.primary }}
         >
@@ -349,10 +303,11 @@ function FeeDetailModal({ feeAssignmentId, onClose, onChanged }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("vietqr");
+  const [tab, setTab] = useState("zalopay");
 
   function load() {
     setLoading(true);
+    setError("");
     parentApi
       .getFeeDetail(feeAssignmentId)
       .then((res) => setDetail(res.data))
@@ -421,7 +376,7 @@ function FeeDetailModal({ feeAssignmentId, onClose, onChanged }) {
               </div>
 
               {tab === "vietqr"
-                ? <VietQrPanel key={`vietqr-${feeAssignmentId}`} feeAssignmentId={feeAssignmentId} />
+                ? <VietQrPanel />
                 : <ZaloPayPanel key={`zalopay-${feeAssignmentId}`} feeAssignmentId={feeAssignmentId} onPaid={handlePaid} />}
             </div>
           )}
@@ -588,7 +543,7 @@ function ParentStudentFees() {
             <span className="text-xs font-bold" style={{ color: C.onSurface }}>Bộ lọc:</span>
           </div>
 
-          <select
+          <PrettySelect
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
             className="cursor-pointer rounded-full border bg-white px-4 py-2 text-sm outline-none focus:ring-1"
@@ -597,7 +552,7 @@ function ParentStudentFees() {
             {STATUS_OPTIONS.map((s) => (
               <option key={s.key} value={s.key}>{s.label}</option>
             ))}
-          </select>
+          </PrettySelect>
         </div>
 
         {error && (

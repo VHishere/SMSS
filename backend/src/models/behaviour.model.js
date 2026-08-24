@@ -11,8 +11,12 @@ async function findTeacherClasses(teacherId) {
        g.grade_name  AS gradeName
      FROM teacher_class tc
      INNER JOIN school_class sc ON sc.class_id = tc.class_id AND sc.status = 'ACTIVE'
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      INNER JOIN grade g ON g.grade_id = sc.grade_id
-     WHERE tc.teacher_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
+     WHERE tc.teacher_id = ?
+       AND tc.role_in_class = 'HOMEROOM_TEACHER'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      ORDER BY sc.class_name ASC`,
     [teacherId],
   );
@@ -22,8 +26,17 @@ async function findTeacherClasses(teacherId) {
 // Chỉ GVCN của lớp mới được thao tác nề nếp/hạnh kiểm của lớp đó.
 async function isTeacherForClass(teacherId, classId) {
   const [[row]] = await pool.query(
-    `SELECT 1 AS ok FROM teacher_class
-     WHERE teacher_id = ? AND class_id = ? AND role_in_class = 'HOMEROOM_TEACHER' LIMIT 1`,
+    `SELECT 1 AS ok
+     FROM teacher_class tc
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+     WHERE tc.teacher_id = ?
+       AND tc.class_id = ?
+       AND tc.role_in_class = 'HOMEROOM_TEACHER'
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
+     LIMIT 1`,
     [teacherId, classId],
   );
   return Boolean(row);
@@ -34,7 +47,12 @@ async function isTeacherForStudent(teacherId, studentId) {
     `SELECT 1 AS ok
      FROM teacher_class tc
      INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ? AND ce.student_id = ?
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, studentId],
   );
@@ -47,20 +65,101 @@ async function isHomeroomOfStudent(teacherId, studentId) {
     `SELECT 1 AS ok
      FROM teacher_class tc
      INNER JOIN class_enrollment ce ON ce.class_id = tc.class_id AND ce.status = 'ACTIVE'
+     INNER JOIN school_class sc ON sc.class_id = tc.class_id
+     INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
      WHERE tc.teacher_id = ? AND ce.student_id = ? AND tc.role_in_class = 'HOMEROOM_TEACHER'
+       AND sc.status = 'ACTIVE'
+       AND sy.is_active = 1
+       AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
      LIMIT 1`,
     [teacherId, studentId],
   );
   return Boolean(row);
 }
 
-// Danh mục loại vi phạm chuẩn (kèm cờ có ảnh hưởng hạnh kiểm) cho bộ chọn khi ghi vi phạm.
+// Giữ response cũ cho frontend nhưng lấy dữ liệu từ bảng chuẩn behaviour_category.
+// DB hiện tại không còn bảng violation_type.
 async function findViolationTypes() {
   const [rows] = await pool.query(
-    `SELECT code, name, affects_conduct AS affectsConduct
-     FROM violation_type WHERE is_active = 1 ORDER BY affects_conduct DESC, name ASC`,
+    `SELECT
+       code,
+       label AS name,
+       affects_conduct_default AS affectsConduct
+     FROM behaviour_category
+     WHERE behavior_type = 'VIOLATION'
+       AND status = 'ACTIVE'
+     ORDER BY affects_conduct_default DESC, label ASC`,
   );
-  return rows.map((r) => ({ ...r, affectsConduct: Boolean(r.affectsConduct) }));
+
+  return rows.map((row) => ({
+    ...row,
+    affectsConduct: Boolean(row.affectsConduct),
+  }));
+}
+
+// ── Merit/violation category catalog (mức độ cộng/trừ) ─────────────────────────
+// Shared by teacher (picker in the record composer) and admin (manages the
+// catalog itself — code/label/points/affects-conduct-default).
+
+function mapCategoryRow(r) {
+  return { ...r, points: Number(r.points), affectsConductDefault: Boolean(r.affectsConductDefault) };
+}
+
+async function findCategories({ behaviorType, status } = {}) {
+  const params = [];
+  let where = "1=1";
+  if (behaviorType) { where += " AND behavior_type = ?"; params.push(behaviorType); }
+  if (status) { where += " AND status = ?"; params.push(status); }
+
+  const [rows] = await pool.query(
+    `SELECT
+       category_id AS categoryId, code, behavior_type AS behaviorType, label, points,
+       affects_conduct_default AS affectsConductDefault, status
+     FROM behaviour_category
+     WHERE ${where}
+     ORDER BY behavior_type ASC, label ASC`,
+    params,
+  );
+  return rows.map(mapCategoryRow);
+}
+
+async function findCategoryByCode(behaviorType, code) {
+  const [[row]] = await pool.query(
+    `SELECT category_id AS categoryId, code, behavior_type AS behaviorType, label, points,
+            affects_conduct_default AS affectsConductDefault, status
+     FROM behaviour_category
+     WHERE behavior_type = ? AND code = ? AND status = 'ACTIVE'
+     LIMIT 1`,
+    [behaviorType, code],
+  );
+  return row ? mapCategoryRow(row) : null;
+}
+
+async function createCategory({ code, behaviorType, label, points, affectsConductDefault, createdBy }) {
+  const [result] = await pool.query(
+    `INSERT INTO behaviour_category (code, behavior_type, label, points, affects_conduct_default, created_by)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [code, behaviorType, label, points, affectsConductDefault ? 1 : 0, createdBy ?? null],
+  );
+  return result.insertId;
+}
+
+async function updateCategory(categoryId, { label, points, affectsConductDefault }) {
+  const [result] = await pool.query(
+    `UPDATE behaviour_category
+     SET label = ?, points = ?, affects_conduct_default = ?
+     WHERE category_id = ?`,
+    [label, points, affectsConductDefault ? 1 : 0, categoryId],
+  );
+  return result.affectedRows;
+}
+
+async function setCategoryStatus(categoryId, status) {
+  const [result] = await pool.query(
+    `UPDATE behaviour_category SET status = ? WHERE category_id = ?`,
+    [status, categoryId],
+  );
+  return result.affectedRows;
 }
 
 async function findSemesters() {
@@ -481,19 +580,37 @@ async function upsertWarning(w) {
 }
 
 async function findWarnings(filters = {}) {
-  const { semesterId, classId, status, page = 1, limit = 20 } = filters;
+  const { semesterId, classId, status, teacherId, page = 1, limit = 20 } = filters;
   const offset = (page - 1) * limit;
   const params = [];
   let where = "1=1";
   if (semesterId) { where += " AND w.semester_id = ?"; params.push(parseInt(semesterId, 10)); }
   if (status)     { where += " AND w.status = ?";      params.push(status); }
   if (classId)    { where += " AND ce.class_id = ?";   params.push(parseInt(classId, 10)); }
+  // Giới hạn theo GVCN: chỉ cảnh báo của HS thuộc lớp giáo viên này chủ nhiệm.
+  // Admin không truyền teacherId → xem toàn trường.
+  if (teacherId) {
+    where += ` AND w.student_id IN (
+      SELECT ce2.student_id FROM class_enrollment ce2
+      INNER JOIN teacher_class tc ON tc.class_id = ce2.class_id
+      INNER JOIN school_class sc2 ON sc2.class_id = ce2.class_id AND sc2.status = 'ACTIVE'
+      INNER JOIN school_year sy2 ON sy2.school_year_id = sc2.school_year_id AND sy2.is_active = 1
+      WHERE tc.teacher_id = ?
+        AND tc.role_in_class = 'HOMEROOM_TEACHER'
+        AND ce2.status = 'ACTIVE'
+        AND (tc.end_date IS NULL OR tc.end_date >= CURDATE()))`;
+    params.push(parseInt(teacherId, 10));
+  }
 
   const [[{ total }]] = await pool.query(
-    `SELECT COUNT(*) AS total
+    `SELECT COUNT(DISTINCT w.warning_id) AS total
      FROM behavior_warning w
      INNER JOIN student s ON s.student_id = w.student_id
+     INNER JOIN semester sem ON sem.semester_id = w.semester_id
      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+       AND sc.status = 'ACTIVE'
+       AND sc.school_year_id = sem.school_year_id
      WHERE ${where}`,
     params,
   );
@@ -511,7 +628,9 @@ async function findWarnings(filters = {}) {
      INNER JOIN user_account ua ON ua.user_id = s.user_id
      INNER JOIN semester sem ON sem.semester_id = w.semester_id
      LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
+       AND sc.status = 'ACTIVE'
+       AND sc.school_year_id = sem.school_year_id
      WHERE ${where}
      ORDER BY CASE w.status WHEN 'OPEN' THEN 0 WHEN 'IN_PROGRESS' THEN 1 ELSE 2 END, w.created_at DESC
      LIMIT ? OFFSET ?`,
@@ -581,6 +700,11 @@ module.exports = {
   isTeacherForStudent,
   isHomeroomOfStudent,
   findViolationTypes,
+  findCategories,
+  findCategoryByCode,
+  createCategory,
+  updateCategory,
+  setCategoryStatus,
   findSemesters,
   findSemesterById,
   findStudentProfile,

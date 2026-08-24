@@ -2,8 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { staffApi } from "../../../api/client";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  cancelLinkClass,
+  checkboxClass,
+  inputClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
 
 const emptyForm = {
   teacherCode: "",
@@ -90,7 +96,7 @@ function StaffTeacherFormPage() {
         action={
           <Link
             to={isEdit ? `/staff/teachers/${id}` : "/staff/teachers"}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
+            className={cancelLinkClass}
           >
             Hủy
           </Link>
@@ -107,6 +113,15 @@ function StaffTeacherFormPage() {
         title="Thông tin giáo viên"
         onSubmit={handleSubmit}
         loading={saving}
+        footer={
+          !isEdit ? (
+            <>
+              Mật khẩu mặc định: <strong>Password@123</strong>. Phân công vào lớp tại mục Lớp học - chi tiết lớp.
+            </>
+          ) : (
+            "Cập nhật thông tin tài khoản giáo viên."
+          )
+        }
       >
         <StaffField label="Mã giáo viên">
           <input
@@ -155,12 +170,12 @@ function StaffTeacherFormPage() {
             ))}
           </datalist>
         </StaffField>
-        <StaffField label="Giáo viên chủ nhiệm" className="flex-row items-center gap-2">
+        <StaffField label="Giáo viên chủ nhiệm" className="rounded-2xl border border-[#DFC0B2] bg-[#F9F9F9] p-4">
           <input
             type="checkbox"
             checked={form.isHomeroom}
             onChange={handleChange("isHomeroom")}
-            className="h-4 w-4"
+            className={checkboxClass}
           />
           <span className="text-xs font-normal text-slate-500">
             Bật nếu GV có thể làm GVCN (tự động cấp quyền GVCN + bộ môn)
@@ -168,24 +183,19 @@ function StaffTeacherFormPage() {
         </StaffField>
         {isEdit && (
           <StaffField label="Trạng thái">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.status}
               onChange={handleChange("status")}
             >
               <option value="ACTIVE">Hoạt động</option>
               <option value="INACTIVE">Ngưng hoạt động</option>
-            </select>
+              <option value="LOCKED">Đã khóa</option>
+            </PrettySelect>
           </StaffField>
         )}
       </StaffFormCard>
 
-      {!isEdit && (
-        <p className="mt-4 text-sm text-slate-500">
-          Mật khẩu mặc định: <strong>Password@123</strong>. Phân công vào lớp tại
-          mục Lớp học → chi tiết lớp.
-        </p>
-      )}
     </>
   );
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import PrettySelect from "../molecules/PrettySelect";
 function Ms({ name, className = "", style }) { return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>; }
 
 import { behaviourApi } from "../../api/client";
@@ -9,7 +10,7 @@ const STATUS_OPTIONS = [
   { value: "RESOLVED",    label: "Đã xử lý" },
 ];
 
-function BehaviourWarningModal({ warning, onClose, onSaved }) {
+function BehaviourWarningModal({ warning, api = behaviourApi, onClose, onSaved }) {
   const [note,         setNote]         = useState(warning.note ?? "");
   const [intervention, setIntervention] = useState(warning.intervention ?? "");
   const [status,       setStatus]       = useState(warning.status ?? "OPEN");
@@ -21,7 +22,7 @@ function BehaviourWarningModal({ warning, onClose, onSaved }) {
     setSaving(true);
     setErrorMsg("");
     try {
-      await behaviourApi.updateWarning(warning.warningId, {
+      await api.updateWarning(warning.warningId, {
         note: note.trim() || null, intervention: intervention.trim(), status,
       });
       onSaved();
@@ -59,9 +60,9 @@ function BehaviourWarningModal({ warning, onClose, onSaved }) {
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-medium text-slate-600">Trạng thái</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls}>
+            <PrettySelect value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls}>
               {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            </PrettySelect>
           </div>
         </div>
 

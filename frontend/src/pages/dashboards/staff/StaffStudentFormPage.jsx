@@ -1,9 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { staffApi } from "../../../api/client";
-import StaffFormCard, { StaffField, inputClass } from "../../../components/staff/StaffFormCard";
+import StaffFormCard, {
+  StaffField,
+  cancelLinkClass,
+  inputClass,
+} from "../../../components/staff/StaffFormCard";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
+import PrettySelect from "../../../components/molecules/PrettySelect";
+import { resolveStaffWorkingSchoolYear } from "../../../utils/staffSchoolYear";
 
 const emptyForm = {
   studentCode: "",
@@ -23,7 +29,7 @@ function StaffStudentFormPage() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState(emptyForm);
-  const [lookups, setLookups] = useState({ classes: [] });
+  const [lookups, setLookups] = useState({ classes: [], schoolYears: [] });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
@@ -31,6 +37,24 @@ function StaffStudentFormPage() {
   useEffect(() => {
     staffApi.getLookups().then((res) => setLookups(res.data));
   }, []);
+
+  const workingSchoolYearId = useMemo(
+    () =>
+      resolveStaffWorkingSchoolYear(lookups.schoolYears || [])?.schoolYearId ||
+      "",
+    [lookups.schoolYears],
+  );
+
+  const classOptions = useMemo(
+    () =>
+      (lookups.classes || []).filter(
+        (item) =>
+          !workingSchoolYearId ||
+          String(item.schoolYearId) === String(workingSchoolYearId) ||
+          String(item.classId) === String(form.classId),
+      ),
+    [form.classId, lookups.classes, workingSchoolYearId],
+  );
 
   useEffect(() => {
     if (!isEdit) return;
@@ -67,6 +91,7 @@ function StaffStudentFormPage() {
     const payload = {
       ...form,
       classId: form.classId ? Number(form.classId) : null,
+      schoolYearId: workingSchoolYearId ? Number(workingSchoolYearId) : null,
     };
 
     try {
@@ -95,7 +120,7 @@ function StaffStudentFormPage() {
         action={
           <Link
             to={isEdit ? `/staff/students/${id}` : "/staff/students"}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-[#0F2747] no-underline hover:text-[#0F2747]"
+            className={cancelLinkClass}
           >
             Hủy
           </Link>
@@ -112,6 +137,7 @@ function StaffStudentFormPage() {
         title="Thông tin học sinh"
         onSubmit={handleSubmit}
         loading={saving}
+        footer={isEdit ? "Cập nhật hồ sơ học sinh." : "Sau khi tạo, hệ thống sẽ mở trang chi tiết học sinh."}
       >
         <StaffField label="Mã học sinh">
           <input
@@ -154,7 +180,7 @@ function StaffStudentFormPage() {
           />
         </StaffField>
         <StaffField label="Giới tính">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.gender}
             onChange={handleChange("gender")}
@@ -162,21 +188,21 @@ function StaffStudentFormPage() {
             <option value="MALE">Nam</option>
             <option value="FEMALE">Nữ</option>
             <option value="OTHER">Khác</option>
-          </select>
+          </PrettySelect>
         </StaffField>
         <StaffField label="Lớp" className="md:col-span-2">
-          <select
+          <PrettySelect
             className={inputClass}
             value={form.classId}
             onChange={handleChange("classId")}
           >
             <option value="">-- Chọn lớp --</option>
-            {lookups.classes.map((item) => (
+            {classOptions.map((item) => (
               <option key={item.classId} value={item.classId}>
                 {item.className} · {item.gradeName} · {item.schoolYearName}
               </option>
             ))}
-          </select>
+          </PrettySelect>
         </StaffField>
         <StaffField label="Địa chỉ" className="md:col-span-2">
           <input
@@ -187,14 +213,15 @@ function StaffStudentFormPage() {
         </StaffField>
         {isEdit && (
           <StaffField label="Trạng thái">
-            <select
+            <PrettySelect
               className={inputClass}
               value={form.status}
               onChange={handleChange("status")}
             >
               <option value="ACTIVE">Đang học</option>
               <option value="INACTIVE">Ngưng học</option>
-            </select>
+              <option value="TRANSFERRED">Chuyển trường</option>
+            </PrettySelect>
           </StaffField>
         )}
       </StaffFormCard>

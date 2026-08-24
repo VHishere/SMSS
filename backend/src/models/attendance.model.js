@@ -2,53 +2,6 @@ const { pool } = require("../config/db");
 
 // ── Existing: parent/student-facing queries ───────────────────────────────────
 
-async function findStatsByStudentId(studentId, filters = {}) {
-  const { startDate, endDate, context } = filters;
-  const params = [studentId];
-  let where = "";
-
-  if (startDate && endDate) {
-    where += " AND a.attendance_date BETWEEN ? AND ?";
-    params.push(startDate, endDate);
-  } else if (startDate) {
-    where += " AND a.attendance_date >= ?";
-    params.push(startDate);
-  } else if (endDate) {
-    where += " AND a.attendance_date <= ?";
-    params.push(endDate);
-  }
-
-  if (context) {
-    where += " AND a.attendance_context = ?";
-    params.push(context);
-  }
-
-  const [rows] = await pool.query(
-    `
-      SELECT
-        at.attendance_type_id AS typeId,
-        at.type_name          AS typeName,
-        a.attendance_context  AS context,
-        COUNT(*)              AS count
-      FROM attendance a
-      INNER JOIN attendance_type at
-        ON at.attendance_type_id = a.attendance_type_id
-      WHERE a.student_id = ?
-        ${where}
-      GROUP BY
-        at.attendance_type_id,
-        at.type_name,
-        a.attendance_context
-      ORDER BY
-        a.attendance_context,
-        at.attendance_type_id
-    `,
-    params,
-  );
-
-  return rows;
-}
-
 async function findHistoryByStudentId(studentId, filters = {}) {
   const { page = 1, limit = 20, startDate, endDate, context, typeId } = filters;
   const offset = (page - 1) * limit;
@@ -173,7 +126,11 @@ async function findAttendanceByClassAndDate(classId, date) {
        ON at.attendance_type_id = a.attendance_type_id
      WHERE a.class_id = ?
        AND a.attendance_date = ?
-       AND a.attendance_context = 'CLASS'`,
+       AND a.attendance_context = 'CLASS'
+       -- Điểm danh theo NGÀY (timetable_id NULL) — không trộn với điểm danh
+       -- theo TIẾT, nếu không một học sinh sẽ trả về nhiều dòng và
+       -- submittedCount vượt quá sĩ số lớp.
+       AND a.timetable_id IS NULL`,
     [classId, date],
   );
   return rows;
@@ -184,16 +141,37 @@ async function bulkUpsertAttendance(records) {
   try {
     await conn.beginTransaction();
     for (const r of records) {
-      await conn.query(
-        `INSERT INTO attendance
-           (student_id, class_id, attendance_date, attendance_context,
-            attendance_type_id, note, created_by)
-         VALUES (?, ?, ?, 'CLASS', ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           attendance_type_id = VALUES(attendance_type_id),
-           note               = VALUES(note)`,
-        [r.studentId, r.classId, r.date, r.typeId, r.note ?? null, r.createdBy],
+      // uq_att_period là (student_id, timetable_id, attendance_date). Điểm danh
+      // theo ngày không có timetable_id, mà UNIQUE của MySQL coi mỗi NULL là
+      // một giá trị khác nhau → ON DUPLICATE KEY không bao giờ khớp và mỗi lần
+      // lưu lại sinh thêm một dòng trùng. Phải tự tra rồi cập nhật.
+      const [existing] = await conn.query(
+        `SELECT attendance_id FROM attendance
+         WHERE student_id = ?
+           AND class_id = ?
+           AND attendance_date = ?
+           AND attendance_context = 'CLASS'
+           AND timetable_id IS NULL
+         LIMIT 1`,
+        [r.studentId, r.classId, r.date],
       );
+
+      if (existing[0]) {
+        await conn.query(
+          `UPDATE attendance
+           SET attendance_type_id = ?, note = ?
+           WHERE attendance_id = ?`,
+          [r.typeId, r.note ?? null, existing[0].attendance_id],
+        );
+      } else {
+        await conn.query(
+          `INSERT INTO attendance
+             (student_id, class_id, attendance_date, attendance_context,
+              attendance_type_id, note, created_by)
+           VALUES (?, ?, ?, 'CLASS', ?, ?, ?)`,
+          [r.studentId, r.classId, r.date, r.typeId, r.note ?? null, r.createdBy],
+        );
+      }
     }
     await conn.commit();
   } catch (err) {
@@ -210,6 +188,7 @@ async function findAttendanceRecordById(attendanceId) {
        a.attendance_id      AS attendanceId,
        a.student_id         AS studentId,
        a.class_id           AS classId,
+       a.timetable_id       AS timetableId,
        DATE_FORMAT(a.attendance_date, '%Y-%m-%d') AS attendanceDate,
        a.attendance_type_id AS typeId,
        at.type_name         AS typeName,
@@ -256,6 +235,7 @@ async function findTeacherPeriods(teacherId, date) {
        sub.subject_id   AS subjectId,
        sub.subject_name AS subjectName,
        tt.period_no     AS periodNo,
+       DATE_FORMAT(tt.lesson_date, '%Y-%m-%d') AS lessonDate,
        TIME_FORMAT(tt.start_time, '%H:%i') AS startTime,
        TIME_FORMAT(tt.end_time, '%H:%i')   AS endTime,
        tt.room_name     AS roomName,
@@ -280,13 +260,14 @@ async function findTeacherPeriods(teacherId, date) {
        AND cx.status = 'APPROVED' AND cx.request_type = 'CANCEL'
      WHERE tt.status = 'ACTIVE'
        AND tt.day_of_week = ${DOW_EXPR}
+       AND (tt.lesson_date IS NULL OR tt.lesson_date = ?)
        AND cx.substitution_id IS NULL
        AND (
          (tt.teacher_id = ? AND so.substitution_id IS NULL)
          OR si.substitution_id IS NOT NULL
        )
      ORDER BY tt.period_no ASC, sc.class_name ASC`,
-    [date, date, teacherId, date, date, date, date, teacherId],
+    [date, date, teacherId, date, date, date, date, date, teacherId],
   );
   return rows.map((r) => ({
     ...r,
@@ -308,6 +289,7 @@ async function resolveEffectivePeriod(timetableId, date) {
        sub.subject_name AS subjectName,
        tt.teacher_id    AS baseTeacherId,
        tt.period_no     AS periodNo,
+       DATE_FORMAT(tt.lesson_date, '%Y-%m-%d') AS lessonDate,
        TIME_FORMAT(tt.start_time, '%H:%i') AS startTime,
        TIME_FORMAT(tt.end_time, '%H:%i')   AS endTime,
        tt.room_name     AS roomName
@@ -315,8 +297,9 @@ async function resolveEffectivePeriod(timetableId, date) {
      INNER JOIN school_class sc ON sc.class_id = tt.class_id
      INNER JOIN grade g ON g.grade_id = sc.grade_id
      INNER JOIN subject sub ON sub.subject_id = tt.subject_id
-     WHERE tt.timetable_id = ?`,
-    [timetableId],
+     WHERE tt.timetable_id = ?
+       AND (tt.lesson_date IS NULL OR tt.lesson_date = ?)`,
+    [timetableId, date],
   );
   if (!tt) return null;
 
@@ -409,6 +392,74 @@ async function findAbsencePolicy(schoolYearId) {
     : { periodsPerSession: 5, maxAbsentSessions: 45, warnRatio: 0.8, countExcused: true };
 }
 
+async function findSchoolYearByDate(date) {
+  const [[row]] = await pool.query(
+    `SELECT school_year_id AS schoolYearId, year_name AS yearName,
+            DATE_FORMAT(start_date, '%Y-%m-%d') AS startDate,
+            DATE_FORMAT(end_date, '%Y-%m-%d') AS endDate,
+            status
+     FROM school_year
+     WHERE ? BETWEEN start_date AND end_date
+     ORDER BY start_date DESC
+     LIMIT 1`,
+    [date],
+  );
+  return row || null;
+}
+
+async function findStudentAbsenceSummaries(studentIds, startDate, endDate) {
+  if (!studentIds.length) return [];
+  const placeholders = studentIds.map(() => "?").join(",");
+  const [rows] = await pool.query(
+    `SELECT
+       s.student_id AS studentId,
+       ua.full_name AS fullName,
+       SUM(CASE WHEN at.type_name = 'ABSENT_EXCUSED' THEN 1 ELSE 0 END) AS absentExcused,
+       SUM(CASE WHEN at.type_name = 'ABSENT_UNEXCUSED' THEN 1 ELSE 0 END) AS absentUnexcused
+     FROM student s
+     INNER JOIN user_account ua ON ua.user_id = s.user_id
+     LEFT JOIN attendance a
+       ON a.student_id = s.student_id
+       AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
+       AND a.attendance_date BETWEEN ? AND ?
+     LEFT JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
+     WHERE s.student_id IN (${placeholders})
+     GROUP BY s.student_id, ua.full_name`,
+    [startDate, endDate, ...studentIds],
+  );
+
+  return rows.map((row) => ({
+    studentId: Number(row.studentId),
+    fullName: row.fullName,
+    absentExcused: Number(row.absentExcused || 0),
+    absentUnexcused: Number(row.absentUnexcused || 0),
+  }));
+}
+
+async function hasAttendanceThresholdNotification({ receiverId, studentId, relatedType }) {
+  const [[row]] = await pool.query(
+    `SELECT notification_id
+     FROM notification
+     WHERE receiver_id = ?
+       AND type = 'ATTENDANCE'
+       AND related_type = ?
+       AND related_id = ?
+     LIMIT 1`,
+    [receiverId, relatedType, studentId],
+  );
+  return Boolean(row);
+}
+
+async function resolveAbsenceWarning(studentId, schoolYearId) {
+  await pool.query(
+    `UPDATE attendance_warning
+     SET status = 'RESOLVED'
+     WHERE student_id = ? AND school_year_id = ? AND status <> 'RESOLVED'`,
+    [studentId, schoolYearId],
+  );
+}
+
 // Tổng hợp điểm danh theo TẤT CẢ tiết/môn của lớp trong khoảng năm học.
 async function findClassAttendanceOverview(classId, startDate, endDate) {
   const [rows] = await pool.query(
@@ -429,6 +480,7 @@ async function findClassAttendanceOverview(classId, startDate, endDate) {
      LEFT JOIN attendance a
        ON a.student_id = s.student_id AND a.class_id = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
        AND a.attendance_date BETWEEN ? AND ?
      LEFT JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
      WHERE ce.class_id = ? AND ce.status = 'ACTIVE'
@@ -459,7 +511,8 @@ async function upsertAbsenceWarning(w) {
        absent_periods = VALUES(absent_periods),
        absent_sessions = VALUES(absent_sessions),
        threshold_sessions = VALUES(threshold_sessions),
-       note = VALUES(note)`,
+       note = VALUES(note),
+       status = 'OPEN'`,
     [w.studentId, w.schoolYearId, w.absentPeriods, w.absentSessions, w.thresholdSessions, w.note ?? null, w.createdBy ?? null],
   );
 }
@@ -678,7 +731,7 @@ async function createAbsenceNotifications(notifications) {
     n.title,
     n.content,
     "ATTENDANCE",
-    "STUDENT",
+    n.relatedType || "STUDENT",
     n.relatedId ?? null,
     false,
   ]);
@@ -691,7 +744,6 @@ async function createAbsenceNotifications(notifications) {
 }
 
 module.exports = {
-  findStatsByStudentId,
   findHistoryByStudentId,
   findStudentAttendanceAnalytics,
   findAttendanceTypes,
@@ -706,6 +758,10 @@ module.exports = {
   bulkUpsertPeriodAttendance,
   findActiveSchoolYear,
   findAbsencePolicy,
+  findSchoolYearByDate,
+  findStudentAbsenceSummaries,
+  hasAttendanceThresholdNotification,
+  resolveAbsenceWarning,
   findClassAttendanceOverview,
   upsertAbsenceWarning,
   findAbsenceWarnings,

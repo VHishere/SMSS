@@ -30,7 +30,7 @@ function LessonFeedbackCard({ fetcher, title = "Nhận xét theo tiết" }) {
   if (!items || items.length === 0) return null;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-orange-100 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-3xl border card-border bg-white shadow-sm">
       <div className="border-b border-orange-100 px-5 py-4">
         <h3 className="text-base font-bold text-[#0F2747]">{title}</h3>
         <p className="mb-0 text-xs text-slate-500">Nhận xét của giáo viên bộ môn theo từng tiết học.</p>

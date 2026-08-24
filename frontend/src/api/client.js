@@ -4,9 +4,19 @@ const API_BASE =
 
 function getAuthToken() {
   return (
-    sessionStorage.getItem("kidcare_token") ||
-    localStorage.getItem("kidcare_token")
+    sessionStorage.getItem("smss_token") ||
+    localStorage.getItem("smss_token")
   );
+}
+
+// Báo cho badge chuông ở header refetch NGAY khi có thao tác đọc thông báo.
+// Header (DashboardHeader) và trang thông báo là 2 cây component tách biệt, không
+// chia sẻ state — dùng window event để đồng bộ số chưa đọc tức thời (không phải
+// đợi chuyển trang). Xem listener trong DashboardHeader → NotificationDropdown.
+function emitNotificationsChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("notifications:changed"));
+  }
 }
 
 async function request(
@@ -105,15 +115,434 @@ export const authApi = {
 };
 
 export const adminApi = {
+  // UC-106: School-Wide Operations Dashboard
+  getOperationsDashboard: () => request("/admin/dashboard/operations"),
+  getFeesDashboard: () => request("/admin/dashboard/fees"),
+  getMessagesDashboard: () => request("/admin/communication/dashboard"),
+
+  getSchoolYears: () => request("/admin/school-years"),
+
+  activateSchoolYear: (id) =>
+    request(`/admin/school-years/${id}/activate`, { method: "PUT" }),
+
+  evaluateSchoolYearPromotion: (id) =>
+    request(`/admin/school-years/${id}/promotion/evaluate`),
+
+  closeSchoolYear: (id) =>
+    request(`/admin/school-years/${id}/close`, { method: "POST" }),
+
   getUsers: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
     return request(`/admin/users${qs ? `?${qs}` : ""}`);
   },
 
+  getUserStats: () => request("/admin/users/stats"),
+
   setUserStatus: (userId, status) =>
     request(`/admin/users/${userId}/status`, {
       method: "PUT",
       body: JSON.stringify({ status }),
+    }),
+
+  getRoles: () => request("/admin/roles"),
+
+  getUserDetail: (userId) => request(`/admin/users/${userId}`),
+
+  updateUserRoles: (userId, roleIds) =>
+    request(`/admin/users/${userId}/roles`, {
+      method: "PUT",
+      body: JSON.stringify({ roleIds }),
+    }),
+
+  updateUserChildren: (userId, children) =>
+    request(`/admin/users/${userId}/children`, {
+      method: "PUT",
+      body: JSON.stringify({ children }),
+    }),
+
+  // UC-10: Manage Tuition Fee Categories
+  getFeeCategories: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/fee-categories${qs ? `?${qs}` : ""}`);
+  },
+
+  createFeeCategory: (payload) =>
+    request("/admin/fee-categories", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateFeeCategory: (id, payload) =>
+    request(`/admin/fee-categories/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  setFeeCategoryStatus: (id, status) =>
+    request(`/admin/fee-categories/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
+
+  // UC-11: Configure Fee Rates
+  getFeeRates: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/fee-rates${qs ? `?${qs}` : ""}`);
+  },
+
+  createFeeRate: (payload) =>
+    request("/admin/fee-rates", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateFeeRate: (id, payload) =>
+    request(`/admin/fee-rates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  setFeeRateStatus: (id, status) =>
+    request(`/admin/fee-rates/${id}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
+
+  // UC-14: full online payment transaction history for a fee plan
+  getFeePlanTransactions: (feePlanId) => request(`/admin/fees/${feePlanId}/transactions`),
+
+  // Student management — school-wide 360 view (read-only mirror of the
+  // teacher student-profile feature, not restricted to assigned classes).
+  getStudentsMeta: () => request("/admin/students/meta"),
+
+  getStudentsClassOverview: (classId, semesterId) => {
+    const qs = new URLSearchParams({
+      classId,
+      ...(semesterId ? { semesterId } : {}),
+    }).toString();
+
+    return request(`/admin/students/overview?${qs}`);
+  },
+
+  getStudentProfile: (studentId, semesterId) => {
+    const qs = semesterId ? `?semesterId=${semesterId}` : "";
+    return request(`/admin/students/${studentId}/profile${qs}`);
+  },
+
+  getStudentAttendance: (studentId, semesterId) => {
+    const qs = semesterId ? `?semesterId=${semesterId}` : "";
+    return request(`/admin/students/${studentId}/attendance${qs}`);
+  },
+
+  getStudentAcademic: (studentId, semesterId) => {
+    const qs = semesterId ? `?semesterId=${semesterId}` : "";
+    return request(`/admin/students/${studentId}/academic${qs}`);
+  },
+
+  getStudentBehaviour: (studentId, semesterId) => {
+    const qs = semesterId ? `?semesterId=${semesterId}` : "";
+    return request(`/admin/students/${studentId}/behaviour${qs}`);
+  },
+
+  getStudentGoals: (studentId, params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/students/${studentId}/goals${qs ? `?${qs}` : ""}`);
+  },
+
+  // Academic (điểm số) — read-only, school-wide
+  getAcademicMeta: () => request("/admin/academic/meta"),
+
+  getAcademicGradebook: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/admin/academic/gradebook?${qs}`);
+  },
+
+  getAcademicAnalytics: (classId, semesterId) =>
+    request(`/admin/academic/analytics?classId=${classId}&semesterId=${semesterId}`),
+
+  getAcademicTrend: (classId) =>
+    request(`/admin/academic/analytics/trend?classId=${classId}`),
+
+  getAcademicWarnings: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/academic/warnings${qs ? `?${qs}` : ""}`);
+  },
+
+  // Behaviour & Conduct (hạnh kiểm) — school-wide. No evaluateConduct
+  // (đánh giá hạnh kiểm) equivalent — that stays homeroom-teacher-only.
+  getBehaviourMeta: () => request("/admin/behaviour/meta"),
+
+  listBehaviourRecords: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/behaviour/records${qs ? `?${qs}` : ""}`);
+  },
+
+  createBehaviourRecord: (body) =>
+    request("/admin/behaviour/records", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateBehaviourRecord: (behaviorId, body) =>
+    request(`/admin/behaviour/records/${behaviorId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  archiveBehaviourRecord: (behaviorId, reason) =>
+    request(`/admin/behaviour/records/${behaviorId}/archive`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
+  // Danh mục khen thưởng/vi phạm (mức độ cộng/trừ) — admin manages the point
+  // value of each category; teacher's record composer reads it too.
+  listBehaviourCategories: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/behaviour/categories${qs ? `?${qs}` : ""}`);
+  },
+
+  createBehaviourCategory: (body) =>
+    request("/admin/behaviour/categories", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateBehaviourCategory: (categoryId, body) =>
+    request(`/admin/behaviour/categories/${categoryId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  setBehaviourCategoryStatus: (categoryId, status) =>
+    request(`/admin/behaviour/categories/${categoryId}/status`, {
+      method: "PUT",
+      body: JSON.stringify({ status }),
+    }),
+
+  getConductPreview: (studentId, semesterId) =>
+    request(`/admin/behaviour/conduct?studentId=${studentId}&semesterId=${semesterId}`),
+
+  getBehaviourAnalytics: (classId, semesterId) =>
+    request(`/admin/behaviour/analytics?classId=${classId}&semesterId=${semesterId}`),
+
+  getBehaviourWarnings: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/behaviour/warnings${qs ? `?${qs}` : ""}`);
+  },
+
+  generateBehaviourWarnings: (classId, semesterId) =>
+    request("/admin/behaviour/warnings/generate", {
+      method: "POST",
+      body: JSON.stringify({ classId, semesterId }),
+    }),
+
+  updateBehaviourWarning: (warningId, body) =>
+    request(`/admin/behaviour/warnings/${warningId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  // Attendance (điểm danh) — school-wide history/stats + class summary/warnings
+  getAttendanceMeta: () => request("/admin/attendance/meta"),
+
+  getAttendanceClassOverview: (classId) =>
+    request(`/admin/attendance/overview?classId=${classId}`),
+
+  generateAttendanceWarnings: (classId) =>
+    request("/admin/attendance/warnings/generate", {
+      method: "POST",
+      body: JSON.stringify({ classId }),
+    }),
+
+  getAttendanceHistory: (classId, params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/attendance/classes/${classId}/history${qs ? `?${qs}` : ""}`);
+  },
+
+  getAttendanceAnalytics: (classId, params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/attendance/classes/${classId}/analytics${qs ? `?${qs}` : ""}`);
+  },
+
+  // Notifications (thông báo)
+  getMyNotifications: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/me/notifications${qs ? `?${qs}` : ""}`);
+  },
+
+  markNotificationRead: (notificationId) =>
+    request(`/admin/me/notifications/${notificationId}/read`, {
+      method: "PATCH",
+    }).then((res) => { emitNotificationsChanged(); return res; }),
+
+  markAllNotificationsRead: () =>
+    request("/admin/me/notifications/read-all", {
+      method: "PATCH",
+    }).then((res) => { emitNotificationsChanged(); return res; }),
+
+  // Announcements (soạn thông báo) — school-wide / grade-wide / class-wide
+  getAnnouncementsMeta: () => request("/admin/announcements/meta"),
+
+  listAnnouncements: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/announcements${qs ? `?${qs}` : ""}`);
+  },
+
+  createAnnouncement: (body) =>
+    request("/admin/announcements", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  updateAnnouncement: (announcementId, body) =>
+    request(`/admin/announcements/${announcementId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  publishAnnouncement: (announcementId) =>
+    request(`/admin/announcements/${announcementId}/publish`, {
+      method: "POST",
+    }),
+
+  pinAnnouncement: (announcementId, isPinned) =>
+    request(`/admin/announcements/${announcementId}/pin`, {
+      method: "PATCH",
+      body: JSON.stringify({ isPinned }),
+    }),
+
+  archiveAnnouncement: (announcementId) =>
+    request(`/admin/announcements/${announcementId}/archive`, {
+      method: "POST",
+    }),
+
+  getAnnouncementReceipts: (announcementId) =>
+    request(`/admin/announcements/${announcementId}/receipts`),
+
+  // Messages (tin nhắn) — admin ↔ staff/teacher, same shape as parentApi's block
+  getMessageContacts: () => request("/admin/communication/contacts"),
+
+  searchMessageHistory: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/communication/search${qs ? `?${qs}` : ""}`);
+  },
+
+  listConversations: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/communication/conversations${qs ? `?${qs}` : ""}`);
+  },
+
+  startConversation: (userId) =>
+    request("/admin/communication/conversations", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }),
+
+  uploadMessageFile: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return uploadRequest("/admin/communication/upload", formData);
+  },
+
+  getThread: (conversationId, params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/communication/conversations/${conversationId}${qs ? `?${qs}` : ""}`);
+  },
+
+  sendMessage: (conversationId, body) =>
+    request(`/admin/communication/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  deleteMessage: (messageId) =>
+    request(`/admin/communication/messages/${messageId}`, {
+      method: "DELETE",
+    }),
+
+  archiveConversation: (conversationId, archived) =>
+    request(`/admin/communication/conversations/${conversationId}/archive`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived }),
+    }),
+
+  // Events (sự kiện) — school-wide, same shape as eventApi
+  getEventsMeta: () => request("/admin/events/meta"),
+
+  getEventClassContacts: (classId) => request(`/admin/events/classes/${classId}/contacts`),
+
+  getEventsDashboard: () => request("/admin/events/dashboard"),
+
+  getEventsAnalytics: () => request("/admin/events/analytics"),
+
+  listEvents: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/admin/events${qs ? `?${qs}` : ""}`);
+  },
+
+  createEvent: (body) =>
+    request("/admin/events", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  getEventDetail: (id) => request(`/admin/events/${id}`),
+
+  updateEvent: (id, body) =>
+    request(`/admin/events/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  changeEventStatus: (id, status) =>
+    request(`/admin/events/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+
+  duplicateEvent: (id) =>
+    request(`/admin/events/${id}/duplicate`, {
+      method: "POST",
+    }),
+
+  sendEventReminder: (id) =>
+    request(`/admin/events/${id}/reminder`, {
+      method: "POST",
+    }),
+
+  saveEventOutcome: (id, body) =>
+    request(`/admin/events/${id}/outcome`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  addEventParticipants: (id, participants) =>
+    request(`/admin/events/${id}/participants`, {
+      method: "POST",
+      body: JSON.stringify({ participants }),
+    }),
+
+  removeEventParticipant: (id, registrationId) =>
+    request(`/admin/events/${id}/participants/${registrationId}`, {
+      method: "DELETE",
+    }),
+
+  markEventAttendance: (id, registrationId, status) =>
+    request(`/admin/events/${id}/participants/${registrationId}/attendance`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+
+  uploadEventDocument: (id, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return uploadRequest(`/admin/events/${id}/documents`, formData);
+  },
+
+  deleteEventDocument: (id, attachmentId) =>
+    request(`/admin/events/${id}/documents/${attachmentId}`, {
+      method: "DELETE",
     }),
 };
 
@@ -163,23 +592,16 @@ export const studentApi = {
     );
   },
 
-  updateMyProfile: (body) => {
-    const formData = new FormData();
-
-    formData.append("fullName", body.fullName || "");
-    formData.append("phone", body.phone || "");
-    formData.append("dateOfBirth", body.dateOfBirth || "");
-    formData.append("gender", body.gender || "OTHER");
-    formData.append("address", body.address || "");
-
-    if (body.avatarFile) {
-      formData.append("avatar", body.avatarFile);
-    }
-
-    return uploadRequest("/students/me", formData, {
+  updateMyProfile: (body) =>
+    request("/students/me", {
       method: "PATCH",
-    });
-  },
+      body: JSON.stringify({
+        phone: body.phone || "",
+        dateOfBirth: body.dateOfBirth || "",
+        gender: body.gender || "OTHER",
+        address: body.address || "",
+      }),
+    }),
 
   searchMessageHistory: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
@@ -200,6 +622,12 @@ export const studentApi = {
     const qs = new URLSearchParams(cleanParams(params)).toString();
 
     return request(`/students/me/attendance/analytics${qs ? `?${qs}` : ""}`);
+  },
+
+  getMyLeaveRequests: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+
+    return request(`/students/me/leave-requests${qs ? `?${qs}` : ""}`);
   },
 
   getMyBehaviour: (params = {}) => {
@@ -223,20 +651,20 @@ export const studentApi = {
       body: JSON.stringify(body),
     }),
 
-  updateMyGoalProgress: (goalId, body) =>
-    request(`/students/me/goals/${goalId}/progress`, {
-      method: "PATCH",
+  updateMyGoal: (goalId, body) =>
+    request(`/students/me/goals/${goalId}`, {
+      method: "PUT",
       body: JSON.stringify(body),
     }),
-
-  getMyGoalLog: (goalId) =>
-    request(`/students/me/goals/${goalId}/log`),
 
   getMyEvents: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
 
     return request(`/students/me/events${qs ? `?${qs}` : ""}`);
   },
+
+  getMyEventDetail: (eventId) =>
+    request(`/students/me/events/${eventId}`),
 
   registerMyEvent: (eventId) =>
     request(`/students/me/events/${eventId}/register`, {
@@ -252,12 +680,12 @@ export const studentApi = {
   markNotificationRead: (notificationId) =>
     request(`/students/me/notifications/${notificationId}/read`, {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   markAllNotificationsRead: () =>
     request("/students/me/notifications/read-all", {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   getMessageContacts: () =>
     request("/students/me/communication/contacts"),
@@ -315,6 +743,13 @@ export const teacherApi = {
   // Trung tâm thông báo GVCN (thông báo lớp + cảnh báo HS + việc cần xử lý)
   getNotifications: () =>
     request("/teachers/notifications"),
+
+  // Đánh dấu 1 mục trong feed là đã đọc (lưu DB notification_read_state)
+  markNotificationRead: (key) =>
+    request("/teachers/notifications/read", {
+      method: "POST",
+      body: JSON.stringify({ key }),
+    }),
 
   // Điểm danh theo tiết (per-period)
   getMyPeriods: (date) =>
@@ -775,40 +1210,11 @@ export const goalApi = {
     );
   },
 
-  create: (studentId, body) =>
-    request(`/teachers/students/${studentId}/goals`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  update: (goalId, body) =>
-    request(`/teachers/goals/${goalId}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }),
-
-  updateProgress: (goalId, body) =>
-    request(`/teachers/goals/${goalId}/progress`, {
+  comment: (goalId, comment) =>
+    request(`/teachers/goals/${goalId}/comment`, {
       method: "PATCH",
-      body: JSON.stringify(body),
+      body: JSON.stringify({ comment }),
     }),
-
-  evaluate: (goalId, body) =>
-    request(`/teachers/goals/${goalId}/evaluate`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  archive: (goalId, note) =>
-    request(`/teachers/goals/${goalId}/archive`, {
-      method: "POST",
-      body: JSON.stringify({
-        note,
-      }),
-    }),
-
-  getLog: (goalId) =>
-    request(`/teachers/goals/${goalId}/log`),
 };
 
 async function downloadRequest(path, body, fallbackName) {
@@ -1186,33 +1592,15 @@ export const eventApi = {
     );
   },
 
-  create: (body) =>
-    request("/teachers/events", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+  // KHÔNG có create/duplicate: tạo (và nhân bản) sự kiện là nghiệp vụ của giáo vụ
+  // (staff) — route POST /teachers/events đã được gỡ ở backend. Trang giáo vụ
+  // dùng adminApi.createEvent / duplicateEvent (đã mở cho ADMIN + STAFF).
 
   getDetail: (id) =>
     request(`/teachers/events/${id}`),
 
-  update: (id, body) =>
-    request(`/teachers/events/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    }),
-
-  changeStatus: (id, status) =>
-    request(`/teachers/events/${id}/status`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        status,
-      }),
-    }),
-
-  duplicate: (id) =>
-    request(`/teachers/events/${id}/duplicate`, {
-      method: "POST",
-    }),
+  // KHÔNG có update / changeStatus: sửa nội dung và đổi trạng thái sự kiện là
+  // quyền của giáo vụ (route PUT + PATCH status ở /teachers/events đã gỡ).
 
   sendReminder: (id) =>
     request(`/teachers/events/${id}/reminder`, {
@@ -1263,11 +1651,15 @@ export const eventApi = {
 };
 
 export const timetableApi = {
-  getMyTimetable: () =>
-    request("/teachers/timetable"),
+  getMyTimetable: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/teachers/timetable${qs ? `?${qs}` : ""}`);
+  },
 
-  getSubstitutionMeta: () =>
-    request("/teachers/timetable/substitutions/meta"),
+  getSubstitutionMeta: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/teachers/timetable/substitutions/meta${qs ? `?${qs}` : ""}`);
+  },
 
   listSubstitutions: (params = {}) => {
     const cleaned = Object.fromEntries(
@@ -1433,15 +1825,23 @@ export const parentApi = {
   markNotificationRead: (notificationId) =>
     request(`/parents/me/notifications/${notificationId}/read`, {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
 
   markAllNotificationsRead: () =>
     request("/parents/me/notifications/read-all", {
       method: "PATCH",
-    }),
+    }).then((res) => { emitNotificationsChanged(); return res; }),
+
+  getStudentNotificationFeed: (studentId) =>
+    request(`/parents/me/students/${studentId}/notifications/feed`),
 
   getMessageContacts: () =>
     request("/parents/me/communication/contacts"),
+
+  searchMessageHistory: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/parents/me/communication/search${qs ? `?${qs}` : ""}`);
+  },
 
   listConversations: (params = {}) => {
     const qs = new URLSearchParams(cleanParams(params)).toString();
@@ -1508,9 +1908,106 @@ export const parentApi = {
 };
 
 export const staffApi = {
-  getOverview: () => request("/staff/overview"),
+  getOverview: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(`/staff/overview${query ? `?${query}` : ""}`);
+  },
 
   getLookups: () => request("/staff/lookups"),
+
+  getMessagesDashboard: () => request("/staff/communication/dashboard"),
+
+  getMessageContacts: () => request("/staff/communication/contacts"),
+
+  searchMessageHistory: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/communication/search${qs ? `?${qs}` : ""}`);
+  },
+
+  listConversations: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/communication/conversations${qs ? `?${qs}` : ""}`);
+  },
+
+  startConversation: (userId) =>
+    request("/staff/communication/conversations", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }),
+
+  uploadMessageFile: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return uploadRequest("/staff/communication/upload", formData);
+  },
+
+  getThread: (conversationId, params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/communication/conversations/${conversationId}${qs ? `?${qs}` : ""}`);
+  },
+
+  sendMessage: (conversationId, body) =>
+    request(`/staff/communication/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  deleteMessage: (messageId) =>
+    request(`/staff/communication/messages/${messageId}`, {
+      method: "DELETE",
+    }),
+
+  archiveConversation: (conversationId, archived) =>
+    request(`/staff/communication/conversations/${conversationId}/archive`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived }),
+    }),
+  // Thông báo (bảng notification chung — is_read thật, giống student/parent/admin)
+  getMyNotifications: (params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/staff/me/notifications${qs ? `?${qs}` : ""}`);
+  },
+
+  markNotificationRead: (notificationId) =>
+    request(`/staff/me/notifications/${notificationId}/read`, {
+      method: "PATCH",
+    }).then((res) => { emitNotificationsChanged(); return res; }),
+
+  markAllNotificationsRead: () =>
+    request("/staff/me/notifications/read-all", {
+      method: "PATCH",
+    }).then((res) => { emitNotificationsChanged(); return res; }),
+
+  // Báo cáo (báo cáo) — xem + xuất, không lưu mẫu
+  getReportsMeta: () => request("/staff/reports/meta"),
+
+  generateReport: (reportType, filters) =>
+    request("/staff/reports/generate", {
+      method: "POST",
+      body: JSON.stringify({ reportType, filters }),
+    }),
+
+  exportReportExcel: (reportType, filters) =>
+    downloadRequest("/staff/reports/export-excel", { reportType, filters }, "bao_cao.xlsx"),
+
+  logReportExport: (reportType, filters, format) =>
+    request("/staff/reports/log-export", {
+      method: "POST",
+      body: JSON.stringify({ reportType, filters, format }),
+    }),
+
+  getReportHistory: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/staff/reports/history${qs ? `?${qs}` : ""}`);
+  },
 
   // Khảo sát đánh giá giáo viên (ẩn danh)
   listTeacherSurveys: () => request("/staff/surveys"),
@@ -1543,6 +2040,12 @@ export const staffApi = {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+
+  uploadStudentAvatar: (id, file) => {
+    const formData = new FormData();
+    formData.append("avatar", file);
+    return uploadRequest(`/staff/students/${id}/avatar`, formData);
+  },
 
   getParents: (params = {}) => {
     const normalized =
@@ -1598,14 +2101,14 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
-  activateSchoolYear: (id) =>
-    request(`/staff/school-years/${id}/activate`, { method: "PUT" }),
-
   updateSchoolYear: (id, payload) =>
     request(`/staff/school-years/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
+
+  initializeSchoolYear: (id) =>
+    request(`/staff/school-years/${id}/initialize`, { method: "POST" }),
 
   getClasses: (params = {}) => {
     const query = new URLSearchParams(
@@ -1628,10 +2131,15 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
-  enrollStudent: (classId, studentId) =>
+  deleteClass: (id) =>
+    request(`/staff/classes/${id}`, {
+      method: "DELETE",
+    }),
+
+  enrollStudents: (classId, studentIds) =>
     request(`/staff/classes/${classId}/students`, {
       method: "POST",
-      body: JSON.stringify({ studentId }),
+      body: JSON.stringify({ studentIds }),
     }),
 
   removeStudentFromClass: (classId, studentId) =>
@@ -1650,8 +2158,14 @@ export const staffApi = {
       method: "DELETE",
     }),
 
-  getClassTimetable: (classId) =>
-    request(`/staff/classes/${classId}/timetable`),
+  getClassTimetable: (classId, params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value),
+    ).toString();
+    return request(
+      `/staff/classes/${classId}/timetable${query ? `?${query}` : ""}`,
+    );
+  },
 
   createClassTimetableLesson: (classId, payload) =>
     request(`/staff/classes/${classId}/timetable`, {
@@ -1672,6 +2186,22 @@ export const staffApi = {
 
   createTimetableLessons: (payload) =>
     request("/staff/timetable", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getTimetableSubstitutions: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/timetable/substitutions${query ? `?${query}` : ""}`);
+  },
+
+  getTimetableSubstitution: (id) =>
+    request(`/staff/timetable/substitutions/${id}`),
+
+  reviewTimetableSubstitution: (id, payload) =>
+    request(`/staff/timetable/substitutions/${id}/decision`, {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -1733,4 +2263,63 @@ export const staffApi = {
       body: JSON.stringify(payload),
     }),
 
+};
+
+// ── Giáo viên Quản nhiệm (GVQN / DORM_SUPERVISOR) ────────────────────────────
+export const supervisorApi = {
+  getDashboard: () => request("/supervisor/dashboard"),
+
+  getNotifications: () => request("/supervisor/notifications"),
+
+  // Đánh dấu 1 mục trong feed là đã đọc (lưu DB notification_read_state)
+  markNotificationRead: (key) =>
+    request("/supervisor/notifications/read", {
+      method: "POST",
+      body: JSON.stringify({ key }),
+    }),
+
+  getAreas: () => request("/supervisor/areas"),
+
+  getAttendance: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ""),
+    ).toString();
+    return request(`/supervisor/attendance${qs ? `?${qs}` : ""}`);
+  },
+
+  submitBulkAttendance: (body) =>
+    request("/supervisor/attendance/bulk", { method: "POST", body: JSON.stringify(body) }),
+
+  getLogbook: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v != null && v !== ""),
+    ).toString();
+    return request(`/supervisor/logbook${qs ? `?${qs}` : ""}`);
+  },
+
+  createLogEntry: (body) =>
+    request("/supervisor/logbook", { method: "POST", body: JSON.stringify(body) }),
+
+  getLeaveRequests: () => request("/supervisor/leave-requests"),
+
+  decideLeaveRequest: (id, action, comment) =>
+    request(`/supervisor/leave-requests/${id}/decide`, { method: "POST", body: JSON.stringify({ action, comment }) }),
+
+  getWeekend: (date) => request(`/supervisor/weekend${date ? `?date=${date}` : ""}`),
+
+  setWeekendStatus: (id, status) =>
+    request(`/supervisor/weekend/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+
+  getSupport: (status) => request(`/supervisor/support${status ? `?status=${status}` : ""}`),
+
+  createSupport: (body) =>
+    request("/supervisor/support", { method: "POST", body: JSON.stringify(body) }),
+
+  getContacts: () => request("/supervisor/contacts"),
+
+  createTask: (body) =>
+    request("/supervisor/tasks", { method: "POST", body: JSON.stringify(body) }),
+
+  updateTaskStatus: (taskId, status) =>
+    request(`/supervisor/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify({ status }) }),
 };

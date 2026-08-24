@@ -42,6 +42,16 @@ async function findProfileByUserId(userId) {
       LEFT JOIN class_enrollment ce
         ON ce.student_id = s.student_id
         AND ce.status = 'ACTIVE'
+        -- Enrollments pile up year after year, so scope to the active year.
+        -- Without this the profile falls back to last year's class.
+        AND ce.class_id IN (
+          SELECT sc2.class_id
+          FROM school_class sc2
+          INNER JOIN school_year sy2
+            ON sy2.school_year_id = sc2.school_year_id
+            AND sy2.is_active = 1
+          WHERE sc2.status = 'ACTIVE'
+        )
 
       LEFT JOIN school_class sc
         ON sc.class_id = ce.class_id
@@ -56,7 +66,10 @@ async function findProfileByUserId(userId) {
       LEFT JOIN teacher_class htc
         ON htc.class_id = sc.class_id
         AND htc.role_in_class = 'HOMEROOM_TEACHER'
-        AND htc.end_date IS NULL
+        AND (
+          htc.end_date IS NULL
+          OR htc.end_date >= CURDATE()
+        )
 
       LEFT JOIN teacher ht
         ON ht.teacher_id = htc.teacher_id
@@ -112,9 +125,7 @@ async function findProfileByUserId(userId) {
 
 async function updateProfileByUserId(userId, payload) {
   const {
-    fullName,
     phone,
-    avatar,
     dateOfBirth,
     gender,
     address,
@@ -125,25 +136,37 @@ async function updateProfileByUserId(userId, payload) {
   try {
     await conn.beginTransaction();
 
-    await conn.query(
+    if (phone) {
+      const [[existingPhone]] = await conn.query(
+        `
+          SELECT user_id
+          FROM user_account
+          WHERE phone = ?
+            AND user_id <> ?
+          LIMIT 1
+          FOR UPDATE
+        `,
+        [phone, userId],
+      );
+
+      if (existingPhone) {
+        const error = new Error("Số điện thoại đã được tài khoản khác sử dụng");
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+
+    const [userResult] = await conn.query(
       `
         UPDATE user_account
-        SET
-          full_name = ?,
-          phone = ?,
-          avatar = ?
+        SET phone = ?
         WHERE user_id = ?
           AND status = 'ACTIVE'
       `,
-      [
-        fullName,
-        phone || null,
-        avatar || null,
-        userId,
-      ],
+      [phone || null, userId],
     );
 
-    await conn.query(
+    const [studentResult] = await conn.query(
       `
         UPDATE student
         SET
@@ -155,14 +178,19 @@ async function updateProfileByUserId(userId, payload) {
       `,
       [
         dateOfBirth || null,
-        gender || "OTHER",
+        gender,
         address || null,
         userId,
       ],
     );
 
-    await conn.commit();
+    if (userResult.affectedRows === 0 || studentResult.affectedRows === 0) {
+      const error = new Error("Không tìm thấy hồ sơ học sinh đang hoạt động");
+      error.statusCode = 404;
+      throw error;
+    }
 
+    await conn.commit();
     return findProfileByUserId(userId);
   } catch (error) {
     await conn.rollback();
@@ -202,10 +230,10 @@ async function findStudentContextByUserId(userId) {
       WHERE s.user_id = ?
         AND s.status = 'ACTIVE'
         AND ua.status = 'ACTIVE'
+        AND sy.is_active = 1
       ORDER BY
-        sy.is_active DESC,
-        sy.start_date DESC,
-        ce.enrollment_date DESC
+        ce.enrollment_date DESC,
+        ce.enrollment_id DESC
       LIMIT 1
     `,
     [userId],
@@ -411,12 +439,215 @@ function normalizeCountRow(row = {}) {
   );
 }
 
+
+async function findDashboardSemesterAnalytics(studentId) {
+  const [semesterRows] = await pool.query(
+    `
+      SELECT DISTINCT
+        sm.semester_id AS semesterId,
+        sm.semester_name AS semesterName,
+        DATE_FORMAT(sm.start_date, '%Y-%m-%d') AS startDate,
+        DATE_FORMAT(sm.end_date, '%Y-%m-%d') AS endDate,
+
+        sy.school_year_id AS schoolYearId,
+        sy.year_name AS schoolYearName,
+
+        CASE
+          WHEN CURDATE() BETWEEN sm.start_date AND sm.end_date
+          THEN 1
+          ELSE 0
+        END AS isCurrent
+      FROM class_enrollment ce
+      INNER JOIN school_class sc
+        ON sc.class_id = ce.class_id
+      INNER JOIN school_year sy
+        ON sy.school_year_id = sc.school_year_id
+      INNER JOIN semester sm
+        ON sm.school_year_id = sy.school_year_id
+      WHERE ce.student_id = ?
+        AND sm.status = 'ACTIVE'
+      ORDER BY
+        startDate ASC,
+        semesterId ASC
+    `,
+    [studentId],
+  );
+
+  const [regularScoreRows] = await pool.query(
+    `
+      SELECT
+        ar.semester_id AS semesterId,
+        ROUND(AVG(ar.score_value), 2) AS regularScore
+      FROM academic_result ar
+      WHERE ar.student_id = ?
+        AND ar.score_type IN (
+          'TX',
+          'TX1',
+          'TX2',
+          'TX3',
+          'REGULAR',
+          'FREQUENT'
+        )
+        AND ar.score_value IS NOT NULL
+      GROUP BY ar.semester_id
+    `,
+    [studentId],
+  );
+
+  const [attendanceScoreRows] = await pool.query(
+    `
+      SELECT
+        sm.semester_id AS semesterId,
+
+        ROUND(
+          AVG(
+            CASE at.type_name
+              WHEN 'PRESENT' THEN 10
+              WHEN 'LATE' THEN 8
+              WHEN 'EARLY_LEAVE' THEN 7
+              WHEN 'ABSENT_EXCUSED' THEN 5
+              WHEN 'ABSENT_UNEXCUSED' THEN 0
+              ELSE NULL
+            END
+          ),
+          2
+        ) AS attendanceScore,
+
+        COUNT(a.attendance_id) AS attendanceRecords
+      FROM attendance a
+      INNER JOIN attendance_type at
+        ON at.attendance_type_id = a.attendance_type_id
+      INNER JOIN semester sm
+        ON a.attendance_date BETWEEN sm.start_date AND sm.end_date
+      WHERE a.student_id = ?
+        AND a.attendance_context = 'CLASS'
+        AND a.attendance_date <= CURDATE()
+      GROUP BY sm.semester_id
+    `,
+    [studentId],
+  );
+
+  const [homeworkRows] = await pool.query(
+    `
+      SELECT
+        sm.semester_id AS semesterId,
+
+        COUNT(
+          DISTINCT CASE
+            WHEN hws.submission_id IS NOT NULL
+              AND (
+                hw.due_date IS NULL
+                OR hws.submit_time <= hw.due_date
+              )
+            THEN hw.homework_id
+          END
+        ) AS onTimeHomework,
+
+        COUNT(
+          DISTINCT CASE
+            WHEN hw.due_date IS NOT NULL
+              AND hw.due_date < NOW()
+              AND (
+                hws.submission_id IS NULL
+                OR hws.submit_time > hw.due_date
+              )
+            THEN hw.homework_id
+          END
+        ) AS overdueHomework
+      FROM class_enrollment ce
+      INNER JOIN school_class sc
+        ON sc.class_id = ce.class_id
+      INNER JOIN semester sm
+        ON sm.school_year_id = sc.school_year_id
+      INNER JOIN homework hw
+        ON hw.class_id = sc.class_id
+        AND DATE(hw.assign_date)
+          BETWEEN sm.start_date AND sm.end_date
+      LEFT JOIN homework_submission hws
+        ON hws.homework_id = hw.homework_id
+        AND hws.student_id = ?
+      WHERE ce.student_id = ?
+        AND hw.status IN ('OPEN', 'PUBLISHED', 'ACTIVE')
+      GROUP BY sm.semester_id
+    `,
+    [studentId, studentId],
+  );
+
+  const regularScoreMap = new Map(
+    regularScoreRows.map((row) => [
+      Number(row.semesterId),
+      row.regularScore == null
+        ? null
+        : Number(row.regularScore),
+    ]),
+  );
+
+  const attendanceScoreMap = new Map(
+    attendanceScoreRows.map((row) => [
+      Number(row.semesterId),
+      {
+        attendanceScore:
+          row.attendanceScore == null
+            ? null
+            : Number(row.attendanceScore),
+        attendanceRecords: Number(row.attendanceRecords || 0),
+      },
+    ]),
+  );
+
+  const homeworkMap = new Map(
+    homeworkRows.map((row) => [
+      Number(row.semesterId),
+      {
+        onTimeHomework: Number(row.onTimeHomework || 0),
+        overdueHomework: Number(row.overdueHomework || 0),
+      },
+    ]),
+  );
+
+  return semesterRows
+    .map((semester) => {
+      const semesterId = Number(semester.semesterId);
+      const attendance = attendanceScoreMap.get(semesterId);
+      const homework = homeworkMap.get(semesterId);
+
+      return {
+        semesterId,
+        semesterName: semester.semesterName,
+        schoolYearId: Number(semester.schoolYearId),
+        schoolYearName: semester.schoolYearName,
+        startDate: semester.startDate,
+        endDate: semester.endDate,
+        isCurrent: Boolean(semester.isCurrent),
+
+        regularScore:
+          regularScoreMap.get(semesterId) ?? null,
+
+        attendanceScore:
+          attendance?.attendanceScore ?? null,
+
+        attendanceRecords:
+          attendance?.attendanceRecords ?? 0,
+
+        onTimeHomework:
+          homework?.onTimeHomework ?? 0,
+
+        overdueHomework:
+          homework?.overdueHomework ?? 0,
+      };
+    })
+    .slice(-6);
+}
+
 async function findDashboardByUserId(userId) {
   const context = await findStudentContextByUserId(userId);
 
   if (!context) {
     return null;
   }
+
+  const semesterAnalytics =
+    await findDashboardSemesterAnalytics(context.studentId);
 
   const [homeworkRows] = await pool.query(
     `
@@ -460,6 +691,7 @@ async function findDashboardByUserId(userId) {
         ON at.attendance_type_id = a.attendance_type_id
       WHERE a.student_id = ?
         AND a.attendance_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        AND a.attendance_date <= CURDATE()
     `,
     [context.studentId],
   );
@@ -468,12 +700,11 @@ async function findDashboardByUserId(userId) {
     `
       SELECT
         COUNT(*) AS totalGoals,
-        SUM(CASE WHEN status = 'IN_PROGRESS' THEN 1 ELSE 0 END) AS inProgressGoals,
-        SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) AS completedGoals,
-        ROUND(AVG(progress), 0) AS averageProgress
+        SUM(CASE WHEN teacher_remark IS NOT NULL AND TRIM(teacher_remark) <> '' THEN 1 ELSE 0 END) AS reviewedGoals,
+        SUM(CASE WHEN target_date IS NOT NULL AND target_date < CURDATE() THEN 1 ELSE 0 END) AS overdueGoals,
+        SUM(CASE WHEN target_date IS NULL OR target_date >= CURDATE() THEN 1 ELSE 0 END) AS upcomingGoals
       FROM student_goal
       WHERE student_id = ?
-        AND status <> 'ARCHIVED'
     `,
     [context.studentId],
   );
@@ -525,6 +756,7 @@ async function findDashboardByUserId(userId) {
 
   return {
     context,
+    semesterAnalytics,
     homework: normalizeCountRow(homeworkRows[0]),
     grades: normalizeCountRow(gradeRows[0]),
     attendance: normalizeCountRow(attendanceRows[0]),
@@ -532,7 +764,8 @@ async function findDashboardByUserId(userId) {
     recentNotifications,
     upcomingEvents: upcomingEvents.map((event) => ({
       ...event,
-      isRegistered: Boolean(event.registrationId),
+      isRegistered:
+        Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
     })),
   };
 }
@@ -651,6 +884,7 @@ async function findBehaviourByUserId(userId, filters = {}) {
       LEFT JOIN user_account ua
         ON ua.user_id = ce.evaluated_by
       WHERE ce.student_id = ?
+        AND ce.status = 'APPROVED'
         ${conductClause}
       ORDER BY sy.start_date DESC, sm.start_date DESC, ce.evaluation_id DESC
       LIMIT 1
@@ -683,11 +917,13 @@ async function findEventsByUserId(userId, filters = {}) {
   const params = [userId, context.studentId, context.classId];
   let where = "WHERE (e.class_id IS NULL OR e.class_id = ?)";
 
-  if (status) {
+  if (status === "COMPLETED") {
+    where += " AND e.status IN ('COMPLETED', 'DONE')";
+  } else if (status) {
     where += " AND e.status = ?";
     params.push(status);
   } else {
-    where += " AND e.status IN ('ACTIVE', 'PUBLISHED', 'SCHEDULED', 'COMPLETED', 'CANCELLED')";
+    where += " AND e.status IN ('ACTIVE', 'PUBLISHED', 'SCHEDULED', 'COMPLETED', 'DONE', 'CANCELLED')";
   }
 
   if (search) {
@@ -710,6 +946,7 @@ async function findEventsByUserId(userId, filters = {}) {
         e.capacity,
         e.outcome,
         e.status,
+        (e.start_date IS NOT NULL AND e.start_date <= NOW()) AS hasStarted,
         sc.class_name AS className,
         er.registration_id AS registrationId,
         er.attend_status AS attendStatus,
@@ -718,6 +955,7 @@ async function findEventsByUserId(userId, filters = {}) {
           SELECT COUNT(*)
           FROM event_registration er2
           WHERE er2.event_id = e.event_id
+            AND COALESCE(er2.attend_status, 'REGISTERED') <> 'CANCELLED'
         ) AS registeredCount
       FROM event e
       LEFT JOIN school_class sc
@@ -739,7 +977,9 @@ async function findEventsByUserId(userId, filters = {}) {
     events: events.map((event) => ({
       ...event,
       registeredCount: Number(event.registeredCount || 0),
-      isRegistered: Boolean(event.registrationId),
+      hasStarted: Boolean(event.hasStarted),
+      isRegistered:
+        Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
     })),
   };
 }
@@ -763,6 +1003,7 @@ async function findEventForStudent(userId, eventId) {
           SELECT COUNT(*)
           FROM event_registration er
           WHERE er.event_id = e.event_id
+            AND COALESCE(er.attend_status, 'REGISTERED') <> 'CANCELLED'
         ) AS registeredCount
       FROM event e
       WHERE e.event_id = ?
@@ -785,19 +1026,215 @@ async function findEventForStudent(userId, eventId) {
   };
 }
 
-async function registerEvent({ userId, studentId, eventId }) {
-  const [result] = await pool.query(
+async function findEventDetailByUserId(userId, eventId) {
+  const context = await findStudentContextByUserId(userId);
+
+  if (!context) {
+    return null;
+  }
+
+  const [[event]] = await pool.query(
     `
-      INSERT INTO event_registration
-        (event_id, user_id, participant_type, student_id, registered_by, attend_status)
-      VALUES (?, ?, 'STUDENT', ?, ?, 'REGISTERED')
-      ON DUPLICATE KEY UPDATE
-        attend_status = 'REGISTERED'
+      SELECT
+        e.event_id AS eventId,
+        e.title,
+        e.event_type AS eventType,
+        e.category,
+        e.description,
+        DATE_FORMAT(e.start_date, '%Y-%m-%d %H:%i') AS startDate,
+        DATE_FORMAT(e.end_date, '%Y-%m-%d %H:%i') AS endDate,
+        e.location,
+        e.organizer,
+        e.capacity,
+        e.outcome,
+        e.status,
+        (e.start_date IS NOT NULL AND e.start_date <= NOW()) AS hasStarted,
+        e.class_id AS classId,
+        sc.class_name AS className,
+        er.registration_id AS registrationId,
+        er.attend_status AS attendStatus,
+        DATE_FORMAT(er.register_date, '%Y-%m-%d %H:%i') AS registeredAt,
+        (
+          SELECT COUNT(*)
+          FROM event_registration er2
+          WHERE er2.event_id = e.event_id
+            AND COALESCE(er2.attend_status, 'REGISTERED') <> 'CANCELLED'
+        ) AS registeredCount
+      FROM event e
+      LEFT JOIN school_class sc
+        ON sc.class_id = e.class_id
+      LEFT JOIN event_registration er
+        ON er.event_id = e.event_id
+        AND (er.user_id = ? OR er.student_id = ?)
+      WHERE e.event_id = ?
+        AND (e.class_id IS NULL OR e.class_id = ?)
+        AND e.status IN (
+          'ACTIVE',
+          'PUBLISHED',
+          'SCHEDULED',
+          'COMPLETED',
+          'DONE',
+          'CANCELLED'
+        )
+      LIMIT 1
     `,
-    [eventId, userId, studentId, userId],
+    [userId, context.studentId, eventId, context.classId],
   );
 
-  return result.insertId;
+  if (!event) {
+    return null;
+  }
+
+  const [relatedEvents] = await pool.query(
+    `
+      SELECT
+        e.event_id AS eventId,
+        e.title,
+        e.event_type AS eventType,
+        e.category,
+        DATE_FORMAT(e.start_date, '%Y-%m-%d %H:%i') AS startDate,
+        DATE_FORMAT(e.end_date, '%Y-%m-%d %H:%i') AS endDate,
+        e.location,
+        e.status
+      FROM event e
+      WHERE e.event_id <> ?
+        AND (e.class_id IS NULL OR e.class_id = ?)
+        AND e.status IN ('ACTIVE', 'PUBLISHED', 'SCHEDULED', 'COMPLETED', 'DONE')
+      ORDER BY
+        CASE WHEN e.start_date >= NOW() THEN 0 ELSE 1 END,
+        ABS(TIMESTAMPDIFF(SECOND, e.start_date, ?)) ASC,
+        e.event_id DESC
+      LIMIT 4
+    `,
+    [eventId, context.classId, event.startDate],
+  );
+
+  return {
+    context,
+    event: {
+      ...event,
+      registeredCount: Number(event.registeredCount || 0),
+      hasStarted: Boolean(event.hasStarted),
+      isRegistered:
+        Boolean(event.registrationId) && event.attendStatus !== "CANCELLED",
+    },
+    relatedEvents,
+  };
+}
+
+async function registerEvent({ userId, studentId, eventId }) {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [[event]] = await connection.query(
+      `
+        SELECT
+          e.event_id AS eventId,
+          e.status,
+          e.capacity,
+          (e.start_date IS NOT NULL AND e.start_date <= NOW()) AS hasStarted,
+          existing.registration_id AS registrationId,
+          existing.attend_status AS attendStatus
+        FROM event e
+        INNER JOIN class_enrollment ce
+          ON ce.student_id = ?
+          AND ce.status = 'ACTIVE'
+        INNER JOIN school_class sc
+          ON sc.class_id = ce.class_id
+          AND sc.status = 'ACTIVE'
+        LEFT JOIN event_registration existing
+          ON existing.event_id = e.event_id
+          AND existing.user_id = ?
+        WHERE e.event_id = ?
+          AND (e.class_id IS NULL OR e.class_id = ce.class_id)
+        ORDER BY sc.school_year_id DESC
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [studentId, userId, eventId],
+    );
+
+    if (!event) {
+      const error = new Error("Không tìm thấy sự kiện hoặc bạn không có quyền đăng ký");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (!["ACTIVE", "PUBLISHED", "SCHEDULED"].includes(event.status)) {
+      const error = new Error("Sự kiện hiện không mở đăng ký");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (event.registrationId && event.attendStatus !== "CANCELLED") {
+      await connection.commit();
+      return {
+        registrationId: event.registrationId,
+        alreadyRegistered: true,
+      };
+    }
+
+    if (Boolean(event.hasStarted)) {
+      const error = new Error("Sự kiện đã bắt đầu, không thể đăng ký");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    if (event.capacity) {
+      const [[countRow]] = await connection.query(
+        `
+          SELECT COUNT(*) AS registeredCount
+          FROM event_registration
+          WHERE event_id = ?
+            AND COALESCE(attend_status, 'REGISTERED') <> 'CANCELLED'
+        `,
+        [eventId],
+      );
+
+      if (Number(countRow.registeredCount || 0) >= Number(event.capacity)) {
+        const error = new Error("Sự kiện đã đủ số lượng đăng ký");
+        error.statusCode = 409;
+        throw error;
+      }
+    }
+
+    let registrationId = event.registrationId;
+
+    if (registrationId) {
+      await connection.query(
+        `
+          UPDATE event_registration
+          SET attend_status = 'REGISTERED',
+              participant_type = 'STUDENT',
+              student_id = ?,
+              registered_by = ?,
+              register_date = NOW()
+          WHERE registration_id = ?
+        `,
+        [studentId, userId, registrationId],
+      );
+    } else {
+      const [result] = await connection.query(
+        `
+          INSERT INTO event_registration
+            (event_id, user_id, participant_type, student_id, registered_by, attend_status)
+          VALUES (?, ?, 'STUDENT', ?, ?, 'REGISTERED')
+        `,
+        [eventId, userId, studentId, userId],
+      );
+      registrationId = result.insertId;
+    }
+
+    await connection.commit();
+    return { registrationId, alreadyRegistered: false };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function findNotificationsByUserId(userId, filters = {}) {
@@ -960,6 +1397,7 @@ module.exports = {
   findBehaviourByUserId,
   findEventsByUserId,
   findEventForStudent,
+  findEventDetailByUserId,
   registerEvent,
   findNotificationsByUserId,
   markNotificationRead,

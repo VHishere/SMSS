@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useClassOverview } from "../../hooks/useClassOverview";
@@ -70,11 +71,13 @@ function StatCard({ label, value, accent }) {
 function StudentsOverviewPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { data: meta, loading: metaLoading } = useStudentMeta();
 
   const [classId,       setClassId]       = useState("");
   const [semesterId,    setSemesterId]    = useState("");
-  const [search,        setSearch]        = useState("");
+  // Khởi tạo từ ?search= (ô tìm kiếm header điều hướng tới đây kèm từ khóa).
+  const [search,        setSearch]        = useState(searchParams.get("search") ?? "");
   const [riskFilter,    setRiskFilter]    = useState("");
   const [conductFilter, setConductFilter] = useState("");
   const [sort,          setSort]          = useState({ key: "name", dir: "asc" });
@@ -171,30 +174,30 @@ function StudentsOverviewPage() {
           <div className="mb-5 flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Học kỳ</label>
-              <select value={effSemesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls} style={selStyle}>
+              <PrettySelect value={effSemesterId} onChange={(e) => setSemesterId(e.target.value)} className={selectCls} style={selStyle}>
                 {semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
-              </select>
+              </PrettySelect>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Mức quan tâm</label>
-              <select value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)} className={selectCls} style={selStyle}>
+              <PrettySelect value={riskFilter} onChange={(e) => setRiskFilter(e.target.value)} className={selectCls} style={selStyle}>
                 <option value="">Tất cả</option>
                 <option value="HIGH">Ưu tiên</option>
                 <option value="MEDIUM">Cần theo dõi</option>
                 <option value="LOW">Lưu ý</option>
                 <option value="NONE">Ổn định</option>
-              </select>
+              </PrettySelect>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Hạnh kiểm</label>
-              <select value={conductFilter} onChange={(e) => setConductFilter(e.target.value)} className={selectCls} style={selStyle}>
+              <PrettySelect value={conductFilter} onChange={(e) => setConductFilter(e.target.value)} className={selectCls} style={selStyle}>
                 <option value="">Tất cả</option>
                 <option value="TOT">Tốt</option>
                 <option value="KHA">Khá</option>
                 <option value="TB">Đạt</option>
                 <option value="YEU">Chưa đạt</option>
                 <option value="NA">Chưa đánh giá</option>
-              </select>
+              </PrettySelect>
             </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Tìm học sinh</label>

@@ -209,7 +209,10 @@ async function respondToInvitation(req, res) {
     const newStatus = action === "ACCEPT" ? "ACCEPTED" : "DECLINED";
     const affected = await meetingModel.respondToInvitation(meetingId, req.user.userId, newStatus);
     if (affected === 0) {
-      return res.status(404).json({ success: false, message: "Không tìm thấy lời mời hoặc đã phản hồi trước đó" });
+      return res.status(404).json({
+        success: false,
+        message: "Không thể phản hồi: lời mời không tồn tại, đã được phản hồi trước đó, hoặc cuộc họp đã bắt đầu (quá hạn xác nhận)",
+      });
     }
     return res.json({ success: true, message: action === "ACCEPT" ? "Đã xác nhận tham dự" : "Đã từ chối lời mời" });
   } catch (error) {

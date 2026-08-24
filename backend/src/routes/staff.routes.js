@@ -1,11 +1,18 @@
 const express = require("express");
 
 const staffController = require("../controllers/staff.controller");
+const communicationController = require("../controllers/communication.controller");
+const reportController = require("../controllers/report.controller");
 
 const {
   authenticate,
   authorize,
 } = require("../middleware/auth.middleware");
+
+const {
+  messageFileUpload,
+  profileAvatarUpload,
+} = require("../middleware/upload.middleware");
 
 const router = express.Router();
 
@@ -23,6 +30,117 @@ router.get(
   authenticate,
   authorize(...staffRoles),
   staffController.getLookups,
+);
+
+router.get(
+  "/communication/dashboard",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.getDashboard,
+);
+
+router.get(
+  "/communication/contacts",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.getContactsStaff,
+);
+
+router.get(
+  "/communication/search",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.searchMessages,
+);
+
+router.get(
+  "/communication/conversations",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.listConversations,
+);
+
+router.post(
+  "/communication/conversations",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.startConversationStaff,
+);
+
+router.post(
+  "/communication/upload",
+  authenticate,
+  authorize(...staffRoles),
+  messageFileUpload,
+  communicationController.uploadFile,
+);
+
+router.get(
+  "/communication/conversations/:conversationId",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.getThread,
+);
+
+router.post(
+  "/communication/conversations/:conversationId/messages",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.sendMessage,
+);
+
+router.delete(
+  "/communication/messages/:messageId",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.deleteMessage,
+);
+
+router.patch(
+  "/communication/conversations/:conversationId/archive",
+  authenticate,
+  authorize(...staffRoles),
+  communicationController.archiveConversation,
+);
+
+// Báo cáo — xem + xuất (Excel/PDF), không có mẫu đã lưu như bên giáo viên.
+// Chỉ STAFF (không mở cho ADMIN): báo cáo là nghiệp vụ của giáo vụ, admin đã
+// được gỡ hoàn toàn khỏi mảng này — cùng cách /me/notifications loại trừ ADMIN.
+const reportRoles = ["STAFF"];
+
+router.get(
+  "/reports/meta",
+  authenticate,
+  authorize(...reportRoles),
+  reportController.getMetaStaff,
+);
+
+router.post(
+  "/reports/generate",
+  authenticate,
+  authorize(...reportRoles),
+  reportController.generateStaff,
+);
+
+router.post(
+  "/reports/export-excel",
+  authenticate,
+  authorize(...reportRoles),
+  reportController.exportExcelStaff,
+);
+
+router.post(
+  "/reports/log-export",
+  authenticate,
+  authorize(...reportRoles),
+  reportController.logExportStaff,
+);
+
+router.get(
+  "/reports/history",
+  authenticate,
+  authorize(...reportRoles),
+  reportController.getHistoryStaff,
 );
 
 // Khảo sát đánh giá giáo viên (HS → GV, ẩn danh) — quản lý tạo + xem tổng hợp
@@ -117,6 +235,14 @@ router.put(
   staffController.updateStudent,
 );
 
+router.post(
+  "/students/:id/avatar",
+  authenticate,
+  authorize(...staffRoles),
+  profileAvatarUpload,
+  staffController.uploadStudentAvatar,
+);
+
 router.get(
   "/parents",
   authenticate,
@@ -188,17 +314,17 @@ router.post(
 );
 
 router.put(
-  "/school-years/:id/activate",
-  authenticate,
-  authorize(...staffRoles),
-  staffController.activateSchoolYear,
-);
-
-router.put(
   "/school-years/:id",
   authenticate,
   authorize(...staffRoles),
   staffController.updateSchoolYear,
+);
+
+router.post(
+  "/school-years/:id/initialize",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.initializeSchoolYearData,
 );
 
 router.get(
@@ -227,6 +353,13 @@ router.put(
   authenticate,
   authorize(...staffRoles),
   staffController.updateClass,
+);
+
+router.delete(
+  "/classes/:id",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.deleteClass,
 );
 
 router.post(
@@ -269,6 +402,27 @@ router.post(
   authenticate,
   authorize(...staffRoles),
   staffController.createTimetableLessons,
+);
+
+router.get(
+  "/timetable/substitutions",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.listTimetableSubstitutions,
+);
+
+router.get(
+  "/timetable/substitutions/:substitutionId",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.getTimetableSubstitutionById,
+);
+
+router.post(
+  "/timetable/substitutions/:substitutionId/decision",
+  authenticate,
+  authorize(...staffRoles),
+  staffController.reviewTimetableSubstitution,
 );
 
 router.post(
@@ -332,6 +486,30 @@ router.put(
   authenticate,
   authorize(...staffRoles),
   staffController.updateStudySession,
+);
+
+// ── Thông báo của tài khoản staff (bảng notification chung, is_read thật) ────
+// Chỉ STAFF (không mở cho ADMIN) vì đây là hộp thư của chính người đăng nhập —
+// admin đã có /admin/me/notifications riêng.
+router.get(
+  "/me/notifications",
+  authenticate,
+  authorize("STAFF"),
+  staffController.getMyNotifications,
+);
+
+router.patch(
+  "/me/notifications/read-all",
+  authenticate,
+  authorize("STAFF"),
+  staffController.markAllMyNotificationsRead,
+);
+
+router.patch(
+  "/me/notifications/:notificationId/read",
+  authenticate,
+  authorize("STAFF"),
+  staffController.markMyNotificationRead,
 );
 
 module.exports = router;

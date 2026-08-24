@@ -12,9 +12,24 @@ import { LoginPage } from "./pages/LoginPage";
 
 import { TeacherDashboard } from "./pages/dashboards/TeacherDashboard";
 
-import AdminDashboardLayout from "./pages/dashboards/admin/AdminDashboardLayout";
-import AdminOverviewPage from "./pages/dashboards/admin/AdminOverviewPage";
-import AdminUsersPage from "./pages/dashboards/admin/AdminUsersPage";
+import AdminDashboardLayout from "./pages/admin/AdminDashboardLayout";
+import AdminOverviewPage from "./pages/admin/AdminOverviewPage";
+import AdminProfilePage from "./pages/admin/AdminProfilePage";
+import AdminSchoolYearsPage from "./pages/admin/AdminSchoolYearsPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminFeesPage from "./pages/admin/AdminFeesPage";
+import AdminFeeDetailPage from "./pages/admin/AdminFeeDetailPage";
+import AdminFeeCategoriesPage from "./pages/admin/AdminFeeCategoriesPage";
+import AdminStudentsOverviewPage from "./pages/admin/AdminStudentsOverviewPage";
+import AdminStudentProfilePage from "./pages/admin/AdminStudentProfilePage";
+import AdminAcademicPage from "./pages/admin/AdminAcademicPage";
+import AdminBehaviourPage from "./pages/admin/AdminBehaviourPage";
+import AdminDisciplinePage from "./pages/admin/AdminDisciplinePage";
+import AdminAttendancePage from "./pages/admin/AdminAttendancePage";
+import AdminNotificationsPage from "./pages/admin/AdminNotificationsPage";
+import AdminMessages from "./pages/admin/AdminMessages";
+import AdminEventsPage from "./pages/admin/AdminEventsPage";
+import AdminEventDetailPage from "./pages/admin/AdminEventDetailPage";
 import ParentDashboard from "./pages/dashboards/ParentDashboard";
 import StudentDashboard from "./pages/dashboards/StudentDashboard";
 
@@ -24,6 +39,7 @@ import StaffStudentsPage from "./pages/dashboards/staff/StaffStudentsPage";
 import StaffParentsPage from "./pages/dashboards/staff/StaffParentsPage";
 import StaffReportsPage from "./pages/dashboards/staff/StaffReportsPage";
 import StaffSurveysPage from "./pages/dashboards/staff/StaffSurveysPage";
+import StaffNotificationsPage from "./pages/dashboards/staff/StaffNotificationsPage";
 import StaffSchoolYearsPage from "./pages/dashboards/staff/StaffSchoolYearsPage";
 import StaffClassesPage from "./pages/dashboards/staff/StaffClassesPage";
 import StaffClassDetailPage from "./pages/dashboards/staff/StaffClassDetailPage";
@@ -38,9 +54,13 @@ import StaffCurriculumPage from "./pages/dashboards/staff/StaffCurriculumPage";
 import StaffCurriculumDetailPage from "./pages/dashboards/staff/StaffCurriculumDetailPage";
 import StaffTimetablePage from "./pages/dashboards/staff/StaffTimetablePage";
 import StaffTimetableCreatePage from "./pages/dashboards/staff/StaffTimetableCreatePage";
+import StaffTimetableSubstitutionsPage from "./pages/dashboards/staff/StaffTimetableSubstitutionsPage";
+import StaffTimetableSubstitutionDetailPage from "./pages/dashboards/staff/StaffTimetableSubstitutionDetailPage";
 import StaffFeesPage from "./pages/dashboards/staff/StaffFeesPage";
 import StaffFeeFormPage from "./pages/dashboards/staff/StaffFeeFormPage";
 import StaffFeeDetailPage from "./pages/dashboards/staff/StaffFeeDetailPage";
+import StaffProfilePage from "./pages/dashboards/staff/StaffProfilePage";
+import StaffMessagesPage from "./pages/dashboards/staff/StaffMessagesPage";
 
 import StudentProfile from "./pages/student/StudentProfile";
 import StudentTimetable from "./pages/student/StudentTimetable";
@@ -50,6 +70,7 @@ import StudentAttendance from "./pages/student/StudentAttendance";
 import StudentBehaviour from "./pages/student/StudentBehaviour";
 import StudentGoals from "./pages/student/StudentGoals";
 import StudentEvents from "./pages/student/StudentEvents";
+import StudentEventDetail from "./pages/student/StudentEventDetail";
 import StudentMessages from "./pages/student/StudentMessages";
 import StudentSurveys from "./pages/student/StudentSurveys";
 import StudentNotifications from "./pages/student/StudentNotifications";
@@ -94,13 +115,22 @@ import SupportCasesPage from "./pages/teacher/SupportCasesPage";
 
 import StudentHomeworkDetail from "./pages/student/StudentHomeworkDetail";
 
+import SupervisorDashboard from "./pages/supervisor/SupervisorDashboard";
+import SupervisorAreas from "./pages/supervisor/SupervisorAreas";
+import DormAttendance from "./pages/supervisor/DormAttendance";
+import SupervisionLog from "./pages/supervisor/SupervisionLog";
+import SupervisorLeave from "./pages/supervisor/SupervisorLeave";
+import SupervisorWeekend from "./pages/supervisor/SupervisorWeekend";
+import SupervisorSupport from "./pages/supervisor/SupervisorSupport";
+
 import "./App.css";
 
 const TEACHER_ROLES = [
   "HOMEROOM_TEACHER",
   "SUBJECT_TEACHER",
-  "DORM_SUPERVISOR",
 ];
+
+const SUPERVISOR_ROLES = ["DORM_SUPERVISOR"];
 
 function App() {
   return (
@@ -130,18 +160,40 @@ function App() {
             }
           >
             <Route index element={<AdminOverviewPage />} />
+            <Route path="profile" element={<AdminProfilePage />} />
+            <Route path="school-years" element={<AdminSchoolYearsPage />} />
             <Route path="users" element={<AdminUsersPage />} />
+            <Route path="fees" element={<AdminFeesPage />} />
+            <Route path="fees/:id" element={<AdminFeeDetailPage />} />
+            <Route path="fee-categories" element={<AdminFeeCategoriesPage />} />
+            <Route path="students" element={<AdminStudentsOverviewPage />} />
+            <Route path="students/:studentId" element={<AdminStudentProfilePage />} />
+            <Route path="academic" element={<AdminAcademicPage />} />
+            <Route path="discipline" element={<AdminDisciplinePage />} />
+            <Route path="behaviour" element={<AdminBehaviourPage />} />
+            <Route path="attendance" element={<AdminAttendancePage />} />
+            <Route path="notifications" element={<AdminNotificationsPage />} />
+            <Route path="messages" element={<AdminMessages />} />
+            <Route path="events" element={<AdminEventsPage />} />
+            <Route path="events/:eventId" element={<AdminEventDetailPage />} />
           </Route>
 
           <Route
             path="/staff"
             element={
-              <ProtectedRoute allowedRoles={["STAFF", "ADMIN"]}>
+              <ProtectedRoute allowedRoles={["STAFF"]}>
                 <StaffDashboardLayout />
               </ProtectedRoute>
             }
           >
             <Route index element={<StaffOverviewPage />} />
+            <Route path="profile" element={<StaffProfilePage />} />
+            <Route path="notifications" element={<StaffNotificationsPage />} />
+            {/* Sự kiện: TẠO sự kiện là nghiệp vụ giáo vụ. Dùng lại đúng UI của
+                admin (cùng endpoint /admin/events đã mở cho STAFF), chỉ truyền
+                basePath để điều hướng ở lại portal staff. */}
+            <Route path="events" element={<AdminEventsPage basePath="/staff" />} />
+            <Route path="events/:eventId" element={<AdminEventDetailPage basePath="/staff" />} />
             <Route path="students" element={<StaffStudentsPage />} />
             <Route path="students/new" element={<StaffStudentFormPage />} />
             <Route path="students/:id" element={<StaffStudentDetailPage />} />
@@ -158,9 +210,12 @@ function App() {
             <Route path="curriculum/:id" element={<StaffCurriculumDetailPage />} />
             <Route path="timetable" element={<StaffTimetablePage />} />
             <Route path="timetable/new" element={<StaffTimetableCreatePage />} />
+            <Route path="timetable-substitutions" element={<StaffTimetableSubstitutionsPage />} />
+            <Route path="timetable-substitutions/:id" element={<StaffTimetableSubstitutionDetailPage />} />
             <Route path="fees" element={<StaffFeesPage />} />
             <Route path="fees/new" element={<StaffFeeFormPage />} />
             <Route path="fees/:id" element={<StaffFeeDetailPage />} />
+            <Route path="messages" element={<StaffMessagesPage />} />
             <Route path="school-years" element={<StaffSchoolYearsPage />} />
             <Route path="classes" element={<StaffClassesPage />} />
             <Route path="classes/:id" element={<StaffClassDetailPage />} />
@@ -592,6 +647,15 @@ function App() {
           />
 
           <Route
+            path="/student/events/:eventId"
+            element={
+              <ProtectedRoute allowedRoles={["STUDENT"]}>
+                <StudentEventDetail />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/student/messages"
             element={
               <ProtectedRoute allowedRoles={["STUDENT"]}>
@@ -617,6 +681,16 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* ── Giáo viên Quản nhiệm (GVQN / DORM_SUPERVISOR) ── */}
+          <Route path="/supervisor" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorDashboard /></ProtectedRoute>} />
+          <Route path="/supervisor/areas" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorAreas /></ProtectedRoute>} />
+          <Route path="/supervisor/attendance" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><DormAttendance /></ProtectedRoute>} />
+          <Route path="/supervisor/logbook" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisionLog /></ProtectedRoute>} />
+          <Route path="/supervisor/leave-approvals" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorLeave /></ProtectedRoute>} />
+          <Route path="/supervisor/weekend" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorWeekend /></ProtectedRoute>} />
+          <Route path="/supervisor/support" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><SupervisorSupport /></ProtectedRoute>} />
+          <Route path="/supervisor/messages" element={<ProtectedRoute allowedRoles={SUPERVISOR_ROLES}><MessagesPage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

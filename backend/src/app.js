@@ -26,6 +26,9 @@ const adminRoutes = require(
 const paymentRoutes = require(
   "./routes/payments.route",
 );
+const supervisorRoutes = require(
+  "./routes/supervisor.route",
+);
 
 const app = express();
 
@@ -47,10 +50,17 @@ app.use(
   express.static(path.resolve(__dirname, "../uploads")),
 );
 
+app.get("/", (_req, res) => {
+  res.json({
+    success: true,
+    message: "Student Management API đang hoạt động",
+  });
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({
     success: true,
-    message: "KidCare API đang hoạt động",
+    message: "Student Management API đang hoạt động",
   });
 });
 
@@ -61,6 +71,7 @@ app.use("/api/teachers", teacherRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use("/api/supervisor", supervisorRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({

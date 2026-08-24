@@ -7,10 +7,11 @@ function httpError(message, statusCode) {
   return err;
 }
 
+// Trả null khi không parse được thay vì đẩy nguyên chuỗi rác xuống MySQL.
 function toMysqlDateTime(value) {
   if (!value) return null;
   const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
+  if (isNaN(d.getTime())) return null;
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`;
 }
@@ -23,15 +24,30 @@ async function notify(receivers, title, content, eventId) {
   );
 }
 
+// actor.isAdmin bypasses ownership entirely — admin manages every event
+// school-wide, not just ones it personally created.
 async function ensureOwner(eventId, actor) {
   const event = await eventModel.findById(eventId);
   if (!event) throw httpError("Không tìm thấy sự kiện", 404);
-  if (event.createdBy !== actor.userId) throw httpError("Bạn không có quyền với sự kiện này", 403);
+  if (!actor.isAdmin && event.createdBy !== actor.userId) throw httpError("Bạn không có quyền với sự kiện này", 403);
   return event;
 }
 
+// Read-only visibility: same rule findEvents() uses (created by me OR my
+// class OR school-wide), broader than ensureOwner's "created by me" check —
+// a teacher can legitimately see (but not necessarily edit) events they
+// didn't create. Admin always has full visibility.
+async function ensureVisible(eventId, actor) {
+  const event = await eventModel.findById(eventId);
+  if (!event) throw httpError("Không tìm thấy sự kiện", 404);
+  if (actor.isAdmin || event.createdBy === actor.userId || event.classId == null) return event;
+  const classes = await eventModel.findTeacherClasses(actor.teacherId);
+  if (classes.some((c) => c.classId === event.classId)) return event;
+  throw httpError("Bạn không có quyền xem sự kiện này", 403);
+}
+
 async function validateClassScope(actor, classId) {
-  if (!classId) return; // school-wide allowed
+  if (!classId || actor.isAdmin) return; // school-wide allowed; admin may assign any class
   const ok = await eventModel.isTeacherForClass(actor.teacherId, classId);
   if (!ok) throw httpError("Bạn không phụ trách lớp này", 403);
 }
@@ -45,11 +61,23 @@ function validateEventPayload(payload) {
   if (!payload.category || !EVENT_CATEGORIES.includes(payload.category)) throw httpError("Vui lòng chọn danh mục hợp lệ", 400);
   if (!payload.startDate) throw httpError("Thời gian bắt đầu là bắt buộc", 400);
   if (!payload.organizer || !payload.organizer.trim()) throw httpError("Đơn vị/người tổ chức là bắt buộc", 400);
-  if (payload.endDate && new Date(payload.endDate).getTime() <= new Date(payload.startDate).getTime()) {
-    throw httpError("Thời gian kết thúc phải sau thời gian bắt đầu", 400);
+
+  const startedAt = new Date(payload.startDate).getTime();
+  if (Number.isNaN(startedAt)) throw httpError("Thời gian bắt đầu không hợp lệ", 400);
+
+  if (payload.endDate) {
+    const endedAt = new Date(payload.endDate).getTime();
+    if (Number.isNaN(endedAt)) throw httpError("Thời gian kết thúc không hợp lệ", 400);
+    if (endedAt <= startedAt) {
+      throw httpError("Thời gian kết thúc phải sau thời gian bắt đầu", 400);
+    }
   }
-  if (payload.capacity != null && payload.capacity !== "" && Number(payload.capacity) <= 0) {
-    throw httpError("Sức chứa phải lớn hơn 0", 400);
+
+  if (payload.capacity != null && payload.capacity !== "") {
+    const capacity = Number(payload.capacity);
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      throw httpError("Sức chứa phải là số nguyên lớn hơn 0", 400);
+    }
   }
 }
 
@@ -209,7 +237,7 @@ async function saveOutcome({ actor, eventId, payload }) {
 // ── Detail aggregate ──────────────────────────────────────────────────────────
 
 async function getDetail({ actor, eventId }) {
-  const event = await ensureOwner(eventId, actor);
+  const event = await ensureVisible(eventId, actor);
   const [participants, documents, logs] = await Promise.all([
     eventModel.findParticipants(eventId),
     eventModel.findDocuments(eventId),

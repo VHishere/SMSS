@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import DashboardShell from "../../components/templates/DashboardShell";
+import PrettySelect from "../../components/molecules/PrettySelect";
 import MeetingFormModal from "../../components/organisms/MeetingFormModal";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
@@ -308,10 +309,10 @@ function ActionsTab({ meetingId, actions, invitations, readOnly, onChanged }) {
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Tên công việc" className={inputCls} />
           <div className="grid grid-cols-2 gap-2">
             <input type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputCls} />
-            <select value={assignee} onChange={(e) => setAssignee(e.target.value)} className={inputCls}>
+            <PrettySelect value={assignee} onChange={(e) => setAssignee(e.target.value)} className={inputCls}>
               <option value="">Giao cho... (tùy chọn)</option>
               {invitations.map((i) => <option key={i.invitationId} value={i.userId}>{i.name}</option>)}
-            </select>
+            </PrettySelect>
           </div>
           {err && <p className="text-xs text-red-600">{err}</p>}
           <button type="button" onClick={create} disabled={busy} className="rounded-full px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50" style={{ backgroundColor: C.deepBlue }}>Tạo</button>
@@ -333,11 +334,11 @@ function ActionsTab({ meetingId, actions, invitations, readOnly, onChanged }) {
               <div className="flex items-center gap-2">
                 <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold" style={{ backgroundColor: st.bg, color: st.text }}>{st.label}</span>
                 {!readOnly && a.status !== "COMPLETED" && (
-                  <select value={a.status} onChange={(e) => setStatus(a.actionId, e.target.value)} className="rounded-xl border px-2 py-1 text-xs outline-none" style={{ borderColor: C.border }}>
+                  <PrettySelect value={a.status} onChange={(e) => setStatus(a.actionId, e.target.value)} className="rounded-xl border px-2 py-1 text-xs outline-none" style={{ borderColor: C.border }}>
                     <option value="PENDING">Chờ</option>
                     <option value="IN_PROGRESS">Đang làm</option>
                     <option value="COMPLETED">Hoàn thành</option>
-                  </select>
+                  </PrettySelect>
                 )}
               </div>
             </div>

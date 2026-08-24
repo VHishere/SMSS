@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { parentApi } from "../../api/client";
+import WelcomeBanner from "../../components/molecules/WelcomeBanner";
 import DashboardShell from "../../components/templates/DashboardShell";
 import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
@@ -326,6 +327,11 @@ function ParentDashboard() {
       sidebarFooterLabel="Năm học hiện tại"
       sidebarFooterValue={sidebarFooterValue}
     >
+      <WelcomeBanner
+        name={headerUser.name}
+        message="Chúc bạn và gia đình một ngày tốt lành."
+      />
+
       {profileError && (
         <div className="mb-6 rounded-4xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           Không tải được hồ sơ phụ huynh: {profileError}

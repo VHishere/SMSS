@@ -61,6 +61,7 @@ import StaffFeeFormPage from "./pages/dashboards/staff/StaffFeeFormPage";
 import StaffFeeDetailPage from "./pages/dashboards/staff/StaffFeeDetailPage";
 import StaffProfilePage from "./pages/dashboards/staff/StaffProfilePage";
 import StaffMessagesPage from "./pages/dashboards/staff/StaffMessagesPage";
+import StaffBoardingPage from "./pages/dashboards/staff/StaffBoardingPage";
 
 import StudentProfile from "./pages/student/StudentProfile";
 import StudentTimetable from "./pages/student/StudentTimetable";
@@ -219,6 +220,7 @@ function App() {
             <Route path="school-years" element={<StaffSchoolYearsPage />} />
             <Route path="classes" element={<StaffClassesPage />} />
             <Route path="classes/:id" element={<StaffClassDetailPage />} />
+            <Route path="boarding" element={<StaffBoardingPage />} />
             <Route path="reports" element={<StaffReportsPage />} />
             <Route path="surveys" element={<StaffSurveysPage />} />
           </Route>

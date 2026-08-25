@@ -6,6 +6,7 @@ import { dashboardNavigation } from "../../config/dashboardNavigation";
 import { useAuth } from "../../context/useAuth";
 import { useParentStudentAttendance } from "../../hooks/useParentStudentAttendance";
 import { useParentStudentAttendanceStats } from "../../hooks/useParentStudentAttendanceStats";
+import { useParentStudentTimetable } from "../../hooks/useParentStudentTimetable";
 import { useParentStudents } from "../../hooks/useParentStudents";
 import { formatDateVN } from "../../utils/datetime";
 import { getCurrentSchoolYearLabel } from "../../utils/formatters";
@@ -40,11 +41,13 @@ function Ms({ name, className = "", style, fill = false }) {
 }
 
 const STATUS_PILL = {
-  PRESENT:          { label: "Hiện diện", bg: "#F2712315", text: "#9F4200", border: "#F27123" },
+  PRESENT:          { label: "Có mặt",    bg: "#F2712315", text: "#9F4200", border: "#F27123" },
   LATE:             { label: "Muộn",      bg: "#4A5F8215", text: "#4A5F82", border: "#4A5F82" },
-  ABSENT_UNEXCUSED: { label: "Vắng",      bg: "#BA1A1A15", text: "#BA1A1A", border: "#BA1A1A" },
-  ABSENT_EXCUSED:   { label: "Phép",      bg: "#225DAD15", text: "#225DAD", border: "#225DAD" },
+  ABSENT_UNEXCUSED: { label: "Nghỉ",      bg: "#BA1A1A15", text: "#BA1A1A", border: "#BA1A1A" },
+  ABSENT_EXCUSED:   { label: "Vắng có phép", bg: "#225DAD15", text: "#225DAD", border: "#225DAD" },
   EARLY_LEAVE:      { label: "Về sớm",    bg: "#8298BE20", text: "#4A5F82", border: "#8298BE" },
+  NOT_RECORDED:     { label: "Chưa điểm danh", bg: "#F1F5F9", text: "#64748B", border: "#CBD5E1" },
+  NOT_YET:          { label: "Chưa tới tiết", bg: "#F8FAFC", text: "#94A3B8", border: "#E2E8F0" },
 };
 
 // ── Date utilities ────────────────────────────────────────────────────────────
@@ -67,7 +70,7 @@ function getSchoolYears() {
   const today = new Date();
   const month = today.getMonth() + 1;
   const year  = today.getFullYear();
-  const startYear = month >= 9 ? year : year - 1;
+  const startYear = month >= 8 ? year : year - 1;
   return Array.from({ length: 3 }, (_, i) => {
     const y = startYear - i;
     return { value: `${y}-${y + 1}`, label: `Năm học ${y} – ${y + 1}` };
@@ -78,7 +81,7 @@ function getWeeksForSchoolYear(schoolYear) {
   const startYear = parseInt(schoolYear.split("-")[0], 10);
   const endYear   = startYear + 1;
 
-  const yearStart = new Date(startYear, 8, 1);
+  const yearStart = new Date(startYear, 7, 15);
   const yearEnd   = new Date(endYear,   4, 31);
 
   const dow = yearStart.getDay();
@@ -113,6 +116,28 @@ function findDefaultWeek(weeks) {
   if (found) return found.value;
   if (today > weeks[weeks.length - 1].endDate) return weeks[weeks.length - 1].value;
   return weeks[0].value;
+}
+
+function getDefaultDay(week) {
+  if (!week) return "";
+  const today = toISO(new Date());
+  return today >= week.startDate && today <= week.endDate ? today : week.startDate;
+}
+
+function getDaysInWeek(week) {
+  if (!week) return [];
+  const start = new Date(`${week.startDate}T12:00:00`);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    const value = toISO(date);
+    return {
+      value,
+      dayName: VN_DAYS[date.getDay()],
+      dateLabel: `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`,
+    };
+  });
 }
 
 function getMonthRange(offsetMonths = 0) {
@@ -178,13 +203,21 @@ function QuickStatCard({ label, count, total, accent, iconName, iconColor, iconB
 
 function HistoryTab({ studentId }) {
   const schoolYears = useMemo(() => getSchoolYears(), []);
+  const [referenceTime] = useState(() => Date.now());
 
   const [filter, setFilter] = useState(() => {
     const year = schoolYears[0].value;
-    return { year, weekStart: findDefaultWeek(getWeeksForSchoolYear(year)) };
+    const initialWeeks = getWeeksForSchoolYear(year);
+    const weekStart = findDefaultWeek(initialWeeks);
+    const week = initialWeeks.find((item) => item.value === weekStart);
+    return { year, weekStart, selectedDate: getDefaultDay(week) };
   });
 
-  const { year: selectedYear, weekStart: selectedWeekStart } = filter;
+  const {
+    year: selectedYear,
+    weekStart: selectedWeekStart,
+    selectedDate,
+  } = filter;
 
   const weeks = useMemo(() => getWeeksForSchoolYear(selectedYear), [selectedYear]);
 
@@ -197,9 +230,48 @@ function HistoryTab({ studentId }) {
     studentId,
     selectedWeek?.startDate,
     selectedWeek?.endDate,
+    15000,
   );
+  const weekDays = useMemo(() => getDaysInWeek(selectedWeek), [selectedWeek]);
 
-  const items = useMemo(() => [...(data?.items ?? [])].reverse(), [data]);
+  const { data: timetableData, loading: timetableLoading, error: timetableError } =
+    useParentStudentTimetable(studentId, selectedWeekStart, 15000);
+
+  const items = useMemo(() => {
+    const actual = data?.items ?? [];
+    const classAttendance = new Map(
+      actual
+        .filter((row) => row.context === "CLASS" && row.timetableId)
+        .map((row) => [`${row.attendanceDate}-${row.timetableId}`, row]),
+    );
+    const lessons = (timetableData?.lessons ?? []).map((lesson) => {
+      const recorded = classAttendance.get(`${lesson.lessonDate}-${lesson.timetableId}`);
+      const lessonStart = new Date(`${lesson.lessonDate}T${lesson.startTime || "07:30"}:00`);
+      const isFuture = lessonStart.getTime() > referenceTime;
+      return {
+        ...(recorded ?? {}),
+        attendanceId: recorded?.attendanceId ?? null,
+        timetableId: lesson.timetableId,
+        attendanceDate: lesson.lessonDate,
+        context: "CLASS",
+        subjectName: lesson.subjectName,
+        className: timetableData?.context?.className,
+        teacherName: lesson.teacherName,
+        createdByName: recorded?.createdByName ?? null,
+        periodNo: lesson.periodNo,
+        startTime: lesson.startTime,
+        endTime: lesson.endTime,
+        typeName: recorded?.typeName ?? (isFuture ? "NOT_YET" : "NOT_RECORDED"),
+        note: recorded?.note ?? (isFuture ? "Tiết học chưa bắt đầu" : "Giáo viên chưa điểm danh"),
+      };
+    });
+    const otherContexts = actual
+      .filter((row) => row.context !== "CLASS")
+      .map((row) => ({ ...row, startTime: row.checkInTime, periodNo: null }));
+    return [...lessons, ...otherContexts].sort((a, b) =>
+      `${a.attendanceDate} ${a.startTime || "21:00"}`.localeCompare(`${b.attendanceDate} ${b.startTime || "21:00"}`),
+    );
+  }, [data, referenceTime, timetableData]);
 
   const counts = useMemo(() => {
     const c = { PRESENT: 0, ABSENT_UNEXCUSED: 0, LATE: 0, ABSENT_EXCUSED: 0 };
@@ -210,10 +282,14 @@ function HistoryTab({ studentId }) {
   }, [data]);
 
   const totalRecords = data?.items?.length ?? 0;
+  const selectedItems = useMemo(
+    () => items.filter((item) => item.attendanceDate === selectedDate),
+    [items, selectedDate],
+  );
 
   const statCards = [
-    { label: "Hiện diện", count: counts.PRESENT,          accent: C.primary,   iconName: "check_circle", iconColor: C.primaryContainer, iconBg: "rgba(242,113,35,0.10)" },
-    { label: "Vắng mặt",  count: counts.ABSENT_UNEXCUSED, accent: C.error,     iconName: "cancel",       iconColor: C.error,            iconBg: "rgba(255,218,214,0.4)" },
+    { label: "Có mặt",    count: counts.PRESENT,          accent: C.primary,   iconName: "check_circle", iconColor: C.primaryContainer, iconBg: "rgba(242,113,35,0.10)" },
+    { label: "Nghỉ",      count: counts.ABSENT_UNEXCUSED, accent: C.error,     iconName: "cancel",       iconColor: C.error,            iconBg: "rgba(255,218,214,0.4)" },
     { label: "Đi muộn",   count: counts.LATE,             accent: C.tertiary,  iconName: "schedule",     iconColor: C.tertiary,         iconBg: "rgba(130,152,190,0.2)" },
     { label: "Nghỉ phép", count: counts.ABSENT_EXCUSED,   accent: C.secondary, iconName: "event_busy",   iconColor: C.secondary,        iconBg: "rgba(119,169,254,0.2)" },
   ];
@@ -237,7 +313,10 @@ function HistoryTab({ studentId }) {
             value={selectedYear}
             onChange={(e) => {
               const year = e.target.value;
-              setFilter({ year, weekStart: findDefaultWeek(getWeeksForSchoolYear(year)) });
+              const nextWeeks = getWeeksForSchoolYear(year);
+              const weekStart = findDefaultWeek(nextWeeks);
+              const week = nextWeeks.find((item) => item.value === weekStart);
+              setFilter({ year, weekStart, selectedDate: getDefaultDay(week) });
             }}
             className={selectStyle}
             style={{ color: C.onSurface }}
@@ -252,7 +331,15 @@ function HistoryTab({ studentId }) {
           <Ms name="calendar_view_week" className="mr-2 !text-[20px]!" style={{ color: C.primary }} />
           <PrettySelect
             value={selectedWeekStart}
-            onChange={(e) => setFilter((f) => ({ ...f, weekStart: e.target.value }))}
+            onChange={(e) => {
+              const weekStart = e.target.value;
+              const week = weeks.find((item) => item.value === weekStart);
+              setFilter((current) => ({
+                ...current,
+                weekStart,
+                selectedDate: getDefaultDay(week),
+              }));
+            }}
             className={`${selectStyle} min-w-70`}
             style={{ color: C.onSurface }}
           >
@@ -263,31 +350,67 @@ function HistoryTab({ studentId }) {
         </div>
       </div>
 
-      {loading && <div className="space-y-3">{[0, 1, 2, 3].map((n) => <div key={n} className="h-14 animate-pulse rounded-4xl bg-slate-200/60" />)}</div>}
-      {error && <div className="rounded-4xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>}
+      <div className="grid grid-cols-4 overflow-hidden rounded-2xl border bg-white shadow-sm sm:grid-cols-7" style={{ borderColor: C.outlineVariant }}>
+        {weekDays.map((day) => {
+          const dayCount = items.filter((item) => item.attendanceDate === day.value).length;
+          const isSelected = day.value === selectedDate;
+          return (
+            <button
+              key={day.value}
+              type="button"
+              onClick={() => setFilter((current) => ({ ...current, selectedDate: day.value }))}
+              className={`min-h-18 border-r px-3 py-3 text-center transition last:border-r-0 ${
+                isSelected ? "bg-[#08509F] text-white" : "bg-white hover:bg-blue-50"
+              }`}
+              style={{ borderColor: C.outlineVariant }}
+            >
+              <span className="block text-xs font-bold">{day.dayName}</span>
+              <span className={`mt-1 block text-sm font-semibold ${isSelected ? "text-white" : "text-slate-600"}`}>
+                {day.dateLabel}
+              </span>
+              <span className={`mt-1 block text-[10px] ${isSelected ? "text-blue-100" : "text-slate-400"}`}>
+                {dayCount} tiết
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
-      {!loading && !error && (
+      {(loading || timetableLoading) && <div className="space-y-3">{[0, 1, 2, 3].map((n) => <div key={n} className="h-14 animate-pulse rounded-4xl bg-slate-200/60" />)}</div>}
+      {(error || timetableError) && <div className="rounded-4xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error || timetableError}</div>}
+
+      {!loading && !timetableLoading && !error && !timetableError && (
         <div className="overflow-hidden rounded-4xl border bg-white shadow-md" style={{ borderColor: C.outlineVariant }}>
-          {items.length === 0 ? (
+          <div className="border-b px-6 py-4" style={{ borderColor: C.outlineVariant }}>
+            <h2 className="m-0 text-lg font-bold" style={{ color: C.onSurface }}>
+              Điểm danh {selectedDate ? formatTableDate(selectedDate) : ""}
+            </h2>
+            <p className="mb-0 mt-1 text-xs" style={{ color: C.onSurfaceVariant }}>
+              Các tiết học và lần điểm danh trong ngày đã chọn.
+            </p>
+          </div>
+          {selectedItems.length === 0 ? (
             <div className="p-10 text-center text-sm text-slate-400">
-              Không có dữ liệu điểm danh trong tuần này.
+              Ngày này chưa có lịch học hoặc dữ liệu điểm danh.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left">
                 <thead className="text-white" style={{ backgroundColor: C.deepBlue }}>
                   <tr>
-                    {["STT", "Ngày", "Loại", "Lớp / môn học", "Giáo viên", "Trạng thái", "Ghi chú"].map((h) => (
+                    {["STT", "Tiết / thời gian", "Loại", "Lớp / môn học", "Giáo viên", "Trạng thái", "Ghi chú"].map((h) => (
                       <th key={h} className="px-6 py-4 text-xs font-medium tracking-wider">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y" style={{ borderColor: C.outlineVariant }}>
-                  {items.map((row, idx) => (
-                    <tr key={row.attendanceId} className="transition-colors hover:bg-[#F3F3F3]">
+                  {selectedItems.map((row, idx) => (
+                    <tr key={row.attendanceId || `${row.context}-${row.attendanceDate}-${row.timetableId || idx}`} className="transition-colors hover:bg-[#F3F3F3]">
                       <td className="px-6 py-4 text-sm" style={{ color: C.onSurfaceVariant }}>{idx + 1}</td>
-                      <td className="whitespace-nowrap px-6 py-4 text-sm font-medium" style={{ color: C.onSurface }}>
-                        {formatTableDate(row.attendanceDate)}
+                      <td className="whitespace-nowrap px-6 py-4 text-sm" style={{ color: C.onSurfaceVariant }}>
+                        {row.context === "DORM"
+                          ? "21:00 · Nội trú"
+                          : `Tiết ${row.periodNo ?? "—"}${row.startTime ? ` · ${String(row.startTime).slice(0, 5)}-${String(row.endTime || "").slice(0, 5)}` : ""}`}
                       </td>
                       <td className="px-6 py-4 text-sm" style={{ color: C.onSurfaceVariant }}>
                         {CONTEXT_LABEL[row.context] ?? row.context ?? "—"}
@@ -295,7 +418,7 @@ function HistoryTab({ studentId }) {
                       <td className="px-6 py-4 text-sm" style={{ color: C.onSurface }}>
                         {row.subjectName ?? row.className ?? "—"}
                       </td>
-                      <td className="px-6 py-4 text-sm" style={{ color: C.onSurfaceVariant }}>{row.createdByName ?? "—"}</td>
+                      <td className="px-6 py-4 text-sm" style={{ color: C.onSurfaceVariant }}>{row.createdByName ?? row.teacherName ?? "—"}</td>
                       <td className="px-6 py-4">
                         <StatusBadge typeName={row.typeName} />
                       </td>

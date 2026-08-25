@@ -33,6 +33,41 @@ router.get(
 );
 
 router.get(
+  "/boarding",
+  authenticate,
+  authorize("STAFF"),
+  staffController.getBoardingManagement,
+);
+
+router.post(
+  "/boarding/areas",
+  authenticate,
+  authorize("STAFF"),
+  staffController.createBoardingArea,
+);
+
+router.put(
+  "/boarding/areas/:areaId",
+  authenticate,
+  authorize("STAFF"),
+  staffController.updateBoardingArea,
+);
+
+router.post(
+  "/boarding/assignments",
+  authenticate,
+  authorize("STAFF"),
+  staffController.assignStudentToArea,
+);
+
+router.delete(
+  "/boarding/assignments/:studentAreaId",
+  authenticate,
+  authorize("STAFF"),
+  staffController.removeStudentFromArea,
+);
+
+router.get(
   "/communication/dashboard",
   authenticate,
   authorize(...staffRoles),

@@ -1,21 +1,11 @@
 const { pool } = require("../config/db");
 const homeworkModel = require("../models/homework.model");
+const { parseVietnamDateTime, toMysqlDateTime } = require("../utils/vietnamDateTime");
 
 function httpError(message, statusCode) {
   const err = new Error(message);
   err.statusCode = statusCode;
   return err;
-}
-
-// Normalize 'YYYY-MM-DDTHH:mm' (datetime-local) → 'YYYY-MM-DD HH:mm:ss' for MySQL.
-function toMysqlDateTime(value) {
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return value;
-  const p = (n) => String(n).padStart(2, "0");
-  return (
-    `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
-    `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-  );
 }
 
 function validatePayload({ title, dueDate, maxScore }, { requireFutureDue = false } = {}) {
@@ -25,10 +15,11 @@ function validatePayload({ title, dueDate, maxScore }, { requireFutureDue = fals
   if (!dueDate) {
     throw httpError("Hạn nộp là bắt buộc", 400);
   }
-  if (isNaN(Date.parse(dueDate))) {
+  const dueAt = parseVietnamDateTime(dueDate);
+  if (!dueAt) {
     throw httpError("Hạn nộp không hợp lệ", 400);
   }
-  if (requireFutureDue && new Date(dueDate).getTime() <= Date.now()) {
+  if (requireFutureDue && dueAt.getTime() <= Date.now()) {
     throw httpError("Hạn nộp phải sau thời điểm hiện tại", 400);
   }
   const score = Number(maxScore);
@@ -87,10 +78,13 @@ async function createHomework({ teacherId, payload }) {
         dueDate:      toMysqlDateTime(dueDate),
       });
 
-      // Attachments are linked only to the first class to avoid duplicate
-      // ownership; multi-class share the same uploaded files by reference.
-      if (attachmentIds.length && createdIds.length === 0) {
-        await homeworkModel.linkAttachments(conn, homeworkId, attachmentIds.map((id) => parseInt(id, 10)));
+      if (attachmentIds.length) {
+        const normalizedAttachmentIds = attachmentIds.map((id) => parseInt(id, 10));
+        if (createdIds.length === 0) {
+          await homeworkModel.linkAttachments(conn, homeworkId, normalizedAttachmentIds);
+        } else {
+          await homeworkModel.cloneAttachments(conn, homeworkId, normalizedAttachmentIds);
+        }
       }
 
       createdIds.push({ homeworkId, classId: parseInt(a.classId, 10) });
@@ -186,7 +180,7 @@ async function gradeSubmission({ graderUserId, teacherId, submissionId, score, f
   const isRegrade = submission.status === "GRADED";
 
   const notification = {
-    receivers: [submission.studentUserId],
+    receivers: await homeworkModel.findStudentNotificationRecipients(submission.studentId),
     title:     "Bài tập đã được chấm điểm",
     content:   `Bài tập "${submission.homeworkTitle}" của bạn đã được chấm: ${numScore}/${submission.maxScore} điểm.`,
     relatedId: submission.homeworkId,

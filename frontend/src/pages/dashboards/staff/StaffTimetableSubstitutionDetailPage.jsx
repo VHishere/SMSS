@@ -75,7 +75,8 @@ function StaffTimetableSubstitutionDetailPage() {
   const handleReview = async (decision) => {
     if (!detail) return;
     const isApprove = decision === "APPROVE";
-    if (isApprove && !selectedSubstituteTeacherId) {
+    const needsSubstitute = detail.requestType === "SUBSTITUTE";
+    if (isApprove && needsSubstitute && !selectedSubstituteTeacherId) {
       setError("Vui lòng chọn giáo viên dạy thay trước khi duyệt");
       return;
     }
@@ -96,7 +97,9 @@ function StaffTimetableSubstitutionDetailPage() {
       await staffApi.reviewTimetableSubstitution(detail.substitutionId, {
         decision,
         reviewNote,
-        substituteTeacherId: isApprove ? Number(selectedSubstituteTeacherId) : null,
+        substituteTeacherId: isApprove && needsSubstitute
+          ? Number(selectedSubstituteTeacherId)
+          : null,
       });
       loadDetail();
     } catch (err) {
@@ -208,7 +211,7 @@ function StaffTimetableSubstitutionDetailPage() {
             <div className="rounded-3xl border card-border bg-white p-5 shadow-sm">
               <h3 className="mb-4 text-xl font-bold text-[#0F2747]">Giáo viên dạy thay</h3>
               <div className="space-y-3">
-                {detail.status === "PENDING" ? (
+                {detail.status === "PENDING" && detail.requestType === "SUBSTITUTE" ? (
                   <div className="rounded-2xl bg-slate-50 px-4 py-3">
                     <label className="mb-2 block text-xs font-bold uppercase text-slate-500">
                       Chọn giáo viên cùng môn
@@ -231,12 +234,18 @@ function StaffTimetableSubstitutionDetailPage() {
                       </p>
                     )}
                   </div>
-                ) : (
+                ) : detail.requestType === "SUBSTITUTE" ? (
                   <DetailItem label="Họ tên" value={substituteName || "Staff sắp xếp"} />
+                ) : (
+                  <DetailItem label="Họ tên" value="Không áp dụng" />
                 )}
-                <DetailItem label="Mã giáo viên" value={substituteCode} />
-                <DetailItem label="Chuyên môn" value={substituteSubject} />
-                <DetailItem label="Email" value={substituteEmail} />
+                {detail.requestType === "SUBSTITUTE" && (
+                  <>
+                    <DetailItem label="Mã giáo viên" value={substituteCode} />
+                    <DetailItem label="Chuyên môn" value={substituteSubject} />
+                    <DetailItem label="Email" value={substituteEmail} />
+                  </>
+                )}
               </div>
             </div>
           </section>

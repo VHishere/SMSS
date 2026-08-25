@@ -121,3 +121,13 @@ test("Student profile validates duplicate phones without changing the DB schema"
   assert.match(controller, /\^0\\d\{9\}\$/);
   assert.match(controller, /isValidIsoDate/);
 });
+
+test("VietQR endpoints and configuration are removed", () => {
+  const routes = read("src/routes/parents.route.js");
+  const controller = read("src/controllers/payment.controller.js");
+  const config = read("src/config/payment.config.js");
+  assert.doesNotMatch(routes, /vietqr/i);
+  assert.doesNotMatch(controller, /vietqr/i);
+  assert.doesNotMatch(config, /vietqr/i);
+  assert.equal(fs.existsSync(path.join(projectRoot, "src/services/vietqr.service.js")), false);
+});

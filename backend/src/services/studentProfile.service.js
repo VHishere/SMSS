@@ -20,17 +20,24 @@ function maxLevel(...levels) {
 function computeRisk(counts) {
   const reasons = [];
   const actions = [];
+  const periodsPerSession = Math.max(1, Number(counts.periodsPerSession || 5));
+  const absencePeriods = counts.absences ?? (
+    Number(counts.absentUnexcused || 0)
+    + (counts.countExcused === false ? 0 : Number(counts.absentExcused || 0))
+  );
+  const absenceSessions = Math.round((absencePeriods / periodsPerSession) * 100) / 100;
+  const totalSessions = Number(counts.totalAttendance || 0) / periodsPerSession;
 
   // Attendance
   let attendance = "NONE";
-  const absenceRate = counts.totalAttendance > 0 ? counts.absences / counts.totalAttendance : 0;
+  const absenceRate = totalSessions > 0 ? absenceSessions / totalSessions : 0;
   if (counts.totalAttendance > 0) {
     if (absenceRate >= 0.2) attendance = "HIGH";
     else if (absenceRate >= 0.1) attendance = "MEDIUM";
-    else if (counts.absences > 0) attendance = "LOW";
+    else if (absencePeriods > 0) attendance = "LOW";
   }
   if (attendance === "HIGH" || attendance === "MEDIUM") {
-    reasons.push(`Tỷ lệ vắng ${Math.round(absenceRate * 100)}% (${counts.absences}/${counts.totalAttendance} buổi).`);
+    reasons.push(`Tỷ lệ vắng ${Math.round(absenceRate * 100)}% (${absenceSessions}/${Math.round(totalSessions * 100) / 100} buổi quy đổi).`);
     actions.push("Liên hệ phụ huynh về tình hình chuyên cần.");
   }
 
@@ -119,16 +126,19 @@ async function getClassOverview({ classId, semesterId }) {
 
   const students = rows.map((r) => {
     const risk = computeRisk({
-      absences: r.absences,
+      absentExcused: r.absentExcused,
+      absentUnexcused: r.absentUnexcused,
       totalAttendance: r.totalAttendance,
       academicWarnings: r.academicWarnings,
       behaviourWarnings: r.behaviourWarnings,
       conductScore: r.conductScore,
+      periodsPerSession: r.periodsPerSession,
+      countExcused: r.countExcused,
     });
     return {
       ...r,
       attendanceRate: r.totalAttendance > 0
-        ? Math.round(((r.totalAttendance - r.absences) / r.totalAttendance) * 1000) / 10
+        ? Math.round(((r.totalAttendance - r.absentUnexcused - (r.countExcused ? r.absentExcused : 0)) / r.totalAttendance) * 1000) / 10
         : null,
       riskLevel: risk.level,
       riskLabel: risk.levelLabel,

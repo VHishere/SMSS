@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { parentApi } from "../api/client";
 
-export function useParentStudentAttendance(studentId, startDate, endDate) {
+export function useParentStudentAttendance(studentId, startDate, endDate, pollMs = 0) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -10,14 +10,10 @@ export function useParentStudentAttendance(studentId, startDate, endDate) {
     if (!studentId || !startDate || !endDate) return;
 
     let isMounted = true;
-    setLoading(true);
-    setData(null);
-    setError("");
-
-    parentApi
-      .getStudentAttendanceHistory(studentId, { startDate, endDate, limit: 50 })
+    const load = () => parentApi
+      .getStudentAttendanceHistory(studentId, { startDate, endDate, limit: 500 })
       .then((res) => {
-        if (isMounted) setData(res.data);
+        if (isMounted) { setData(res.data); setError(""); }
       })
       .catch((err) => {
         if (isMounted) setError(err.message);
@@ -26,10 +22,14 @@ export function useParentStudentAttendance(studentId, startDate, endDate) {
         if (isMounted) setLoading(false);
       });
 
+    load();
+    const timer = pollMs > 0 ? window.setInterval(load, pollMs) : null;
+
     return () => {
       isMounted = false;
+      if (timer) window.clearInterval(timer);
     };
-  }, [studentId, startDate, endDate]);
+  }, [studentId, startDate, endDate, pollMs]);
 
   return { data, loading, error };
 }

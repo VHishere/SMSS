@@ -120,18 +120,6 @@ function SummaryCard({ label, value, caption, iconName, accent }) {
   );
 }
 
-// ─── VietQR payment panel ──────────────────────────────────────────────────
-
-function VietQrPanel() {
-  return (
-    <div className="rounded-3xl border border-dashed card-border bg-white p-10 text-center shadow-sm">
-      <p className="mb-0 text-sm font-medium text-slate-500">
-        Thanh toán qua VietQR đang được phát triển
-      </p>
-    </div>
-  );
-}
-
 // ─── ZaloPay payment panel ─────────────────────────────────────────────────
 
 function ZaloPayPanel({ feeAssignmentId, onPaid }) {
@@ -303,7 +291,6 @@ function FeeDetailModal({ feeAssignmentId, onClose, onChanged }) {
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState("zalopay");
 
   function load() {
     setLoading(true);
@@ -356,28 +343,7 @@ function FeeDetailModal({ feeAssignmentId, onClose, onChanged }) {
 
           {payable && (
             <div className="rounded-2xl border p-4" style={{ borderColor: C.outlineVariant }}>
-              <div className="mb-4 flex w-fit items-center gap-1 rounded-full border p-1" style={{ backgroundColor: C.surfaceLow, borderColor: C.outlineVariant }}>
-                <button
-                  type="button"
-                  onClick={() => setTab("vietqr")}
-                  className="rounded-full px-4 py-1.5 text-sm font-bold transition-all"
-                  style={tab === "vietqr" ? { backgroundColor: C.primaryContainer, color: "#fff" } : { color: C.onSurfaceVariant }}
-                >
-                  VietQR
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTab("zalopay")}
-                  className="rounded-full px-4 py-1.5 text-sm font-bold transition-all"
-                  style={tab === "zalopay" ? { backgroundColor: C.secondary, color: "#fff" } : { color: C.onSurfaceVariant }}
-                >
-                  ZaloPay
-                </button>
-              </div>
-
-              {tab === "vietqr"
-                ? <VietQrPanel />
-                : <ZaloPayPanel key={`zalopay-${feeAssignmentId}`} feeAssignmentId={feeAssignmentId} onPaid={handlePaid} />}
+              <ZaloPayPanel key={`zalopay-${feeAssignmentId}`} feeAssignmentId={feeAssignmentId} onPaid={handlePaid} />
             </div>
           )}
 

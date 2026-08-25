@@ -1,19 +1,11 @@
 const eventModel = require("../models/event.model");
 const { pool } = require("../config/db");
+const { parseVietnamDateTime, toMysqlDateTime } = require("../utils/vietnamDateTime");
 
 function httpError(message, statusCode) {
   const err = new Error(message);
   err.statusCode = statusCode;
   return err;
-}
-
-// Trả null khi không parse được thay vì đẩy nguyên chuỗi rác xuống MySQL.
-function toMysqlDateTime(value) {
-  if (!value) return null;
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return null;
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`;
 }
 
 async function notify(receivers, title, content, eventId) {
@@ -62,12 +54,12 @@ function validateEventPayload(payload) {
   if (!payload.startDate) throw httpError("Thời gian bắt đầu là bắt buộc", 400);
   if (!payload.organizer || !payload.organizer.trim()) throw httpError("Đơn vị/người tổ chức là bắt buộc", 400);
 
-  const startedAt = new Date(payload.startDate).getTime();
-  if (Number.isNaN(startedAt)) throw httpError("Thời gian bắt đầu không hợp lệ", 400);
+  const startedAt = parseVietnamDateTime(payload.startDate)?.getTime();
+  if (!Number.isFinite(startedAt)) throw httpError("Thời gian bắt đầu không hợp lệ", 400);
 
   if (payload.endDate) {
-    const endedAt = new Date(payload.endDate).getTime();
-    if (Number.isNaN(endedAt)) throw httpError("Thời gian kết thúc không hợp lệ", 400);
+    const endedAt = parseVietnamDateTime(payload.endDate)?.getTime();
+    if (!Number.isFinite(endedAt)) throw httpError("Thời gian kết thúc không hợp lệ", 400);
     if (endedAt <= startedAt) {
       throw httpError("Thời gian kết thúc phải sau thời gian bắt đầu", 400);
     }
@@ -126,6 +118,14 @@ async function updateEvent({ actor, eventId, payload }) {
 
   await validateClassScope(actor, payload.classId ?? null);
 
+  if (payload.capacity) {
+    const registered = (await eventModel.findParticipants(eventId))
+      .filter((item) => item.attendStatus !== "CANCELLED").length;
+    if (Number(payload.capacity) < registered) {
+      throw httpError(`Sức chứa không được nhỏ hơn ${registered} người đã đăng ký`, 409);
+    }
+  }
+
   const affected = await eventModel.updateEvent(eventId, {
     title: payload.title.trim(),
     eventType: payload.eventType ?? null,
@@ -166,10 +166,18 @@ async function changeStatus({ actor, eventId, status }) {
 
 async function duplicateEvent({ actor, eventId }) {
   const src = await ensureOwner(eventId, actor);
+  const start = parseVietnamDateTime(src.startDate);
+  const end = src.endDate ? parseVietnamDateTime(src.endDate) : null;
+  if (!start) throw httpError("Ngày bắt đầu của sự kiện gốc không hợp lệ", 409);
+  const now = new Date();
+  while (start.getTime() <= now.getTime()) {
+    start.setDate(start.getDate() + 7);
+    if (end) end.setDate(end.getDate() + 7);
+  }
   const newId = await eventModel.createEvent({
     title: `${src.title} (bản sao)`,
     eventType: src.eventType, category: src.category, classId: src.classId,
-    description: src.description, startDate: toMysqlDateTime(src.startDate), endDate: toMysqlDateTime(src.endDate),
+    description: src.description, startDate: toMysqlDateTime(start), endDate: end ? toMysqlDateTime(end) : null,
     location: src.location, organizer: src.organizer, capacity: src.capacity, createdBy: actor.userId,
   });
   await eventModel.log(newId, "DUPLICATE", `Nhân bản từ sự kiện #${eventId}`, actor.userId);
@@ -191,7 +199,8 @@ async function addParticipants({ actor, eventId, participants }) {
   if (!Array.isArray(participants) || participants.length === 0) throw httpError("Không có người để thêm", 400);
 
   if (event.capacity) {
-    const current = await eventModel.findParticipants(eventId);
+    const current = (await eventModel.findParticipants(eventId))
+      .filter((item) => item.attendStatus !== "CANCELLED");
     if (current.length + participants.length > event.capacity) {
       throw httpError(`Vượt sức chứa sự kiện (${event.capacity}). Hiện đã có ${current.length} người.`, 400);
     }

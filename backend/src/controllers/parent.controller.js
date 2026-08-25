@@ -20,8 +20,9 @@ function addDays(date, amount) {
   return next;
 }
 
-function getStartOfCurrentWeek() {
-  const today = new Date();
+function getStartOfCurrentWeek(anchorValue) {
+  const today = anchorValue ? new Date(`${anchorValue}T12:00:00`) : new Date();
+  if (Number.isNaN(today.getTime())) return getStartOfCurrentWeek();
   const day = today.getDay();
   const diffToMonday = day === 0 ? -6 : 1 - day;
   const monday = addDays(today, diffToMonday);
@@ -29,8 +30,8 @@ function getStartOfCurrentWeek() {
   return monday;
 }
 
-function buildCurrentWeekDays() {
-  const monday = getStartOfCurrentWeek();
+function buildCurrentWeekDays(anchorValue) {
+  const monday = getStartOfCurrentWeek(anchorValue);
   return WEEK_DAYS.map((day, index) => {
     const date = addDays(monday, index);
     return { ...day, date: formatDate(date) };
@@ -120,7 +121,7 @@ async function getStudentTimetable(req, res) {
       });
     }
 
-    const weekDays = buildCurrentWeekDays();
+    const weekDays = buildCurrentWeekDays(req.query.date);
     const startDate = weekDays[0]?.date;
     const endDate = weekDays[weekDays.length - 1]?.date;
     const lessons = await timetableModel.findLessonsByClassId(context.classId, { startDate, endDate });
@@ -490,15 +491,16 @@ async function searchMyMessages(req, res) {
 async function startMyTeacherConversation(req, res) {
   try {
     const teacherUserId = Number(req.body.teacherUserId);
+    const studentId = Number(req.body.studentId);
 
-    if (!teacherUserId) {
+    if (!teacherUserId || !studentId) {
       return res.status(400).json({
         success: false,
-        message: "Thiếu giáo viên nhận tin nhắn",
+        message: "Thiếu giáo viên hoặc học sinh cần trao đổi",
       });
     }
 
-    const ok = await commModel.teacherAccessibleByParent(req.user.userId, teacherUserId);
+    const ok = await commModel.teacherAccessibleByParent(req.user.userId, teacherUserId, studentId);
 
     if (!ok) {
       return res.status(404).json({
@@ -510,6 +512,7 @@ async function startMyTeacherConversation(req, res) {
     const existing = await commModel.findOneToOneConversation(
       req.user.userId,
       teacherUserId,
+      studentId,
     );
 
     if (existing) {
@@ -525,7 +528,7 @@ async function startMyTeacherConversation(req, res) {
     const conversationId = await commModel.createConversation({
       type: "PARENT_TEACHER",
       title: null,
-      studentId: null,
+      studentId,
       createdBy: req.user.userId,
       participants: [
         { userId: req.user.userId, role: "PARENT" },

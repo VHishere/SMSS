@@ -450,11 +450,13 @@ async function getOperationsSummary() {
 
   const [[attendance]] = await pool.query(
     `SELECT
-       SUM(CASE WHEN at.type_name IN ('PRESENT', 'LATE') THEN 1 ELSE 0 END) AS attended,
+       SUM(CASE WHEN at.type_name IN ('PRESENT', 'LATE', 'EARLY_LEAVE') THEN 1 ELSE 0 END) AS attended,
        COUNT(a.attendance_id) AS total
      FROM attendance a
      INNER JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
-     WHERE a.attendance_context = 'CLASS' AND a.attendance_date BETWEEN ? AND ?`,
+     WHERE a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
+       AND a.attendance_date BETWEEN ? AND ?`,
     [monthStart, monthEnd],
   );
 

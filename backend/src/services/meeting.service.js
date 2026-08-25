@@ -1,19 +1,11 @@
 const meetingModel = require("../models/meeting.model");
 const { pool } = require("../config/db");
+const { parseVietnamDateTime, toMysqlDateTime } = require("../utils/vietnamDateTime");
 
 function httpError(message, statusCode) {
   const err = new Error(message);
   err.statusCode = statusCode;
   return err;
-}
-
-// Trả null khi không parse được thay vì đẩy nguyên chuỗi rác xuống MySQL.
-function toMysqlDateTime(value) {
-  if (!value) return null;
-  const d = new Date(value);
-  if (isNaN(d.getTime())) return null;
-  const p = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:00`;
 }
 
 async function notify(receivers, title, content, meetingId) {
@@ -38,16 +30,16 @@ function validateMeetingPayload(payload, { requireFuture = false } = {}) {
   if (payload.title.trim().length > 200) throw httpError("Tiêu đề cuộc họp không được vượt quá 200 ký tự", 400);
   if (!payload.meetingDate) throw httpError("Thời gian họp là bắt buộc", 400);
 
-  const startedAt = new Date(payload.meetingDate).getTime();
-  if (Number.isNaN(startedAt)) throw httpError("Thời gian họp không hợp lệ", 400);
+  const startedAt = parseVietnamDateTime(payload.meetingDate)?.getTime();
+  if (!Number.isFinite(startedAt)) throw httpError("Thời gian họp không hợp lệ", 400);
 
   const meetingType = payload.meetingType ?? "CLASS";
   if (!MEETING_TYPES.includes(meetingType)) throw httpError("Loại cuộc họp không hợp lệ", 400);
   if (meetingType === "INDIVIDUAL" && !payload.studentId) throw httpError("Họp cá nhân cần chọn học sinh", 400);
 
   if (payload.endTime) {
-    const endedAt = new Date(payload.endTime).getTime();
-    if (Number.isNaN(endedAt)) throw httpError("Thời gian kết thúc không hợp lệ", 400);
+    const endedAt = parseVietnamDateTime(payload.endTime)?.getTime();
+    if (!Number.isFinite(endedAt)) throw httpError("Thời gian kết thúc không hợp lệ", 400);
     if (endedAt <= startedAt) throw httpError("Thời gian kết thúc phải sau thời gian bắt đầu", 400);
   }
 
@@ -59,6 +51,18 @@ function validateMeetingPayload(payload, { requireFuture = false } = {}) {
 
 // ── Scheduling ────────────────────────────────────────────────────────────────
 
+async function validateInvitees(classId, invitees, studentId = null) {
+  const allowed = await meetingModel.findClassParents(classId);
+  const allowedPairs = new Set(allowed.map((item) => `${Number(item.userId)}:${Number(item.studentId)}`));
+  const invalid = invitees.find((item) => {
+    const inviteeStudentId = Number(item.studentId || studentId);
+    return !inviteeStudentId
+      || (studentId && inviteeStudentId !== Number(studentId))
+      || !allowedPairs.has(`${Number(item.userId)}:${inviteeStudentId}`);
+  });
+  if (invalid) throw httpError("Người được mời không phải phụ huynh của học sinh thuộc lớp", 400);
+}
+
 async function createMeeting({ teacher, payload }) {
   if (!payload.classId) throw httpError("Cần chọn lớp", 400);
   validateMeetingPayload(payload, { requireFuture: true });
@@ -68,6 +72,7 @@ async function createMeeting({ teacher, payload }) {
 
   const invitees = Array.isArray(payload.invitees) ? payload.invitees : [];
   if (invitees.length === 0) throw httpError("Cần chọn ít nhất một người tham dự", 400);
+  await validateInvitees(payload.classId, invitees, payload.studentId ?? null);
 
   const meetingId = await meetingModel.createMeeting({
     classId: payload.classId,
@@ -141,8 +146,9 @@ async function changeStatus({ teacher, meetingId, status }) {
 // ── Invitations ───────────────────────────────────────────────────────────────
 
 async function addInvitees({ teacher, meetingId, invitees }) {
-  await ensureOwner(meetingId, teacher);
+  const meeting = await ensureOwner(meetingId, teacher);
   if (!Array.isArray(invitees) || invitees.length === 0) throw httpError("Không có người để mời", 400);
+  await validateInvitees(meeting.classId, invitees, meeting.studentId ?? null);
 
   await meetingModel.addInvitations(meetingId, invitees.map((i) => ({ userId: i.userId, studentId: i.studentId ?? null })));
   await meetingModel.log(meetingId, "INVITE", `Mời thêm ${invitees.length} người`, teacher.userId);

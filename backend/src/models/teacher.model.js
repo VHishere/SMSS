@@ -71,6 +71,7 @@ async function findTodayAttendanceSummary(classId, date) {
      WHERE a.class_id = ?
        AND a.attendance_date = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
      GROUP BY at.attendance_type_id, at.type_name`,
     [classId, date],
   );
@@ -114,6 +115,7 @@ async function findWeeklyAttendance(classId, startDate, endDate) {
      WHERE a.class_id = ?
        AND a.attendance_date BETWEEN ? AND ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
      GROUP BY
        a.attendance_date,
        at.attendance_type_id,
@@ -131,7 +133,7 @@ async function findWeeklyAttendance(classId, startDate, endDate) {
 
     const count = Number(row.count);
 
-    if (row.typeName === "PRESENT") {
+    if (row.typeName === "PRESENT" || row.typeName === "EARLY_LEAVE") {
       byDate[row.date].present += count;
     } else if (row.typeName === "LATE") {
       byDate[row.date].late += count;
@@ -182,6 +184,7 @@ async function findAtRiskStudents(classId, absenceThreshold = 0.2) {
        ON a.student_id = s.student_id
        AND a.class_id = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
      LEFT JOIN attendance_type at
        ON at.attendance_type_id = a.attendance_type_id
      WHERE ce.class_id = ?

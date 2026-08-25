@@ -7,6 +7,7 @@ import StaffDataTable from "../../../components/staff/StaffDataTable";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import StatusBadge from "../../../components/staff/StatusBadge";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import { toLocalIsoDate } from "../../../utils/localDate";
 
 const currencyFormatter = new Intl.NumberFormat("vi-VN", {
   style: "currency",
@@ -46,7 +47,7 @@ function StaffFeeDetailPage() {
   const [selectedAssignment, setSelectedAssignment] = useState(null);
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
-    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentDate: toLocalIsoDate(),
     paymentMethod: "CASH",
     transactionCode: "",
     note: "",
@@ -89,7 +90,7 @@ function StaffFeeDetailPage() {
     setSelectedAssignment(assignment);
     setPaymentForm({
       amount: assignment.remainingAmount || "",
-      paymentDate: new Date().toISOString().slice(0, 10),
+      paymentDate: toLocalIsoDate(),
       paymentMethod: "CASH",
       transactionCode: "",
       note: "",

@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { FiBookOpen, FiGrid, FiUsers } from "react-icons/fi";
+import { useMemo, useState } from "react";
+import { FiBookOpen, FiChevronLeft, FiChevronRight, FiGrid, FiUsers } from "react-icons/fi";
 import { useSearchParams } from "react-router-dom";
 
 import WeeklyTimetable from "../../components/organisms/WeeklyTimetable";
@@ -9,6 +9,13 @@ import { useAuth } from "../../context/useAuth";
 import { useParentStudents } from "../../hooks/useParentStudents";
 import { useParentStudentTimetable } from "../../hooks/useParentStudentTimetable";
 import { getCurrentSchoolYearLabel } from "../../utils/formatters";
+import { toLocalIsoDate } from "../../utils/localDate";
+
+function moveDate(value, days) {
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return toLocalIsoDate(date);
+}
 
 function InfoItem({ icon: Icon, label, value, colorClass }) {
   return (
@@ -36,6 +43,7 @@ function InfoItem({ icon: Icon, label, value, colorClass }) {
 function ParentStudentTimetable() {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedDate, setSelectedDate] = useState(() => toLocalIsoDate());
 
   const { students, loading: studentsLoading } = useParentStudents();
 
@@ -51,7 +59,7 @@ function ParentStudentTimetable() {
     return students[0].studentId;
   }, [students, studentsLoading, selectedId]);
 
-  const { data, loading, error } = useParentStudentTimetable(activeStudentId);
+  const { data, loading, error } = useParentStudentTimetable(activeStudentId, selectedDate);
 
   const headerUser = useMemo(() => {
     const parentRole = user?.roles?.find((role) => role.roleName === "PARENT");
@@ -129,6 +137,33 @@ function ParentStudentTimetable() {
           />
         </div>
       </section>
+
+      <div className="mb-5 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          title="Tuần trước"
+          aria-label="Tuần trước"
+          onClick={() => setSelectedDate((value) => moveDate(value, -7))}
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-[#08509F] shadow-sm"
+        >
+          <FiChevronLeft size={20} />
+        </button>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(event) => setSelectedDate(event.target.value || toLocalIsoDate())}
+          className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-[#0F2747] shadow-sm"
+        />
+        <button
+          type="button"
+          title="Tuần sau"
+          aria-label="Tuần sau"
+          onClick={() => setSelectedDate((value) => moveDate(value, 7))}
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-[#08509F] shadow-sm"
+        >
+          <FiChevronRight size={20} />
+        </button>
+      </div>
 
       {/* Timetable content */}
       {loading && (

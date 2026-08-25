@@ -23,7 +23,7 @@ test.before(async () => {
   // Lấy 2 quản nhiệm KHÁC NHAU, mỗi người 1 khu DORM_FLOOR có học sinh
   const [rows] = await pool.query(
     `SELECT ds.user_id AS userId, sa.area_id AS areaId,
-            (SELECT COUNT(*) FROM student_area st WHERE st.area_id = sa.area_id) AS hs
+            (SELECT COUNT(*) FROM student_area st WHERE st.area_id = sa.area_id AND st.status = 'ACTIVE') AS hs
      FROM supervisor_area sa
      JOIN dorm_supervisor ds ON ds.supervisor_id = sa.supervisor_id
      WHERE sa.area_type = 'DORM_FLOOR'
@@ -40,7 +40,7 @@ test.before(async () => {
   [A, B] = distinct;
 
   const [studs] = await pool.query(
-    "SELECT student_id FROM student_area WHERE area_id = ? LIMIT 3",
+    "SELECT student_id FROM student_area WHERE area_id = ? AND status = 'ACTIVE' LIMIT 3",
     [A.areaId],
   );
   studentsA = studs.map((s) => s.student_id);

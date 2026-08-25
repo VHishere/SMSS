@@ -216,10 +216,7 @@ function getUniqueTeachers(teachers = []) {
   const map = new Map();
 
   teachers.forEach((teacher) => {
-    const key =
-      teacher.teacherUserId ||
-      teacher.teacherId ||
-      teacher.teacherName;
+    const key = `${teacher.teacherUserId || teacher.teacherId || teacher.teacherName}:${teacher.studentId}`;
 
     if (!map.has(key)) {
       map.set(key, {
@@ -1627,6 +1624,7 @@ function ParentMessages() {
     try {
       const response = await parentApi.startConversation(
         teacher.teacherUserId,
+        teacher.studentId,
       );
 
       const conversation = {

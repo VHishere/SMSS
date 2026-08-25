@@ -25,8 +25,9 @@ function addDays(date, amount) {
   return next;
 }
 
-function getStartOfCurrentWeek() {
-  const today = new Date();
+function getStartOfWeek(anchorValue) {
+  const today = anchorValue ? new Date(`${anchorValue}T12:00:00`) : new Date();
+  if (Number.isNaN(today.getTime())) return getStartOfWeek();
   const day = today.getDay();
   const diffToMonday = day === 0 ? -6 : 1 - day;
 
@@ -36,8 +37,8 @@ function getStartOfCurrentWeek() {
   return monday;
 }
 
-function buildCurrentWeekDays() {
-  const monday = getStartOfCurrentWeek();
+function buildCurrentWeekDays(anchorValue) {
+  const monday = getStartOfWeek(anchorValue);
 
   return WEEK_DAYS.map((day, index) => {
     const date = addDays(monday, index);
@@ -207,7 +208,7 @@ async function getMyTimetable(req, res) {
       });
     }
 
-    const weekDays = buildCurrentWeekDays();
+    const weekDays = buildCurrentWeekDays(req.query.date);
     const startDate = weekDays[0]?.date;
     const endDate = weekDays[weekDays.length - 1]?.date;
 

@@ -125,7 +125,9 @@ async function findDue() {
   const [rows] = await pool.query(
     `SELECT announcement_id AS announcementId, title, content, audience, class_id AS classId, grade_id AS gradeId, created_by AS createdBy
      FROM announcement
-     WHERE status = 'SCHEDULED' AND scheduled_at IS NOT NULL AND scheduled_at <= NOW()`,
+     WHERE status = 'SCHEDULED'
+       AND scheduled_at IS NOT NULL
+       AND scheduled_at <= CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')`,
   );
   return rows;
 }

@@ -7,6 +7,7 @@ import { useAuth } from "../../context/useAuth";
 import { reportApi, studentProfileApi } from "../../api/client";
 import { useReportMeta } from "../../hooks/useReportMeta";
 import { printReport } from "../../utils/printReport";
+import { localIsoDaysAgo, toLocalIsoDate } from "../../utils/localDate";
 
 function Ms({ name, className = "", style }) {
   return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>;
@@ -26,9 +27,6 @@ const NEEDS_DATERANGE = ["ATTENDANCE"];
 const selectCls =
   "rounded-xl border border-[#DFC0B2] bg-white px-3 py-2 text-sm text-[#1A1C1C] shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]";
 
-function isoToday() { return new Date().toISOString().slice(0, 10); }
-function isoDaysAgo(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
-
 function ReportBuilderPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -41,8 +39,8 @@ function ReportBuilderPage() {
   const [classId,    setClassId]    = useState("");
   const [semesterId, setSemesterId] = useState("");
   const [studentId,  setStudentId]  = useState("");
-  const [startDate,  setStartDate]  = useState(isoDaysAgo(7));
-  const [endDate,    setEndDate]    = useState(isoToday());
+  const [startDate,  setStartDate]  = useState(localIsoDaysAgo(7));
+  const [endDate,    setEndDate]    = useState(toLocalIsoDate());
   const [students,   setStudents]   = useState([]);
 
   const [dataset,  setDataset]  = useState(null);
@@ -136,7 +134,7 @@ function ReportBuilderPage() {
     } catch (err) { setSaveMsg(err.message); }
   }
 
-  function applyPreset(days) { setStartDate(isoDaysAgo(days)); setEndDate(isoToday()); }
+  function applyPreset(days) { setStartDate(localIsoDaysAgo(days)); setEndDate(toLocalIsoDate()); }
   function applySemesterRange() {
     const sem = semesters.find((s) => String(s.semesterId) === String(semesterId)) ?? semesters[0];
     if (sem) { setStartDate(sem.startDate); setEndDate(sem.endDate); }

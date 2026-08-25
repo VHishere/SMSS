@@ -4,6 +4,7 @@ import { staffApi } from "../../../api/client";
 import StaffPageHeader from "../../../components/staff/StaffPageHeader";
 import { printReport } from "../../../utils/printReport";
 import PrettySelect from "../../../components/molecules/PrettySelect";
+import { localIsoDaysAgo, toLocalIsoDate } from "../../../utils/localDate";
 
 function Ms({ name, className = "", style }) {
   return <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>;
@@ -26,9 +27,6 @@ const GROUP_BY_LABEL = { GRADE: "Khối lớp", SEMESTER: "Học kỳ" };
 
 const selectCls = "rounded-xl border border-[#DFC0B2] bg-white px-3 py-2 text-sm text-[#1A1C1C] shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]";
 
-function isoToday() { return new Date().toISOString().slice(0, 10); }
-function isoDaysAgo(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
-
 // Read-only staff equivalent of teacher's Report Builder — same 5 report
 // types, but classId/studentId can be ANY class/student school-wide. Giáo vụ
 // can view + export (Excel/PDF) but cannot save report templates.
@@ -41,8 +39,8 @@ function StaffReportsPage() {
   const [selectedSemesterId, setSelectedSemesterId] = useState("");
   const [groupBy, setGroupBy] = useState("GRADE");
   const [studentId, setStudentId] = useState("");
-  const [startDate, setStartDate] = useState(isoDaysAgo(7));
-  const [endDate, setEndDate] = useState(isoToday());
+  const [startDate, setStartDate] = useState(localIsoDaysAgo(7));
+  const [endDate, setEndDate] = useState(toLocalIsoDate());
   const [students, setStudents] = useState([]);
 
   const [dataset, setDataset] = useState(null);
@@ -122,7 +120,7 @@ function StaffReportsPage() {
     try { await staffApi.logReportExport(reportType, buildFilters(), "PDF"); } catch { /* logging non-critical */ }
   }
 
-  function applyPreset(days) { setStartDate(isoDaysAgo(days)); setEndDate(isoToday()); }
+  function applyPreset(days) { setStartDate(localIsoDaysAgo(days)); setEndDate(toLocalIsoDate()); }
   function applySemesterRange() {
     const sem = semesters.find((s) => String(s.semesterId) === String(semesterId)) ?? semesters[0];
     if (sem) { setStartDate(sem.startDate); setEndDate(sem.endDate); }

@@ -7,6 +7,25 @@ async function createCase(c) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    // Khóa theo học sinh để hai lần bấm nhanh không thể cùng tạo một ca mở.
+    await conn.query(
+      "SELECT student_id FROM student WHERE student_id = ? FOR UPDATE",
+      [c.studentId],
+    );
+    const [[existing]] = await conn.query(
+      `SELECT case_id AS caseId
+       FROM support_case
+       WHERE student_id = ? AND category = ?
+         AND LOWER(TRIM(title)) = LOWER(TRIM(?))
+         AND status IN ('OPEN', 'MONITORING')
+       LIMIT 1`,
+      [c.studentId, c.category, c.title],
+    );
+    if (existing) {
+      const error = new Error("Ca hỗ trợ này đang được xử lý hoặc theo dõi");
+      error.statusCode = 409;
+      throw error;
+    }
     const [result] = await conn.query(
       `INSERT INTO support_case (student_id, category, severity, title, description, status, opened_by)
        VALUES (?, ?, ?, ?, ?, 'OPEN', ?)`,
@@ -21,11 +40,16 @@ async function createCase(c) {
     // Báo hộp thư giáo vụ: ca hỗ trợ mới cần phối hợp xử lý (chạy trong cùng
     // transaction → rollback thì không để lại thông báo "ma").
     const [[student]] = await conn.query(
-      `SELECT ua.full_name AS studentName, sc.class_name AS className
+      `SELECT ua.full_name AS studentName,
+              (SELECT sc.class_name
+               FROM class_enrollment ce
+               INNER JOIN school_class sc ON sc.class_id = ce.class_id
+               INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+               WHERE ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+               ORDER BY sy.is_active DESC, sy.start_date DESC
+               LIMIT 1) AS className
        FROM student s
        INNER JOIN user_account ua ON ua.user_id = s.user_id
-       LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-       LEFT JOIN school_class sc ON sc.class_id = ce.class_id
        WHERE s.student_id = ?`,
       [c.studentId],
     );
@@ -58,13 +82,19 @@ async function findCases(filters = {}) {
   if (status)    { where += " AND sc.status = ?";   params.push(status); }
   if (studentId) { where += " AND sc.student_id = ?"; params.push(parseInt(studentId, 10)); }
   if (openedBy)  { where += " AND sc.opened_by = ?"; params.push(parseInt(openedBy, 10)); }
-  if (classId)   { where += " AND ce.class_id = ?";  params.push(parseInt(classId, 10)); }
+  if (classId) {
+    where += ` AND EXISTS (
+      SELECT 1 FROM class_enrollment scoped_ce
+      WHERE scoped_ce.student_id = sc.student_id
+        AND scoped_ce.class_id = ? AND scoped_ce.status = 'ACTIVE'
+    )`;
+    params.push(parseInt(classId, 10));
+  }
 
   const [[{ total }]] = await pool.query(
     `SELECT COUNT(*) AS total
      FROM support_case sc
      INNER JOIN student s ON s.student_id = sc.student_id
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
      WHERE ${where}`,
     params,
   );
@@ -76,13 +106,18 @@ async function findCases(filters = {}) {
        DATE_FORMAT(sc.resolved_at, '%Y-%m-%d %H:%i') AS resolvedAt,
        s.student_id AS studentId, s.student_code AS studentCode,
        ua.full_name AS studentName, ua.avatar AS studentAvatar,
-       cls.class_name AS className,
+       (SELECT cls.class_name
+        FROM class_enrollment current_ce
+        INNER JOIN school_class cls ON cls.class_id = current_ce.class_id
+        INNER JOIN school_year sy ON sy.school_year_id = cls.school_year_id
+        WHERE current_ce.student_id = s.student_id
+          AND current_ce.status = 'ACTIVE' AND cls.status = 'ACTIVE'
+        ORDER BY sy.is_active DESC, sy.start_date DESC
+        LIMIT 1) AS className,
        opener.full_name AS openedByName
      FROM support_case sc
      INNER JOIN student s ON s.student_id = sc.student_id
      INNER JOIN user_account ua ON ua.user_id = s.user_id
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class cls ON cls.class_id = ce.class_id AND cls.status = 'ACTIVE'
      LEFT JOIN user_account opener ON opener.user_id = sc.opened_by
      WHERE ${where}
      ORDER BY

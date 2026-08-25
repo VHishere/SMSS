@@ -28,9 +28,7 @@ function canTeachLesson(candidate, lesson) {
   const subjectCode = normalizeText(lesson?.subjectCode);
   if (!specialize || (!subjectName && !subjectCode)) return false;
   return specialize === subjectName
-    || specialize === subjectCode
-    || specialize.includes(subjectName)
-    || subjectName.includes(specialize);
+    || specialize === subjectCode;
 }
 
 const TABS = [
@@ -88,7 +86,7 @@ function TeacherTimetablePage() {
     return { name: tt?.context?.fullName ?? user?.fullName ?? user?.username ?? "Giáo viên", role: roleEntry?.description ?? "Giáo viên", avatar: user?.avatar ?? "" };
   }, [tt, user]);
 
-  const myLessons = tt?.lessons ?? [];
+  const myLessons = useMemo(() => tt?.lessons ?? [], [tt?.lessons]);
   const matchingCandidates = useMemo(
     () => meta.candidates
       .map((candidate) => ({

@@ -85,9 +85,9 @@ async function findByTeacher(teacherId, filters = {}) {
     params.push(`%${search}%`);
   }
   if (filters.due === "overdue") {
-    where += " AND h.status = 'OPEN' AND h.due_date < NOW()";
+    where += " AND h.status = 'OPEN' AND h.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')";
   } else if (filters.due === "upcoming") {
-    where += " AND h.status = 'OPEN' AND h.due_date >= NOW()";
+    where += " AND h.status = 'OPEN' AND h.due_date >= CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')";
   }
 
   const ORDER = {
@@ -114,7 +114,7 @@ async function findByTeacher(teacherId, filters = {}) {
        h.status,
        DATE_FORMAT(h.assign_date, '%Y-%m-%d %H:%i')    AS assignDate,
        DATE_FORMAT(h.due_date,    '%Y-%m-%d %H:%i')    AS dueDate,
-       (h.due_date < NOW())                            AS isOverdue,
+       (h.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')) AS isOverdue,
 
        sc.class_id                                     AS classId,
        sc.class_name                                   AS className,
@@ -157,7 +157,7 @@ async function findTeacherSummary(teacherId) {
        COUNT(*)                                                       AS totalHomework,
        SUM(CASE WHEN h.status = 'OPEN'   THEN 1 ELSE 0 END)           AS openCount,
        SUM(CASE WHEN h.status = 'CLOSED' THEN 1 ELSE 0 END)           AS closedCount,
-       SUM(CASE WHEN h.status = 'OPEN' AND h.due_date < NOW() THEN 1 ELSE 0 END) AS overdueOpen
+       SUM(CASE WHEN h.status = 'OPEN' AND h.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00') THEN 1 ELSE 0 END) AS overdueOpen
      FROM homework h
      WHERE h.teacher_id = ?`,
     [teacherId],
@@ -195,7 +195,7 @@ async function findDetailById(homeworkId) {
        h.teacher_id                                  AS teacherId,
        DATE_FORMAT(h.assign_date, '%Y-%m-%d %H:%i')  AS assignDate,
        DATE_FORMAT(h.due_date,    '%Y-%m-%d %H:%i')  AS dueDate,
-       (h.due_date < NOW())                          AS isOverdue,
+       (h.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')) AS isOverdue,
 
        sc.class_id    AS classId,
        sc.class_name  AS className,
@@ -260,6 +260,19 @@ async function linkAttachments(conn, homeworkId, attachmentIds) {
   await conn.query(
     `UPDATE attachment
      SET related_type = 'HOMEWORK', related_id = ?
+     WHERE attachment_id IN (${placeholders})`,
+    [homeworkId, ...attachmentIds],
+  );
+}
+
+async function cloneAttachments(conn, homeworkId, attachmentIds) {
+  if (!attachmentIds.length) return;
+  const placeholders = attachmentIds.map(() => "?").join(",");
+  await conn.query(
+    `INSERT INTO attachment
+       (related_type, related_id, file_name, file_url, file_type, uploaded_by)
+     SELECT 'HOMEWORK', ?, file_name, file_url, file_type, uploaded_by
+     FROM attachment
      WHERE attachment_id IN (${placeholders})`,
     [homeworkId, ...attachmentIds],
   );
@@ -538,6 +551,25 @@ async function findClassNotificationRecipients(classId) {
   return [...new Set(ids)];
 }
 
+async function findStudentNotificationRecipients(studentId) {
+  const [rows] = await pool.query(
+    `SELECT userId FROM (
+       SELECT s.user_id AS userId
+       FROM student s
+       INNER JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
+       WHERE s.student_id = ? AND s.status = 'ACTIVE'
+       UNION
+       SELECT pp.user_id AS userId
+       FROM student_parent sp
+       INNER JOIN parent_profile pp ON pp.parent_id = sp.parent_id
+       INNER JOIN user_account ua ON ua.user_id = pp.user_id AND ua.status = 'ACTIVE'
+       WHERE sp.student_id = ?
+     ) recipients`,
+    [studentId, studentId],
+  );
+  return rows.map((row) => row.userId);
+}
+
 async function insertNotifications(receivers, title, content, relatedId) {
   if (!receivers.length) return;
   const values = receivers.map((rid) => [
@@ -653,7 +685,7 @@ async function findByStudentId(studentId, filters = {}) {
        h.status,
        DATE_FORMAT(h.assign_date, '%Y-%m-%d %H:%i')    AS assignDate,
        DATE_FORMAT(h.due_date,    '%Y-%m-%d %H:%i')    AS dueDate,
-       (h.due_date < NOW())                            AS isOverdue,
+       (h.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')) AS isOverdue,
 
        sc.class_id                                     AS classId,
        sc.class_name                                   AS className,
@@ -711,7 +743,7 @@ async function findDetailWithStudentSubmission(homeworkId, studentId) {
        h.status,
        DATE_FORMAT(h.assign_date, '%Y-%m-%d %H:%i')   AS assignDate,
        DATE_FORMAT(h.due_date,    '%Y-%m-%d %H:%i')   AS dueDate,
-       (h.due_date < NOW())                           AS isOverdue,
+       (h.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')) AS isOverdue,
 
        sc.class_id                                    AS classId,
        sc.class_name                                  AS className,
@@ -791,7 +823,7 @@ async function submitStudentSubmission({
          h.title,
          h.status,
          h.due_date AS dueDate,
-         (h.due_date < NOW()) AS isOverdue,
+         (h.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')) AS isOverdue,
          h.teacher_id AS teacherId,
          t.user_id AS teacherUserId
        FROM homework h
@@ -915,6 +947,7 @@ module.exports = {
   findDetailById,
   insertHomework,
   linkAttachments,
+  cloneAttachments,
   updateHomework,
   setStatus,
   findSubmissionsByHomework,
@@ -923,6 +956,7 @@ module.exports = {
   findGradeLog,
   findAnalytics,
   findClassNotificationRecipients,
+  findStudentNotificationRecipients,
   insertNotifications,
   insertAttachment,
   deleteAttachment,

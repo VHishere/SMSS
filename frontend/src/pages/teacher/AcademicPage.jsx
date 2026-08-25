@@ -59,7 +59,8 @@ function band(avg) {
   if (avg >= 8) return { label: "GIỎI", bg: "#DCFCE7", text: "#15803D" };
   if (avg >= 6.5) return { label: "KHÁ", bg: "#EBF3FF", text: "#225DAD" };
   if (avg >= 5) return { label: "TRUNG BÌNH", bg: "#FEF3C7", text: "#B45309" };
-  return { label: "KHÔNG ĐẠT", bg: "#FFDAD6", text: "#93000A" };
+  if (avg >= 3.5) return { label: "YẾU", bg: "#FFEDD5", text: "#C2410C" };
+  return { label: "KÉM", bg: "#FFDAD6", text: "#93000A" };
 }
 
 const TABS = [
@@ -80,8 +81,6 @@ const WARNING_STATUS = {
 };
 const BUCKET_COLOR = { "0-3.5": "#BA1A1A", "3.5-5": "#B45309", "5-6.5": "#225DAD", "6.5-8": "#4A5F82", "8-10": "#15803D" };
 
-const selectCls = "rounded-xl border bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]";
-const selectStyle = { borderColor: C.border, color: C.onSurface };
 const THEAD = "text-white";
 const THEAD_STYLE = { backgroundColor: C.deepBlue };
 const TH = "px-4 py-3 text-xs font-medium uppercase tracking-wider";
@@ -166,30 +165,46 @@ function AreaChart({ points }) {
 }
 
 // ─── Số điểm (Gradebook) ──────────────────────────────────────────────────────
+function createGradeDraft(data, scoreTypes) {
+  const draft = {};
+  for (const student of data?.students ?? []) {
+    const row = { comment: student.comment ?? "" };
+    for (const type of scoreTypes) {
+      row[type.key] = student.scores?.[type.key]?.scoreValue ?? "";
+    }
+    draft[student.studentId] = row;
+  }
+  return draft;
+}
+
 function GradebookTab({ classId, subjectId, semesterId, scoreTypes, subjectName }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loadState, setLoadState] = useState({ key: "", data: null, error: "" });
   const [refreshKey, setRefreshKey] = useState(0);
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState({ text: "", isError: false });
 
   const ready = Boolean(classId && subjectId && semesterId);
-  useEffect(() => {
-    if (!ready) return;
-    let m = true; setLoading(true); setError("");
-    academicApi.getGradebook({ classId, subjectId, semesterId })
-      .then((res) => { if (m) setData(res.data); }).catch((e) => { if (m) setError(e.message); }).finally(() => { if (m) setLoading(false); });
-    return () => { m = false; };
-  }, [classId, subjectId, semesterId, refreshKey, ready]);
+  const requestKey = ready ? `${classId}:${subjectId}:${semesterId}:${refreshKey}` : "";
+  const data = loadState.key === requestKey ? loadState.data : null;
+  const error = loadState.key === requestKey ? loadState.error : "";
+  const loading = ready && loadState.key !== requestKey;
 
   useEffect(() => {
-    if (!data) return;
-    const init = {};
-    for (const s of data.students) { const row = { comment: s.comment ?? "" }; for (const t of scoreTypes) row[t.key] = s.scores?.[t.key]?.scoreValue ?? ""; init[s.studentId] = row; }
-    setDraft(init); setSaveMsg({ text: "", isError: false });
-  }, [data, scoreTypes]);
+    if (!ready) return;
+    let m = true;
+    academicApi.getGradebook({ classId, subjectId, semesterId })
+      .then((res) => {
+        if (!m) return;
+        setDraft(createGradeDraft(res.data, scoreTypes));
+        setSaveMsg({ text: "", isError: false });
+        setLoadState({ key: requestKey, data: res.data, error: "" });
+      })
+      .catch((e) => {
+        if (m) setLoadState({ key: requestKey, data: null, error: e.message });
+      });
+    return () => { m = false; };
+  }, [classId, subjectId, semesterId, scoreTypes, requestKey, ready]);
 
   function setCell(sid, key, value) { setDraft((p) => ({ ...p, [sid]: { ...p[sid], [key]: value } })); }
 
@@ -282,7 +297,7 @@ function GradebookTab({ classId, subjectId, semesterId, scoreTypes, subjectName 
         </div>
       )}
 
-      <p className="flex items-center gap-1.5 text-xs" style={{ color: C.muted }}><Ms name="info" className="!text-[14px]" /> Thang điểm 10 · ĐTB = (ĐĐGtx×1 + Giữa kỳ×2 + Cuối kỳ×3)/6; ĐĐGtx = trung bình các cột thường xuyên (miệng + 15 phút).</p>
+      <p className="flex items-center gap-1.5 text-xs" style={{ color: C.muted }}><Ms name="info" className="!text-[14px]" /> Thang điểm 10 · ĐTB tạm tính theo tổng hệ số của các nhóm đã có điểm; ĐTB chính thức cần đủ thường xuyên, giữa kỳ và cuối kỳ.</p>
       {summary?.incompleteTx > 0 && (
         <p className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "#B45309" }}><Ms name="warning" className="!text-[14px]" /> {summary.incompleteTx} học sinh chưa đủ đầu điểm thường xuyên (cần tối thiểu 1 điểm miệng + 2 điểm 15 phút).</p>
       )}
@@ -347,20 +362,23 @@ function GradebookTab({ classId, subjectId, semesterId, scoreTypes, subjectName 
 
 // ─── Chi tiết (student component breakdown across the teacher's subjects) ──────
 function DetailTab({ classId, semesterId, subjectOptions, scoreTypes, onOpenStudent }) {
-  const [gradebooks, setGradebooks] = useState(null); // [{subjectId, subjectName, students}]
-  const [loading, setLoading] = useState(false);
-  const [studentId, setStudentId] = useState("");
+  const [loadState, setLoadState] = useState({ key: "", gradebooks: null });
+  const [requestedStudentId, setRequestedStudentId] = useState("");
 
   const ready = Boolean(classId && semesterId && subjectOptions.length);
+  const subjectsKey = subjectOptions.map((option) => option.id).join(",");
+  const requestKey = ready ? `${classId}:${semesterId}:${subjectsKey}` : "";
+  const gradebooks = loadState.key === requestKey ? loadState.gradebooks : null;
+  const loading = ready && loadState.key !== requestKey;
+
   useEffect(() => {
     if (!ready) return;
-    let m = true; setLoading(true);
+    let m = true;
     Promise.all(subjectOptions.map((o) =>
       academicApi.getGradebook({ classId, subjectId: o.id, semesterId }).then((r) => ({ subjectId: o.id, subjectName: o.name, students: r.data.students })).catch(() => null)))
-      .then((res) => { if (m) setGradebooks(res.filter(Boolean)); })
-      .finally(() => { if (m) setLoading(false); });
+      .then((res) => { if (m) setLoadState({ key: requestKey, gradebooks: res.filter(Boolean) }); });
     return () => { m = false; };
-  }, [classId, semesterId, subjectOptions, ready]);
+  }, [classId, semesterId, subjectOptions, requestKey, ready]);
 
   const roster = useMemo(() => {
     const map = {};
@@ -368,7 +386,9 @@ function DetailTab({ classId, semesterId, subjectOptions, scoreTypes, onOpenStud
     return Object.values(map).sort((a, b) => a.studentName.localeCompare(b.studentName));
   }, [gradebooks]);
 
-  useEffect(() => { if (roster.length && !roster.some((s) => String(s.studentId) === String(studentId))) setStudentId(String(roster[0].studentId)); }, [roster]); // eslint-disable-line
+  const studentId = roster.some((student) => String(student.studentId) === requestedStudentId)
+    ? requestedStudentId
+    : String(roster[0]?.studentId ?? "");
 
   const rows = useMemo(() => {
     if (!gradebooks || !studentId) return [];
@@ -399,7 +419,7 @@ function DetailTab({ classId, semesterId, subjectOptions, scoreTypes, onOpenStud
             <p className="text-xs text-slate-400">{student?.studentCode} · ĐTB {overall ?? "—"}</p>
           </div>
         </div>
-        <PrettySelect value={studentId} onChange={(e) => setStudentId(e.target.value)}>
+        <PrettySelect value={studentId} onChange={(e) => setRequestedStudentId(e.target.value)}>
           {roster.map((s) => <option key={s.studentId} value={s.studentId}>{s.studentName} ({s.studentCode})</option>)}
         </PrettySelect>
       </div>
@@ -440,7 +460,7 @@ function DetailTab({ classId, semesterId, subjectOptions, scoreTypes, onOpenStud
               <div key={t.key} className="flex items-center justify-between"><span style={{ color: C.muted }}>{t.label}</span><span className="font-bold" style={{ color: C.onSurface }}>Hệ số {weightOf(t)}</span></div>
             ))}
           </div>
-          <p className="mt-3 text-[11px] italic" style={{ color: C.muted }}>ĐTB = (ĐĐGtx×1 + Giữa kỳ×2 + Cuối kỳ×3) / 6 · ĐĐGtx = trung bình các đầu điểm thường xuyên (miệng + 15 phút).</p>
+          <p className="mt-3 text-[11px] italic" style={{ color: C.muted }}>ĐTB = tổng (điểm nhóm × hệ số) / tổng hệ số của các nhóm đã có điểm. ĐĐGtx là trung bình các đầu điểm thường xuyên (miệng + 15 phút).</p>
         </div>
         <div className="rounded-3xl bg-white p-5 shadow-sm" style={{ border: `1px solid ${C.border}` }}>
           <h4 className="mb-3 text-sm font-bold" style={{ color: C.onSurface }}>ĐTB theo môn</h4>
@@ -646,20 +666,22 @@ function AcademicPage() {
   const activeTab = searchParams.get("tab") || "scores";
   const { data: meta, loading: metaLoading, error: metaError } = useAcademicMeta();
 
-  const [classId, setClassId] = useState("");
-  const [subjectId, setSubjectId] = useState("");
-  const [semesterId, setSemesterId] = useState("");
-
-  useEffect(() => {
-    if (!meta) return;
-    if (meta.assignments.length && !classId) { setClassId(String(meta.assignments[0].classId)); setSubjectId(String(meta.assignments[0].subjectId)); }
-    if (meta.semesters.length && !semesterId) setSemesterId(String(meta.semesters[0].semesterId));
-  }, [meta]); // eslint-disable-line
+  const [requestedClassId, setRequestedClassId] = useState("");
+  const [requestedSubjectId, setRequestedSubjectId] = useState("");
+  const [requestedSemesterId, setRequestedSemesterId] = useState("");
 
   const assignments = useMemo(() => meta?.assignments ?? [], [meta]);
   const classOptions = useMemo(() => { const m = {}; for (const a of assignments) m[a.classId] = a.className; return Object.entries(m).map(([id, name]) => ({ id, name })); }, [assignments]);
+  const classId = classOptions.some((option) => String(option.id) === requestedClassId)
+    ? requestedClassId
+    : String(classOptions[0]?.id ?? "");
   const subjectOptions = useMemo(() => assignments.filter((a) => String(a.classId) === String(classId)).map((a) => ({ id: String(a.subjectId), name: a.subjectName })), [assignments, classId]);
-  useEffect(() => { if (subjectOptions.length && !subjectOptions.some((s) => String(s.id) === String(subjectId))) setSubjectId(String(subjectOptions[0].id)); }, [subjectOptions]); // eslint-disable-line
+  const subjectId = subjectOptions.some((option) => String(option.id) === requestedSubjectId)
+    ? requestedSubjectId
+    : String(subjectOptions[0]?.id ?? "");
+  const semesterId = meta?.semesters?.some((semester) => String(semester.semesterId) === requestedSemesterId)
+    ? requestedSemesterId
+    : String(meta?.semesters?.[0]?.semesterId ?? "");
 
   const headerUser = useMemo(() => {
     const roleEntry = user?.roles?.find((r) => ["HOMEROOM_TEACHER", "SUBJECT_TEACHER", "DORM_SUPERVISOR"].includes(r.roleName));
@@ -684,15 +706,15 @@ function AcademicPage() {
             <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
               <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Quản lý sổ điểm</h2>
               <div className="flex flex-wrap items-end gap-2">
-                <PrettySelect value={classId} onChange={(e) => setClassId(e.target.value)}>
+                <PrettySelect value={classId} onChange={(e) => setRequestedClassId(e.target.value)}>
                   {classOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </PrettySelect>
                 {showSubject && (
-                  <PrettySelect value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
+                  <PrettySelect value={subjectId} onChange={(e) => setRequestedSubjectId(e.target.value)}>
                     {subjectOptions.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </PrettySelect>
                 )}
-                <PrettySelect value={semesterId} onChange={(e) => setSemesterId(e.target.value)}>
+                <PrettySelect value={semesterId} onChange={(e) => setRequestedSemesterId(e.target.value)}>
                   {meta.semesters.map((s) => <option key={s.semesterId} value={s.semesterId}>{s.semesterName} · {s.schoolYearName}</option>)}
                 </PrettySelect>
               </div>

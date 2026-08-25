@@ -1,5 +1,6 @@
 const { pool } = require("../config/db");
 const { CONDUCT_GRADE_LABEL } = require("../config/behaviour.config");
+const { buildOverallScoreSummary } = require("../services/gpa.service");
 
 async function findProfileByUserId(userId) {
   const [rows] = await pool.query(
@@ -276,7 +277,7 @@ async function findHomeworksByUserId(userId) {
 
         CASE
           WHEN hws.submission_id IS NOT NULL THEN 'SUBMITTED'
-          WHEN hw.due_date IS NOT NULL AND hw.due_date < NOW() THEN 'OVERDUE'
+          WHEN hw.due_date IS NOT NULL AND hw.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00') THEN 'OVERDUE'
           ELSE 'PENDING'
         END AS studentHomeworkStatus
       FROM homework hw
@@ -293,7 +294,7 @@ async function findHomeworksByUserId(userId) {
       ORDER BY
         CASE
           WHEN hws.submission_id IS NOT NULL THEN 3
-          WHEN hw.due_date IS NOT NULL AND hw.due_date < NOW() THEN 2
+          WHEN hw.due_date IS NOT NULL AND hw.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00') THEN 2
           ELSE 1
         END ASC,
         hw.due_date ASC,
@@ -360,6 +361,7 @@ async function findGradesByUserId(userId) {
         ar.result_id AS resultId,
         ar.score_type AS scoreType,
         ar.score_value AS scoreValue,
+        ar.max_score AS maxScore,
         ar.comment,
         DATE_FORMAT(ar.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt,
 
@@ -403,27 +405,9 @@ async function findGradesByUserId(userId) {
     [context.studentId],
   );
 
-  const [summaryRows] = await pool.query(
-    `
-      SELECT
-        COUNT(*) AS totalScores,
-        ROUND(AVG(score_value), 2) AS averageScore,
-        ROUND(MAX(score_value), 2) AS highestScore,
-        ROUND(MIN(score_value), 2) AS lowestScore
-      FROM academic_result
-      WHERE student_id = ?
-    `,
-    [context.studentId],
-  );
-
   return {
     context,
-    summary: summaryRows[0] || {
-      totalScores: 0,
-      averageScore: null,
-      highestScore: null,
-      lowestScore: null,
-    },
+    summary: buildOverallScoreSummary(grades),
     subjects,
     schoolYears,
     grades,
@@ -521,6 +505,7 @@ async function findDashboardSemesterAnalytics(studentId) {
         ON a.attendance_date BETWEEN sm.start_date AND sm.end_date
       WHERE a.student_id = ?
         AND a.attendance_context = 'CLASS'
+        AND a.timetable_id IS NOT NULL
         AND a.attendance_date <= CURDATE()
       GROUP BY sm.semester_id
     `,
@@ -546,7 +531,7 @@ async function findDashboardSemesterAnalytics(studentId) {
         COUNT(
           DISTINCT CASE
             WHEN hw.due_date IS NOT NULL
-              AND hw.due_date < NOW()
+              AND hw.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00')
               AND (
                 hws.submission_id IS NULL
                 OR hws.submit_time > hw.due_date
@@ -654,8 +639,8 @@ async function findDashboardByUserId(userId) {
       SELECT
         COUNT(*) AS totalHomework,
         SUM(CASE WHEN hws.submission_id IS NOT NULL THEN 1 ELSE 0 END) AS submittedHomework,
-        SUM(CASE WHEN hws.submission_id IS NULL AND hw.due_date < NOW() THEN 1 ELSE 0 END) AS overdueHomework,
-        SUM(CASE WHEN hws.submission_id IS NULL AND hw.due_date >= NOW() THEN 1 ELSE 0 END) AS pendingHomework
+        SUM(CASE WHEN hws.submission_id IS NULL AND hw.due_date < CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00') THEN 1 ELSE 0 END) AS overdueHomework,
+        SUM(CASE WHEN hws.submission_id IS NULL AND hw.due_date >= CONVERT_TZ(UTC_TIMESTAMP(), '+00:00', '+07:00') THEN 1 ELSE 0 END) AS pendingHomework
       FROM homework hw
       LEFT JOIN homework_submission hws
         ON hws.homework_id = hw.homework_id
@@ -669,11 +654,16 @@ async function findDashboardByUserId(userId) {
   const [gradeRows] = await pool.query(
     `
       SELECT
-        COUNT(*) AS totalScores,
-        ROUND(AVG(score_value), 2) AS averageScore,
-        ROUND(MAX(score_value), 2) AS highestScore
-      FROM academic_result
-      WHERE student_id = ?
+        ar.semester_id AS semesterId,
+        ar.subject_id AS subjectId,
+        sb.subject_name AS subjectName,
+        ar.score_type AS scoreType,
+        ar.score_value AS scoreValue,
+        ar.max_score AS maxScore
+      FROM academic_result ar
+      INNER JOIN subject sb ON sb.subject_id = ar.subject_id
+      WHERE ar.student_id = ?
+        AND ar.score_value IS NOT NULL
     `,
     [context.studentId],
   );
@@ -682,7 +672,7 @@ async function findDashboardByUserId(userId) {
     `
       SELECT
         COUNT(*) AS totalAttendance,
-        SUM(CASE WHEN at.type_name = 'PRESENT' THEN 1 ELSE 0 END) AS presentCount,
+        SUM(CASE WHEN at.type_name IN ('PRESENT', 'EARLY_LEAVE') THEN 1 ELSE 0 END) AS presentCount,
         SUM(CASE WHEN at.type_name = 'LATE' THEN 1 ELSE 0 END) AS lateCount,
         SUM(CASE WHEN at.type_name = 'ABSENT_EXCUSED' THEN 1 ELSE 0 END) AS excusedAbsentCount,
         SUM(CASE WHEN at.type_name = 'ABSENT_UNEXCUSED' THEN 1 ELSE 0 END) AS unexcusedAbsentCount
@@ -690,6 +680,8 @@ async function findDashboardByUserId(userId) {
       INNER JOIN attendance_type at
         ON at.attendance_type_id = a.attendance_type_id
       WHERE a.student_id = ?
+        AND a.attendance_context = 'CLASS'
+        AND a.timetable_id IS NOT NULL
         AND a.attendance_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
         AND a.attendance_date <= CURDATE()
     `,
@@ -758,7 +750,7 @@ async function findDashboardByUserId(userId) {
     context,
     semesterAnalytics,
     homework: normalizeCountRow(homeworkRows[0]),
-    grades: normalizeCountRow(gradeRows[0]),
+    grades: buildOverallScoreSummary(gradeRows),
     attendance: normalizeCountRow(attendanceRows[0]),
     goals: normalizeCountRow(goalRows[0]),
     recentNotifications,

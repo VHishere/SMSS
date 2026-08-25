@@ -21,6 +21,7 @@ import LoadingState from "../../components/atoms/LoadingState";
 import EmptyState from "../../components/molecules/EmptyState";
 import StudentDashboardShell from "../../components/templates/StudentDashboardShell";
 import { useStudentAttendance } from "../../hooks/useStudentAttendance";
+import { useStudentTimetable } from "../../hooks/useStudentTimetable";
 import PrettySelect from "../../components/molecules/PrettySelect";
 
 const WEEK_DAYS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
@@ -87,6 +88,14 @@ const NOT_RECORDED_CONFIG = {
   label: "Chưa điểm danh",
   lineClass: "bg-slate-300",
   textClass: "text-slate-400",
+  badgeClass: "bg-slate-100 text-slate-600",
+};
+
+const NOT_YET_CONFIG = {
+  label: "Chưa tới tiết",
+  lineClass: "bg-slate-200",
+  textClass: "text-slate-400",
+  badgeClass: "bg-slate-50 text-slate-500",
 };
 
 const DAY_STATUS_PRIORITY = [
@@ -281,6 +290,8 @@ function buildCalendar(monthValue) {
 }
 
 function getTypeConfig(typeName) {
+  if (typeName === "NOT_RECORDED") return NOT_RECORDED_CONFIG;
+  if (typeName === "NOT_YET") return NOT_YET_CONFIG;
   return (
     TYPE_CONFIG[typeName] || {
       label: typeName || "Khác",
@@ -692,6 +703,8 @@ function AttendanceTable({
                 {config.label}
               </option>
             ))}
+            <option value="NOT_RECORDED">Chưa điểm danh</option>
+            <option value="NOT_YET">Chưa tới tiết</option>
           </PrettySelect>
         </div>
       </div>
@@ -711,7 +724,7 @@ function AttendanceTable({
                 <th className="px-5 py-3">Ngày</th>
                 <th className="px-4 py-3">Môn học / ngữ cảnh</th>
                 <th className="px-4 py-3">Thời gian</th>
-                <th className="px-4 py-3">Người ghi nhận</th>
+                <th className="px-4 py-3">Giáo viên / người ghi nhận</th>
                 <th className="px-4 py-3">Trạng thái</th>
                 <th className="px-5 py-3">Ghi chú</th>
               </tr>
@@ -752,7 +765,7 @@ function AttendanceTable({
                     <td className="px-4 py-3.5">
                       <span className="inline-flex items-center gap-1.5 text-xs text-slate-600">
                         <FiUser className="text-slate-400" />
-                        {item.createdByName || "Chưa cập nhật"}
+                        {item.createdByName || item.teacherName || "Chưa cập nhật"}
                       </span>
                     </td>
 
@@ -789,7 +802,7 @@ function StudentAttendance() {
     () => ({
       startDate: getMonthStart(selectedMonth),
       endDate: getMonthEnd(selectedMonth),
-      limit: 100,
+      limit: 500,
     }),
     [selectedMonth],
   );
@@ -800,10 +813,12 @@ function StudentAttendance() {
     leaveRequests,
     loading,
     error,
-  } = useStudentAttendance(filters);
+  } = useStudentAttendance(filters, 0, 15000);
+
+  const { data: timetableData } = useStudentTimetable(selectedDate, 15000);
 
   const context = history?.context;
-  const items = history?.items || [];
+  const items = useMemo(() => history?.items ?? [], [history]);
   const summary = analytics?.summary?.byType || {};
 
   const recordsByDate = useMemo(
@@ -816,7 +831,26 @@ function StudentAttendance() {
     [selectedMonth],
   );
 
-  const selectedRecords = recordsByDate[selectedDate] || [];
+  const selectedRecords = useMemo(() => {
+    const scheduledLessons = (timetableData?.lessons ?? [])
+      .filter((lesson) => lesson.lessonDate === selectedDate)
+      .map((lesson) => ({
+        attendanceId: lesson.attendanceId,
+        timetableId: lesson.timetableId,
+        attendanceDate: lesson.lessonDate,
+        checkInTime: lesson.startTime,
+        checkOutTime: lesson.endTime,
+        context: "CLASS",
+        subjectName: lesson.subjectName,
+        className: timetableData?.context?.className,
+        teacherName: lesson.teacherName,
+        typeName: lesson.attendanceStatus,
+        note: lesson.attendanceNote || lesson.attendanceStatusLabel,
+      }));
+    const otherContexts = (recordsByDate[selectedDate] ?? [])
+      .filter((record) => record.context !== "CLASS");
+    return [...scheduledLessons, ...otherContexts];
+  }, [recordsByDate, selectedDate, timetableData]);
 
   const totalRecords = Number(analytics?.summary?.totalRecords || 0);
   const presentCount = Number(summary.PRESENT?.count || 0);

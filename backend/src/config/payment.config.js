@@ -25,11 +25,4 @@ const zalopay = {
     || `${backendPublicUrl}/api/payments/zalopay/callback`,
 };
 
-const vietqr = {
-  bankBin: process.env.SCHOOL_BANK_BIN || "970436",
-  accountNo: process.env.SCHOOL_BANK_ACCOUNT_NO || "0123456789",
-  accountName: process.env.SCHOOL_BANK_ACCOUNT_NAME || "TRUONG FPT SCHOOL",
-  template: process.env.SCHOOL_BANK_TEMPLATE || "compact2",
-};
-
-module.exports = { zalopay, vietqr };
+module.exports = { zalopay };

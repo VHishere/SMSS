@@ -290,13 +290,6 @@ router.get(
 );
 
 router.post(
-  "/me/fees/:feeAssignmentId/vietqr",
-  authenticate,
-  authorize("PARENT"),
-  paymentController.createVietQrPayment,
-);
-
-router.post(
   "/me/fees/:feeAssignmentId/zalopay",
   authenticate,
   authorize("PARENT"),

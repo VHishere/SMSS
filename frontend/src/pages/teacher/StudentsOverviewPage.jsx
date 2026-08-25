@@ -44,11 +44,16 @@ const ATTENTION = {
 const CONDUCT_BANDS = [
   { key: "TOT", min: 80, label: "Tốt",      bg: "#DCFCE7", text: "#15803D" },
   { key: "KHA", min: 65, label: "Khá",      bg: "rgba(34,93,173,0.12)", text: "#00458E" },
-  { key: "TB",  min: 50, label: "Đạt",      bg: "#FEF3C7", text: "#B45309" },
-  { key: "YEU", min: 0,  label: "Chưa đạt", bg: "#FFDAD6", text: "#93000A" },
+  { key: "TB",  min: 50, label: "Trung bình", bg: "#FEF3C7", text: "#B45309" },
+  { key: "YEU", min: 35, label: "Yếu", bg: "#FFEDD5", text: "#C2410C" },
+  { key: "KEM", min: 0,  label: "Kém", bg: "#FFDAD6", text: "#93000A" },
 ];
 
-function conductGrade(score) {
+function conductGrade(score, officialGrade) {
+  if (officialGrade) {
+    const official = CONDUCT_BANDS.find((b) => b.key === officialGrade);
+    if (official) return official;
+  }
   if (score === null || score === undefined) {
     return { key: "NA", label: "Chưa đánh giá", bg: "#E8E8E8", text: "#584238" };
   }
@@ -103,7 +108,7 @@ function StudentsOverviewPage() {
   const filtered = useMemo(() => {
     let list = data?.students ?? [];
     if (riskFilter) list = list.filter((s) => s.riskLevel === riskFilter);
-    if (conductFilter) list = list.filter((s) => conductGrade(s.conductScore).key === conductFilter);
+    if (conductFilter) list = list.filter((s) => conductGrade(s.conductScore, s.conductGrade).key === conductFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((s) => s.studentName.toLowerCase().includes(q) || s.studentCode.toLowerCase().includes(q));
@@ -194,8 +199,9 @@ function StudentsOverviewPage() {
                 <option value="">Tất cả</option>
                 <option value="TOT">Tốt</option>
                 <option value="KHA">Khá</option>
-                <option value="TB">Đạt</option>
-                <option value="YEU">Chưa đạt</option>
+                <option value="TB">Trung bình</option>
+                <option value="YEU">Yếu</option>
+                <option value="KEM">Kém</option>
                 <option value="NA">Chưa đánh giá</option>
               </PrettySelect>
             </div>
@@ -242,7 +248,7 @@ function StudentsOverviewPage() {
                     <tbody className="divide-y" style={{ borderColor: C.border }}>
                       {filtered.map((s) => {
                         const rc = ATTENTION[s.riskLevel] ?? ATTENTION.NONE;
-                        const cg = conductGrade(s.conductScore);
+                        const cg = conductGrade(s.conductScore, s.conductGrade);
                         return (
                           <tr key={s.studentId} className="cursor-pointer transition-colors hover:bg-[#F3F3F3]"
                             onClick={() => navigate(`/teacher/students/${s.studentId}?semesterId=${effSemesterId}`)}>

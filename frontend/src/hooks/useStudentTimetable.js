@@ -7,7 +7,7 @@ import {
   studentApi,
 } from "../api/client";
 
-export function useStudentTimetable() {
+export function useStudentTimetable(date, pollMs = 0) {
   const [data, setData] =
     useState(null);
 
@@ -20,8 +20,8 @@ export function useStudentTimetable() {
   useEffect(() => {
     let isMounted = true;
 
-    studentApi
-      .getMyTimetable()
+    const load = () => studentApi
+      .getMyTimetable({ date })
       .then((response) => {
         if (isMounted) {
           setData(response.data);
@@ -41,10 +41,14 @@ export function useStudentTimetable() {
         }
       });
 
+    load();
+    const timer = pollMs > 0 ? window.setInterval(load, pollMs) : null;
+
     return () => {
       isMounted = false;
+      if (timer) window.clearInterval(timer);
     };
-  }, []);
+  }, [date, pollMs]);
 
   return {
     data,

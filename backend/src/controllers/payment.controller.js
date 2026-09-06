@@ -1,5 +1,4 @@
 const paymentModel = require("../models/payment.model");
-const vietqrService = require("../services/vietqr.service");
 const zalopayService = require("../services/zalopay.service");
 
 function handleError(res, error, fallbackMessage) {
@@ -74,32 +73,6 @@ async function getMyFeeDetail(req, res) {
     return res.json({ success: true, data: { ...assignment, payments } });
   } catch (error) {
     return handleError(res, error, "Không thể tải chi tiết khoản phí");
-  }
-}
-
-async function createVietQrPayment(req, res) {
-  try {
-    const feeAssignmentId = assertPositiveIntegerId(
-      req.params.feeAssignmentId,
-      "Mã khoản phí không hợp lệ",
-    );
-    const assignment = await paymentModel.findFeeAssignmentForParent(
-      req.user.userId,
-      feeAssignmentId,
-    );
-
-    if (!assignment) return notFound(res);
-    assertPayable(assignment);
-
-    const payment = vietqrService.buildVietQrPayment({
-      amount: assignment.remainingAmount,
-      feeAssignmentId,
-      studentCode: assignment.studentCode,
-    });
-
-    return res.json({ success: true, data: payment });
-  } catch (error) {
-    return handleError(res, error, "Không thể tạo mã VietQR");
   }
 }
 
@@ -359,7 +332,6 @@ async function zalopayCallback(req, res) {
 module.exports = {
   getMyFees,
   getMyFeeDetail,
-  createVietQrPayment,
   createZaloPayOrder,
   getZaloPayOrderStatus,
   zalopayCallback,

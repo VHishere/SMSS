@@ -81,6 +81,54 @@ async function getOverview(req, res) {
   }
 }
 
+async function getBoardingManagement(req, res) {
+  try {
+    const data = await staffModel.getBoardingManagement({
+      areaId: req.query.areaId,
+      search: req.query.search,
+    });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể tải dữ liệu nội trú");
+  }
+}
+
+async function createBoardingArea(req, res) {
+  try {
+    const data = await staffModel.createBoardingArea(req.body);
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể tạo khu nội trú");
+  }
+}
+
+async function updateBoardingArea(req, res) {
+  try {
+    const data = await staffModel.updateBoardingArea(req.params.areaId, req.body);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể cập nhật khu nội trú");
+  }
+}
+
+async function assignStudentToArea(req, res) {
+  try {
+    const data = await staffModel.assignStudentToArea(req.body);
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể xếp học sinh vào khu");
+  }
+}
+
+async function removeStudentFromArea(req, res) {
+  try {
+    const data = await staffModel.removeStudentFromArea(req.params.studentAreaId);
+    return res.json({ success: true, data });
+  } catch (error) {
+    return handleError(res, error, "Không thể gỡ học sinh khỏi khu");
+  }
+}
+
 async function getLookups(_req, res) {
   try {
     const data = await staffModel.getLookups();
@@ -709,6 +757,11 @@ module.exports = {
   markMyNotificationRead,
   markAllMyNotificationsRead,
   getOverview,
+  getBoardingManagement,
+  createBoardingArea,
+  updateBoardingArea,
+  assignStudentToArea,
+  removeStudentFromArea,
   getLookups,
   listTeacherSurveys,
   createTeacherSurvey,

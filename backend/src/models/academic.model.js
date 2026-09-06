@@ -110,12 +110,13 @@ async function findSemesters() {
     `SELECT
        sem.semester_id   AS semesterId,
        sem.semester_name AS semesterName,
+       DATE_FORMAT(sem.start_date, '%Y-%m-%d') AS startDate,
+       DATE_FORMAT(sem.end_date, '%Y-%m-%d') AS endDate,
        sy.school_year_id AS schoolYearId,
        sy.year_name      AS schoolYearName,
        sy.is_active      AS isActiveYear
      FROM semester sem
      INNER JOIN school_year sy ON sy.school_year_id = sem.school_year_id
-     WHERE sy.is_active = 1
      ORDER BY sy.is_active DESC, sy.start_date DESC, sem.start_date ASC`,
   );
   return rows.map((r) => ({ ...r, isActiveYear: Boolean(r.isActiveYear) }));

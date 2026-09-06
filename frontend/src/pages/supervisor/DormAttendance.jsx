@@ -79,17 +79,16 @@ function DormAttendance() {
 
   // Load roster theo khu
   useEffect(() => {
-    if (!areaId) { setLoading(false); return; }
+    if (!areaId) return undefined;
     let m = true;
-    setLoading(true); setError("");
     supervisorApi.getAttendance({ areaId })
-      .then((res) => { if (m) { setData(res.data); setPending({}); setSelected(new Set()); setPage(1); } })
+      .then((res) => { if (m) { setData(res.data); setPending({}); setSelected(new Set()); setPage(1); setError(""); } })
       .catch((err) => { if (m) setError(err.message); })
       .finally(() => { if (m) setLoading(false); });
     return () => { m = false; };
   }, [areaId, refresh]);
 
-  const roster = data?.roster ?? [];
+  const roster = useMemo(() => data?.roster ?? [], [data]);
   const floors = useMemo(() => [...new Set((data?.rooms ?? []).map((r) => r.floor).filter((f) => f != null))].sort(), [data]);
 
   const filtered = useMemo(() => roster.filter((r) => {
@@ -103,11 +102,16 @@ function DormAttendance() {
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   function statusOf(r) { return pending[r.studentId] ?? r.typeId ?? null; }
-  function setStatus(studentId, typeId) { setPending((p) => ({ ...p, [studentId]: typeId })); }
+  const canSubmit = Boolean(data?.attendanceWindow?.canSubmit);
+  function setStatus(studentId, typeId) {
+    if (canSubmit) setPending((p) => ({ ...p, [studentId]: typeId }));
+  }
   function applyToSelected(typeId) {
+    if (!canSubmit) return;
     setPending((p) => { const n = { ...p }; selected.forEach((id) => { n[id] = typeId; }); return n; });
   }
   function markAllPresent() {
+    if (!canSubmit) return;
     setPending((p) => { const n = { ...p }; filtered.forEach((r) => { n[r.studentId] = 1; }); return n; });
   }
 
@@ -133,14 +137,21 @@ function DormAttendance() {
           <p className="mt-1 text-sm text-slate-500">{new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={markAllPresent} disabled={!filtered.length} className="flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition hover:bg-[#F3F3F3] disabled:opacity-50" style={{ borderColor: C.border, color: C.onSurface }}>
+          <button type="button" onClick={markAllPresent} disabled={!canSubmit || !filtered.length} className="flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition hover:bg-[#F3F3F3] disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: C.border, color: C.onSurface }}>
             <Ms name="done_all" className="!text-[18px]" /> Điểm danh hàng loạt
           </button>
-          <button type="button" onClick={save} disabled={saving || pendingCount === 0} className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:opacity-50" style={{ backgroundColor: C.orange }}>
+          <button type="button" onClick={save} disabled={!canSubmit || saving || pendingCount === 0} className="flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:opacity-90 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50" style={{ backgroundColor: C.orange }}>
             <Ms name="save" className="!text-[18px]" /> {saving ? "Đang lưu..." : `Lưu điểm danh${pendingCount ? ` (${pendingCount})` : ""}`}
           </button>
         </div>
       </div>
+
+      {data?.attendanceWindow && !canSubmit && (
+        <div className="mb-4 flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          <Ms name="schedule" className="!text-[20px]" />
+          Điểm danh nội trú mở lúc 21:00 hằng ngày để xác nhận học sinh có mặt tại phòng đã xếp.
+        </div>
+      )}
 
       {/* Filters — pill bo tròn */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
@@ -211,8 +222,8 @@ function DormAttendance() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-1.5">
                             {QUICK.map((a) => (
-                              <button key={a.typeId} type="button" title={a.title} onClick={() => setStatus(r.studentId, a.typeId)}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg transition"
+                              <button key={a.typeId} type="button" title={canSubmit ? a.title : "Mở điểm danh lúc 21:00"} onClick={() => setStatus(r.studentId, a.typeId)} disabled={!canSubmit}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg transition disabled:cursor-not-allowed disabled:opacity-40"
                                 style={st === a.typeId ? { backgroundColor: a.color, color: "#fff" } : { backgroundColor: `${a.color}1a`, color: a.color }}>
                                 <Ms name={a.icon} className="!text-[18px]" />
                               </button>

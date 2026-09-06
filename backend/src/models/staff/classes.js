@@ -1,4 +1,5 @@
 const { pool } = require("../../config/db");
+const teacherSubjectModel = require("../teacherSubject.model");
 const { addIsoDays } = require("../../utils/date");
 const { TIMETABLE_SLOTS } = require("../../config/timetable.config");
 const {
@@ -196,8 +197,6 @@ async function getClassById(classId) {
         ON (
           LOWER(specialize_subject.subject_name) = LOWER(t.subject_specialize)
           OR LOWER(specialize_subject.subject_code) = LOWER(t.subject_specialize)
-          OR LOWER(specialize_subject.subject_name) LIKE CONCAT('%', LOWER(TRIM(t.subject_specialize)), '%')
-          OR LOWER(TRIM(t.subject_specialize)) LIKE CONCAT('%', LOWER(specialize_subject.subject_name), '%')
         )
         AND specialize_subject.status = 'ACTIVE'
       WHERE tc.class_id = ?
@@ -887,7 +886,8 @@ async function validateTimetableAssignment(classId, data) {
     [classId, teacherId, subjectId],
   );
 
-  if (!assignments[0]) {
+  const canTeachSubject = await teacherCanTeachSubject(teacherId, subjectId);
+  if (!assignments[0] || !canTeachSubject) {
     const error = new Error("Giáo viên chưa được phân công cho môn/lớp này");
     error.statusCode = 400;
     throw error;
@@ -925,31 +925,7 @@ async function findAssignedSubjectTeacher(classId, subjectId) {
 }
 
 async function teacherCanTeachSubject(teacherId, subjectId) {
-  const [rows] = await pool.query(
-    `
-      SELECT 1 AS ok
-      FROM teacher t
-      INNER JOIN subject sub ON sub.subject_id = ?
-      WHERE t.teacher_id = ?
-        AND (
-          EXISTS (
-            SELECT 1
-            FROM teacher_class tc
-            WHERE tc.teacher_id = t.teacher_id
-              AND tc.subject_id = sub.subject_id
-              AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
-          )
-          OR LOWER(TRIM(t.subject_specialize)) = LOWER(TRIM(sub.subject_name))
-          OR LOWER(TRIM(t.subject_specialize)) = LOWER(TRIM(sub.subject_code))
-          OR LOWER(TRIM(sub.subject_name)) LIKE CONCAT('%', LOWER(TRIM(t.subject_specialize)), '%')
-          OR LOWER(TRIM(t.subject_specialize)) LIKE CONCAT('%', LOWER(TRIM(sub.subject_name)), '%')
-        )
-      LIMIT 1
-    `,
-    [subjectId, teacherId],
-  );
-
-  return Boolean(rows[0]);
+  return teacherSubjectModel.teacherCanTeachSubject(teacherId, subjectId);
 }
 
 function normalizeTimetableConflictReason(reason) {
@@ -1097,7 +1073,7 @@ async function createTimetableLessons(data) {
         FROM teacher_class
         WHERE class_id = ?
           AND teacher_id = ?
-          AND (subject_id = ? OR role_in_class = 'HOMEROOM_TEACHER')
+          AND subject_id = ?
           AND (end_date IS NULL OR end_date >= CURDATE())
         LIMIT 1
       `,

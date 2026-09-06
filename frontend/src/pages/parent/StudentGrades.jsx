@@ -39,7 +39,8 @@ function band(avg) {
   if (value >= 8) return { label: "GIỎI", bg: "#DCFCE7", text: "#15803D" };
   if (value >= 6.5) return { label: "KHÁ", bg: "#EBF3FF", text: "#225DAD" };
   if (value >= 5) return { label: "TRUNG BÌNH", bg: "#FEF3C7", text: "#B45309" };
-  return { label: "KHÔNG ĐẠT", bg: "#FFDAD6", text: "#93000A" };
+  if (value >= 3.5) return { label: "YẾU", bg: "#FFEDD5", text: "#C2410C" };
+  return { label: "KÉM", bg: "#FFDAD6", text: "#93000A" };
 }
 
 const selectCls = "cursor-pointer rounded-xl border bg-white px-3 py-2 text-sm shadow-sm outline-none focus:ring-1 focus:ring-[#00458E]";
@@ -294,7 +295,9 @@ function calculateSubjectAverage(scores) {
   const val = (key) => {
     const g = scores[key];
     if (!g || g.scoreValue === null || g.scoreValue === undefined) return null;
-    const n = Number(g.scoreValue);
+    const raw = Number(g.scoreValue);
+    const max = Number(g.maxScore ?? 10);
+    const n = max > 0 ? (raw / max) * 10 : NaN;
     return Number.isNaN(n) ? null : n;
   };
   const groups = [

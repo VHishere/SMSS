@@ -70,7 +70,9 @@ function PrettySelect({
         left,
         top: dropUp ? rect.top - 6 : rect.bottom + 6,
         width: menuWidth,
-        zIndex: 9999,
+        // Dropdown được render thẳng vào body. Một số modal nghiệp vụ dùng
+        // z-index 10000, vì vậy menu cũ nằm sau lớp phủ và vừa mở đã bị đóng.
+        zIndex: 20000,
         transform: dropUp ? "translateY(-100%)" : undefined,
       });
     };

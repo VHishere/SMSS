@@ -1,4 +1,5 @@
 const { pool } = require("../config/db");
+const { buildOverallScoreSummary } = require("../services/gpa.service");
 
 async function findProfileByUserId(userId) {
   const [rows] = await pool.query(
@@ -245,6 +246,7 @@ async function findGradesByStudentId(studentId) {
         ar.result_id AS resultId,
         ar.score_type AS scoreType,
         ar.score_value AS scoreValue,
+        ar.max_score AS maxScore,
         ar.comment,
         DATE_FORMAT(ar.created_at, '%Y-%m-%d %H:%i:%s') AS createdAt,
 
@@ -288,26 +290,8 @@ async function findGradesByStudentId(studentId) {
     [studentId],
   );
 
-  const [summaryRows] = await pool.query(
-    `
-      SELECT
-        COUNT(*) AS totalScores,
-        ROUND(AVG(score_value), 2) AS averageScore,
-        ROUND(MAX(score_value), 2) AS highestScore,
-        ROUND(MIN(score_value), 2) AS lowestScore
-      FROM academic_result
-      WHERE student_id = ?
-    `,
-    [studentId],
-  );
-
   return {
-    summary: summaryRows[0] || {
-      totalScores: 0,
-      averageScore: null,
-      highestScore: null,
-      lowestScore: null,
-    },
+    summary: buildOverallScoreSummary(grades),
     subjects,
     schoolYears,
     grades,

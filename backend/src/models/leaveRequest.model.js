@@ -318,6 +318,12 @@ async function findDetailById(leaveRequestId) {
        lr.reason,
        lr.status,
        lr.homeroom_teacher_id                              AS homeroomTeacherId,
+       EXISTS (
+         SELECT 1 FROM student_area sa
+         WHERE sa.student_id = lr.student_id
+           AND sa.status = 'ACTIVE'
+           AND (sa.end_date IS NULL OR sa.end_date >= CURDATE())
+       )                                                   AS requiresSupervisor,
        DATE_FORMAT(lr.created_at, '%Y-%m-%d %H:%i')        AS createdAt,
 
        s.student_id                                        AS studentId,
@@ -385,7 +391,45 @@ async function findDetailById(leaveRequestId) {
     [leaveRequestId],
   );
 
-  return { ...row, approvalHistory: history };
+  return { ...row, requiresSupervisor: Boolean(row.requiresSupervisor), approvalHistory: history };
+}
+
+async function markApprovedLeaveAttendance(conn, {
+  studentId,
+  classId,
+  startDate,
+  endDate,
+  approverUserId,
+}) {
+  if (!studentId || !classId || !startDate || !endDate) return;
+
+  await conn.query(
+    `INSERT INTO attendance
+       (student_id, class_id, timetable_id, attendance_date, attendance_context,
+        attendance_type_id, note, created_by)
+     WITH RECURSIVE leave_dates AS (
+       SELECT DATE(?) AS attendance_date
+       UNION ALL
+       SELECT DATE_ADD(attendance_date, INTERVAL 1 DAY)
+       FROM leave_dates
+       WHERE attendance_date < DATE(?)
+     )
+     SELECT ?, ?, tt.timetable_id, d.attendance_date, 'CLASS', at.attendance_type_id,
+            'Tự động ghi nhận từ đơn xin nghỉ đã được duyệt', ?
+     FROM leave_dates d
+     INNER JOIN timetable tt
+       ON tt.class_id = ?
+      AND tt.status = 'ACTIVE'
+      AND (
+        tt.lesson_date = d.attendance_date
+        OR (tt.lesson_date IS NULL AND tt.day_of_week = DAYOFWEEK(d.attendance_date))
+      )
+     INNER JOIN attendance_type at ON at.type_name = 'ABSENT_EXCUSED'
+     ON DUPLICATE KEY UPDATE
+       attendance_type_id = VALUES(attendance_type_id),
+       note = VALUES(note)`,
+    [startDate, endDate, studentId, classId, approverUserId, classId],
+  );
 }
 
 async function countByStatusForTeacher(teacherId) {
@@ -437,15 +481,32 @@ async function applyDecision({
   try {
     await conn.beginTransaction();
 
-    const [result] = await conn.query(
-      `UPDATE leave_request
-       SET status = ?
-       WHERE leave_request_id = ?
-         AND status = 'PENDING'`,
-      [newStatus, leaveRequestId],
+    const [[request]] = await conn.query(
+      `SELECT lr.status, lr.student_id AS studentId,
+              DATE_FORMAT(lr.start_date, '%Y-%m-%d') AS startDate,
+              DATE_FORMAT(lr.end_date, '%Y-%m-%d') AS endDate,
+              (SELECT ce.class_id FROM class_enrollment ce
+               INNER JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+               INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
+               WHERE ce.student_id = lr.student_id AND ce.status = 'ACTIVE'
+               ORDER BY ce.enrollment_date DESC, ce.enrollment_id DESC LIMIT 1) AS classId
+       FROM leave_request lr
+       WHERE lr.leave_request_id = ?
+       FOR UPDATE`,
+      [leaveRequestId],
     );
 
-    if (result.affectedRows !== 1) {
+    if (!request || request.status !== "PENDING") {
+      await conn.rollback();
+      return { updated: false };
+    }
+
+    const [[existingApproval]] = await conn.query(
+      `SELECT approval_id FROM leave_approval
+       WHERE leave_request_id = ? AND role = ? LIMIT 1`,
+      [leaveRequestId, role],
+    );
+    if (existingApproval) {
       await conn.rollback();
       return { updated: false };
     }
@@ -456,6 +517,20 @@ async function applyDecision({
        VALUES (?, ?, ?, ?, ?)`,
       [leaveRequestId, approverUserId, role, action, comment],
     );
+
+    if (newStatus !== "PENDING") {
+      await conn.query(
+        `UPDATE leave_request SET status = ? WHERE leave_request_id = ?`,
+        [newStatus, leaveRequestId],
+      );
+    }
+
+    if (newStatus === "APPROVED") {
+      await markApprovedLeaveAttendance(conn, {
+        ...request,
+        approverUserId,
+      });
+    }
 
     if (notifications.length > 0) {
       const values = notifications.map((n) => [
@@ -508,5 +583,6 @@ module.exports = {
   countByStatusForTeacher,
   findTeacherClassesForFilter,
   applyDecision,
+  markApprovedLeaveAttendance,
   findTeacherUserId,
 };

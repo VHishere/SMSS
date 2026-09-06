@@ -86,7 +86,7 @@ async function getAttendance(req, res) {
       return res.status(403).json({ success: false, message: "Khu không thuộc quyền quản lý của bạn" });
     }
     const date = req.query.date || (await model.dbToday());
-    const [rooms, roster, summary] = await Promise.all([
+    const [rooms, roster, summary, attendanceWindow] = await Promise.all([
       model.findRooms(areaId),
       model.findAttendanceRoster(areaId, {
         date,
@@ -95,8 +95,9 @@ async function getAttendance(req, res) {
         q: req.query.q || null,
       }),
       model.findAttendanceSummary([areaId], date),
+      model.getDormAttendanceWindow(date),
     ]);
-    return res.json({ success: true, data: { areaId, date, rooms, roster, summary } });
+    return res.json({ success: true, data: { areaId, date, rooms, roster, summary, attendanceWindow } });
   } catch (error) {
     console.error("supervisor.getAttendance error:", error);
     return res.status(500).json({ success: false, message: "Không thể tải điểm danh nội trú" });
@@ -117,6 +118,15 @@ async function submitBulkAttendance(req, res) {
     if (!(await model.ownsArea(ctx.sup.supervisorId, Number(areaId)))) {
       return res.status(403).json({ success: false, message: "Khu không thuộc quyền quản lý của bạn" });
     }
+    const attendanceWindow = await model.getDormAttendanceWindow(date);
+    if (!attendanceWindow.canSubmit) {
+      return res.status(409).json({
+        success: false,
+        message: attendanceWindow.isToday
+          ? "Điểm danh nội trú chỉ mở từ 21:00"
+          : "Chỉ được điểm danh nội trú cho ngày hiện tại",
+      });
+    }
     const bad = records.find(
       (r) => !r.studentId || !VALID_TYPE_IDS.includes(Number(r.typeId)),
     );
@@ -129,7 +139,10 @@ async function submitBulkAttendance(req, res) {
     return res.json({ success: true, data: { updated: n, summary } });
   } catch (error) {
     console.error("supervisor.submitBulkAttendance error:", error);
-    return res.status(500).json({ success: false, message: "Không thể lưu điểm danh" });
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.statusCode ? error.message : "Không thể lưu điểm danh",
+    });
   }
 }
 
@@ -300,7 +313,10 @@ async function createSupport(req, res) {
     return res.status(201).json({ success: true, data: { caseId } });
   } catch (error) {
     console.error("supervisor.createSupport error:", error);
-    return res.status(500).json({ success: false, message: "Không thể tạo ca hỗ trợ" });
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.statusCode ? error.message : "Không thể tạo ca hỗ trợ",
+    });
   }
 }
 

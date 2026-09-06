@@ -10,6 +10,7 @@ import {
   FiFileText,
   FiFlag,
   FiGrid,
+  FiHome,
   FiLifeBuoy,
   FiMessageSquare,
   FiRefreshCw,
@@ -197,6 +198,12 @@ export const dashboardNavigation = {
       path: "/staff/timetable",
       icon: FiClock,
       ms: "schedule",
+    },
+    {
+      label: "Nội trú",
+      path: "/staff/boarding",
+      icon: FiHome,
+      ms: "apartment",
     },
     {
       label: "Yêu cầu đổi tiết",

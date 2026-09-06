@@ -1,6 +1,8 @@
 const {
   SCORE_GROUP,
   GROUP_WEIGHT,
+  SCORE_TYPE_KIND,
+  REQUIRED_TX,
   SUBJECT_PASS_THRESHOLD,
   getStanding,
 } = require("../config/academic.config");
@@ -48,6 +50,24 @@ function subjectAverage(rows) {
   return round2(weightedSum / weightTotal);
 }
 
+function hasCompleteScoreSet(rows) {
+  const counts = { ORAL: 0, QUIZ_15: 0 };
+  let hasMidterm = false;
+  let hasFinal = false;
+
+  for (const row of rows || []) {
+    const kind = SCORE_TYPE_KIND[row.scoreType];
+    if (kind === "ORAL" || kind === "QUIZ_15") counts[kind] += 1;
+    if (kind === "MIDTERM") hasMidterm = true;
+    if (kind === "FINAL") hasFinal = true;
+  }
+
+  return counts.ORAL >= REQUIRED_TX.ORAL
+    && counts.QUIZ_15 >= REQUIRED_TX.QUIZ_15
+    && hasMidterm
+    && hasFinal;
+}
+
 /**
  * Group flat score rows by subject and compute each subject's average.
  * rows: [{ subjectId, subjectName, scoreType, scoreValue, maxScore }]
@@ -69,6 +89,7 @@ function subjectAverages(rows) {
       subjectName: s.subjectName,
       average:     avg,
       passed:      avg === null ? null : avg >= SUBJECT_PASS_THRESHOLD,
+      complete:    hasCompleteScoreSet(s.rows),
     };
   });
 }
@@ -91,6 +112,7 @@ function buildStudentSemesterSummary(rows) {
   const subjects = subjectAverages(rows);
   const gpa = computeGpa(subjects);
   const failedSubjects = subjects.filter((s) => s.passed === false);
+  const complete = subjects.length > 0 && subjects.every((subject) => subject.complete);
 
   return {
     gpa,
@@ -98,6 +120,26 @@ function buildStudentSemesterSummary(rows) {
     subjects,
     failedCount: failedSubjects.length,
     failedSubjects: failedSubjects.map((s) => s.subjectName),
+    complete,
+  };
+}
+
+function buildOverallScoreSummary(rows) {
+  const normalizedRows = (rows || [])
+    .filter((row) => Number(row.maxScore) > 0)
+    .map((row) => ({
+      ...row,
+      subjectId: `${row.semesterId}:${row.subjectId}`,
+      normalizedScore: normalize(row.scoreValue, row.maxScore),
+    }));
+  const values = normalizedRows.map((row) => row.normalizedScore);
+  const subjectResults = subjectAverages(normalizedRows);
+
+  return {
+    totalScores: normalizedRows.length,
+    averageScore: computeGpa(subjectResults),
+    highestScore: values.length ? round2(Math.max(...values)) : null,
+    lowestScore: values.length ? round2(Math.min(...values)) : null,
   };
 }
 
@@ -105,7 +147,9 @@ module.exports = {
   round2,
   normalize,
   subjectAverage,
+  hasCompleteScoreSet,
   subjectAverages,
   computeGpa,
   buildStudentSemesterSummary,
+  buildOverallScoreSummary,
 };

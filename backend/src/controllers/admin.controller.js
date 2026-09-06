@@ -271,7 +271,7 @@ async function updateFeeRateStatus(req, res) {
 }
 
 // UC-14: Monitor Tuition Payment Status — full online payment attempt log
-// (VietQR/ZaloPay, every status) for a fee plan, alongside the confirmed
+// (ZaloPay, every status) for a fee plan, alongside the confirmed
 // fee_payment history staff already sees.
 async function getFeePlanTransactions(req, res) {
   try {

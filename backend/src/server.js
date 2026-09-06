@@ -6,6 +6,7 @@ const { ensureValidPasswords } = require(
   "./services/password-setup.service",
 );
 const { initializeSocket } = require("./socket");
+const announcementService = require("./services/announcement.service");
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -18,6 +19,17 @@ async function startServer() {
     const server = http.createServer(app);
 
     initializeSocket(server);
+
+    const publishScheduledAnnouncements = async () => {
+      try {
+        await announcementService.publishDue();
+      } catch (error) {
+        console.error("Không thể phát hành thông báo đã lên lịch:", error);
+      }
+    };
+    await publishScheduledAnnouncements();
+    const announcementTimer = setInterval(publishScheduledAnnouncements, 60_000);
+    announcementTimer.unref();
 
     server.listen(PORT, HOST, () => {
       console.log(

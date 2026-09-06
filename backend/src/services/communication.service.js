@@ -47,7 +47,7 @@ async function startConversation({ teacher, target }) {
 
   const type = kind === "PARENT" ? "PARENT_TEACHER" : "TEACHER_STUDENT";
 
-  const existing = await commModel.findOneToOneConversation(teacher.userId, otherUserId);
+  const existing = await commModel.findOneToOneConversation(teacher.userId, otherUserId, studentId ?? null);
   if (existing) return { conversationId: existing, created: false };
 
   const conversationId = await commModel.createConversation({

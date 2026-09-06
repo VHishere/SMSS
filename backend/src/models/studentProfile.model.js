@@ -215,6 +215,7 @@ async function findAttendanceSummary(studentId, startDate, endDate) {
      INNER JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
      WHERE a.student_id = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
        AND a.attendance_date BETWEEN ? AND ?
      GROUP BY at.attendance_type_id, at.type_name`,
     [studentId, startDate, endDate],
@@ -230,7 +231,7 @@ async function findAttendanceSummary(studentId, startDate, endDate) {
     if (k) summary[k] = Number(r.count);
   }
   summary.total = summary.present + summary.late + summary.absentExcused + summary.absentUnexcused + summary.earlyLeave;
-  const attended = summary.present + summary.late;
+  const attended = summary.present + summary.late + summary.earlyLeave;
   summary.attendanceRate = summary.total > 0 ? Math.round((attended / summary.total) * 1000) / 10 : null;
   return summary;
 }
@@ -239,11 +240,12 @@ async function findMonthlyAttendance(studentId, startDate, endDate) {
   const [rows] = await pool.query(
     `SELECT
        DATE_FORMAT(a.attendance_date, '%Y-%m') AS month,
-       SUM(CASE WHEN at.type_name IN ('PRESENT','LATE') THEN 1 ELSE 0 END) AS attended,
+       SUM(CASE WHEN at.type_name IN ('PRESENT','LATE','EARLY_LEAVE') THEN 1 ELSE 0 END) AS attended,
        COUNT(*) AS total
      FROM attendance a
      INNER JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
      WHERE a.student_id = ? AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
        AND a.attendance_date BETWEEN ? AND ?
      GROUP BY DATE_FORMAT(a.attendance_date, '%Y-%m')
      ORDER BY month ASC`,
@@ -265,7 +267,10 @@ async function findAttendanceHistory(studentId, startDate, endDate, limit = 100)
        a.note
      FROM attendance a
      INNER JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
-     WHERE a.student_id = ? AND a.attendance_date BETWEEN ? AND ?
+     WHERE a.student_id = ?
+       AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
+       AND a.attendance_date BETWEEN ? AND ?
      ORDER BY a.attendance_date DESC
      LIMIT ?`,
     [studentId, startDate, endDate, limit],
@@ -280,31 +285,56 @@ async function findRiskCounts(studentId, semesterId, startDate, endDate) {
        (SELECT COUNT(*) FROM attendance a
          INNER JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
          WHERE a.student_id = ? AND a.attendance_context = 'CLASS'
+           AND a.timetable_id IS NOT NULL
            AND a.attendance_date BETWEEN ? AND ?
-           AND at.type_name IN ('ABSENT_UNEXCUSED','ABSENT_EXCUSED')) AS absences,
+           AND at.type_name = 'ABSENT_EXCUSED') AS absentExcused,
+       (SELECT COUNT(*) FROM attendance a
+         INNER JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
+         WHERE a.student_id = ? AND a.attendance_context = 'CLASS'
+           AND a.timetable_id IS NOT NULL
+           AND a.attendance_date BETWEEN ? AND ?
+           AND at.type_name = 'ABSENT_UNEXCUSED') AS absentUnexcused,
        (SELECT COUNT(*) FROM attendance a
          WHERE a.student_id = ? AND a.attendance_context = 'CLASS'
+           AND a.timetable_id IS NOT NULL
            AND a.attendance_date BETWEEN ? AND ?) AS totalAttendance,
        (SELECT COUNT(*) FROM academic_warning aw
          WHERE aw.student_id = ? AND aw.semester_id = ? AND aw.status <> 'RESOLVED') AS academicWarnings,
        (SELECT COUNT(*) FROM behavior_warning bw
          WHERE bw.student_id = ? AND bw.semester_id = ? AND bw.status <> 'RESOLVED') AS behaviourWarnings,
        (SELECT final_score FROM conduct_evaluation ce
-         WHERE ce.student_id = ? AND ce.semester_id = ?) AS conductScore`,
+         WHERE ce.student_id = ? AND ce.semester_id = ?) AS conductScore,
+       (SELECT conduct_grade FROM conduct_evaluation ce
+         WHERE ce.student_id = ? AND ce.semester_id = ?) AS conductGrade,
+       (SELECT COALESCE(ap.periods_per_session, 5)
+          FROM semester sm
+          LEFT JOIN attendance_policy ap ON ap.school_year_id = sm.school_year_id
+         WHERE sm.semester_id = ?) AS periodsPerSession,
+       (SELECT COALESCE(ap.count_excused, 1)
+          FROM semester sm
+          LEFT JOIN attendance_policy ap ON ap.school_year_id = sm.school_year_id
+         WHERE sm.semester_id = ?) AS countExcused`,
     [
       studentId, startDate, endDate,
       studentId, startDate, endDate,
+      studentId, startDate, endDate,
       studentId, semesterId,
       studentId, semesterId,
       studentId, semesterId,
+      studentId, semesterId,
+      semesterId, semesterId,
     ],
   );
   return {
-    absences:          Number(row.absences),
+    absentExcused:     Number(row.absentExcused),
+    absentUnexcused:   Number(row.absentUnexcused),
     totalAttendance:   Number(row.totalAttendance),
     academicWarnings:  Number(row.academicWarnings),
     behaviourWarnings: Number(row.behaviourWarnings),
     conductScore:      row.conductScore === null ? null : Number(row.conductScore),
+    conductGrade:      row.conductGrade,
+    periodsPerSession: Number(row.periodsPerSession || 5),
+    countExcused:      Boolean(row.countExcused),
   };
 }
 
@@ -319,10 +349,18 @@ async function findClassRiskOverview(classId, semesterId, startDate, endDate) {
        (SELECT COUNT(*) FROM attendance a
          INNER JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
          WHERE a.student_id = s.student_id AND a.attendance_context = 'CLASS'
+           AND a.timetable_id IS NOT NULL
            AND a.attendance_date BETWEEN ? AND ?
-           AND at.type_name IN ('ABSENT_UNEXCUSED','ABSENT_EXCUSED')) AS absences,
+           AND at.type_name = 'ABSENT_EXCUSED') AS absentExcused,
+       (SELECT COUNT(*) FROM attendance a
+         INNER JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
+         WHERE a.student_id = s.student_id AND a.attendance_context = 'CLASS'
+           AND a.timetable_id IS NOT NULL
+           AND a.attendance_date BETWEEN ? AND ?
+           AND at.type_name = 'ABSENT_UNEXCUSED') AS absentUnexcused,
        (SELECT COUNT(*) FROM attendance a
          WHERE a.student_id = s.student_id AND a.attendance_context = 'CLASS'
+           AND a.timetable_id IS NOT NULL
            AND a.attendance_date BETWEEN ? AND ?) AS totalAttendance,
        (SELECT COUNT(*) FROM academic_warning aw
          WHERE aw.student_id = s.student_id AND aw.semester_id = ? AND aw.status <> 'RESOLVED') AS academicWarnings,
@@ -330,14 +368,25 @@ async function findClassRiskOverview(classId, semesterId, startDate, endDate) {
          WHERE bw.student_id = s.student_id AND bw.semester_id = ? AND bw.status <> 'RESOLVED') AS behaviourWarnings,
        (SELECT final_score FROM conduct_evaluation ce
          WHERE ce.student_id = s.student_id AND ce.semester_id = ?) AS conductScore,
+       (SELECT conduct_grade FROM conduct_evaluation ce
+         WHERE ce.student_id = s.student_id AND ce.semester_id = ?) AS conductGrade,
        (SELECT COUNT(*) FROM student_goal sg
-         WHERE sg.student_id = s.student_id AND sg.status = 'IN_PROGRESS') AS activeGoals
+         WHERE sg.student_id = s.student_id AND sg.status = 'IN_PROGRESS') AS activeGoals,
+       (SELECT COALESCE(ap.periods_per_session, 5)
+          FROM semester sm
+          LEFT JOIN attendance_policy ap ON ap.school_year_id = sm.school_year_id
+         WHERE sm.semester_id = ?) AS periodsPerSession,
+       (SELECT COALESCE(ap.count_excused, 1)
+          FROM semester sm
+          LEFT JOIN attendance_policy ap ON ap.school_year_id = sm.school_year_id
+         WHERE sm.semester_id = ?) AS countExcused
      FROM class_enrollment ce
      INNER JOIN student s ON s.student_id = ce.student_id AND s.status = 'ACTIVE'
      INNER JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
      WHERE ce.class_id = ? AND ce.status = 'ACTIVE'
      ORDER BY ua.full_name ASC`,
-    [startDate, endDate, startDate, endDate, semesterId, semesterId, semesterId, classId],
+    [startDate, endDate, startDate, endDate, startDate, endDate,
+      semesterId, semesterId, semesterId, semesterId, semesterId, semesterId, classId],
   );
 
   return rows.map((r) => ({
@@ -345,11 +394,15 @@ async function findClassRiskOverview(classId, semesterId, startDate, endDate) {
     studentCode:       r.studentCode,
     studentName:       r.studentName,
     studentAvatar:     r.studentAvatar,
-    absences:          Number(r.absences),
+    absentExcused:     Number(r.absentExcused),
+    absentUnexcused:   Number(r.absentUnexcused),
     totalAttendance:   Number(r.totalAttendance),
     academicWarnings:  Number(r.academicWarnings),
     behaviourWarnings: Number(r.behaviourWarnings),
     conductScore:      r.conductScore === null ? null : Number(r.conductScore),
+    conductGrade:      r.conductGrade,
+    periodsPerSession: Number(r.periodsPerSession || 5),
+    countExcused:      Boolean(r.countExcused),
     activeGoals:       Number(r.activeGoals),
   }));
 }

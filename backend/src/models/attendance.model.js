@@ -23,6 +23,9 @@ async function findHistoryByStudentId(studentId, filters = {}) {
   if (context) {
     where += " AND a.attendance_context = ?";
     baseParams.push(context);
+    if (context === "CLASS") {
+      where += " AND a.timetable_id IS NOT NULL";
+    }
   }
 
   if (typeId) {
@@ -39,6 +42,7 @@ async function findHistoryByStudentId(studentId, filters = {}) {
     `
       SELECT
         a.attendance_id                            AS attendanceId,
+        a.timetable_id                             AS timetableId,
         DATE_FORMAT(a.attendance_date, '%Y-%m-%d') AS attendanceDate,
         a.check_in_time                            AS checkInTime,
         a.check_out_time                           AS checkOutTime,
@@ -342,22 +346,41 @@ async function findPeriodAttendance(timetableId, date) {
 }
 
 async function bulkUpsertPeriodAttendance({ timetableId, classId, date, records, createdBy }) {
+  if (!records.length) return;
+
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    for (const r of records) {
-      await conn.query(
-        `INSERT INTO attendance
-           (student_id, class_id, timetable_id, attendance_date, attendance_context,
-            attendance_type_id, note, created_by)
-         VALUES (?, ?, ?, ?, 'CLASS', ?, ?, ?)
-         ON DUPLICATE KEY UPDATE
-           attendance_type_id = VALUES(attendance_type_id),
-           note               = VALUES(note),
-           class_id           = VALUES(class_id)`,
-        [r.studentId, classId, timetableId, date, r.typeId, r.note ?? null, createdBy],
-      );
-    }
+    const values = records.map(() => "(?, ?, ?, ?, 'CLASS', ?, ?, ?)").join(", ");
+    const params = records.flatMap((record) => [
+      record.studentId,
+      classId,
+      timetableId,
+      date,
+      record.typeId,
+      record.note ?? null,
+      createdBy,
+    ]);
+
+    await conn.query(
+      `INSERT INTO attendance
+         (student_id, class_id, timetable_id, attendance_date, attendance_context,
+          attendance_type_id, note, created_by)
+       VALUES ${values}
+       ON DUPLICATE KEY UPDATE
+         attendance_type_id = IF(
+           attendance.note = 'Tự động ghi nhận từ đơn xin nghỉ đã được duyệt',
+           attendance.attendance_type_id,
+           VALUES(attendance_type_id)
+         ),
+         note = IF(
+           attendance.note = 'Tự động ghi nhận từ đơn xin nghỉ đã được duyệt',
+           attendance.note,
+           VALUES(note)
+         ),
+         class_id = VALUES(class_id)`,
+      params,
+    );
     await conn.commit();
   } catch (err) {
     await conn.rollback();
@@ -565,6 +588,7 @@ async function findClassAttendanceHistory(classId, filters = {}) {
      FROM attendance a
      WHERE a.class_id = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
        ${where}`,
     params,
   );
@@ -592,6 +616,7 @@ async function findClassAttendanceHistory(classId, filters = {}) {
        ON ua.user_id = s.user_id
      WHERE a.class_id = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
        ${where}
      ORDER BY a.attendance_date DESC, ua.full_name ASC
      LIMIT ? OFFSET ?`,
@@ -609,6 +634,7 @@ async function findClassAttendanceAnalytics(classId, startDate, endDate) {
        ON at.attendance_type_id = a.attendance_type_id
      WHERE a.class_id = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
        AND a.attendance_date BETWEEN ? AND ?
      GROUP BY at.attendance_type_id, at.type_name
      ORDER BY at.attendance_type_id ASC`,
@@ -625,6 +651,7 @@ async function findClassAttendanceAnalytics(classId, startDate, endDate) {
        ON at.attendance_type_id = a.attendance_type_id
      WHERE a.class_id = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
        AND a.attendance_date BETWEEN ? AND ?
      GROUP BY a.attendance_date, at.attendance_type_id, at.type_name
      ORDER BY a.attendance_date ASC`,
@@ -653,6 +680,7 @@ async function findClassAttendanceAnalytics(classId, startDate, endDate) {
        ON a.student_id = s.student_id
        AND a.class_id = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
        AND a.attendance_date BETWEEN ? AND ?
      LEFT JOIN attendance_type at
        ON at.attendance_type_id = a.attendance_type_id
@@ -669,7 +697,9 @@ async function findClassAttendanceAnalytics(classId, startDate, endDate) {
 // ── Parent-facing: per-student analytics ─────────────────────────────────────
 
 async function findStudentAttendanceAnalytics(studentId, startDate, endDate, context) {
-  const contextClause = context ? " AND a.attendance_context = ?" : "";
+  const contextClause = context
+    ? ` AND a.attendance_context = ?${context === "CLASS" ? " AND a.timetable_id IS NOT NULL" : ""}`
+    : "";
   const baseParams = [studentId, startDate, endDate];
   if (context) baseParams.push(context);
 

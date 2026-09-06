@@ -6,6 +6,7 @@ const {
   WARNING_RULES,
   getStanding,
 } = require("../config/academic.config");
+const { todayIso } = require("../utils/date");
 
 function httpError(message, statusCode) {
   const err = new Error(message);
@@ -184,9 +185,13 @@ async function getStudentAcademic({ studentId, semesterId }) {
   if (!profile) throw httpError("Không tìm thấy học sinh", 404);
 
   const semesters = await academicModel.findSemesters();
+  const today = todayIso();
+  const defaultSemester = semesters.find(
+    (semester) => semester.startDate <= today && semester.endDate >= today,
+  ) || semesters.find((semester) => semester.isActiveYear) || semesters[0];
   const targetSemesterId = semesterId
     ? parseInt(semesterId, 10)
-    : (semesters[0]?.semesterId ?? null);
+    : (defaultSemester?.semesterId ?? null);
 
   // Per-semester summaries
   const semesterSummaries = [];
@@ -197,7 +202,9 @@ async function getStudentAcademic({ studentId, semesterId }) {
     semesterSummaries.push({
       semesterId:     sem.semesterId,
       semesterName:   sem.semesterName,
+      schoolYearId:   sem.schoolYearId,
       schoolYearName: sem.schoolYearName,
+      startDate:      sem.startDate,
       ...summary,
     });
   }
@@ -211,15 +218,33 @@ async function getStudentAcademic({ studentId, semesterId }) {
     ranking = await computeRanking(profile.classId, targetSemesterId, studentId);
   }
 
-  // Yearly GPA = mean of that year's semester GPAs
+  // Điểm cả năm dùng cùng policy xét lên lớp: HK1 hệ số 1, HK2 hệ số 2.
   const yearly = {};
   for (const s of semesterSummaries) {
     if (s.gpa === null) continue;
     if (!yearly[s.schoolYearName]) yearly[s.schoolYearName] = [];
-    yearly[s.schoolYearName].push(s.gpa);
+    yearly[s.schoolYearName].push(s);
   }
-  const yearlyResults = Object.entries(yearly).map(([year, gpas]) => {
-    const avg = gpa.round2(gpas.reduce((a, b) => a + b, 0) / gpas.length);
+  const yearlyResults = Object.entries(yearly).map(([year, summaries]) => {
+    const ordered = [...summaries].sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+    const bySubject = new Map();
+    ordered.forEach((semester, index) => {
+      for (const subject of semester.subjects) {
+        if (subject.average === null) continue;
+        if (!bySubject.has(subject.subjectId)) bySubject.set(subject.subjectId, []);
+        bySubject.get(subject.subjectId).push({
+          average: subject.average,
+          weight: index === 1 ? 2 : 1,
+        });
+      }
+    });
+    const annualSubjectAverages = [...bySubject.values()].map((values) => {
+      const totalWeight = values.reduce((sum, item) => sum + item.weight, 0);
+      return values.reduce((sum, item) => sum + item.average * item.weight, 0) / totalWeight;
+    });
+    const avg = annualSubjectAverages.length
+      ? gpa.round2(annualSubjectAverages.reduce((sum, value) => sum + value, 0) / annualSubjectAverages.length)
+      : null;
     return { schoolYearName: year, gpa: avg, standing: getStanding(avg) };
   });
 
@@ -356,10 +381,11 @@ async function getClassTrend({ classId }) {
     if (gpas.length === 0) continue;
     trend.push({
       semesterName: `${sem.semesterName} (${sem.schoolYearName})`,
+      startDate: sem.startDate,
       classAverage: gpa.round2(gpas.reduce((a, b) => a + b, 0) / gpas.length),
     });
   }
-  return trend.reverse(); // chronological
+  return trend.sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
 }
 
 // ── Academic warnings (auto-generate from thresholds) ─────────────────────────
@@ -368,9 +394,9 @@ async function generateWarnings({ teacherId, actorUserId, classId, semesterId })
   if (!classId || !semesterId) throw httpError("Thiếu lớp hoặc học kỳ", 400);
 
   const semesters = await academicModel.findSemesters();
-  const targetIdx = semesters.findIndex((s) => s.semesterId === parseInt(semesterId, 10));
-  // semesters are ordered active-first/newest-first; "previous" is the next one
-  const prevSemester = targetIdx >= 0 ? semesters[targetIdx + 1] : null;
+  const chronological = [...semesters].sort((a, b) => String(a.startDate).localeCompare(String(b.startDate)));
+  const targetIdx = chronological.findIndex((s) => s.semesterId === parseInt(semesterId, 10));
+  const prevSemester = targetIdx > 0 ? chronological[targetIdx - 1] : null;
 
   const rows = await academicModel.findClassScores(parseInt(classId, 10), parseInt(semesterId, 10));
 

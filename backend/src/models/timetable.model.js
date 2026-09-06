@@ -1,4 +1,5 @@
 const { pool } = require("../config/db");
+const teacherSubjectModel = require("./teacherSubject.model");
 
 async function findCurrentStudentContext(userId) {
   const [rows] = await pool.query(
@@ -299,6 +300,7 @@ async function findLessonById(timetableId) {
         tt.timetable_id AS timetableId,
         tt.class_id AS classId,
         tt.teacher_id AS teacherId,
+        DATE_FORMAT(tt.lesson_date, '%Y-%m-%d') AS lessonDate,
         tt.day_of_week AS dayOfWeek,
         tt.period_no AS periodNo,
 
@@ -401,8 +403,6 @@ async function findTeacherCandidates(excludeTeacherId) {
         ON (
           LOWER(TRIM(specializeSubject.subject_name)) = LOWER(TRIM(t.subject_specialize))
           OR LOWER(TRIM(specializeSubject.subject_code)) = LOWER(TRIM(t.subject_specialize))
-          OR LOWER(TRIM(specializeSubject.subject_name)) LIKE CONCAT('%', LOWER(TRIM(t.subject_specialize)), '%')
-          OR LOWER(TRIM(t.subject_specialize)) LIKE CONCAT('%', LOWER(TRIM(specializeSubject.subject_name)), '%')
         )
         AND specializeSubject.status = 'ACTIVE'
 
@@ -433,32 +433,7 @@ async function findTeacherCandidates(excludeTeacherId) {
 }
 
 async function teacherCanTeachSubject(teacherId, subjectId) {
-  const [rows] = await pool.query(
-    `
-      SELECT 1 AS ok
-      FROM teacher t
-      INNER JOIN subject sb
-        ON sb.subject_id = ?
-      WHERE t.teacher_id = ?
-        AND (
-          EXISTS (
-            SELECT 1
-            FROM teacher_class tc
-            WHERE tc.teacher_id = t.teacher_id
-              AND tc.subject_id = sb.subject_id
-              AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
-          )
-          OR LOWER(TRIM(t.subject_specialize)) = LOWER(TRIM(sb.subject_name))
-          OR LOWER(TRIM(t.subject_specialize)) = LOWER(TRIM(sb.subject_code))
-          OR LOWER(TRIM(sb.subject_name)) LIKE CONCAT('%', LOWER(TRIM(t.subject_specialize)), '%')
-          OR LOWER(TRIM(t.subject_specialize)) LIKE CONCAT('%', LOWER(TRIM(sb.subject_name)), '%')
-        )
-      LIMIT 1
-    `,
-    [subjectId, teacherId],
-  );
-
-  return Boolean(rows[0]);
+  return teacherSubjectModel.teacherCanTeachSubject(teacherId, subjectId);
 }
 
 async function hasOpenSubstitutionForLesson(timetableId, targetDate) {
@@ -513,33 +488,63 @@ async function findStaffUserIds() {
 }
 
 async function createSubstitution(payload) {
-  const [result] = await pool.query(
-    `
-      INSERT INTO timetable_substitution
-        (
-          timetable_id,
-          requester_id,
-          request_type,
-          target_date,
-          substitute_teacher_id,
-          swap_timetable_id,
-          reason,
-          status
-        )
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
-    `,
-    [
-      payload.timetableId,
-      payload.requesterId,
-      payload.requestType,
-      payload.targetDate,
-      payload.substituteTeacherId ?? null,
-      payload.swapTimetableId ?? null,
-      payload.reason ?? null,
-    ],
-  );
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.query(
+      "SELECT timetable_id FROM timetable WHERE timetable_id = ? FOR UPDATE",
+      [payload.timetableId],
+    );
 
-  return result.insertId;
+    const [[existing]] = await connection.query(
+      `SELECT substitution_id AS substitutionId
+       FROM timetable_substitution
+       WHERE timetable_id = ?
+         AND target_date = ?
+         AND status IN ('PENDING', 'APPROVED')
+       LIMIT 1`,
+      [payload.timetableId, payload.targetDate],
+    );
+    if (existing) {
+      const error = new Error("Tiết học này đã có yêu cầu đang chờ duyệt hoặc đã duyệt");
+      error.statusCode = 409;
+      throw error;
+    }
+
+    const [result] = await connection.query(
+      `
+        INSERT INTO timetable_substitution
+          (
+            timetable_id,
+            requester_id,
+            request_type,
+            target_date,
+            substitute_teacher_id,
+            swap_timetable_id,
+            reason,
+            status
+          )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `,
+      [
+        payload.timetableId,
+        payload.requesterId,
+        payload.requestType,
+        payload.targetDate,
+        payload.substituteTeacherId ?? null,
+        payload.swapTimetableId ?? null,
+        payload.reason ?? null,
+      ],
+    );
+
+    await connection.commit();
+    return result.insertId;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
 
 async function findSubstitutionsByRequester(requesterId, filters = {}) {
@@ -808,42 +813,9 @@ async function findSubstitutionForStaffById(substitutionId) {
   const detail = rows[0] || null;
   if (!detail) return null;
 
-  const [candidates] = await pool.query(
-    `
-      SELECT
-        t.teacher_id AS teacherId,
-        t.teacher_code AS teacherCode,
-        t.subject_specialize AS subjectSpecialize,
-        ua.full_name AS fullName,
-        ua.email
-      FROM teacher t
-      INNER JOIN user_account ua
-        ON ua.user_id = t.user_id
-        AND ua.status = 'ACTIVE'
-      WHERE t.teacher_id <> ?
-        AND (
-          EXISTS (
-            SELECT 1
-            FROM teacher_class tc
-            WHERE tc.teacher_id = t.teacher_id
-              AND tc.subject_id = ?
-              AND (tc.end_date IS NULL OR tc.end_date >= CURDATE())
-          )
-          OR LOWER(TRIM(t.subject_specialize)) = LOWER(TRIM(?))
-          OR LOWER(TRIM(t.subject_specialize)) = LOWER(TRIM(?))
-          OR LOWER(TRIM(?)) LIKE CONCAT('%', LOWER(TRIM(t.subject_specialize)), '%')
-          OR LOWER(TRIM(t.subject_specialize)) LIKE CONCAT('%', LOWER(TRIM(?)), '%')
-        )
-      ORDER BY ua.full_name
-    `,
-    [
-      detail.requesterTeacherId || 0,
-      detail.subjectId,
-      detail.subjectName,
-      detail.subjectCode,
-      detail.subjectName,
-      detail.subjectName,
-    ],
+  const candidates = await teacherSubjectModel.findTeachersForSubject(
+    detail.subjectId,
+    { excludeTeacherId: detail.requesterTeacherId || 0 },
   );
 
   return {
@@ -866,12 +838,16 @@ async function reviewSubstitution(substitutionId, reviewerId, decision, reviewNo
           ts.request_type AS requestType,
           DATE_FORMAT(ts.target_date, '%Y-%m-%d') AS targetDate,
           ts.substitute_teacher_id AS substituteTeacherId,
+          ts.swap_timetable_id AS swapTimetableId,
           ts.status,
           ts.reason,
           tt.timetable_id AS timetableId,
+          DATE_FORMAT(tt.lesson_date, '%Y-%m-%d') AS lessonDate,
           tt.teacher_id AS baseTeacherId,
           tt.subject_id AS subjectId,
           tt.period_no AS periodNo,
+          tt.start_time AS startTime,
+          tt.end_time AS endTime,
           sb.subject_name AS subjectName,
           sc.class_name AS className
         FROM timetable_substitution ts
@@ -900,12 +876,22 @@ async function reviewSubstitution(substitutionId, reviewerId, decision, reviewNo
       throw error;
     }
 
+    if (
+      nextStatus === "APPROVED"
+      && substitution.lessonDate
+      && substitution.targetDate !== substitution.lessonDate
+    ) {
+      const error = new Error("Ngày áp dụng không trùng với ngày của tiết học đã chọn");
+      error.statusCode = 400;
+      throw error;
+    }
+
     const effectiveSubstituteTeacherId = substituteTeacherId
       ? Number(substituteTeacherId)
       : substitution.substituteTeacherId;
 
     const shouldArrangeSubstitute = nextStatus === "APPROVED"
-      && (Boolean(effectiveSubstituteTeacherId) || ["SUBSTITUTE", "CANCEL"].includes(substitution.requestType));
+      && substitution.requestType === "SUBSTITUTE";
 
     if (shouldArrangeSubstitute) {
       if (!effectiveSubstituteTeacherId) {
@@ -920,9 +906,10 @@ async function reviewSubstitution(substitutionId, reviewerId, decision, reviewNo
         throw error;
       }
 
-      const canTeach = await teacherCanTeachSubject(
+      const canTeach = await teacherSubjectModel.teacherCanTeachSubject(
         effectiveSubstituteTeacherId,
         substitution.subjectId,
+        connection,
       );
       if (!canTeach) {
         const error = new Error("Giáo viên dạy thay không đúng chuyên môn của tiết học");
@@ -989,11 +976,52 @@ async function reviewSubstitution(substitutionId, reviewerId, decision, reviewNo
       }
     }
 
+    if (nextStatus === "APPROVED" && substitution.requestType === "CANCEL") {
+      await connection.query(
+        `UPDATE timetable SET status = 'CANCELLED'
+         WHERE timetable_id = ? AND lesson_date = ? AND status = 'ACTIVE'`,
+        [substitution.timetableId, substitution.targetDate],
+      );
+    }
+
+    if (nextStatus === "APPROVED" && substitution.requestType === "SWAP") {
+      if (!substitution.swapTimetableId) {
+        const error = new Error("Yêu cầu chưa có tiết học để hoán đổi");
+        error.statusCode = 400;
+        throw error;
+      }
+      const [[swapLesson]] = await connection.query(
+        `SELECT timetable_id AS timetableId, period_no AS periodNo,
+                start_time AS startTime, end_time AS endTime,
+                DATE_FORMAT(lesson_date, '%Y-%m-%d') AS lessonDate
+         FROM timetable WHERE timetable_id = ? AND status = 'ACTIVE' FOR UPDATE`,
+        [substitution.swapTimetableId],
+      );
+      if (!swapLesson || swapLesson.lessonDate !== substitution.targetDate) {
+        const error = new Error("Tiết hoán đổi phải thuộc đúng ngày áp dụng");
+        error.statusCode = 400;
+        throw error;
+      }
+
+      const temporaryPeriod = 1000 + Number(substitution.periodNo);
+      await connection.query(
+        `UPDATE timetable SET period_no = ? WHERE timetable_id = ?`,
+        [temporaryPeriod, substitution.timetableId],
+      );
+      await connection.query(
+        `UPDATE timetable SET period_no = ?, start_time = ?, end_time = ? WHERE timetable_id = ?`,
+        [substitution.periodNo, substitution.startTime, substitution.endTime, substitution.swapTimetableId],
+      );
+      await connection.query(
+        `UPDATE timetable SET period_no = ?, start_time = ?, end_time = ? WHERE timetable_id = ?`,
+        [swapLesson.periodNo, swapLesson.startTime, swapLesson.endTime, substitution.timetableId],
+      );
+    }
+
     await connection.query(
       `
         UPDATE timetable_substitution
         SET status = ?,
-            request_type = CASE WHEN ? IS NOT NULL THEN 'SUBSTITUTE' ELSE request_type END,
             substitute_teacher_id = COALESCE(?, substitute_teacher_id),
             reviewed_by = ?,
             reviewed_at = NOW(),
@@ -1003,7 +1031,6 @@ async function reviewSubstitution(substitutionId, reviewerId, decision, reviewNo
       `,
       [
         nextStatus,
-        substituteTeacherId ? Number(substituteTeacherId) : null,
         substituteTeacherId ? Number(substituteTeacherId) : null,
         reviewerId,
         reviewNote,

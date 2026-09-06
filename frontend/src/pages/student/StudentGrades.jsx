@@ -213,8 +213,8 @@ function getAcademicRank(score) {
   if (value >= 8) return "Giỏi";
   if (value >= 6.5) return "Khá";
   if (value >= 5) return "Trung bình";
-
-  return "Cần cải thiện";
+  if (value >= 3.5) return "Yếu";
+  return "Kém";
 }
 
 function ScoreList({ values }) {

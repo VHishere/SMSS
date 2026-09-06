@@ -14,15 +14,19 @@ function formatLeaveDate(value) {
   return `${d}/${m}/${y}`;
 }
 
-function buildNotifications({ detail, decision, teacherUserId, comment }) {
+function buildNotifications({ detail, decision, teacherUserId, comment, pendingSupervisor }) {
   const isApprove   = decision === "APPROVE";
-  const actionLabel = isApprove ? "đã được duyệt" : "đã bị từ chối";
+  const actionLabel = pendingSupervisor
+    ? "đã được giáo viên chủ nhiệm duyệt và đang chờ quản nhiệm xác nhận"
+    : isApprove ? "đã được duyệt" : "đã bị từ chối";
   const range =
     detail.startDate === detail.endDate
       ? formatLeaveDate(detail.startDate)
       : `${formatLeaveDate(detail.startDate)} – ${formatLeaveDate(detail.endDate)}`;
 
-  const title   = isApprove ? "Đơn xin nghỉ đã được duyệt" : "Đơn xin nghỉ bị từ chối";
+  const title = pendingSupervisor
+    ? "Đơn xin nghỉ đang chờ quản nhiệm"
+    : isApprove ? "Đơn xin nghỉ đã được duyệt" : "Đơn xin nghỉ bị từ chối";
   const content =
     `Đơn xin nghỉ của ${detail.studentName} (${range}) ${actionLabel}.` +
     (comment ? ` Ghi chú: ${comment}` : "");
@@ -91,18 +95,30 @@ async function decideLeaveRequest({
     throw err;
   }
 
+  if (detail.approvalHistory?.some((item) => item.role === "HOMEROOM_TEACHER")) {
+    const err = new Error("Đơn đã được giáo viên chủ nhiệm xử lý và đang chờ quản nhiệm.");
+    err.statusCode = 409;
+    throw err;
+  }
+
   const teacherUserId = await leaveRequestModel.findTeacherUserId(actor.teacherId);
 
+  const waitsForSupervisor = decision === "APPROVE" && detail.requiresSupervisor;
   const notifications = buildNotifications({
     detail,
     decision,
     teacherUserId,
     comment: comment.trim(),
+    pendingSupervisor: waitsForSupervisor,
   });
+
+  const finalStatus = decision === "REJECT"
+    ? "REJECTED"
+    : waitsForSupervisor ? "PENDING" : "APPROVED";
 
   const { updated } = await leaveRequestModel.applyDecision({
     leaveRequestId,
-    newStatus: decision === "APPROVE" ? "APPROVED" : "REJECTED",
+    newStatus: finalStatus,
     approverUserId: actor.userId,
     role: pickTeacherRole(actor.roleNames),
     action: decision,
@@ -117,7 +133,11 @@ async function decideLeaveRequest({
     throw err;
   }
 
-  return { leaveRequestId, status: decision === "APPROVE" ? "APPROVED" : "REJECTED" };
+  return {
+    leaveRequestId,
+    status: finalStatus,
+    pendingSupervisor: waitsForSupervisor,
+  };
 }
 
 module.exports = {

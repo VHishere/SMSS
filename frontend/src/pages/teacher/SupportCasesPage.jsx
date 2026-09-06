@@ -260,7 +260,7 @@ function SupportCasesPage() {
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t p-4 text-sm" style={{ borderColor: "#FFE7D6", color: C.muted }}>
-              <span>Hiển thị {pageRows.length} trên {filtered.length} ca{statusF ? " (đã lọc)" : " đang hoạt động"}</span>
+              <span>Hiển thị {pageRows.length} trên {filtered.length} ca{statusF ? " (đã lọc)" : " hỗ trợ"}</span>
               {totalPages > 1 && (
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg p-1.5 transition hover:bg-[#E8E8E8] disabled:opacity-40"><Ms name="chevron_left" className="!text-[20px]" /></button>

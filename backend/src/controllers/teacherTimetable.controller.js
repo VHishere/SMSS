@@ -171,6 +171,12 @@ async function createSubstitution(req, res) {
     if (lesson.teacherId !== teacher.teacherId) {
       return res.status(403).json({ success: false, message: "Bạn không dạy tiết học này" });
     }
+    if (lesson.lessonDate && String(targetDate).slice(0, 10) !== lesson.lessonDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Ngày áp dụng phải đúng ngày của tiết học đã chọn",
+      });
+    }
 
     if (requestType === "SUBSTITUTE") {
       if (substituteTeacherId && parseInt(substituteTeacherId, 10) === teacher.teacherId) {

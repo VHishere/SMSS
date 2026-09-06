@@ -1731,8 +1731,10 @@ export const parentApi = {
   getStudentLessonFeedback: (studentId) =>
     request(`/parents/me/students/${studentId}/feedback`),
 
-  getStudentTimetable: (studentId) =>
-    request(`/parents/me/students/${studentId}/timetable`),
+  getStudentTimetable: (studentId, params = {}) => {
+    const qs = new URLSearchParams(cleanParams(params)).toString();
+    return request(`/parents/me/students/${studentId}/timetable${qs ? `?${qs}` : ""}`);
+  },
 
   getStudentGrades: (studentId) =>
     request(`/parents/me/students/${studentId}/grades`),
@@ -1849,10 +1851,10 @@ export const parentApi = {
     return request(`/parents/me/communication/conversations${qs ? `?${qs}` : ""}`);
   },
 
-  startConversation: (teacherUserId) =>
+  startConversation: (teacherUserId, studentId) =>
     request("/parents/me/communication/conversations", {
       method: "POST",
-      body: JSON.stringify({ teacherUserId }),
+      body: JSON.stringify({ teacherUserId, studentId }),
     }),
 
   uploadMessageFile: (file) => {
@@ -1893,11 +1895,6 @@ export const parentApi = {
   getFeeDetail: (feeAssignmentId) =>
     request(`/parents/me/fees/${feeAssignmentId}`),
 
-  createVietQrPayment: (feeAssignmentId) =>
-    request(`/parents/me/fees/${feeAssignmentId}/vietqr`, {
-      method: "POST",
-    }),
-
   createZaloPayOrder: (feeAssignmentId) =>
     request(`/parents/me/fees/${feeAssignmentId}/zalopay`, {
       method: "POST",
@@ -1916,6 +1913,36 @@ export const staffApi = {
   },
 
   getLookups: () => request("/staff/lookups"),
+
+  getBoardingManagement: (params = {}) => {
+    const query = new URLSearchParams(
+      Object.entries(params).filter(([, value]) => value !== "" && value != null),
+    ).toString();
+    return request(`/staff/boarding${query ? `?${query}` : ""}`);
+  },
+
+  createBoardingArea: (payload) =>
+    request("/staff/boarding/areas", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateBoardingArea: (areaId, payload) =>
+    request(`/staff/boarding/areas/${areaId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+
+  assignStudentToArea: (payload) =>
+    request("/staff/boarding/assignments", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  removeStudentFromArea: (studentAreaId) =>
+    request(`/staff/boarding/assignments/${studentAreaId}`, {
+      method: "DELETE",
+    }),
 
   getMessagesDashboard: () => request("/staff/communication/dashboard"),
 

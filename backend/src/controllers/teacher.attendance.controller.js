@@ -908,6 +908,7 @@ async function getAttendanceAnalytics(req, res) {
       const total   = Number(s.total);
       const present = Number(s.present);
       const late    = Number(s.late);
+      const earlyLeave = Number(s.earlyLeave);
       return {
         studentId:       s.studentId,
         studentCode:     s.studentCode,
@@ -917,9 +918,9 @@ async function getAttendanceAnalytics(req, res) {
         late,
         absentExcused:   Number(s.absentExcused),
         absentUnexcused: Number(s.absentUnexcused),
-        earlyLeave:      Number(s.earlyLeave),
+        earlyLeave,
         attendanceRate:
-          total > 0 ? Math.round(((present + late) / total) * 1000) / 10 : 0,
+          total > 0 ? Math.round(((present + late + earlyLeave) / total) * 1000) / 10 : 0,
       };
     });
 

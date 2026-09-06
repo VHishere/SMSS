@@ -34,7 +34,6 @@ const paymentMethodLabels = {
 };
 
 const providerLabels = {
-  VIETQR: "VietQR",
   ZALOPAY: "ZaloPay",
 };
 

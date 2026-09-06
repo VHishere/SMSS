@@ -66,6 +66,30 @@ function SupervisorAreas() {
     finally { setSavingNote(false); }
   }
 
+  function exportReport() {
+    const areas = data?.areas ?? [];
+    if (!areas.length) return;
+    const escapeCell = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const rows = [
+      ["Khu", "Loại khu", "Số phòng", "Số học sinh", "Tỷ lệ hiện diện", "Trạng thái"],
+      ...areas.map((area) => [
+        area.areaName,
+        AREA_TYPE_LABEL[area.areaType] ?? area.areaType,
+        area.roomCount,
+        area.studentCount,
+        area.presentRate == null ? "" : `${area.presentRate}%`,
+        area.status === "ACTIVE" ? "Hoạt động" : area.status,
+      ]),
+    ];
+    const csv = `\uFEFF${rows.map((row) => row.map(escapeCell).join(",")).join("\r\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `bao-cao-khu-noi-tru-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   const summary = data?.summary;
 
   return (
@@ -75,7 +99,7 @@ function SupervisorAreas() {
           <h2 className="text-2xl font-extrabold tracking-tight sm:text-3xl" style={{ color: C.onSurface }}>Khu tôi phụ trách</h2>
           <p className="mt-1 text-sm text-slate-500">Danh sách các khu ký túc xá đang được phân công giám sát trực tiếp.</p>
         </div>
-        <button type="button" className="flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition hover:bg-[#F3F3F3]" style={{ borderColor: C.border, color: C.onSurface }}>
+        <button type="button" onClick={exportReport} disabled={!data?.areas?.length} className="flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition hover:bg-[#F3F3F3] disabled:cursor-not-allowed disabled:opacity-50" style={{ borderColor: C.border, color: C.onSurface }}>
           <Ms name="download" className="!text-[18px]" /> Xuất báo cáo
         </button>
       </div>

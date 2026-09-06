@@ -589,7 +589,7 @@ async function recordFeePayment(feePlanId, assignmentId, data, recordedBy) {
 
   if (!MANUAL_PAYMENT_METHODS.has(paymentMethod)) {
     throw createHttpError(
-      "ZaloPay/VietQR trực tuyến phải được ghi nhận qua giao dịch và callback, không nhập tay",
+      "Thanh toán ZaloPay phải được ghi nhận qua giao dịch và callback, không nhập tay",
     );
   }
 

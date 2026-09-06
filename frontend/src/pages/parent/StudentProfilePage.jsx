@@ -100,6 +100,7 @@ function OverviewTab({ studentId, profile, semesterId, semester }) {
     parentApi.getStudentAttendanceAnalytics(studentId, {
       startDate: semester.startDate,
       endDate:   semester.endDate,
+      context:   "CLASS",
     }).then((res) => { if (m) setAttData(res.data); });
     return () => { m = false; };
   }, [studentId, semester?.startDate, semester?.endDate]);
@@ -111,7 +112,8 @@ function OverviewTab({ studentId, profile, semesterId, semester }) {
     const present  = byType.PRESENT?.count          ?? 0;
     const late     = byType.LATE?.count             ?? 0;
     const absUnexc = byType.ABSENT_UNEXCUSED?.count ?? 0;
-    const rate     = total > 0 ? +((present + late) / total * 100).toFixed(1) : null;
+    const earlyLeave = byType.EARLY_LEAVE?.count ?? 0;
+    const rate     = total > 0 ? +((present + late + earlyLeave) / total * 100).toFixed(1) : null;
     return { attendanceRate: rate, total, absentUnexcused: absUnexc, late };
   }, [attData]);
 
@@ -420,7 +422,7 @@ function AttendanceTab({ studentId, semester }) {
   useEffect(() => {
     if (!studentId || !startDate || !endDate) return;
     let m = true;
-    parentApi.getStudentAttendanceAnalytics(studentId, { startDate, endDate })
+    parentApi.getStudentAttendanceAnalytics(studentId, { startDate, endDate, context: "CLASS" })
       .then((res) => { if (m) setData(res.data); })
       .catch((err) => { if (m) setError(err.message); });
     return () => { m = false; };

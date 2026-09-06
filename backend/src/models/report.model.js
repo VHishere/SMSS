@@ -21,6 +21,7 @@ async function getClassAttendanceReport(classId, startDate, endDate) {
        ON a.student_id = s.student_id
        AND a.class_id = ?
        AND a.attendance_context = 'CLASS'
+       AND a.timetable_id IS NOT NULL
        AND a.attendance_date BETWEEN ? AND ?
      LEFT JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
      WHERE ce.class_id = ? AND ce.status = 'ACTIVE'
@@ -36,7 +37,7 @@ async function getClassAttendanceReport(classId, startDate, endDate) {
     const absentUnexcused = Number(r.absentUnexcused);
     const earlyLeave = Number(r.earlyLeave);
     const total = Number(r.total);
-    const attended = present + late;
+    const attended = present + late + earlyLeave;
     return {
       studentId: r.studentId,
       studentCode: r.studentCode,

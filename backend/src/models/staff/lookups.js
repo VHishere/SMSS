@@ -118,8 +118,6 @@ async function getLookups() {
         ON (
           LOWER(specialize_subject.subject_name) = LOWER(t.subject_specialize)
           OR LOWER(specialize_subject.subject_code) = LOWER(t.subject_specialize)
-          OR LOWER(specialize_subject.subject_name) LIKE CONCAT('%', LOWER(TRIM(t.subject_specialize)), '%')
-          OR LOWER(TRIM(t.subject_specialize)) LIKE CONCAT('%', LOWER(specialize_subject.subject_name), '%')
         )
         AND specialize_subject.status = 'ACTIVE'
       LEFT JOIN teacher_class tc

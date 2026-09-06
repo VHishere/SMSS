@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import PrettySelect from "../molecules/PrettySelect";
 
 import { timetableApi } from "../../api/client";
@@ -39,9 +39,7 @@ function canTeachSelectedLesson(candidate, lesson) {
   const subjectCode = normalizeText(lesson.subjectCode);
   if (!specialize) return false;
   return specialize === subjectName
-    || specialize === subjectCode
-    || specialize.includes(subjectName)
-    || subjectName.includes(specialize);
+    || specialize === subjectCode;
 }
 
 /**
@@ -69,18 +67,11 @@ function SubstitutionModal({ lessons = [], candidates = [], initialTimetableId, 
     [compatibleCandidates, teacherSearch],
   );
 
-  useEffect(() => {
-    if (mode !== "SPECIFIC" || !teacherId) return;
-    const stillValid = compatibleCandidates.some(
-      (candidate) => String(candidate.teacherId) === String(teacherId),
-    );
-    if (!stillValid) setTeacherId("");
-  }, [compatibleCandidates, mode, teacherId]);
-
   async function handleSubmit() {
     if (!timetableId) { setErrorMsg("Vui lòng chọn ca dạy"); return; }
     if (mode === "SPECIFIC" && !teacherId) { setErrorMsg("Chọn giáo viên bạn muốn nhờ dạy thay"); return; }
     if (!selectedLesson) { setErrorMsg("Ca dạy không hợp lệ"); return; }
+    if (!reason.trim()) { setErrorMsg("Vui lòng nhập lý do đổi tiết"); return; }
     if (mode === "SPECIFIC" && !compatibleCandidates.some((c) => String(c.teacherId) === String(teacherId))) {
       setErrorMsg("Giáo viên được chọn không cùng chuyên môn với tiết học này");
       return;
@@ -91,10 +82,10 @@ function SubstitutionModal({ lessons = [], candidates = [], initialTimetableId, 
       await timetableApi.createSubstitution({
         timetableId: Number(timetableId),
         requestType: "SUBSTITUTE",
-        targetDate: nextDateForDow(selectedLesson.dayOfWeek),
+        targetDate: selectedLesson.lessonDate || nextDateForDow(selectedLesson.dayOfWeek),
         substituteTeacherId: mode === "SPECIFIC" ? Number(teacherId) : null,
         swapTimetableId: null,
-        reason: reason.trim() || null,
+        reason: reason.trim(),
       });
       onSaved();
     } catch (err) { setErrorMsg(err.message); } finally { setBusy(false); }
@@ -114,7 +105,14 @@ function SubstitutionModal({ lessons = [], candidates = [], initialTimetableId, 
           {/* Bước 1 */}
           <div>
             <label className="mb-1.5 block text-sm font-bold" style={{ color: C.onSurface }}>Bước 1: Chọn ca dạy của bạn muốn đổi</label>
-            <PrettySelect value={timetableId} onChange={(e) => setTimetableId(e.target.value)} className={inputCls}>
+            <PrettySelect
+              value={timetableId}
+              onChange={(e) => {
+                setTimetableId(e.target.value);
+                setTeacherId("");
+              }}
+              className={inputCls}
+            >
               {lessons.length === 0 && <option value="">Chưa có tiết dạy</option>}
               {lessons.map((l) => <option key={l.timetableId} value={l.timetableId}>{lessonLabel(l)}</option>)}
             </PrettySelect>
@@ -160,7 +158,7 @@ function SubstitutionModal({ lessons = [], candidates = [], initialTimetableId, 
 
           {/* Reason */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-slate-600">Lý do đổi ca (Tùy chọn)</label>
+            <label className="mb-1.5 block text-xs font-medium text-slate-600">Lý do đổi tiết</label>
             <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="Nhập lý do của bạn..." className={`${inputCls} resize-none`} />
           </div>
 

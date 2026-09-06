@@ -49,7 +49,7 @@ async function parentAccessibleByTeacher(teacherId, parentUserId) {
 }
 
 // A teacher (by user_id) is reachable by a parent if linked via any of the parent's active students.
-async function teacherAccessibleByParent(parentUserId, teacherUserId) {
+async function teacherAccessibleByParent(parentUserId, teacherUserId, studentId = null) {
   const [[row]] = await pool.query(
     `SELECT 1 AS ok
      FROM parent_profile pp
@@ -61,8 +61,9 @@ async function teacherAccessibleByParent(parentUserId, teacherUserId) {
      INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
      INNER JOIN teacher t ON t.teacher_id = tc.teacher_id
      WHERE pp.user_id = ? AND t.user_id = ?
+       AND (? IS NULL OR s.student_id = ?)
      LIMIT 1`,
-    [parentUserId, teacherUserId],
+    [parentUserId, teacherUserId, studentId, studentId],
   );
   return Boolean(row);
 }
@@ -251,6 +252,7 @@ async function findScopedMemberUserIds({ classId, gradeId, audience }) {
       `SELECT s.user_id AS userId
        FROM class_enrollment ce
        INNER JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+       INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
        INNER JOIN student s ON s.student_id = ce.student_id AND s.status = 'ACTIVE'
        INNER JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
        WHERE ce.status = 'ACTIVE' AND ${scopeWhere}`,
@@ -264,6 +266,7 @@ async function findScopedMemberUserIds({ classId, gradeId, audience }) {
       `SELECT pp.user_id AS userId
        FROM class_enrollment ce
        INNER JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+       INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
        INNER JOIN student_parent sp ON sp.student_id = ce.student_id
        INNER JOIN parent_profile pp ON pp.parent_id = sp.parent_id
        INNER JOIN user_account ua ON ua.user_id = pp.user_id AND ua.status = 'ACTIVE'
@@ -441,24 +444,26 @@ async function findParticipants(conversationId) {
 // carry a third participant (e.g. a counselor sitting in on a parent/teacher
 // thread), and reusing one of those would expose the history to someone the
 // caller did not pick.
-function directConversationKey(userA, userB) {
-  return [Number(userA), Number(userB)].sort((a, b) => a - b).join(":");
+function directConversationKey(userA, userB, studentId = null) {
+  const users = [Number(userA), Number(userB)].sort((a, b) => a - b).join(":");
+  return studentId ? `${users}:student:${Number(studentId)}` : users;
 }
 
-async function findOneToOneConversation(userA, userB) {
+async function findOneToOneConversation(userA, userB, studentId = null) {
   const [[row]] = await pool.query(
     `SELECT c.conversation_id AS conversationId
      FROM conversation c
      INNER JOIN conversation_participant a ON a.conversation_id = c.conversation_id AND a.user_id = ?
      INNER JOIN conversation_participant b ON b.conversation_id = c.conversation_id AND b.user_id = ?
      WHERE c.conversation_type <> 'GROUP'
+       AND ${studentId ? "c.student_id = ?" : "c.student_id IS NULL"}
        AND (
          SELECT COUNT(*) FROM conversation_participant cp
          WHERE cp.conversation_id = c.conversation_id
        ) = 2
      ORDER BY c.conversation_id ASC
      LIMIT 1`,
-    [userA, userB],
+    studentId ? [userA, userB, Number(studentId)] : [userA, userB],
   );
   return row ? row.conversationId : null;
 }
@@ -476,7 +481,7 @@ async function createConversation({
   // dm_key is UNIQUE, so two callers racing to open the same 1-1 thread can
   // never end up with two rows — the loser reuses the winner's conversation.
   const dmKey = type !== "GROUP" && participants.length === 2
-    ? directConversationKey(participants[0].userId, participants[1].userId)
+    ? directConversationKey(participants[0].userId, participants[1].userId, studentId)
     : null;
 
   const conn = await pool.getConnection();
@@ -505,6 +510,7 @@ async function createConversation({
       const existing = await findOneToOneConversation(
         participants[0].userId,
         participants[1].userId,
+        studentId,
       );
       if (existing) return existing;
     }

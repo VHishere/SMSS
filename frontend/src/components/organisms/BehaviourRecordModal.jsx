@@ -52,7 +52,7 @@ function BehaviourRecordModal({ mode, behaviorType, students = [], record = null
   // Khi người dùng tự chọn mức độ thì ngừng ghi đè tự động.
   const [severityTouched, setSeverityTouched] = useState(false);
   const [affectsConduct, setAffectsConduct] = useState(record?.affectsConduct ?? false);
-  const [recordDate,   setRecordDate]   = useState(toLocalDate(record?.recordDate) || new Date().toISOString().slice(0, 10));
+  const [recordDate,   setRecordDate]   = useState(toLocalDate(record?.recordDate) || todayLocal());
   const [description,  setDescription]  = useState(record?.description ?? "");
   const [evidence,     setEvidence]     = useState(record?.evidenceUrl ? { fileUrl: record.evidenceUrl, fileName: "Minh chứng" } : null);
 

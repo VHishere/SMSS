@@ -49,6 +49,20 @@ async function ownsArea(supervisorId, areaId) {
   return Boolean(row);
 }
 
+async function getDormAttendanceWindow(date) {
+  const [[row]] = await pool.query(
+    `SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS today,
+            TIME_FORMAT(CURTIME(), '%H:%i') AS currentTime`,
+  );
+  const isToday = String(date) === row.today;
+  return {
+    opensAt: "21:00",
+    currentTime: row.currentTime,
+    isToday,
+    canSubmit: isToday && row.currentTime >= "21:00",
+  };
+}
+
 // ── Dashboard ────────────────────────────────────────────────────────────────
 async function findDashboardStats(areaIds) {
   if (!areaIds.length) {
@@ -132,7 +146,7 @@ async function findRecentActivity(supervisorId, areaIds) {
             ua.full_name AS actor, stu.full_name AS studentName
      FROM leave_approval la
      JOIN leave_request lr ON lr.leave_request_id = la.leave_request_id
-     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph})
+     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph}) AND sa.status = 'ACTIVE'
      JOIN user_account ua ON ua.user_id = la.approver_id
      JOIN student s ON s.student_id = lr.student_id
      JOIN user_account stu ON stu.user_id = s.user_id
@@ -160,18 +174,24 @@ async function findLeaveApprovals(areaIds, { limit = 10 } = {}) {
   const [rows] = await pool.query(
     `SELECT lr.leave_request_id AS id, lr.leave_type AS leaveType, lr.status,
             lr.start_date AS startDate, lr.end_date AS endDate,
-            stu.full_name AS studentName, sc.class_name AS className,
+            stu.full_name AS studentName,
+            (SELECT sc.class_name
+             FROM class_enrollment ce
+             JOIN school_class sc ON sc.class_id = ce.class_id
+             JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+             WHERE ce.student_id = s.student_id
+               AND (DATE(lr.start_date) BETWEEN sy.start_date AND sy.end_date OR sy.is_active = 1)
+             ORDER BY CASE WHEN DATE(lr.start_date) BETWEEN sy.start_date AND sy.end_date THEN 0 ELSE 1 END,
+                      sy.start_date DESC LIMIT 1) AS className,
             MAX(CASE WHEN la.role = 'HOMEROOM_TEACHER' THEN la.action END) AS gvcnAction,
             MAX(CASE WHEN la.role = 'DORM_SUPERVISOR'  THEN la.action END) AS gvqnAction
      FROM leave_request lr
-     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph})
+     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph}) AND sa.status = 'ACTIVE'
      JOIN student s ON s.student_id = lr.student_id
      JOIN user_account stu ON stu.user_id = s.user_id
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
      LEFT JOIN leave_approval la ON la.leave_request_id = lr.leave_request_id
      GROUP BY lr.leave_request_id, lr.leave_type, lr.status, lr.start_date, lr.end_date,
-              lr.created_at, stu.full_name, sc.class_name
+              lr.created_at, stu.full_name, className
      ORDER BY lr.created_at DESC
      LIMIT ?`,
     [...areaIds, limit],
@@ -189,21 +209,27 @@ async function findLeaveRequests(areaIds) {
             lr.start_date AS startDate, lr.end_date AS endDate, lr.reason,
             lr.attachment_id AS attachmentId, lr.created_at AS createdAt,
             stu.full_name AS studentName, s.student_code AS studentCode,
-            sc.class_name AS className, r.room_name AS roomName,
+            (SELECT sc.class_name
+             FROM class_enrollment ce
+             JOIN school_class sc ON sc.class_id = ce.class_id
+             JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+             WHERE ce.student_id = s.student_id
+               AND (DATE(lr.start_date) BETWEEN sy.start_date AND sy.end_date OR sy.is_active = 1)
+             ORDER BY CASE WHEN DATE(lr.start_date) BETWEEN sy.start_date AND sy.end_date THEN 0 ELSE 1 END,
+                      sy.start_date DESC LIMIT 1) AS className,
+            r.room_name AS roomName,
             MAX(CASE WHEN la.role = 'HOMEROOM_TEACHER' THEN la.action END) AS gvcnAction,
             MAX(CASE WHEN la.role = 'DORM_SUPERVISOR'  THEN la.action END) AS gvqnAction,
             MAX(CASE WHEN la.role = 'DORM_SUPERVISOR'  THEN la.comment END) AS gvqnComment
      FROM leave_request lr
-     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph})
+     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph}) AND sa.status = 'ACTIVE'
      JOIN student s ON s.student_id = lr.student_id
      JOIN user_account stu ON stu.user_id = s.user_id
      LEFT JOIN room r ON r.room_id = sa.room_id
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
      LEFT JOIN leave_approval la ON la.leave_request_id = lr.leave_request_id
      GROUP BY lr.leave_request_id, lr.leave_type, lr.status, lr.start_date, lr.end_date,
               lr.reason, lr.attachment_id, lr.created_at, stu.full_name, s.student_code,
-              sc.class_name, r.room_name
+              className, r.room_name
      ORDER BY lr.created_at DESC`,
     areaIds,
   );
@@ -219,7 +245,7 @@ async function findLeaveRequestScoped(id, areaIds) {
             MAX(CASE WHEN la.role = 'HOMEROOM_TEACHER' THEN la.action END) AS gvcnAction,
             MAX(CASE WHEN la.role = 'DORM_SUPERVISOR'  THEN la.action END) AS gvqnAction
      FROM leave_request lr
-     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph})
+     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph}) AND sa.status = 'ACTIVE'
      LEFT JOIN leave_approval la ON la.leave_request_id = lr.leave_request_id
      WHERE lr.leave_request_id = ?
      GROUP BY lr.leave_request_id, lr.status, lr.student_id, lr.parent_id`,
@@ -238,9 +264,29 @@ async function decideLeaveByGvqn(approverUserId, id, action, comment) {
        VALUES (?, ?, 'DORM_SUPERVISOR', ?, ?)`,
       [id, approverUserId, action, comment || null],
     );
-    // GVQN từ chối → chặn đơn (dorm không cho ra); GVQN duyệt → giữ APPROVED (đủ 2 cấp).
-    if (action === "REJECT") {
-      await conn.query(`UPDATE leave_request SET status = 'REJECTED' WHERE leave_request_id = ?`, [id]);
+    await conn.query(
+      `UPDATE leave_request SET status = ? WHERE leave_request_id = ? AND status = 'PENDING'`,
+      [action === "APPROVE" ? "APPROVED" : "REJECTED", id],
+    );
+
+    if (action === "APPROVE") {
+      const leaveRequestModel = require("./leaveRequest.model");
+      const [[leave]] = await conn.query(
+        `SELECT lr.student_id AS studentId,
+                DATE_FORMAT(lr.start_date, '%Y-%m-%d') AS startDate,
+                DATE_FORMAT(lr.end_date, '%Y-%m-%d') AS endDate,
+                (SELECT ce.class_id FROM class_enrollment ce
+                 INNER JOIN school_class sc ON sc.class_id = ce.class_id AND sc.status = 'ACTIVE'
+                 INNER JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
+                 WHERE ce.student_id = lr.student_id AND ce.status = 'ACTIVE'
+                 ORDER BY ce.enrollment_date DESC, ce.enrollment_id DESC LIMIT 1) AS classId
+         FROM leave_request lr WHERE lr.leave_request_id = ?`,
+        [id],
+      );
+      await leaveRequestModel.markApprovedLeaveAttendance(conn, {
+        ...leave,
+        approverUserId,
+      });
     }
     // Thông báo cho HS + phụ huynh
     const [[recv]] = await conn.query(
@@ -358,15 +404,20 @@ async function findAttendanceRoster(areaId, { date, roomId, floor, q }) {
   if (q) { extra += " AND (ua.full_name LIKE ? OR s.student_code LIKE ?)"; params.push(`%${q}%`, `%${q}%`); }
   const [rows] = await pool.query(
     `SELECT s.student_id AS studentId, s.student_code AS studentCode, ua.full_name AS studentName,
-            ua.avatar, sc.class_name AS className, r.room_name AS roomName, r.floor,
+            ua.avatar,
+            (SELECT sc.class_name
+             FROM class_enrollment ce
+             JOIN school_class sc ON sc.class_id = ce.class_id
+             JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
+             WHERE ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+             LIMIT 1) AS className,
+            r.room_name AS roomName, r.floor,
             a.attendance_type_id AS typeId, at.type_name AS typeName, at.description AS typeLabel,
             DATE_FORMAT(a.check_in_time, '%H:%i') AS checkIn
      FROM student_area st
      JOIN student s ON s.student_id = st.student_id
      JOIN user_account ua ON ua.user_id = s.user_id
      LEFT JOIN room r ON r.room_id = st.room_id
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
      LEFT JOIN attendance a ON a.student_id = s.student_id AND a.area_id = st.area_id
             AND a.attendance_context = 'DORM' AND a.attendance_date = ?
      LEFT JOIN attendance_type at ON at.attendance_type_id = a.attendance_type_id
@@ -562,14 +613,18 @@ async function findWeekendRegistrations(areaIds, weekendDate) {
     `SELECT wr.registration_id AS id, wr.reg_type AS regType, wr.pickup_by AS pickupBy,
             wr.note, wr.status, wr.weekend_date AS weekendDate,
             ua.full_name AS studentName, s.student_code AS studentCode,
-            sc.class_name AS className, r.room_name AS roomName
+            (SELECT sc.class_name
+             FROM class_enrollment ce
+             JOIN school_class sc ON sc.class_id = ce.class_id
+             JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
+             WHERE ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+             LIMIT 1) AS className,
+            r.room_name AS roomName
      FROM weekend_registration wr
      JOIN student s ON s.student_id = wr.student_id
      JOIN user_account ua ON ua.user_id = s.user_id
-     LEFT JOIN student_area sa ON sa.student_id = wr.student_id AND sa.area_id = wr.area_id
+     LEFT JOIN student_area sa ON sa.student_id = wr.student_id AND sa.area_id = wr.area_id AND sa.status = 'ACTIVE'
      LEFT JOIN room r ON r.room_id = sa.room_id
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
      WHERE wr.area_id IN (${ph}) AND wr.weekend_date = ?
      ORDER BY wr.reg_type, ua.full_name`,
     [...areaIds, weekendDate],
@@ -595,12 +650,13 @@ async function findSupportCases(areaIds, { status } = {}) {
   let extra = "";
   if (status) { extra = " AND sc.status = ?"; params.push(status); }
   const [rows] = await pool.query(
-    `SELECT sc.case_id AS caseId, sc.category, sc.severity, sc.title, sc.description, sc.status,
+    `SELECT DISTINCT sc.case_id AS caseId, sc.category, sc.severity, sc.title, sc.description, sc.status,
             sc.created_at AS createdAt, ua.full_name AS studentName, s.student_code AS studentCode,
             r.room_name AS roomName, opener.full_name AS openedByName
      FROM support_case sc
      JOIN student s ON s.student_id = sc.student_id
-     JOIN student_area saa ON saa.student_id = sc.student_id AND saa.area_id IN (${ph})
+     JOIN student_area saa ON saa.student_id = sc.student_id
+       AND saa.area_id IN (${ph}) AND saa.status = 'ACTIVE'
      JOIN user_account ua ON ua.user_id = s.user_id
      LEFT JOIN room r ON r.room_id = saa.room_id
      LEFT JOIN user_account opener ON opener.user_id = sc.opened_by
@@ -621,7 +677,7 @@ async function findAreaStudents(areaIds) {
      JOIN student s ON s.student_id = saa.student_id
      JOIN user_account ua ON ua.user_id = s.user_id
      LEFT JOIN room r ON r.room_id = saa.room_id
-     WHERE saa.area_id IN (${ph})
+     WHERE saa.area_id IN (${ph}) AND saa.status = 'ACTIVE'
      ORDER BY ua.full_name`,
     areaIds,
   );
@@ -632,7 +688,8 @@ async function studentInArea(areaIds, studentId) {
   if (!areaIds.length) return false;
   const ph = areaIds.map(() => "?").join(",");
   const [[row]] = await pool.query(
-    `SELECT 1 AS ok FROM student_area WHERE student_id = ? AND area_id IN (${ph}) LIMIT 1`,
+    `SELECT 1 AS ok FROM student_area
+     WHERE student_id = ? AND area_id IN (${ph}) AND status = 'ACTIVE' LIMIT 1`,
     [studentId, ...areaIds],
   );
   return Boolean(row);
@@ -643,17 +700,21 @@ async function findAreaContacts(areaIds) {
   const ph = areaIds.map(() => "?").join(",");
   const [rows] = await pool.query(
     `SELECT pu.full_name AS parentName, pu.phone, pu.email, spr.relationship, spr.is_primary AS isPrimary,
-            stu.full_name AS studentName, s.student_code AS studentCode, r.room_name AS roomName, sc.class_name AS className
+            stu.full_name AS studentName, s.student_code AS studentCode, r.room_name AS roomName,
+            (SELECT sc.class_name
+             FROM class_enrollment ce
+             JOIN school_class sc ON sc.class_id = ce.class_id
+             JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
+             WHERE ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+             LIMIT 1) AS className
      FROM student_area saa
      JOIN student s ON s.student_id = saa.student_id
      JOIN user_account stu ON stu.user_id = s.user_id
      LEFT JOIN room r ON r.room_id = saa.room_id
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
      JOIN student_parent spr ON spr.student_id = s.student_id
      JOIN parent_profile pp ON pp.parent_id = spr.parent_id
      JOIN user_account pu ON pu.user_id = pp.user_id
-     WHERE saa.area_id IN (${ph})
+     WHERE saa.area_id IN (${ph}) AND saa.status = 'ACTIVE'
      ORDER BY stu.full_name, spr.is_primary DESC`,
     areaIds,
   );
@@ -670,19 +731,25 @@ async function findPendingGvqnLeaveRequests(areaIds, { limit = 50 } = {}) {
   const [rows] = await pool.query(
     `SELECT lr.leave_request_id AS id, lr.leave_type AS leaveType, lr.status,
             lr.start_date AS startDate, lr.end_date AS endDate,
-            stu.full_name AS studentName, sc.class_name AS className,
+            stu.full_name AS studentName,
+            (SELECT sc.class_name
+             FROM class_enrollment ce
+             JOIN school_class sc ON sc.class_id = ce.class_id
+             JOIN school_year sy ON sy.school_year_id = sc.school_year_id
+             WHERE ce.student_id = s.student_id
+               AND (DATE(lr.start_date) BETWEEN sy.start_date AND sy.end_date OR sy.is_active = 1)
+             ORDER BY CASE WHEN DATE(lr.start_date) BETWEEN sy.start_date AND sy.end_date THEN 0 ELSE 1 END,
+                      sy.start_date DESC LIMIT 1) AS className,
             MAX(CASE WHEN la.role = 'HOMEROOM_TEACHER' THEN la.action END) AS gvcnAction,
             MAX(CASE WHEN la.role = 'DORM_SUPERVISOR'  THEN la.action END) AS gvqnAction
      FROM leave_request lr
-     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph})
+     JOIN student_area sa ON sa.student_id = lr.student_id AND sa.area_id IN (${ph}) AND sa.status = 'ACTIVE'
      JOIN student s ON s.student_id = lr.student_id
      JOIN user_account stu ON stu.user_id = s.user_id
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
      LEFT JOIN leave_approval la ON la.leave_request_id = lr.leave_request_id
      WHERE lr.status <> 'CANCELLED'
      GROUP BY lr.leave_request_id, lr.leave_type, lr.status, lr.start_date, lr.end_date,
-              lr.created_at, stu.full_name, sc.class_name
+              lr.created_at, stu.full_name, className
      HAVING gvcnAction = 'APPROVE' AND gvqnAction IS NULL
      ORDER BY lr.created_at DESC
      LIMIT ?`,
@@ -698,13 +765,17 @@ async function findAreaMessageStudents(areaIds) {
   const [rows] = await pool.query(
     `SELECT DISTINCT s.user_id AS studentUserId, s.student_id AS studentId,
             ua.full_name AS studentName, ua.avatar AS studentAvatar,
-            s.student_code AS studentCode, sc.class_name AS className
+            s.student_code AS studentCode,
+            (SELECT sc.class_name
+             FROM class_enrollment ce
+             JOIN school_class sc ON sc.class_id = ce.class_id
+             JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
+             WHERE ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+             LIMIT 1) AS className
      FROM student_area saa
      JOIN student s ON s.student_id = saa.student_id
      JOIN user_account ua ON ua.user_id = s.user_id AND ua.status = 'ACTIVE'
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
-     WHERE saa.area_id IN (${ph})
+     WHERE saa.area_id IN (${ph}) AND saa.status = 'ACTIVE'
      ORDER BY ua.full_name`,
     areaIds,
   );
@@ -718,16 +789,20 @@ async function findAreaMessageParents(areaIds) {
     `SELECT DISTINCT ppu.user_id AS parentUserId, ppu.full_name AS parentName,
             ppu.avatar AS parentAvatar,
             s.student_id AS studentId, stu.full_name AS studentName,
-            sc.class_name AS className, spr.relationship, spr.is_primary AS isPrimary
+            (SELECT sc.class_name
+             FROM class_enrollment ce
+             JOIN school_class sc ON sc.class_id = ce.class_id
+             JOIN school_year sy ON sy.school_year_id = sc.school_year_id AND sy.is_active = 1
+             WHERE ce.student_id = s.student_id AND ce.status = 'ACTIVE'
+             LIMIT 1) AS className,
+            spr.relationship, spr.is_primary AS isPrimary
      FROM student_area saa
      JOIN student s ON s.student_id = saa.student_id
      JOIN user_account stu ON stu.user_id = s.user_id
-     LEFT JOIN class_enrollment ce ON ce.student_id = s.student_id AND ce.status = 'ACTIVE'
-     LEFT JOIN school_class sc ON sc.class_id = ce.class_id
      JOIN student_parent spr ON spr.student_id = s.student_id
      JOIN parent_profile pp ON pp.parent_id = spr.parent_id
      JOIN user_account ppu ON ppu.user_id = pp.user_id AND ppu.status = 'ACTIVE'
-     WHERE saa.area_id IN (${ph})
+     WHERE saa.area_id IN (${ph}) AND saa.status = 'ACTIVE'
      ORDER BY stu.full_name, spr.is_primary DESC`,
     areaIds,
   );
@@ -743,7 +818,7 @@ async function parentInArea(areaIds, parentUserId) {
      FROM student_area saa
      JOIN student_parent spr ON spr.student_id = saa.student_id
      JOIN parent_profile pp ON pp.parent_id = spr.parent_id
-     WHERE pp.user_id = ? AND saa.area_id IN (${ph}) LIMIT 1`,
+     WHERE pp.user_id = ? AND saa.area_id IN (${ph}) AND saa.status = 'ACTIVE' LIMIT 1`,
     [parentUserId, ...areaIds],
   );
   return Boolean(row);
@@ -752,6 +827,7 @@ async function parentInArea(areaIds, parentUserId) {
 module.exports = {
   SHIFTS,
   dbToday,
+  getDormAttendanceWindow,
   findPendingGvqnLeaveRequests,
   findAreaMessageStudents,
   findAreaMessageParents,

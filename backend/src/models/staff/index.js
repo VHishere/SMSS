@@ -7,6 +7,7 @@ const schoolYears = require("./schoolYears");
 const classes = require("./classes");
 const curriculum = require("./curriculum");
 const fees = require("./fees");
+const boarding = require("./boarding");
 
 module.exports = {
   ...overview,
@@ -18,4 +19,5 @@ module.exports = {
   ...classes,
   ...curriculum,
   ...fees,
+  ...boarding,
 };

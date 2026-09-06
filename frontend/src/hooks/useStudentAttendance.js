@@ -1,26 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { studentApi } from "../api/client";
 
-export function useStudentAttendance(filters = {}, refreshKey = 0) {
+export function useStudentAttendance(filters = {}, refreshKey = 0, pollMs = 0) {
   const [history, setHistory] = useState(null);
   const [analytics, setAnalytics] = useState(null);
   const [leaveRequests, setLeaveRequests] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const depsKey = useMemo(
-    () => JSON.stringify(filters),
-    [filters],
-  );
-
   useEffect(() => {
     let isMounted = true;
 
-    setLoading(true);
-    setError("");
-
-    Promise.all([
+    const load = () => Promise.all([
       studentApi.getMyAttendanceHistory(filters),
       studentApi.getMyAttendanceAnalytics(filters),
       studentApi
@@ -36,6 +28,7 @@ export function useStudentAttendance(filters = {}, refreshKey = 0) {
           setHistory(historyResponse.data);
           setAnalytics(analyticsResponse.data);
           setLeaveRequests(leaveRequestsResponse.data);
+          setError("");
         }
       })
       .catch((requestError) => {
@@ -49,10 +42,14 @@ export function useStudentAttendance(filters = {}, refreshKey = 0) {
         }
       });
 
+    load();
+    const timer = pollMs > 0 ? window.setInterval(load, pollMs) : null;
+
     return () => {
       isMounted = false;
+      if (timer) window.clearInterval(timer);
     };
-  }, [depsKey, refreshKey]);
+  }, [filters, refreshKey, pollMs]);
 
   return {
     history,
